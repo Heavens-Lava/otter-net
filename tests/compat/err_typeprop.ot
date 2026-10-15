@@ -1,0 +1,5 @@
+a Book has
+    title
+.
+empty is a Book
+say pages of empty

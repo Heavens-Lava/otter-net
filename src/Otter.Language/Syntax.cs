@@ -78,6 +78,13 @@ public sealed class OfOperationExpr(OfOperation operation, Expr subject, int lin
     public Expr Subject { get; } = subject;
 }
 
+// name of person / city of address of user
+public sealed class PropertyAccessExpr(string property, Expr target, int line) : Expr(line)
+{
+    public string Property { get; } = property;
+    public Expr Target { get; } = target;
+}
+
 public sealed class CallExpr(string name, IReadOnlyList<Expr> arguments, int line) : Expr(line)
 {
     public string Name { get; } = name;
@@ -88,10 +95,28 @@ public sealed class CallExpr(string name, IReadOnlyList<Expr> arguments, int lin
 
 public sealed class SayStmt(IReadOnlyList<Expr> parts, int line) : Stmt(line) { public IReadOnlyList<Expr> Parts { get; } = parts; }
 
-public sealed class AssignStmt(string name, Expr value, int line) : Stmt(line)
+// name is "Jeff" (target is a VariableExpr) / age of person is 30 (a PropertyAccessExpr).
+public sealed class AssignStmt(Expr target, Expr value, int line) : Stmt(line)
+{
+    public Expr Target { get; } = target;
+    public Expr Value { get; } = value;
+}
+
+// person has ... / jeff is a Person with ... / x is a thing (block)
+public sealed class ObjectDefStmt(string name, string typeName, IReadOnlyList<AssignStmt> properties, int line) : Stmt(line)
 {
     public string Name { get; } = name;
-    public Expr Value { get; } = value;
+    public string TypeName { get; } = typeName;
+    public IReadOnlyList<AssignStmt> Properties { get; } = properties;
+}
+
+// a Person has
+//     name
+// .
+public sealed class TypeDefStmt(string typeName, IReadOnlyList<string> fieldNames, int line) : Stmt(line)
+{
+    public string TypeName { get; } = typeName;
+    public IReadOnlyList<string> FieldNames { get; } = fieldNames;
 }
 
 public sealed class AskStmt(Expr prompt, string name, int line) : Stmt(line)

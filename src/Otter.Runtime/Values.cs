@@ -13,6 +13,32 @@ public sealed class OtterList : List<object?>
     public OtterList(IEnumerable<object?> items) : base(items) { }
 }
 
+// A thing: properties in the order they were first set, as otterPS's
+// OtterObject. Two things are equal only if they are the same thing.
+public sealed class OtterThing(string typeName)
+{
+    readonly Dictionary<string, object?> properties = new(StringComparer.Ordinal);
+    readonly List<string> order = new();
+
+    public string TypeName { get; } = typeName;
+    public IReadOnlyList<string> PropertyNames => order;
+    public bool HasProperty(string name) => properties.ContainsKey(name);
+    public object? ReadProperty(string name) => properties.TryGetValue(name, out var value) ? value : null;
+
+    public void WriteProperty(string name, object? value)
+    {
+        if (!properties.ContainsKey(name)) order.Add(name);
+        properties[name] = value;
+    }
+}
+
+// a Person has / name / age: the property names a new Person starts with.
+public sealed class OtterType(string name, IReadOnlyList<string> fieldNames)
+{
+    public string Name { get; } = name;
+    public IReadOnlyList<string> FieldNames { get; } = fieldNames;
+}
+
 public sealed class OtterFunction(string name, IReadOnlyList<string> parameters, IReadOnlyList<Stmt> body)
 {
     public string Name { get; } = name;
@@ -32,6 +58,9 @@ public static class Values
             case double d: return FormatNumber(d);
             case string s: return s;
             case OtterList list: return string.Join(", ", list.Select(Format));
+            // A thing prints the way it was declared: "a thing", "a Person".
+            case OtterThing thing: return $"a {thing.TypeName}";
+            case OtterType type: return $"the type {type.Name}";
             // Printing a function is almost always a forgotten call.
             case OtterFunction function: return $"<{function.Name}, something Otter can do>";
             default: return value.ToString() ?? "";
@@ -57,6 +86,8 @@ public static class Values
         null => "gone",
         bool => "a true or false value",
         OtterFunction => "something Otter can do",
+        OtterThing thing => $"a {thing.TypeName}",
+        OtterType type => $"the type {type.Name}",
         OtterList => "a list",
         double => "a number",
         string => "some text",
@@ -99,6 +130,8 @@ public static class Values
             for (int i = 0; i < ll.Count; i++) { if (!AreEqual(ll[i], rl[i])) return false; }
             return true;
         }
+        // Things compare by identity, never by their contents.
+        if (left is OtterThing || right is OtterThing) return ReferenceEquals(left, right);
         // D10: text compares case-sensitively. PowerShell's [string] cast of a
         // list joins it with spaces, which is what otterPS compares here.
         return string.Equals(AsComparedText(left), AsComparedText(right), StringComparison.Ordinal);

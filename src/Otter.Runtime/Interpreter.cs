@@ -76,7 +76,31 @@ public sealed class Interpreter
                 return;
             }
             case AssignStmt assign:
-                scope.Set(assign.Name, Evaluate(assign.Value, scope));
+                SetTarget(assign.Target, Evaluate(assign.Value, scope), scope);
+                return;
+            // person is a thing / jeff is a Person with name "Jeff"
+            case ObjectDefStmt objectDef:
+            {
+                if (scope.Has(objectDef.Name))
+                {
+                    throw RuntimeError($"Otter will not replace existing {Values.TypeName(scope.Get(objectDef.Name))} called \"{objectDef.Name}\" with a new thing.",
+                        objectDef.Line, "Use a new name, or assign individual properties instead.");
+                }
+                var thing = new OtterThing(objectDef.TypeName);
+                // A declared type starts with its fields present but empty.
+                if (objectDef.TypeName != "thing" && scope.Has(objectDef.TypeName) && scope.Get(objectDef.TypeName) is OtterType declared)
+                {
+                    foreach (var field in declared.FieldNames) thing.WriteProperty(field, null);
+                }
+                foreach (var property in objectDef.Properties)
+                {
+                    thing.WriteProperty(((VariableExpr)property.Target).Name, Evaluate(property.Value, scope));
+                }
+                scope.Set(objectDef.Name, thing);
+                return;
+            }
+            case TypeDefStmt typeDef:
+                scope.Set(typeDef.TypeName, new OtterType(typeDef.TypeName, typeDef.FieldNames));
                 return;
             // ask "What is your name?" and call it name      (D6)
             case AskStmt ask:
@@ -166,6 +190,29 @@ public sealed class Interpreter
                 throw new ReturnSignal(returnStmt.Value == null ? null : Evaluate(returnStmt.Value, scope), returnStmt.Line);
             default:
                 throw new InvalidOperationException($"No runtime for {statement.GetType().Name}.");
+        }
+    }
+
+    void SetTarget(Expr target, object? value, Scope scope)
+    {
+        switch (target)
+        {
+            case VariableExpr variable:
+                scope.Set(variable.Name, value);
+                return;
+            // age of person is 30
+            case PropertyAccessExpr property:
+            {
+                object? owner = Evaluate(property.Target, scope);
+                if (owner is not OtterThing thing)
+                {
+                    throw RuntimeError($"I can only set properties on a thing, but this is {Values.TypeName(owner)}.", property.Line);
+                }
+                thing.WriteProperty(property.Property, value);
+                return;
+            }
+            default:
+                throw RuntimeError("This is not something Otter can give a value to.", target.Line);
         }
     }
 
@@ -277,6 +324,21 @@ public sealed class Interpreter
                 return EvaluateOfOperation(ofOperation, scope);
             case CallExpr call:
                 return Call(call, scope);
+            // name of person / city of address of user
+            case PropertyAccessExpr property:
+            {
+                object? target = Evaluate(property.Target, scope);
+                if (target is not OtterThing thing)
+                {
+                    throw RuntimeError($"I can only read properties of a thing, but this is {Values.TypeName(target)}.", property.Line);
+                }
+                if (!thing.HasProperty(property.Property))
+                {
+                    string? suggestion = thing.PropertyNames.Count > 0 ? $"{thing.PropertyNames[0]} of ..." : null;
+                    throw RuntimeError($"This {thing.TypeName} has no property called \"{property.Property}\".", property.Line, suggestion);
+                }
+                return thing.ReadProperty(property.Property);
+            }
             default:
                 throw new InvalidOperationException($"No runtime for {expression.GetType().Name}.");
         }

@@ -26,6 +26,8 @@ public sealed class Parser
     // A plain PowerShell hashtable in otterPS: function names are matched
     // ignoring case at parse time (variables are not - D10).
     readonly Dictionary<string, int> knownFunctions = new(StringComparer.OrdinalIgnoreCase);
+    // Declared with `a Person has` (also a case-insensitive hashtable in otterPS).
+    readonly HashSet<string> knownTypes = new(StringComparer.OrdinalIgnoreCase);
 
     Parser(IReadOnlyList<Token> tokens) => this.tokens = tokens;
 
@@ -267,6 +269,14 @@ public sealed class Parser
                 Expect(TokenKind.Newline, "I expected the return statement to end here.");
                 return new ReturnStmt(value, start.Line);
             }
+            case TokenKind.A:
+            {
+                Read();
+                Token typeName = ReadVariableName("I expected a type name after \"a\".");
+                Expect(TokenKind.Has, "I expected \"has\" after the type name.");
+                knownTypes.Add(typeName.Text);
+                return new TypeDefStmt(typeName.Text, ReadTypeFields(), start.Line);
+            }
             case TokenKind.Add:
                 return ReadAdd(start);
             case TokenKind.Remove:
@@ -345,25 +355,65 @@ public sealed class Parser
         {
             throw Error("'pi' is a built-in value, not a variable name.", name, "Choose a different variable name, such as \"circleRatio\".");
         }
-        if (Is(TokenKind.Has)) throw Unsupported("things");
-        if (Is(TokenKind.Of)) throw Unsupported("properties");
+        // D40: `person has` is the untyped object literal.
+        if (Is(TokenKind.Has))
+        {
+            Read();
+            var properties = Is(TokenKind.Newline) ? ReadObjectBlockProperties(allowEmpty: true) : ReadInlineObjectProperties();
+            return new ObjectDefStmt(name.Text, "thing", properties, name.Line);
+        }
+        if (Is(TokenKind.Of))
+        {
+            // Re-read the whole property target: `age of person is 30`.
+            position--;
+            Expr target = ReadValue();
+            Expect(TokenKind.Is, "I expected \"is\" after the property target.");
+            Expr value = ReadMathExpression();
+            Expect(TokenKind.Newline, "I expected the property assignment to end here.");
+            return new AssignStmt(target, value, name.Line);
+        }
         if (Is(TokenKind.Is))
         {
             Read();
-            if (Is(TokenKind.A) || (Current.Kind == TokenKind.Identifier && Same(Current.Text, "panel") && IsAt(1, TokenKind.With)))
+            if (Current.Kind == TokenKind.Identifier && Same(Current.Text, "panel") && IsAt(1, TokenKind.With)) throw Unsupported("UI elements");
+            if (Is(TokenKind.A))
             {
-                throw Unsupported("things");
+                Read();
+                string typeName = ReadObjectTypeName();
+                // otterPS may treat other type names (button, window ...) as UI.
+                if (!Same(typeName, "thing") && !knownTypes.Contains(typeName)) throw Unsupported($"'{typeName}' things");
+                List<AssignStmt> properties;
+                if (Is(TokenKind.With))
+                {
+                    Read();
+                    properties = ReadInlineObjectProperties();
+                }
+                else if (Same(typeName, "thing") || !knownTypes.Contains(typeName))
+                {
+                    properties = ReadObjectBlockProperties(allowEmpty: Same(typeName, "thing"));
+                }
+                else
+                {
+                    Expect(TokenKind.Newline, "I expected the object definition to end here.");
+                    if (Is(TokenKind.Indent))
+                    {
+                        throw Error($"'{typeName}' is a declared type, so its properties must use 'with' on the same line.", Current,
+                            $"Write '{name.Text} is a {typeName} with property value'.");
+                    }
+                    properties = new List<AssignStmt>();
+                }
+                return new ObjectDefStmt(name.Text, typeName, properties, name.Line);
             }
             Expr value = ReadMathExpression();
             Expect(TokenKind.Newline, "I expected the assignment to end here.");
-            return new AssignStmt(name.Text, value, name.Line);
+            return new AssignStmt(new VariableExpr(name.Text, name.Line), value, name.Line);
         }
         if (Is(TokenKind.IsNot))
         {
             Read();
             Expr value = ReadMathExpression();
             Expect(TokenKind.Newline, "I expected the assignment to end here.");
-            return new AssignStmt(name.Text, new NotExpr(value, name.Line), name.Line);
+            return new AssignStmt(new VariableExpr(name.Text, name.Line), new NotExpr(value, name.Line), name.Line);
         }
         if (Is(TokenKind.Are))
         {
@@ -531,6 +581,150 @@ public sealed class Parser
         return Read();
     }
 
+    // ---- things and types (D40, D41, D54) -----------------------------------
+
+    List<string> ReadTypeFields()
+    {
+        Expect(TokenKind.Newline, "I expected the type definition to end here.");
+        Expect(TokenKind.Indent, "I expected indented property names for this type.");
+        var fields = new List<string>();
+        SkipNewlines();
+        while (!Is(TokenKind.Dedent))
+        {
+            fields.Add(ReadVariableName("I expected a property name.", allowReservedLiteral: true).Text);
+            Expect(TokenKind.Newline, "I expected the property name to end here.");
+            SkipNewlines();
+        }
+        Read();
+        if (Is(TokenKind.BlockEnd)) { Read(); SkipNewlines(); }
+        return fields;
+    }
+
+    string ReadObjectTypeName()
+    {
+        var words = new List<string>();
+        while (!Is(TokenKind.Newline) && !Is(TokenKind.With)) words.Add(Read().Text);
+        if (words.Count == 0)
+        {
+            throw Error("I expected a type name after \"is a\".", Current, "Write a type, such as \"thing\" or \"Person\".");
+        }
+        return string.Join(" ", words);
+    }
+
+    // UI-only property forms (align, width full, bare round/spread, accepts
+    // drops) are left to the PowerShell Otter.
+    void RefuseUiProperty(Token property)
+    {
+        if (SameAny(property.Text, "accepts", "align", "width", "height", "round", "spread")) throw Unsupported($"the '{property.Text}' property");
+    }
+
+    List<AssignStmt> ReadObjectBlockProperties(bool allowEmpty)
+    {
+        Expect(TokenKind.Newline, "I expected the object statement to end here.");
+        if (!Is(TokenKind.Indent))
+        {
+            if (allowEmpty)
+            {
+                // An empty object may still end with the block terminator.
+                if (Is(TokenKind.BlockEnd)) { Read(); SkipNewlines(); }
+                return new List<AssignStmt>();
+            }
+            throw Error("I expected an indented block of properties.", Current, "Indent the properties under the object statement.");
+        }
+        Read();
+        var properties = new List<AssignStmt>();
+        SkipNewlines();
+        while (!Is(TokenKind.Dedent) && !Is(TokenKind.EndOfFile) && !Is(TokenKind.BlockEnd))
+        {
+            Token current = Current;
+            if (current.Kind is TokenKind.Say or TokenKind.If or TokenKind.While or TokenKind.Repeat or TokenKind.To or TokenKind.Return or TokenKind.Ask)
+            {
+                throw Error("Only property assignments belong inside an object.", current, "Remove control flow or actions from this object block.");
+            }
+            Token property = ReadVariableName("I expected a property name.", allowReservedLiteral: true);
+            RefuseUiProperty(property);
+            // `is` is optional: "age 36" and "age is 36" mean the same.
+            bool hadIs = false;
+            if (Is(TokenKind.Is)) { Read(); hadIs = true; }
+            Expr value;
+            if (!hadIs && Current.Kind is TokenKind.Newline or TokenKind.EndOfFile or TokenKind.Dedent or TokenKind.BlockEnd)
+            {
+                // D54: a bare property is true.
+                value = new LiteralExpr(true, property.Line);
+            }
+            else
+            {
+                if (Current.Kind is TokenKind.Newline or TokenKind.EndOfFile or TokenKind.Dedent or TokenKind.BlockEnd)
+                {
+                    throw Error($"I expected a value for property '{property.Text}'.", Current,
+                        $"Provide a value after the property name, such as '{property.Text} 10' or '{property.Text} is 10'.");
+                }
+                value = ReadMathExpression();
+            }
+            properties.Add(new AssignStmt(new VariableExpr(property.Text, property.Line), value, property.Line));
+            Token end = Current;
+            if (end.Kind != TokenKind.Newline)
+            {
+                if (end.Kind is TokenKind.Identifier or TokenKind.With or TokenKind.Is or TokenKind.String or TokenKind.Number)
+                {
+                    throw Error($"I expected each property on its own line, but found '{end.Text}' on the same line.", end,
+                        $"Place '{end.Text}' on a new indented line, or use 'with' to define inline properties separated by commas.");
+                }
+                throw Error($"I expected the property assignment to end here, but found '{end.Text}'.", end,
+                    "Place each property on its own line, or check for extra words at the end of the line.");
+            }
+            Read();
+            SkipNewlines();
+        }
+        Expect(TokenKind.Dedent, "I expected the object block to end.");
+        if (Is(TokenKind.BlockEnd)) { Read(); SkipNewlines(); }
+        return properties;
+    }
+
+    // Comma-separated, each `is` optional: `person has name "Ada", age 36`.
+    List<AssignStmt> ReadInlineObjectProperties()
+    {
+        var properties = new List<AssignStmt>();
+        while (true)
+        {
+            Token property = ReadVariableName("I expected a property name after \"has\", \"with\", or a comma.", allowReservedLiteral: true);
+            RefuseUiProperty(property);
+            bool hadIs = false;
+            if (Is(TokenKind.Is)) { Read(); hadIs = true; }
+            Expr value;
+            if (!hadIs && (Current.Text == "," || Current.Kind is TokenKind.Newline or TokenKind.EndOfFile))
+            {
+                value = new LiteralExpr(true, property.Line);   // D54
+            }
+            else
+            {
+                if (Current.Text == "," || Current.Kind is TokenKind.Newline or TokenKind.EndOfFile)
+                {
+                    throw Error($"I expected a value for property '{property.Text}'.", Current,
+                        $"Provide a value after the property name, such as '{property.Text} 10' or '{property.Text} is 10'.");
+                }
+                value = ReadMathExpression();
+            }
+            properties.Add(new AssignStmt(new VariableExpr(property.Text, property.Line), value, property.Line));
+            if (Current.Text != ",") break;
+            Read();
+            if (Is(TokenKind.Newline)) throw Error("I expected a property after the comma.", Current, "Add another property assignment after the comma.");
+        }
+        Token end = Current;
+        if (end.Kind != TokenKind.Newline && end.Kind != TokenKind.EndOfFile)
+        {
+            if (end.Kind is TokenKind.Identifier or TokenKind.With or TokenKind.Is or TokenKind.String or TokenKind.Number)
+            {
+                throw Error($"I expected a comma between properties in this inline list, but found '{end.Text}'.", end,
+                    $"Separate each property with a comma, such as '..., {end.Text} ...'.");
+            }
+            throw Error($"I expected the inline properties to end here, but found '{end.Text}'.", end, "Separate properties with commas or end the line.");
+        }
+        if (end.Kind == TokenKind.Newline) Read();
+        return properties;
+    }
+
+
     // ---- values and arithmetic ---------------------------------------------
 
     // Words that begin one of Read-OtterValue's special forms in otterPS.
@@ -585,13 +779,26 @@ public sealed class Parser
                 or TokenKind.ElapsedTime or TokenKind.ElapsedMilliseconds or TokenKind.Larger or TokenKind.Smaller:
                 throw Unsupported($"'{token.Text} of'");
         }
-        if (SpecialValueWords.Contains(token.Text)) throw Unsupported($"'{token.Text}'");
+        // These three are ordinary names except in one exact phrase each.
+        bool exactPhrase = Same(token.Text, "date") || Same(token.Text, "bytes") || Same(token.Text, "empty");
+        bool phraseFollows =
+            (Same(token.Text, "date") || Same(token.Text, "bytes")) ? IsAt(1, TokenKind.From)        // date from / bytes from (D101, D102)
+            : Same(token.Text, "empty") ? At(1) is { Kind: TokenKind.Identifier } b && Same(b.Text, "bytes")   // empty bytes (D102)
+            : false;
+        if (token.Kind == TokenKind.Identifier && exactPhrase ? phraseFollows : SpecialValueWords.Contains(token.Text))
+        {
+            throw Unsupported($"'{token.Text}'");
+        }
         if (CommandResultPropertyAhead()) throw Unsupported("command results");
         if (IsIdentifier(token))
         {
             if (knownFunctions.ContainsKey(token.Text)) return ReadFunctionCallExpression(token);
             Read();
-            if (Is(TokenKind.Of)) throw Unsupported("properties");
+            if (Is(TokenKind.Of))
+            {
+                Read();
+                return new PropertyAccessExpr(token.Text, ReadValue(), token.Line);
+            }
             return new VariableExpr(token.Text, token.Line);
         }
         switch (token.Kind)

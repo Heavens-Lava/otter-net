@@ -58,7 +58,9 @@ public static class ReservedWords
     {
         FunctionDefStmt f => FunctionNames.Contains(f.Name) ? f.Name
             : f.Parameters.Select(Variable).FirstOrDefault(p => p != null) ?? FindIn(f.Body),
-        AssignStmt a => Variable(a.Name),
+        AssignStmt { Target: VariableExpr v } => Variable(v.Name),
+        // The object's name, and each property line inside it (an assignment).
+        ObjectDefStmt o => Variable(o.Name) ?? o.Properties.Select(Find).FirstOrDefault(x => x != null),
         AskStmt a => Variable(a.Name),
         ListDefStmt l => Variable(l.Name),
         MathIntoStmt m => Variable(m.Target),

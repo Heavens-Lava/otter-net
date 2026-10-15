@@ -1,0 +1,43 @@
+person has name "Ada", age 36, admin
+say name of person age of person admin of person
+say person
+pet is a thing
+    kind is "otter"
+    sound "squeak"
+    cute
+.
+say kind of pet sound of pet cute of pet
+empty is a thing
+say empty
+age of person is age of person plus 1
+say age of person
+home has city "Paris"
+address of person is home
+say city of address of person
+a Book has
+    title
+    pages
+.
+novel is a Book with title "Otter Tales", pages 120
+say title of novel pages of novel
+blank is a Book
+say title of blank
+say Book
+twin has name "Ada", age 37
+if person is twin
+    say "wrong"
+.
+if person is person
+    say "same thing"
+.
+shelf are
+    novel
+    blank
+.
+say shelf
+remove blank from shelf
+say length of shelf
+flag is person
+if flag
+    say "a thing is true"
+.
