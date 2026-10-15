@@ -1,0 +1,3 @@
+say "start"
+fail with "Something went wrong"
+say "never"

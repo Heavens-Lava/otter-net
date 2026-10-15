@@ -71,6 +71,7 @@ public static class ReservedWords
         ForEachStmt f => Variable(f.VariableName) ?? FindIn(f.Body),
         IfStmt i => i.Branches.Select(b => FindIn(b.Body)).FirstOrDefault(x => x != null) ?? FindIn(i.ElseBody),
         WhileStmt w => FindIn(w.Body),
+        TryStmt t => Variable(t.ErrorTarget) ?? FindIn(t.Body) ?? FindIn(t.OtherwiseBody),
         RepeatStmt r => FindIn(r.Body),
         _ => null,
     };

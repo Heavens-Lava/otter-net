@@ -186,6 +186,25 @@ public sealed class Interpreter
                 if (!string.IsNullOrEmpty(call.ResultTarget)) scope.Set(call.ResultTarget, result);
                 return;
             }
+            // try / otherwise (D23): any failure in the body is caught.
+            case TryStmt tryStmt:
+            {
+                try
+                {
+                    Execute(tryStmt.Body, scope);
+                }
+                catch (Exception failure) when (failure is not ReturnSignal and not OutOfMemoryException)
+                {
+                    // `return` passes straight through a try; everything else is
+                    // a failure. D68: `otherwise into reason` keeps its message.
+                    if (!string.IsNullOrEmpty(tryStmt.ErrorTarget)) scope.Set(tryStmt.ErrorTarget, failure.Message);
+                    if (tryStmt.OtherwiseBody != null) Execute(tryStmt.OtherwiseBody, scope);
+                }
+                return;
+            }
+            // fail with "message" (D68): an ordinary runtime error.
+            case FailStmt fail:
+                throw RuntimeError(Values.Format(Evaluate(fail.Message, scope)), fail.Line);
             case ReturnStmt returnStmt:
                 throw new ReturnSignal(returnStmt.Value == null ? null : Evaluate(returnStmt.Value, scope), returnStmt.Line);
             default:

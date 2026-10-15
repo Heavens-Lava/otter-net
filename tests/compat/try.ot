@@ -1,0 +1,54 @@
+try
+    x is 1 / 0
+    say "not reached"
+otherwise into reason
+    say "caught:" reason
+.
+try
+    fail with "custom problem"
+otherwise into why
+    say why
+.
+try
+    say undefinedName
+.
+say "swallowed and continued"
+to safeDivide x y
+    try
+        return x / y
+    otherwise
+        return 0
+    .
+.
+say safeDivide 10 2
+say safeDivide 1 0
+to findFirst items
+    each item in items
+        try
+            return item
+        otherwise
+            say "wrong"
+        .
+    .
+.
+nums are
+    7
+    8
+.
+say findFirst nums
+try
+    fail with 42
+otherwise into code
+    say code plus 1
+.
+nested is 0
+try
+    try
+        fail with "inner"
+    otherwise into first
+        message is "outer from " plus first
+        fail with message
+    .
+otherwise into b
+    say b
+.

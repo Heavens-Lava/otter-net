@@ -201,6 +201,17 @@ public sealed class CallStmt(CallExpr call, string? resultTarget, int line) : St
     public string? ResultTarget { get; } = resultTarget;
 }
 
+// try / otherwise [into reason] (D23, D68)
+public sealed class TryStmt(IReadOnlyList<Stmt> body, IReadOnlyList<Stmt>? otherwiseBody, string? errorTarget, int line) : Stmt(line)
+{
+    public IReadOnlyList<Stmt> Body { get; } = body;
+    public IReadOnlyList<Stmt>? OtherwiseBody { get; } = otherwiseBody;
+    public string? ErrorTarget { get; } = errorTarget;
+}
+
+// fail with "message" (D68)
+public sealed class FailStmt(Expr message, int line) : Stmt(line) { public Expr Message { get; } = message; }
+
 public sealed class ReturnStmt(Expr? value, int line) : Stmt(line) { public Expr? Value { get; } = value; }
 
 public sealed class ProgramNode(IReadOnlyList<Stmt> statements)

@@ -277,6 +277,33 @@ public sealed class Parser
                 knownTypes.Add(typeName.Text);
                 return new TypeDefStmt(typeName.Text, ReadTypeFields(), start.Line);
             }
+            case TokenKind.Try:
+            {
+                Read();
+                List<Stmt> body = ReadBlock();
+                List<Stmt>? otherwiseBody = null;
+                string? errorTarget = null;
+                if (Is(TokenKind.Otherwise))
+                {
+                    Read();
+                    // D68: `otherwise into reason` is optional.
+                    if (Is(TokenKind.Into))
+                    {
+                        Read();
+                        errorTarget = ReadVariableName("I expected a variable name after \"into\".").Text;
+                    }
+                    otherwiseBody = ReadBlock();
+                }
+                return new TryStmt(body, otherwiseBody, errorTarget, start.Line);
+            }
+            case TokenKind.Fail:
+            {
+                Read();
+                Expect(TokenKind.With, "I expected \"with\" and a message.");
+                Expr message = ReadValue();
+                Expect(TokenKind.Newline, "I expected the fail statement to end here.");
+                return new FailStmt(message, start.Line);
+            }
             case TokenKind.Add:
                 return ReadAdd(start);
             case TokenKind.Remove:
