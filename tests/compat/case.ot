@@ -1,0 +1,7 @@
+SAY "keywords ignore case"
+If 1 Is 1
+    say "if works"
+.
+name is "Ada"
+Name is "Bob"
+say name Name

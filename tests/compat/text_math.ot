@@ -1,0 +1,6 @@
+say "a" plus "b"
+say "5" plus 5
+say "2.5" plus "x"
+x is "29"
+say x plus 1
+say x times 2

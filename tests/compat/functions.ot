@@ -1,0 +1,34 @@
+name is "Outside"
+to greet name
+    say "Hello" name
+.
+greet "Jeff"
+say name
+counter is 0
+to bump
+    counter is counter plus 1
+    local is 5
+.
+bump
+bump
+say counter
+to fact n
+    if n is at most 1
+        return 1
+    .
+    m is n minus 1
+    r is fact m
+    return n times r
+.
+say fact 10
+to double x
+    return x times 2
+.
+double 21 make answer
+say answer
+y is double 4
+say y
+to nothing
+    z is 1
+.
+say nothing

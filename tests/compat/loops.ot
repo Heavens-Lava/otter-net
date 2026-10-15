@@ -1,0 +1,26 @@
+count from 1 to 3 as n
+    say n
+.
+count from 3 to 1 as n
+    say n
+.
+say n
+repeat 2.9 times
+    say "again"
+.
+repeat 0 times
+    say "never"
+.
+i is 0
+while i is less than 3
+    i is i plus 1
+.
+say i
+items are
+    1
+    2
+.
+each item in items
+    add item to items
+.
+say items

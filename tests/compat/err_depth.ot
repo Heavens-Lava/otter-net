@@ -1,0 +1,4 @@
+to loop n
+    loop n
+.
+loop 1

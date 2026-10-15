@@ -1,0 +1,33 @@
+score is 85
+if score is at least 90
+    say "A"
+otherwise if score is at least 80
+    say "B"
+otherwise
+    say "C"
+.
+if score plus 10 is at least 95 and score is not 0
+    say "math in condition"
+.
+if not false or 1 / 0 is 1
+    say "short circuit"
+.
+if "Jeffrey" starts with "Jef" and "Jeffrey" ends with "rey"
+    say "text match"
+.
+if "5" is 5
+    say "numeric text equals number"
+.
+if "abc" is "ABC"
+    say "wrong"
+.
+flag is not true
+say flag
+increase score by 5
+decrease score
+say score
+say uppercase of "otter" lowercase of "OTTER"
+say absolute value of -0
+say round of 2.5 round of 0 minus 2.5
+say round up of 1.1 round down of 1.9
+say square root of 16

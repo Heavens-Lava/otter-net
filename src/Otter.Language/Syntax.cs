@@ -1,0 +1,184 @@
+namespace Otter.Language;
+
+// The syntax tree. One class per otterPS node kind, named as in otterPS's
+// contract, carrying the source line every runtime error quotes. The
+// prototype has the core language; each further kind arrives with the
+// feature that needs it.
+
+public abstract class Node
+{
+    protected Node(int line) => Line = line;
+    public int Line { get; }
+}
+
+public abstract class Expr : Node { protected Expr(int line) : base(line) { } }
+public abstract class Stmt : Node { protected Stmt(int line) : base(line) { } }
+
+// ---- expressions -----------------------------------------------------------
+
+// A number (double), text (string), true/false (bool) or gone (null).
+public sealed class LiteralExpr(object? value, int line) : Expr(line) { public object? Value { get; } = value; }
+
+public sealed class VariableExpr(string name, int line) : Expr(line) { public string Name { get; } = name; }
+
+public enum MathOp { Add, Subtract, Multiply, Divide, Percent, Power }
+
+// Arithmetic has no precedence: a chain is built strictly left to right.
+public sealed class MathExpr(Expr left, MathOp op, Expr right, int line) : Expr(line)
+{
+    public Expr Left { get; } = left;
+    public MathOp Op { get; } = op;
+    public Expr Right { get; } = right;
+}
+
+public enum CompareOp { Equal, NotEqual, AtLeast, AtMost, GreaterThan, LessThan }
+
+public sealed class ComparisonExpr(Expr left, CompareOp op, Expr right, int line) : Expr(line)
+{
+    public Expr Left { get; } = left;
+    public CompareOp Op { get; } = op;
+    public Expr Right { get; } = right;
+}
+
+public enum LogicalOp { And, Or }
+
+public sealed class LogicalExpr(Expr left, LogicalOp op, Expr right, int line) : Expr(line)
+{
+    public Expr Left { get; } = left;
+    public LogicalOp Op { get; } = op;
+    public Expr Right { get; } = right;
+}
+
+public sealed class NotExpr(Expr operand, int line) : Expr(line) { public Expr Operand { get; } = operand; }
+
+public sealed class ContainsExpr(Expr collection, Expr item, int line) : Expr(line)
+{
+    public Expr Collection { get; } = collection;
+    public Expr Item { get; } = item;
+}
+
+public enum TextMatch { StartsWith, EndsWith }
+
+public sealed class TextMatchExpr(Expr text, TextMatch match, Expr part, int line) : Expr(line)
+{
+    public Expr Text { get; } = text;
+    public TextMatch Match { get; } = match;
+    public Expr Part { get; } = part;
+}
+
+public enum OfOperation
+{
+    Length, Uppercase, Lowercase, First, Last,
+    AbsoluteValue, SquareRoot, Round, RoundUp, RoundDown,
+}
+
+public sealed class OfOperationExpr(OfOperation operation, Expr subject, int line) : Expr(line)
+{
+    public OfOperation Operation { get; } = operation;
+    public Expr Subject { get; } = subject;
+}
+
+public sealed class CallExpr(string name, IReadOnlyList<Expr> arguments, int line) : Expr(line)
+{
+    public string Name { get; } = name;
+    public IReadOnlyList<Expr> Arguments { get; } = arguments;
+}
+
+// ---- statements ------------------------------------------------------------
+
+public sealed class SayStmt(IReadOnlyList<Expr> parts, int line) : Stmt(line) { public IReadOnlyList<Expr> Parts { get; } = parts; }
+
+public sealed class AssignStmt(string name, Expr value, int line) : Stmt(line)
+{
+    public string Name { get; } = name;
+    public Expr Value { get; } = value;
+}
+
+public sealed class AskStmt(Expr prompt, string name, int line) : Stmt(line)
+{
+    public Expr Prompt { get; } = prompt;
+    public string Name { get; } = name;
+}
+
+public sealed class MathIntoStmt(Expr expression, string target, int line) : Stmt(line)
+{
+    public Expr Expression { get; } = expression;
+    public string Target { get; } = target;
+}
+
+public sealed class AddToStmt(Expr amount, string target, int line) : Stmt(line)
+{
+    public Expr Amount { get; } = amount;
+    public string Target { get; } = target;
+}
+
+public sealed class RemoveFromStmt(Expr amount, string target, int line) : Stmt(line)
+{
+    public Expr Amount { get; } = amount;
+    public string Target { get; } = target;
+}
+
+public sealed class IfBranch(Expr condition, IReadOnlyList<Stmt> body)
+{
+    public Expr Condition { get; } = condition;
+    public IReadOnlyList<Stmt> Body { get; } = body;
+}
+
+public sealed class IfStmt(IReadOnlyList<IfBranch> branches, IReadOnlyList<Stmt>? elseBody, int line) : Stmt(line)
+{
+    public IReadOnlyList<IfBranch> Branches { get; } = branches;
+    public IReadOnlyList<Stmt>? ElseBody { get; } = elseBody;
+}
+
+public sealed class WhileStmt(Expr condition, IReadOnlyList<Stmt> body, int line) : Stmt(line)
+{
+    public Expr Condition { get; } = condition;
+    public IReadOnlyList<Stmt> Body { get; } = body;
+}
+
+public sealed class RepeatStmt(Expr count, IReadOnlyList<Stmt> body, int line) : Stmt(line)
+{
+    public Expr Count { get; } = count;
+    public IReadOnlyList<Stmt> Body { get; } = body;
+}
+
+public sealed class CountStmt(string variableName, Expr from, Expr to, IReadOnlyList<Stmt> body, int line) : Stmt(line)
+{
+    public string VariableName { get; } = variableName;
+    public Expr From { get; } = from;
+    public Expr To { get; } = to;
+    public IReadOnlyList<Stmt> Body { get; } = body;
+}
+
+public sealed class ForEachStmt(string variableName, Expr collection, IReadOnlyList<Stmt> body, int line) : Stmt(line)
+{
+    public string VariableName { get; } = variableName;
+    public Expr Collection { get; } = collection;
+    public IReadOnlyList<Stmt> Body { get; } = body;
+}
+
+public sealed class ListDefStmt(string name, IReadOnlyList<Expr> items, int line) : Stmt(line)
+{
+    public string Name { get; } = name;
+    public IReadOnlyList<Expr> Items { get; } = items;
+}
+
+public sealed class FunctionDefStmt(string name, IReadOnlyList<string> parameters, IReadOnlyList<Stmt> body, int line) : Stmt(line)
+{
+    public string Name { get; } = name;
+    public IReadOnlyList<string> Parameters { get; } = parameters;
+    public IReadOnlyList<Stmt> Body { get; } = body;
+}
+
+public sealed class CallStmt(CallExpr call, string? resultTarget, int line) : Stmt(line)
+{
+    public CallExpr Call { get; } = call;
+    public string? ResultTarget { get; } = resultTarget;
+}
+
+public sealed class ReturnStmt(Expr? value, int line) : Stmt(line) { public Expr? Value { get; } = value; }
+
+public sealed class ProgramNode(IReadOnlyList<Stmt> statements)
+{
+    public IReadOnlyList<Stmt> Statements { get; } = statements;
+}

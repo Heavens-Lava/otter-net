@@ -1,0 +1,23 @@
+games are
+    "Zelda"
+    "Mario"
+    gone
+    3.5
+.
+say games
+say length of games
+say first of games
+say last of games
+empty are empty
+say empty
+say first of empty
+add "Kirby" to games
+remove "Mario" from games
+remove "Nope" from games
+say games
+if games contains "Zelda"
+    say "has Zelda"
+.
+if games contains "zelda"
+    say "wrong"
+.

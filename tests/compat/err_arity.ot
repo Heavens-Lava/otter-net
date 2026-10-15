@@ -1,0 +1,4 @@
+to f a
+    say a
+.
+f 1 2
