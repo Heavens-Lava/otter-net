@@ -304,6 +304,74 @@ public sealed class Parser
                 Expect(TokenKind.Newline, "I expected the fail statement to end here.");
                 return new FailStmt(message, start.Line);
             }
+            case TokenKind.Sort:
+            {
+                Read();
+                Token target = ReadVariableName("I expected a collection name after \"sort\".");
+                Expect(TokenKind.Newline, "I expected the sort statement to end here.");
+                return new SortStmt(target.Text, start.Line);
+            }
+            case TokenKind.Reverse:
+            {
+                Read();
+                Token target = ReadVariableName("I expected a collection name after \"reverse\".");
+                Expect(TokenKind.Newline, "I expected the reverse statement to end here.");
+                return new ReverseStmt(target.Text, start.Line);
+            }
+            case TokenKind.Replace:
+            {
+                Read();
+                Expr find = ReadValue();
+                Expect(TokenKind.With, "I expected \"with\" and replacement text.");
+                Expr replacement = ReadMathExpression();
+                // D103: `replace route with "/path"` (no `in`) is SPA routing.
+                if (find is VariableExpr { Name: "route" } && !Is(TokenKind.In)) throw Unsupported("replace route");
+                Expect(TokenKind.In, "I expected \"in\" and the text variable to change.");
+                Token target = ReadVariableName("I expected a text variable after \"in\".");
+                string? resultTarget = null;
+                if (Is(TokenKind.Into))
+                {
+                    Read();
+                    resultTarget = ReadVariableName("I expected a variable name after \"into\".").Text;
+                }
+                Expect(TokenKind.Newline, "I expected the replace statement to end here.");
+                return new ReplaceStmt(find, replacement, target.Text, resultTarget, start.Line);
+            }
+            case TokenKind.Split:
+            {
+                Read();
+                Expr subject = ReadValue();
+                Expect(TokenKind.By, "I expected \"by\" and a separator.");
+                Expr separator = ReadValue();
+                Expect(TokenKind.Into, "I expected \"into\" and a list name.");
+                Token target = ReadVariableName("I expected a list name after \"into\".");
+                Expect(TokenKind.Newline, "I expected the split statement to end here.");
+                return new SplitStmt(subject, separator, target.Text, start.Line);
+            }
+            case TokenKind.Join:
+            {
+                Read();
+                Expr subject = ReadValue();
+                Expect(TokenKind.With, "I expected \"with\" and a separator.");
+                Expr separator = ReadValue();
+                Expect(TokenKind.Into, "I expected \"into\" and a text name.");
+                Token target = ReadVariableName("I expected a text name after \"into\".");
+                Expect(TokenKind.Newline, "I expected the join statement to end here.");
+                return new JoinStmt(subject, separator, target.Text, start.Line);
+            }
+            case TokenKind.Find:
+            {
+                Read();
+                Token item = ReadVariableName("I expected an item name after \"find\".");
+                Expect(TokenKind.In, "I expected \"in\" and a collection.");
+                Expr collection = ReadValue();
+                Expect(TokenKind.Where, "I expected \"where\" and a condition.");
+                Expr condition = ReadCondition(allowContinuation: false);
+                Expect(TokenKind.Into, "I expected \"into\" and a result name.");
+                Token target = ReadVariableName("I expected a result name after \"into\".");
+                Expect(TokenKind.Newline, "I expected the find statement to end here.");
+                return new FindStmt(item.Text, collection, condition, target.Text, start.Line);
+            }
             case TokenKind.Add:
                 return ReadAdd(start);
             case TokenKind.Remove:

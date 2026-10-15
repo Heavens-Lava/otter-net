@@ -212,6 +212,46 @@ public sealed class TryStmt(IReadOnlyList<Stmt> body, IReadOnlyList<Stmt>? other
 // fail with "message" (D68)
 public sealed class FailStmt(Expr message, int line) : Stmt(line) { public Expr Message { get; } = message; }
 
+// ---- collections and text (D25, D26, D27) ----
+
+public sealed class SortStmt(string target, int line) : Stmt(line) { public string Target { get; } = target; }
+
+public sealed class ReverseStmt(string target, int line) : Stmt(line) { public string Target { get; } = target; }
+
+// replace "Jeff" with "Jeffrey" in name [into result]
+public sealed class ReplaceStmt(Expr find, Expr replacement, string target, string? resultTarget, int line) : Stmt(line)
+{
+    public Expr Find { get; } = find;
+    public Expr Replacement { get; } = replacement;
+    public string Target { get; } = target;
+    public string? ResultTarget { get; } = resultTarget;
+}
+
+// split sentence by " " into words
+public sealed class SplitStmt(Expr subject, Expr separator, string target, int line) : Stmt(line)
+{
+    public Expr Subject { get; } = subject;
+    public Expr Separator { get; } = separator;
+    public string Target { get; } = target;
+}
+
+// join words with ", " into text
+public sealed class JoinStmt(Expr subject, Expr separator, string target, int line) : Stmt(line)
+{
+    public Expr Subject { get; } = subject;
+    public Expr Separator { get; } = separator;
+    public string Target { get; } = target;
+}
+
+// find game in games where game is "Mario" into result
+public sealed class FindStmt(string itemName, Expr collection, Expr condition, string target, int line) : Stmt(line)
+{
+    public string ItemName { get; } = itemName;
+    public Expr Collection { get; } = collection;
+    public Expr Condition { get; } = condition;
+    public string Target { get; } = target;
+}
+
 public sealed class ReturnStmt(Expr? value, int line) : Stmt(line) { public Expr? Value { get; } = value; }
 
 public sealed class ProgramNode(IReadOnlyList<Stmt> statements)

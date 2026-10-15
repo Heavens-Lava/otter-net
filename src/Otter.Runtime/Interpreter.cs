@@ -205,6 +205,66 @@ public sealed class Interpreter
             // fail with "message" (D68): an ordinary runtime error.
             case FailStmt fail:
                 throw RuntimeError(Values.Format(Evaluate(fail.Message, scope)), fail.Line);
+            // sort games / reverse games: change the list where it stands.
+            case SortStmt sort:
+            {
+                OtterList list = MutableList(sort.Target, scope, sort.Line, "sort");
+                var items = list.ToArray();
+                Array.Sort(items, CompareForSort);
+                list.Clear();
+                list.AddRange(items);
+                return;
+            }
+            case ReverseStmt reverse:
+                MutableList(reverse.Target, scope, reverse.Line, "reverse").Reverse();
+                return;
+            // replace "Jeff" with "Jeffrey" in name [into result]
+            case ReplaceStmt replace:
+            {
+                if (!scope.Has(replace.Target)) throw RuntimeError($"Otter could not find the variable \"{replace.Target}\".", replace.Line);
+                string subject = Values.Format(scope.Get(replace.Target));
+                string find = Values.Format(Evaluate(replace.Find, scope));
+                string replacement = Values.Format(Evaluate(replace.Replacement, scope));
+                if (find.Length == 0) throw RuntimeError("I cannot replace empty text.", replace.Line);
+                // Plain text, no patterns: "." means a full stop.
+                string result = subject.Replace(find, replacement, StringComparison.Ordinal);
+                // D27: with a destination, the source is left as it was.
+                scope.Set(replace.ResultTarget ?? replace.Target, result);
+                return;
+            }
+            case SplitStmt split:
+            {
+                string subject = Values.Format(Evaluate(split.Subject, scope));
+                string separator = Values.Format(Evaluate(split.Separator, scope));
+                if (separator.Length == 0) throw RuntimeError("I need something to split by.", split.Line);
+                var pieces = subject.Split(new[] { separator }, StringSplitOptions.None);
+                scope.Set(split.Target, new OtterList(pieces.Select(p => (object?)p)));
+                return;
+            }
+            case JoinStmt join:
+            {
+                object? value = Evaluate(join.Subject, scope);
+                if (value is not OtterList list) throw RuntimeError($"I can only join a list, but this is {Values.TypeName(value)}.", join.Line);
+                string separator = Values.Format(Evaluate(join.Separator, scope));
+                scope.Set(join.Target, string.Join(separator, list.Select(Values.Format)));
+                return;
+            }
+            // D26: find gives the first match, or gone.
+            case FindStmt find:
+            {
+                object? collection = Evaluate(find.Collection, scope);
+                if (collection is not OtterList list) throw RuntimeError($"I can only search a list, but this is {Values.TypeName(collection)}.", find.Line);
+                object? found = null;
+                foreach (var item in list.ToArray())
+                {
+                    // The item name exists for the condition only.
+                    var itemScope = new Scope(scope);
+                    itemScope.SetLocal(find.ItemName, item);
+                    if (Values.IsTruthy(Evaluate(find.Condition, itemScope))) { found = item; break; }
+                }
+                scope.Set(find.Target, found);
+                return;
+            }
             case ReturnStmt returnStmt:
                 throw new ReturnSignal(returnStmt.Value == null ? null : Evaluate(returnStmt.Value, scope), returnStmt.Line);
             default:
@@ -233,6 +293,21 @@ public sealed class Interpreter
             default:
                 throw RuntimeError("This is not something Otter can give a value to.", target.Line);
         }
+    }
+
+    OtterList MutableList(string name, Scope scope, int line, string verb)
+    {
+        if (!scope.Has(name)) throw RuntimeError($"Otter could not find the variable \"{name}\".", line);
+        object? value = scope.Get(name);
+        if (value is not OtterList list) throw RuntimeError($"I can only {verb} a list, but \"{name}\" holds {Values.TypeName(value)}.", line);
+        return list;
+    }
+
+    // Numbers by value, everything else by its text, ordinal (as otterPS).
+    static int CompareForSort(object? left, object? right)
+    {
+        if (Values.TryNumber(left, out double l) && Values.TryNumber(right, out double r)) return l.CompareTo(r);
+        return string.CompareOrdinal(Values.Format(left), Values.Format(right));
     }
 
     // D12: add to a number is arithmetic, add to a list appends.

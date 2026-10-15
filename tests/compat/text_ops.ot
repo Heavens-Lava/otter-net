@@ -1,0 +1,46 @@
+games are
+    "Zelda"
+    "mario"
+    "Mario"
+    "10"
+    9
+    "apple"
+    true
+    gone
+    5
+    "5"
+.
+sort games
+say games
+reverse games
+say games
+nums are
+    3
+    1.5
+    2
+.
+sort nums
+say nums
+name is "Jeff and Jeff"
+replace "Jeff" with "Jeffrey" in name
+say name
+replace "." with "!" in name into shout
+say name shout
+tally is 3
+replace 3 with 4 in tally
+say tally plus 1
+split "a,b,,c" by "," into parts
+say length of parts parts
+split "one two" by "x" into whole
+say whole
+join parts with " - " into joined
+say joined
+empty are empty
+join empty with "," into nothing
+say nothing "|"
+find g in games where g starts with "M" into hit
+say hit
+find g in games where g is "nope" into miss
+say miss
+find n in nums where n is at least 2 into big
+say big
