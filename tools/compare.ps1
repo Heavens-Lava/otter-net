@@ -46,6 +46,13 @@ if ($Corpus.Count -eq 0) {
 # they never finish on their own. The reason is recorded.
 $skipPattern = '\bwindow\b|\bshow app\b|\bis a page\b|\bcreate (button|window|text box)\b|\blisten (securely )?for\b|\breceives (GET|POST)\b|\bwatch (file|folder)\b|\bevery \d+ (second|minute)|\bopen udp\b|https?://'
 
+# Programs whose output legitimately differs between two runs of the same
+# implementation. Compared only once they can be given a fixed clock or seed.
+$nondeterministic = @{
+    'dates_and_time.ot' = 'prints the current time'
+    'random.ot' = 'random numbers'
+}
+
 $files = foreach ($item in $Corpus) {
     if (Test-Path -LiteralPath $item -PathType Leaf) { Get-Item -LiteralPath $item }
     elseif (Test-Path -LiteralPath $item) { Get-ChildItem -LiteralPath $item -Recurse -Filter '*.ot' }
@@ -104,9 +111,15 @@ try {
         $inputPath = $file.FullName + '.input'
         $inputText = if (Test-Path -LiteralPath $inputPath) { [System.IO.File]::ReadAllText($inputPath) } else { '' }
 
+        if ($nondeterministic.ContainsKey($file.Name)) {
+            $results.Add([pscustomobject]@{ File = $name; Outcome = 'skipped'; Engine = ''; Detail = "output changes from run to run: $($nondeterministic[$file.Name])" })
+            continue
+        }
         $runs = @{}
         foreach ($side in @('reference', 'candidate')) {
-            $folder = Join-Path $work "$index-$side"
+            # Both sides run in the same path (a program may print its folder).
+            $folder = Join-Path $work "$index"
+            if (Test-Path -LiteralPath $folder) { Remove-Item -LiteralPath $folder -Recurse -Force }
             New-Item -ItemType Directory -Path $folder | Out-Null
             Get-ChildItem -LiteralPath $file.DirectoryName -File | Copy-Item -Destination $folder
             if ($side -eq 'reference') {

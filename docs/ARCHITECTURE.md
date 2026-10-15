@@ -225,5 +225,17 @@ decision; nothing in the first phases depends on it.
 4. **Projects:** `otter new`, `check`, `test`, `build`, `publish` for
    console projects.
 5. **Shipping:** the native `otter` in the release ZIP, the Store package and
-   the installer, with a both-implementations certification gate.
+   the installer, with a both-implementations certification gate. Required
+   first, because antivirus products flag a new unsigned native executable
+   (Symantec Endpoint Protection removed the first build as Heur.AdvML.D, a
+   machine-learning heuristic, on 2026-10-15):
+   - sign every executable with a code-signing certificate (the Store
+     package is already signed by Microsoft);
+   - hand programs to the PowerShell Otter through its installed launcher,
+     not `powershell -ExecutionPolicy Bypass`, the pattern such detectors
+     weigh most;
+   - submit each release to Broadcom and Microsoft as a false positive
+     before announcing it.
+   Until then, development on Windows uses the plain .NET build (`dotnet
+   otter.dll`); native builds and benchmarks run in CI.
 6. **Later:** `otter web`, servers, databases, compiled `otter build`.
