@@ -50,7 +50,6 @@ dedicated test from the start:
 
     source text
       -> Lexer            tokens, with Indent/Dedent and line/column
-      -> Signature pass   every function name and its parameter count
       -> Parser           syntax tree (a node per otterPS NodeKind)
       -> Binder           semantic analysis: names, scopes, checks
       -> Bound tree (IR)  resolved, typed where known, slot-numbered
@@ -66,12 +65,14 @@ spaces or one tab per level, `.` as a block end, the escapes `\n \t \\ \"`
 exponent, `#` comments. Line and column on every token, because every
 diagnostic shows them.
 
-### Signature pass
+### Functions are known from their definition onward
 Otter's grammar depends on knowing the program's functions: `calculateTax
 100 and 0.08` is a call only because `calculateTax` is a function taking two
-arguments, and each argument is one value. A cheap scan of `to name params`
-lines (and `use` imports, expanded first, in source order, once each) builds
-that table before parsing, as otterPS does.
+arguments, and each argument is one value. otterPS has no separate pass for
+this: a function becomes known when the parser reaches its `to` line (so it
+can call itself), and a call written above its definition is not parsed as a
+call. otter-net does exactly the same - a look-ahead pass would accept
+programs otterPS rejects.
 
 ### Parser
 Recursive descent, one method per grammar rule, mirroring otterPS's parser
@@ -197,7 +198,7 @@ decision; nothing in the first phases depends on it.
 
 ## 7. Layout
 
-    src/Otter.Language    Lexer, signature pass, syntax tree, parser, binder,
+    src/Otter.Language    Lexer, syntax tree, parser, binder,
                           bound tree, diagnostics
     src/Otter.Runtime     Values, scopes, evaluator, formatting, OtterError
     src/Otter.Cli         The `otter` command (Native AOT), fallback
