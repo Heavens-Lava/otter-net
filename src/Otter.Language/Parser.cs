@@ -405,6 +405,15 @@ public sealed class Parser
                 Expect(TokenKind.Newline, "I expected the format statement to end here.");
                 return new FormatDateStmt(subject, pattern, target.Text, start.Line);
             }
+            case TokenKind.Log:
+                Read();
+                return ReadDiagnostic(DiagnosticLevel.Note, start);
+            case TokenKind.Warn:
+                Read();
+                return ReadDiagnostic(DiagnosticLevel.Warning, start);
+            case TokenKind.Problem:
+                Read();
+                return ReadDiagnostic(DiagnosticLevel.Problem, start);
             case TokenKind.Get:
                 return ReadGet(start);
             case TokenKind.Set:
@@ -482,6 +491,15 @@ public sealed class Parser
         Expr target = ReadValue();
         Expect(TokenKind.Newline, "I expected the set statement to end here.");
         return new SetKeyStmt(key, value, target, start.Line);
+    }
+
+    // Parts are read like say's, one value each (D8, D31).
+    Stmt ReadDiagnostic(DiagnosticLevel level, Token start)
+    {
+        var parts = new List<Expr>();
+        while (!Is(TokenKind.Newline)) parts.Add(ReadValue());
+        Expect(TokenKind.Newline, "I expected the diagnostic to end here.");
+        return new DiagnosticStmt(level, parts, start.Line);
     }
 
     Stmt ReadAdd(Token start)

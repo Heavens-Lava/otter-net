@@ -330,6 +330,19 @@ public sealed class Interpreter
                 scope.Set(format.Target, text);
                 return;
             }
+            // log / warn / error (D31): "log: text", "warn: text", "error: text"
+            case DiagnosticStmt diagnostic:
+            {
+                var rendered = diagnostic.Parts.Select(part => Values.Format(Evaluate(part, scope)));
+                string label = diagnostic.Level switch
+                {
+                    DiagnosticLevel.Warning => "warn",
+                    DiagnosticLevel.Problem => "error",
+                    _ => "log",
+                };
+                output.WriteLine($"{label}: {string.Join(" ", rendered)}");
+                return;
+            }
             case ReturnStmt returnStmt:
                 throw new ReturnSignal(returnStmt.Value == null ? null : Evaluate(returnStmt.Value, scope), returnStmt.Line);
             default:

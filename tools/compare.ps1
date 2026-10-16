@@ -76,12 +76,18 @@ function Invoke-OtterProcess {
     $stderr = $process.StandardError.ReadToEndAsync()
     try { $process.StandardInput.Write($InputText); $process.StandardInput.Close() } catch { }
     $finished = $process.WaitForExit($TimeoutSeconds * 1000)
-    if (-not $finished) { try { $process.Kill() } catch { } ; [void]$process.WaitForExit(5000) }
+    if (-not $finished) {
+        # The whole tree: otter-net's PowerShell fallback is a child process
+        # that would otherwise keep running and hold the output pipes open.
+        & taskkill.exe /T /F /PID $process.Id 2>&1 | Out-Null
+        [void]$process.WaitForExit(5000)
+    }
     [void]$copy.Wait(5000)
+    $stderrText = if ($stderr.Wait(5000)) { $stderr.Result } else { '' }
     return [pscustomobject]@{
         ExitCode = $(if ($finished) { $process.ExitCode } else { 'timeout' })
         Stdout = $stdout.ToArray()
-        Stderr = $stderr.Result
+        Stderr = $stderrText
     }
 }
 

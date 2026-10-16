@@ -1,0 +1,6 @@
+port is 8080
+log "Listening on" port
+warn "Disk almost full:" 91 "percent"
+error "Could not save" gone
+log
+say "done"

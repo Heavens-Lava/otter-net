@@ -316,6 +316,15 @@ public sealed class FormatDateStmt(Expr subject, Expr format, string target, int
     public string Target { get; } = target;
 }
 
+public enum DiagnosticLevel { Note, Warning, Problem }
+
+// log "Server started." / warn "..." / error "..." (D31)
+public sealed class DiagnosticStmt(DiagnosticLevel level, IReadOnlyList<Expr> parts, int line) : Stmt(line)
+{
+    public DiagnosticLevel Level { get; } = level;
+    public IReadOnlyList<Expr> Parts { get; } = parts;
+}
+
 public sealed class ReturnStmt(Expr? value, int line) : Stmt(line) { public Expr? Value { get; } = value; }
 
 public sealed class ProgramNode(IReadOnlyList<Stmt> statements)
