@@ -5,6 +5,11 @@
     <RootNamespace>Otter.Cli</RootNamespace>
     <PublishAot>true</PublishAot>
     <OptimizationPreference>Speed</OptimizationPreference>
+    <!-- No otter.exe app host in ordinary builds: antivirus products flag a new
+         unsigned executable (Symantec, 2026-10-15). Development runs
+         `dotnet otter.dll`; native executables are built only in CI until
+         they can be signed. -->
+    <UseAppHost>false</UseAppHost>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Otter.Runtime\Otter.Runtime.csproj" />
