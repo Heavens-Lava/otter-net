@@ -726,7 +726,24 @@ public sealed class Parser
             Expect(TokenKind.Newline, "I expected the write CSV statement to end here.");
             return new WriteCsvStmt(rows, csvPath, start.Line);
         }
-        if (Current.Kind == TokenKind.Identifier && SameAny(Current.Text, "xml", "bytes")) throw Unsupported($"write {Current.Text}");
+        if (Current.Kind == TokenKind.Identifier && Same(Current.Text, "xml")) throw Unsupported("write xml");
+        // write bytes data to file "copy.png" [atomically] (D115)
+        if (Current.Kind == TokenKind.Identifier && Same(Current.Text, "bytes"))
+        {
+            Read();
+            Expr data = ReadValue();
+            Expect(TokenKind.To, "I expected \"to\" and a file path.", "Write: write bytes data to file \"copy.png\"");
+            Expect(TokenKind.File, "I expected \"file\" and a path.", "Write: write bytes data to file \"copy.png\"");
+            Expr bytesPath = ReadValue();
+            bool atomicBytes = false;
+            if (Current.Kind == TokenKind.Identifier && Same(Current.Text, "atomically"))
+            {
+                Read();
+                atomicBytes = true;
+            }
+            Expect(TokenKind.Newline, "I expected the write bytes statement to end here.");
+            return new WriteBytesFileStmt(data, bytesPath, atomicBytes, start.Line);
+        }
         Expr content = ReadValue();
         Expect(TokenKind.To, "I expected \"to\" and a file path.");
         Expr path = ReadValue();
@@ -1550,7 +1567,7 @@ public sealed class Parser
     // Words that begin one of Read-OtterValue's special forms in otterPS.
     static readonly HashSet<string> SpecialValueWords = new(StringComparer.OrdinalIgnoreCase)
     {
-        "today", "now", "pi", "the", "date", "bytes", "empty", "text", "hex", "base64", "current", "route",
+        "today", "now", "pi", "the", "date", "text", "current", "route",
         "changed", "change", "old", "received", "close", "websocket", "secret", "xml", "pretty",
         "element", "elements", "child", "children", "attribute", "drag", "dragged", "drop", "dropped",
         "hmac", "incoming", "local", "network", "remote", "sender", "secure", "tls", "sha256", "sha384", "sha512",
@@ -1686,6 +1703,44 @@ public sealed class Parser
         // element/elements/child/children SELECTOR in X and attribute NAME of X
         // (D105) are tried and abandoned, as otterPS does: when no selector and
         // "in" (or "of") follow, the word is an ordinary name.
+        // D102: bytes from file|text|hex|base64 X / empty bytes /
+        // text|hex|base64 from bytes X - otherwise these are ordinary names.
+        if (token.Kind == TokenKind.Identifier && Same(token.Text, "bytes") && IsAt(1, TokenKind.From))
+        {
+            Read(); Read();
+            Token encoding = Current;
+            if (encoding.Kind == TokenKind.File || (encoding.Kind == TokenKind.Identifier && Same(encoding.Text, "file")))
+            {
+                Read();
+                return new BytesFromFileExpr(ReadValue(), token.Line);
+            }
+            BytesOp? fromOp = encoding.Kind != TokenKind.Identifier ? null : encoding.Text.ToLowerInvariant() switch
+            {
+                "text" => BytesOp.FromText,
+                "hex" => BytesOp.FromHex,
+                "base64" => BytesOp.FromBase64,
+                _ => null,
+            };
+            if (fromOp == null)
+            {
+                throw Error("I expected \"file\", \"text\", \"hex\", or \"base64\" after \"bytes from\".", encoding,
+                    "Write: bytes from file \"photo.png\", bytes from text \"Hello\", bytes from hex \"48656C6C6F\", or bytes from base64 \"SGVsbG8=\"");
+            }
+            Read();
+            return new BytesExpr(fromOp.Value, ReadValue(), token.Line);
+        }
+        if (token.Kind == TokenKind.Identifier && Same(token.Text, "empty") && At(1) is { Kind: TokenKind.Identifier } bytesWord && Same(bytesWord.Text, "bytes"))
+        {
+            Read(); Read();
+            return new BytesExpr(BytesOp.Empty, null, token.Line);
+        }
+        if (token.Kind == TokenKind.Identifier && SameAny(token.Text, "text", "hex", "base64") && IsAt(1, TokenKind.From) &&
+            At(2) is { Kind: TokenKind.Identifier } fromBytes && Same(fromBytes.Text, "bytes"))
+        {
+            BytesOp toOp = token.Text.ToLowerInvariant() switch { "text" => BytesOp.ToText, "hex" => BytesOp.ToHex, _ => BytesOp.ToBase64 };
+            Read(); Read(); Read();
+            return new BytesExpr(toOp, ReadValue(), token.Line);
+        }
         bool plainXmlWord = false;
         // text from xml X / text of NAME in ELEMENT are XML (D105); text of X
         // is the property; any other text is an ordinary name.

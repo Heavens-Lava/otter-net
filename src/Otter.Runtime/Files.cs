@@ -193,6 +193,54 @@ public static class OtterFiles
         }
     }
 
+    // bytes from file "photo.png" (D115)
+    public static byte[] ReadBytes(string path)
+    {
+        string full = Resolve(path);
+        if (Directory.Exists(full)) throw new FileProblem($"\"{path}\" is a folder, not a file.");
+        if (!File.Exists(full)) throw new FileProblem($"I could not find a file called \"{path}\".", $"if file \"{path}\" exists");
+        try { return File.ReadAllBytes(full); }
+        catch (Exception e) when (IsFileSystemFailure(e)) { throw new FileProblem($"I could not read bytes from \"{path}\". {Calling("ReadAllBytes", 1, e)}"); }
+    }
+
+    // write bytes data to file "copy.png" [atomically] (D115)
+    public static void WriteBytes(string path, byte[] data, bool atomic)
+    {
+        string full = Resolve(path);
+        EnsureParentFolder(full);
+        if (Directory.Exists(full)) throw new FileProblem($"\"{path}\" is a folder, not a file.");
+        if (!atomic)
+        {
+            try { File.WriteAllBytes(full, data); }
+            catch (Exception e) when (IsFileSystemFailure(e)) { throw new FileProblem($"I could not write bytes to \"{path}\". {Calling("WriteAllBytes", 2, e)}"); }
+            return;
+        }
+        if (File.Exists(full) && new FileInfo(full).IsReadOnly) throw new FileProblem($"I could not write bytes to \"{path}\". The file is read-only.");
+        string temporary = full + ".otter-tmp-" + Guid.NewGuid().ToString("N").Substring(0, 8);
+        string backup = full + ".otter-bak-" + Guid.NewGuid().ToString("N").Substring(0, 8);
+        (string Name, int Arguments) step = ("WriteAllBytes", 2);
+        try
+        {
+            File.WriteAllBytes(temporary, data);
+            if (File.Exists(full))
+            {
+                step = ("Replace", 3);
+                File.Replace(temporary, full, backup);
+                try { File.Delete(backup); } catch (Exception e) when (IsFileSystemFailure(e)) { }
+            }
+            else
+            {
+                step = ("Move", 2);
+                File.Move(temporary, full);
+            }
+        }
+        catch (Exception e) when (IsFileSystemFailure(e))
+        {
+            try { if (File.Exists(temporary)) File.Delete(temporary); } catch (Exception cleanup) when (IsFileSystemFailure(cleanup)) { }
+            throw new FileProblem($"I could not write bytes to \"{path}\". {Calling(step.Name, step.Arguments, e)}");
+        }
+    }
+
     // append "line one" to "log.txt" (D61) - creates the file if need be.
     public static void Append(string path, string content)
     {

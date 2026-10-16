@@ -1,0 +1,89 @@
+# bytes (D102, D115): their own type, read and written explicitly.
+greeting is bytes from text "Grüße"
+say greeting
+say length of greeting
+say hex from bytes greeting
+say base64 from bytes greeting
+say text from bytes greeting
+fromHex is bytes from hex " 4772c3bcc39f65 "
+if fromHex is greeting
+    say "hex and text agree"
+.
+fromBase64 is bytes from base64 "R3LDvMOfZQ=="
+if fromBase64 is greeting
+    say "base64 agrees"
+.
+nothing is empty bytes
+say nothing length of nothing
+if nothing
+    say "empty bytes are still true"
+.
+if greeting is "Grüße"
+    say "wrong"
+otherwise
+    say "bytes never equal text"
+.
+mixed are
+    "a"
+.
+add greeting to mixed
+say mixed
+write bytes greeting to file "out/data.bin"
+copied is bytes from file "out/data.bin"
+say text from bytes copied
+write bytes copied to file "out/data.bin" atomically
+read "out/data.bin" into asText
+say asText
+bytes is 5
+hex is "not special here"
+text is "neither"
+say bytes hex text
+bad are
+    "4772C3BC C39F65"
+    "48656C6C6"
+    "zz"
+    ""
+.
+for each source in bad
+    try
+        x is bytes from hex source
+    otherwise into reason
+        say reason
+    .
+.
+try
+    x is bytes from base64 "!!!"
+otherwise into reason
+    say reason
+.
+try
+    x is text from bytes "plain"
+otherwise into reason
+    say reason
+.
+try
+    x is text from bytes bytes from hex "FF"
+otherwise into reason
+    say reason
+.
+try
+    write bytes "text" to file "x.bin"
+otherwise into reason
+    say reason
+.
+try
+    x is bytes from file "missing.bin"
+otherwise into reason
+    say reason
+.
+try
+    total is greeting plus 1
+otherwise into reason
+    say reason
+.
+try
+    convert greeting to json into json
+    say json
+otherwise into reason
+    say reason
+.

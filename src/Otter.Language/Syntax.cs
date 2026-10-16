@@ -427,6 +427,28 @@ public sealed class GetSystemFolderStmt(Expr folderName, string target, int line
 // set current directory to "Projects"
 public sealed class SetCurrentDirectoryStmt(Expr path, int line) : Stmt(line) { public Expr Path { get; } = path; }
 
+// ---- bytes (D102, D115) ----------------------------------------------------
+
+public enum BytesOp { Empty, FromText, FromHex, FromBase64, ToText, ToHex, ToBase64 }
+
+// empty bytes / bytes from text|hex|base64 X / text|hex|base64 from bytes X
+public sealed class BytesExpr(BytesOp op, Expr? source, int line) : Expr(line)
+{
+    public BytesOp Op { get; } = op;
+    public Expr? Source { get; } = source;
+}
+
+// bytes from file "photo.png"
+public sealed class BytesFromFileExpr(Expr path, int line) : Expr(line) { public Expr Path { get; } = path; }
+
+// write bytes data to file "copy.png" [atomically]
+public sealed class WriteBytesFileStmt(Expr data, Expr path, bool atomic, int line) : Stmt(line)
+{
+    public Expr Data { get; } = data;
+    public Expr Path { get; } = path;
+    public bool Atomic { get; } = atomic;
+}
+
 // ---- hashing and encryption (D91, D92) ------------------------------------
 
 // hash "text" as "sha256" [with key "k"] into digest

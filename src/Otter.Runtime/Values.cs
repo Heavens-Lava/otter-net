@@ -78,6 +78,8 @@ public static class Values
             // A thing prints the way it was declared: "a thing", "a Person".
             case OtterThing thing: return $"a {thing.TypeName}";
             case OtterType type: return $"the type {type.Name}";
+            // Only the count: hex and text are separate, explicit readings.
+            case OtterBytes bytes: return $"<{bytes.Value.Length} bytes>";
             // Printing a function is almost always a forgotten call.
             case OtterFunction function: return $"<{function.Name}, something Otter can do>";
             default: return value.ToString() ?? "";
@@ -111,6 +113,7 @@ public static class Values
         OtterThing thing => $"a {thing.TypeName}",
         OtterType type => $"the type {type.Name}",
         OtterDate date => date.HasTime ? "a date and time" : "a date",
+        OtterBytes => "bytes",
         OtterList => "a list",
         double => "a number",
         string => "some text",
@@ -149,6 +152,11 @@ public static class Values
         // Two dates compare by their instant; a date never equals anything else.
         if (left is OtterDate || right is OtterDate) return left is OtterDate ld && right is OtterDate rd && ld.Value == rd.Value;
         if (TryNumber(left, out double ln) && TryNumber(right, out double rn)) return ln == rn;
+        // D102: bytes compare by content and equal nothing else.
+        if (left is OtterBytes || right is OtterBytes)
+        {
+            return left is OtterBytes lb2 && right is OtterBytes rb2 && lb2.Value.AsSpan().SequenceEqual(rb2.Value);
+        }
         if (left is OtterList ll && right is OtterList rl)
         {
             if (ll.Count != rl.Count) return false;
@@ -180,6 +188,12 @@ public static class Values
         if (trimmed.Length > 0 && double.TryParse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture, out double number)) return number;
         return text;
     }
+}
+
+// D102: bytes are their own type - never a list of numbers, never text.
+public sealed class OtterBytes(byte[] value)
+{
+    public byte[] Value { get; } = value;
 }
 
 // start timer workTimer (D101): a monotonic clock. otterPS holds a

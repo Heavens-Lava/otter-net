@@ -679,6 +679,14 @@ public sealed class Interpreter
                 random.Seed(PowerShellInt(seed, setSeed.Line));
                 return;
             }
+            case WriteBytesFileStmt writeBytes:
+            {
+                object? data = Evaluate(writeBytes.Data, scope);
+                string path = PathArgument(writeBytes.Path, scope);
+                if (data is not OtterBytes bytes) throw RuntimeError($"Binary file writes require bytes, but this is {Values.TypeName(data)}.", writeBytes.Line);
+                Library(() => OtterFiles.WriteBytes(path, bytes.Value, writeBytes.Atomic), writeBytes.Line);
+                return;
+            }
             // ---- json (D29) ----
             case ReadJsonStmt readJson:
             {
@@ -787,6 +795,50 @@ public sealed class Interpreter
     {
         if (WriteColoredLine != null) WriteColoredLine(text, color);
         else output.WriteLine(text);
+    }
+
+    // empty bytes / bytes from text|hex|base64 X / text|hex|base64 from bytes X (D102)
+    object? EvaluateBytes(BytesExpr bytes, Scope scope)
+    {
+        switch (bytes.Op)
+        {
+            case BytesOp.Empty:
+                return new OtterBytes(Array.Empty<byte>());
+            case BytesOp.FromText:
+                return new OtterBytes(System.Text.Encoding.UTF8.GetBytes(Values.Format(Evaluate(bytes.Source!, scope))));
+            case BytesOp.FromHex:
+            {
+                string text = Values.Format(Evaluate(bytes.Source!, scope));
+                string clean = text.Trim();
+                if (clean.Length == 0 || clean.Length % 2 != 0 || !clean.All(Uri.IsHexDigit))
+                {
+                    throw RuntimeError($"I can't read \"{text}\" as hex - it needs to be pairs of hex digits (0-9, A-F).", bytes.Line, "bytes from hex \"48656C6C6F\"");
+                }
+                return new OtterBytes(Convert.FromHexString(clean));
+            }
+            case BytesOp.FromBase64:
+            {
+                string text = Values.Format(Evaluate(bytes.Source!, scope));
+                try { return new OtterBytes(Convert.FromBase64String(text)); }
+                catch (FormatException)
+                {
+                    throw RuntimeError($"I can't read \"{text}\" as base64 - it isn't valid base64 text.", bytes.Line, "bytes from base64 \"SGVsbG8=\"");
+                }
+            }
+        }
+        object? value = Evaluate(bytes.Source!, scope);
+        string reading = bytes.Op switch { BytesOp.ToText => "text", BytesOp.ToHex => "hex", _ => "base64" };
+        if (value is not OtterBytes source) throw RuntimeError($"I can only read {reading} from bytes, but this is {Values.TypeName(value)}.", bytes.Line);
+        switch (bytes.Op)
+        {
+            case BytesOp.ToText:
+                try { return new System.Text.UTF8Encoding(false, true).GetString(source.Value); }
+                catch (System.Text.DecoderFallbackException) { throw RuntimeError("These bytes aren't valid UTF-8 text.", bytes.Line); }
+            case BytesOp.ToHex:
+                return Convert.ToHexString(source.Value);
+            default:
+                return Convert.ToBase64String(source.Value);
+        }
     }
 
     // Get-OtterPathArgument: typed text, or a file or folder object.
@@ -990,6 +1042,13 @@ public sealed class Interpreter
                 return EvaluateOfOperation(ofOperation, scope);
             case CallExpr call:
                 return Call(call, scope);
+            case BytesExpr bytes:
+                return EvaluateBytes(bytes, scope);
+            case BytesFromFileExpr bytesFromFile:
+            {
+                string path = PathArgument(bytesFromFile.Path, scope);
+                return Library(() => new OtterBytes(OtterFiles.ReadBytes(path)), bytesFromFile.Line);
+            }
             case MinMaxExpr minMax:
             {
                 double left = RequireNumber(Evaluate(minMax.Left, scope), minMax.Line, "comparing sizes");
@@ -1125,6 +1184,7 @@ public sealed class Interpreter
             case OfOperation.Length:
                 if (subject is OtterList list) return (double)list.Count;
                 if (subject is string text) return (double)text.Length;
+                if (subject is OtterBytes bytes) return (double)bytes.Value.Length;
                 throw RuntimeError($"I can only measure the length of text, a list, or bytes, but this is {Values.TypeName(subject)}.", operation.Line);
             case OfOperation.Uppercase: return Values.Format(subject).ToUpperInvariant();
             case OfOperation.Lowercase: return Values.Format(subject).ToLowerInvariant();

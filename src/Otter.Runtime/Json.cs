@@ -78,6 +78,11 @@ public static class OtterJson
                 sb.Append(date.HasTime ? "true" : "false").Append('}');
                 return;
             }
+            // OtterBytes is a PowerShell class too: its one property, the bytes
+            // as numbers.
+            case OtterBytes bytes:
+                sb.Append("{\"Value\":[").Append(string.Join(",", bytes.Value.Select(b => b.ToString(CultureInfo.InvariantCulture)))).Append("]}");
+                return;
             case OtterFunction:
             case OtterType:
                 throw new NotData();
