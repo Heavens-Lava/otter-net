@@ -1,0 +1,128 @@
+# Native builds, compatibility and benchmarks.
+#
+# Native otter executables are built here, never on developer machines,
+# until they can be code-signed (docs/ARCHITECTURE.md, phase 5). Only
+# reports and captured program output are uploaded - never the binaries.
+name: otter-net
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  windows:
+    name: Windows - native build vs otterPS 1.0.1
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check out otterPS 1.0.1 (the reference)
+        uses: actions/checkout@v4
+        with:
+          repository: Heavens-Lava/otterPS
+          ref: v1.0.1
+          path: otterps
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Publish native (AOT)
+        run: dotnet publish src/Otter.Cli/Otter.Cli.csproj -c Release -r win-x64 -p:UseAppHost=true -o artifacts/win-x64 --nologo
+      - name: Compatibility - otterPS conformance, examples and tests/compat
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tools/compare.ps1 -OtterPs otterps -OtterNet artifacts/win-x64/otter.exe -ReportPath results/compat-windows.md
+      - name: Benchmarks against otterPS 1.0.1
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tools/bench.ps1 -OtterPs otterps -OtterNet artifacts/win-x64/otter.exe -Runs 7 -ReportPath results/bench-windows.md
+      - name: Capture reference output for the cross-platform check
+        shell: powershell
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File tools/capture.ps1 -Otter otterps/otter.ps1 -Corpus tests/compat -OutDir outputs/windows-otterps
+          powershell -NoProfile -ExecutionPolicy Bypass -File tools/capture.ps1 -Otter artifacts/win-x64/otter.exe -Corpus tests/compat -OutDir outputs/windows-native
+      - name: Summary
+        if: always()
+        shell: powershell
+        run: Get-ChildItem results -Filter *.md -ErrorAction SilentlyContinue | ForEach-Object { Get-Content $_.FullName; '' } | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows
+          path: |
+            results/
+            outputs/
+
+  unix:
+    name: ${{ matrix.os }} - native build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            rid: linux-x64
+          - os: macos-latest
+            rid: osx-arm64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Publish native (AOT)
+        run: dotnet publish src/Otter.Cli/Otter.Cli.csproj -c Release -r ${{ matrix.rid }} -p:UseAppHost=true -o artifacts/${{ matrix.rid }} --nologo
+      - name: Capture output of tests/compat
+        shell: pwsh
+        run: ./tools/capture.ps1 -Otter artifacts/${{ matrix.rid }}/otter -Corpus tests/compat -OutDir outputs/${{ matrix.rid }}
+      - name: Startup and benchmark times
+        shell: pwsh
+        run: |
+          $otter = (Resolve-Path artifacts/${{ matrix.rid }}/otter).Path
+          $env:OTTER_ENGINE = 'native'
+          $lines = @("# otter-net on ${{ matrix.os }} (${{ matrix.rid }})", '', '| Program | Median (ms) | Fastest | Slowest |', '|---|---:|---:|---:|')
+          foreach ($program in Get-ChildItem tools/bench -Filter *.ot | Sort-Object Name) {
+              $times = foreach ($i in 1..11) {
+                  $clock = [Diagnostics.Stopwatch]::StartNew()
+                  & $otter run $program.FullName | Out-Null
+                  if ($LASTEXITCODE -ne 0) { throw "$($program.Name) failed: $LASTEXITCODE" }
+                  $clock.Elapsed.TotalMilliseconds
+              }
+              $sorted = @($times | Sort-Object)
+              $lines += "| $($program.BaseName) | $([int]$sorted[5]) | $([int]$sorted[0]) | $([int]$sorted[-1]) |"
+          }
+          New-Item -ItemType Directory -Force results | Out-Null
+          $lines | Set-Content results/bench-${{ matrix.rid }}.md
+          $lines | Out-File -Append $env:GITHUB_STEP_SUMMARY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ${{ matrix.rid }}
+          path: |
+            results/
+            outputs/
+
+  cross-platform:
+    name: Same output on every platform
+    needs: [windows, unix]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: downloaded
+      - name: Compare with otterPS's output on Windows
+        shell: pwsh
+        run: |
+          $reference = Get-ChildItem downloaded -Recurse -Directory -Filter windows-otterps | Select-Object -First 1
+          $lines = @('# Cross-platform output check', '', "Reference: otterPS 1.0.1 on Windows. Line endings and the temporary folder's path are normalised.", '')
+          foreach ($platform in @('windows-native', 'linux-x64', 'osx-arm64')) {
+              $folder = Get-ChildItem downloaded -Recurse -Directory -Filter $platform | Select-Object -First 1
+              if (-not $folder) { $lines += "- ${platform}: no output captured"; continue }
+              $different = @()
+              foreach ($expected in Get-ChildItem $reference.FullName -Filter *.out) {
+                  $actual = Join-Path $folder.FullName $expected.Name
+                  if (-not (Test-Path $actual)) { $different += "$($expected.BaseName) (missing)"; continue }
+                  if ((Get-Content -Raw $expected.FullName) -cne (Get-Content -Raw $actual)) { $different += $expected.BaseName }
+              }
+              $total = (Get-ChildItem $reference.FullName -Filter *.out).Count
+              $lines += "- ${platform}: $($total - $different.Count) of $total identical" + $(if ($different) { ". Different: " + ($different -join ', ') } else { '' })
+          }
+          $lines | Out-File -Append $env:GITHUB_STEP_SUMMARY
+          $lines | Write-Host

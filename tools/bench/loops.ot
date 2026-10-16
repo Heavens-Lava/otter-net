@@ -1,0 +1,18 @@
+# Arithmetic in counted and while loops.
+total is 0
+count from 1 to 200000 as n
+    doubled is n times 2
+    total is total plus doubled
+.
+say total
+outer is 0
+steps is 0
+while outer is less than 300
+    inner is 0
+    while inner is less than 300
+        steps is steps plus 1
+        inner is inner plus 1
+    .
+    outer is outer plus 1
+.
+say steps

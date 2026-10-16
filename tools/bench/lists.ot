@@ -1,0 +1,28 @@
+# Building, searching, sorting and joining lists.
+numbers are
+    0
+.
+remove 0 from numbers
+count from 1 to 20000 as i
+    add 20000 minus i to numbers
+.
+say length of numbers
+sort numbers
+say first of numbers last of numbers
+find n in numbers where n is greater than 19000 into big
+say big
+hits is 0
+count from 1 to 300 as i
+    if numbers contains i
+        hits is hits plus 1
+    .
+.
+say hits
+words are
+    "otter"
+.
+count from 1 to 2000 as i
+    add i to words
+.
+join words with "," into joined
+say length of joined

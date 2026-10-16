@@ -1,0 +1,19 @@
+# Text building, splitting, replacing and case.
+line is ""
+count from 1 to 3000 as i
+    line is line plus "x"
+.
+say length of line
+csv is "alpha,beta,gamma,delta,epsilon"
+total is 0
+count from 1 to 3000 as i
+    split csv by "," into parts
+    total is total plus length of parts
+.
+say total
+sentence is "the quick brown fox jumps over the lazy dog"
+count from 1 to 2000 as i
+    replace "fox" with "otter" in sentence into changed
+.
+say changed
+say uppercase of changed

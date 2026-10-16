@@ -1,0 +1,21 @@
+# Recursion and many small calls.
+to fib n
+    if n is less than 2
+        return n
+    .
+    one is n minus 1
+    two is n minus 2
+    left is fib one
+    right is fib two
+    return left plus right
+.
+to square x
+    return x times x
+.
+say fib 20
+sum is 0
+count from 1 to 20000 as i
+    squared is square i
+    sum is sum plus squared
+.
+say sum

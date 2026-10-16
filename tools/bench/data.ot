@@ -1,0 +1,17 @@
+# Files and JSON together, as a small data job does.
+record has
+    name is "Otter"
+    count is 0
+.
+count from 1 to 200 as i
+    count of record is i
+    convert record to json into text
+    write text to "record.json"
+    read json from "record.json" into back
+.
+say name of back count of back
+append "line" to "log.txt"
+read "log.txt" into logged
+say logged
+delete file "record.json"
+delete file "log.txt"
