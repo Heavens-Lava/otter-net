@@ -1518,6 +1518,20 @@ public sealed class Parser
         // (D105) are tried and abandoned, as otterPS does: when no selector and
         // "in" (or "of") follow, the word is an ordinary name.
         bool plainXmlWord = false;
+        // text from xml X / text of NAME in ELEMENT are XML (D105); text of X
+        // is the property; any other text is an ordinary name.
+        if (token.Kind == TokenKind.Identifier && Same(token.Text, "text"))
+        {
+            if (IsAt(1, TokenKind.From) && At(2) is { Kind: TokenKind.Identifier } xmlWord && Same(xmlWord.Text, "xml")) throw Unsupported("xml");
+            if (IsAt(1, TokenKind.Of))
+            {
+                Read(); Read();
+                Expr owner = ReadValue();
+                if (Is(TokenKind.In)) throw Unsupported("xml");
+                return new PropertyAccessExpr("text", owner, token.Line);
+            }
+            plainXmlWord = true;
+        }
         if (token.Kind == TokenKind.Identifier && SameAny(token.Text, "element", "elements", "child", "children", "attribute"))
         {
             int saved = position;

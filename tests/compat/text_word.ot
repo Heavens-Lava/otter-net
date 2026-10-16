@@ -1,0 +1,16 @@
+# "text" is an ordinary name unless "of NAME in" or "from xml" follows (D105).
+text is "hello"
+say text
+say length of text
+box has
+    text is "inside"
+.
+say text of box
+words are
+    "a"
+.
+add text to words
+say words
+convert box to json into text
+convert text from json into again
+say text of again
