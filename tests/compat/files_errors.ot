@@ -1,0 +1,118 @@
+# File problems are runtime errors with Otter's own words.
+to attempt label
+    say label
+.
+try
+    read "missing.txt" into text
+otherwise into reason
+    say reason
+.
+try
+    delete file "missing.txt"
+otherwise into reason
+    say reason
+.
+create folder "Box"
+write "x" to "Box/inside.txt"
+try
+    delete file "Box"
+otherwise into reason
+    say reason
+.
+try
+    delete folder "Box"
+otherwise into reason
+    say reason
+.
+try
+    delete folder "Box/inside.txt"
+otherwise into reason
+    say reason
+.
+try
+    delete folder "NoSuchFolder"
+otherwise into reason
+    say reason
+.
+try
+    write "x" to "Box"
+otherwise into reason
+    say reason
+.
+try
+    append "x" to "Box"
+otherwise into reason
+    say reason
+.
+try
+    copy "missing.txt" to "x.txt"
+otherwise into reason
+    say reason
+.
+try
+    move "missing.txt" to "x.txt"
+otherwise into reason
+    say reason
+.
+try
+    read "a<b.txt" into text
+otherwise into reason
+    say reason
+.
+try
+    write "x" to "a?b.txt"
+otherwise into reason
+    say reason
+.
+try
+    read "" into text
+otherwise into reason
+    say reason
+.
+try
+    read "   " into text
+otherwise into reason
+    say reason
+.
+try
+    get files in "NoSuchFolder" into files
+otherwise into reason
+    say reason
+.
+try
+    copy folder "NoSuchFolder" to "x"
+otherwise into reason
+    say reason
+.
+try
+    move folder "Box" to "Missing/Parent/Box"
+otherwise into reason
+    say reason
+.
+write "same" to "same.txt"
+try
+    copy "same.txt" to "same.txt"
+otherwise into reason
+    say reason
+.
+plain has
+    colour is "red"
+.
+try
+    read plain into text
+otherwise into reason
+    say reason
+.
+try
+    read gone into text
+otherwise into reason
+    say reason
+.
+try
+    create folder "same.txt"
+otherwise into reason
+    say reason
+.
+if file "a|b" exists
+    say "wrong"
+.

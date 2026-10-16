@@ -142,7 +142,7 @@ public sealed class Parser
     // main statement switch. otter-net does not run those yet.
     static readonly string[] SpecialStatementWords =
     {
-        "the", "close", "stop", "cancel", "store", "delete", "generate", "open", "listen", "send",
+        "the", "close", "stop", "cancel", "store", "generate", "open", "listen", "send",
         "route", "go", "watch", "primary", "secondary", "danger",
         "window", "page", "card", "heading", "text", "button", "panel", "section", "sidebar", "main",
         "link", "image", "input", "grid",
@@ -414,6 +414,35 @@ public sealed class Parser
             case TokenKind.Problem:
                 Read();
                 return ReadDiagnostic(DiagnosticLevel.Problem, start);
+            case TokenKind.Read:
+                return ReadRead(start);
+            case TokenKind.Write:
+                return ReadWrite(start);
+            case TokenKind.Append:
+            {
+                Read();
+                Expr content = ReadValue();
+                Expect(TokenKind.To, "I expected \"to\" and a file path.");
+                Expr path = ReadValue();
+                Expect(TokenKind.Newline, "I expected the append statement to end here.");
+                return new AppendFileStmt(content, path, start.Line);
+            }
+            case TokenKind.Copy:
+            case TokenKind.Move:
+                return ReadTransfer(start);
+            case TokenKind.Delete:
+                return ReadDelete(start);
+            case TokenKind.Create:
+            {
+                Read();
+                if (!Is(TokenKind.Folder)) throw Unsupported("create");
+                Read();
+                Expr path = ReadValue();
+                Expect(TokenKind.Newline, "I expected the create statement to end here.");
+                return new CreateFolderStmt(path, start.Line);
+            }
+            case TokenKind.Convert:
+                return ReadConvert(start);
             case TokenKind.Get:
                 return ReadGet(start);
             case TokenKind.Set:
@@ -442,6 +471,110 @@ public sealed class Parser
         }
     }
 
+    // read "notes.txt" into notes / read json from "x.json" into settings
+    Stmt ReadRead(Token start)
+    {
+        Read();
+        if (Is(TokenKind.Csv)) throw Unsupported("read csv");
+        bool json = Is(TokenKind.Json);
+        if (json)
+        {
+            Read();
+            Expect(TokenKind.From, "I expected \"from\" and a file path.");
+        }
+        Expr path = ReadValue();
+        Expect(TokenKind.Into, "I expected \"into\" and a variable name.");
+        Token target = ReadVariableName("I expected a variable name after \"into\".");
+        Expect(TokenKind.Newline, "I expected the read statement to end here.");
+        return json ? new ReadJsonStmt(path, target.Text, start.Line) : new ReadFileStmt(path, target.Text, start.Line);
+    }
+
+    // write "Hello!" to "hello.txt" [atomically]
+    Stmt ReadWrite(Token start)
+    {
+        Read();
+        if (Is(TokenKind.Csv)) throw Unsupported("write csv");
+        if (Current.Kind == TokenKind.Identifier && SameAny(Current.Text, "xml", "bytes")) throw Unsupported($"write {Current.Text}");
+        Expr content = ReadValue();
+        Expect(TokenKind.To, "I expected \"to\" and a file path.");
+        Expr path = ReadValue();
+        bool atomic = false;
+        if (Current.Kind == TokenKind.Identifier && Same(Current.Text, "atomically"))
+        {
+            Read();
+            atomic = true;
+        }
+        Expect(TokenKind.Newline, "I expected the write statement to end here.");
+        return new WriteFileStmt(content, path, atomic, start.Line);
+    }
+
+    // copy "a.txt" to "backup" / move folder "Old" to "Archive"
+    Stmt ReadTransfer(Token start)
+    {
+        Read();
+        bool copy = start.Kind == TokenKind.Copy;
+        string verb = copy ? "copy" : "move";
+        if (Is(TokenKind.Folder))
+        {
+            Read();
+            Expr folderSource = ReadValue();
+            Expect(TokenKind.To, "I expected \"to\" and a destination folder.");
+            Expr folderDestination = ReadValue();
+            Expect(TokenKind.Newline, $"I expected the {verb} statement to end here.");
+            return new TransferStmt(copy ? FileAction.CopyFolder : FileAction.MoveFolder, folderSource, folderDestination, start.Line);
+        }
+        Expr source = ReadValue();
+        Expect(TokenKind.To, "I expected \"to\" and a destination path.");
+        if (copy && Current.Kind == TokenKind.Identifier && Same(Current.Text, "clipboard")) throw Unsupported("copy to clipboard");
+        Expr destination = ReadValue();
+        Expect(TokenKind.Newline, $"I expected the {verb} statement to end here.");
+        return new TransferStmt(copy ? FileAction.CopyFile : FileAction.MoveFile, source, destination, start.Line);
+    }
+
+    // delete file "a.txt" / delete folder "Old"
+    Stmt ReadDelete(Token start)
+    {
+        // D111's `delete secret "name"` is matched before otterPS's switch.
+        if (At(1) is { Kind: TokenKind.Identifier } secret && Same(secret.Text, "secret") && !IsAt(2, TokenKind.Is)) throw Unsupported("delete secret");
+        Read();
+        if (Current.Kind == TokenKind.Identifier && SameAny(Current.Text, "registry", "credential")) throw Unsupported($"delete {Current.Text}");
+        if (Is(TokenKind.Folder))
+        {
+            Read();
+            Expr folder = ReadValue();
+            Expect(TokenKind.Newline, "I expected the delete statement to end here.");
+            return new DeleteFolderStmt(folder, start.Line);
+        }
+        if (Is(TokenKind.From)) throw Unsupported("HTTP delete");
+        Expect(TokenKind.File, "I expected \"file\" after delete.");
+        Expr path = ReadValue();
+        Expect(TokenKind.Newline, "I expected the delete statement to end here.");
+        return new DeleteFileStmt(path, start.Line);
+    }
+
+    // convert user to json into text / convert text from json into user
+    Stmt ReadConvert(Token start)
+    {
+        Read();
+        Expr subject = ReadValue();
+        bool toJson = Is(TokenKind.To);
+        if (toJson) Read();
+        else Expect(TokenKind.From, "I expected \"to json/csv\" or \"from json/csv\" here.");
+        Token format = Current;
+        if (format.Kind == TokenKind.Csv) throw Unsupported("csv");
+        if (format.Kind != TokenKind.Json)
+        {
+            throw toJson
+                ? Error("I expected \"json\" or \"csv\" after \"to\".", format, "Write \"convert rows to csv into text\" or \"convert user to json into text\".")
+                : Error("I expected \"json\" or \"csv\" after \"from\".", format, "Write \"convert text from csv into rows\" or \"convert text from json into user\".");
+        }
+        Read();
+        Expect(TokenKind.Into, "I expected \"into\" and a variable name.");
+        Token target = ReadVariableName("I expected a variable name after \"into\".");
+        Expect(TokenKind.Newline, "I expected the convert statement to end here.");
+        return new ConvertJsonStmt(toJson, subject, target.Text, start.Line);
+    }
+
     // Words that start one of otterPS's other `get` forms (clipboard,
     // environment variables, system folders, processes, the registry, files,
     // databases ...). Only the D41 form `get KEY from THING into NAME` runs here.
@@ -455,7 +588,25 @@ public sealed class Parser
     {
         Read();
         Token kind = Current;
-        if (kind.Kind is TokenKind.Distinct or TokenKind.Files or TokenKind.Folders or TokenKind.Json ||
+        if (kind.Kind is TokenKind.Files or TokenKind.Folders)
+        {
+            Read();
+            Expect(TokenKind.In, "I expected \"in\" and a folder path.");
+            Expr folder = ReadValue();
+            bool includeSubfolders = false;
+            if (Is(TokenKind.And))
+            {
+                Read();
+                Expect(TokenKind.Subfolders, "I expected \"subfolders\" after \"and\".");
+                includeSubfolders = true;
+            }
+            if (Is(TokenKind.Newline) && IsAt(1, TokenKind.Indent)) throw Unsupported("a continued discovery clause");
+            Expect(TokenKind.Into, "I expected \"into\" and a result name.");
+            Token entries = ReadVariableName("I expected a result name after \"into\".");
+            Expect(TokenKind.Newline, "I expected the discovery statement to end here.");
+            return new GetEntriesStmt(kind.Kind == TokenKind.Folders, folder, includeSubfolders, entries.Text, start.Line);
+        }
+        if (kind.Kind is TokenKind.Distinct or TokenKind.Json ||
             (kind.Kind is TokenKind.Identifier or TokenKind.Newline or TokenKind.Indent && SameAny(kind.Text, SpecialGetWords)))
         {
             throw Unsupported($"get {kind.Text}");
@@ -1182,7 +1333,21 @@ public sealed class Parser
         }
         Token head = Current;
         if (head.Kind == TokenKind.Identifier && SameAny(head.Text, "element", "registry")) throw Unsupported($"'{head.Text}' conditions");
-        if (head.Kind == TokenKind.File) throw Unsupported("file conditions");
+        // file "x" exists / file "x" is locked (D72); read only and
+        // symbolic links are left to otterPS.
+        if (head.Kind == TokenKind.File)
+        {
+            Read();
+            Expr path = ReadValue();
+            if (Is(TokenKind.Exists))
+            {
+                Read();
+                return new FileExistsExpr(path, head.Line);
+            }
+            if (!(Is(TokenKind.Is) && At(1) is { Kind: TokenKind.Identifier } locked && Same(locked.Text, "locked"))) throw Unsupported("file conditions");
+            Read(); Read();
+            return new FileLockedExpr(path, head.Line);
+        }
         if (head.Kind == TokenKind.Identifier && Same(head.Text, "password") && !IsAt(1, TokenKind.Is) && !IsAt(1, TokenKind.Of))
         {
             throw Unsupported("password conditions");

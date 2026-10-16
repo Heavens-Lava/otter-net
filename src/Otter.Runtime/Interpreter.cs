@@ -343,6 +343,85 @@ public sealed class Interpreter
                 output.WriteLine($"{label}: {string.Join(" ", rendered)}");
                 return;
             }
+            // ---- files and folders (Otter.Library.psm1) ----
+            case ReadFileStmt readFile:
+            {
+                string path = PathArgument(readFile.Path, scope);
+                scope.Set(readFile.Target, Library(() => OtterFiles.Read(path), readFile.Line));
+                return;
+            }
+            case WriteFileStmt writeFile:
+            {
+                string content = Values.Format(Evaluate(writeFile.Content, scope));
+                string path = PathArgument(writeFile.Path, scope);
+                Library(() => OtterFiles.Write(path, content, writeFile.Atomic), writeFile.Line);
+                return;
+            }
+            case AppendFileStmt appendFile:
+            {
+                string content = Values.Format(Evaluate(appendFile.Content, scope));
+                string path = PathArgument(appendFile.Path, scope);
+                Library(() => OtterFiles.Append(path, content), appendFile.Line);
+                return;
+            }
+            case TransferStmt transfer:
+            {
+                string source = PathArgument(transfer.Source, scope);
+                string destination = PathArgument(transfer.Destination, scope);
+                Action action = transfer.Action switch
+                {
+                    FileAction.CopyFile => () => OtterFiles.CopyFile(source, destination),
+                    FileAction.MoveFile => () => OtterFiles.MoveFile(source, destination),
+                    FileAction.CopyFolder => () => OtterFiles.CopyFolder(source, destination),
+                    _ => () => OtterFiles.MoveFolder(source, destination),
+                };
+                Library(action, transfer.Line);
+                return;
+            }
+            case DeleteFileStmt deleteFile:
+            {
+                string path = PathArgument(deleteFile.Path, scope);
+                Library(() => OtterFiles.DeleteFile(path), deleteFile.Line);
+                return;
+            }
+            case DeleteFolderStmt deleteFolder:
+            {
+                string path = PathArgument(deleteFolder.Path, scope);
+                Library(() => OtterFiles.DeleteFolder(path), deleteFolder.Line);
+                return;
+            }
+            case CreateFolderStmt createFolder:
+            {
+                string path = PathArgument(createFolder.Path, scope);
+                Library(() => OtterFiles.CreateFolder(path), createFolder.Line);
+                return;
+            }
+            case GetEntriesStmt entries:
+            {
+                string path = PathArgument(entries.Folder, scope);
+                scope.Set(entries.Target, Library(() => OtterFiles.Entries(path, entries.Folders, entries.IncludeSubfolders), entries.Line));
+                return;
+            }
+            // ---- json (D29) ----
+            case ReadJsonStmt readJson:
+            {
+                string path = PathArgument(readJson.Path, scope);
+                string text = Library(() => OtterFiles.Read(path), readJson.Line);
+                scope.Set(readJson.Target, FromJson(text, readJson.Line));
+                return;
+            }
+            case ConvertJsonStmt convert:
+            {
+                object? subject = Evaluate(convert.Subject, scope);
+                if (!convert.ToJson)
+                {
+                    scope.Set(convert.Target, FromJson(Values.Format(subject), convert.Line));
+                    return;
+                }
+                try { scope.Set(convert.Target, OtterJson.Write(subject)); }
+                catch (OtterJson.NotData) { throw RuntimeError("Otter cannot turn something it can do into JSON.", convert.Line); }
+                return;
+            }
             case ReturnStmt returnStmt:
                 throw new ReturnSignal(returnStmt.Value == null ? null : Evaluate(returnStmt.Value, scope), returnStmt.Line);
             default:
@@ -386,6 +465,32 @@ public sealed class Interpreter
     {
         if (Values.TryNumber(left, out double l) && Values.TryNumber(right, out double r)) return l.CompareTo(r);
         return string.CompareOrdinal(Values.Format(left), Values.Format(right));
+    }
+
+    // Get-OtterPathArgument: typed text, or a file or folder object.
+    string PathArgument(Expr expression, Scope scope)
+    {
+        object? value = Evaluate(expression, scope);
+        try { return OtterFiles.PathOf(value); }
+        catch (FileProblem problem) { throw RuntimeError(problem.Message, expression.Line, problem.Suggestion); }
+    }
+
+    // The library reports problems in its own words; they become runtime
+    // errors on the statement's line.
+    T Library<T>(Func<T> work, int line)
+    {
+        try { return work(); }
+        catch (FileProblem problem) { throw RuntimeError(problem.Message, line, problem.Suggestion); }
+    }
+
+    void Library(Action work, int line) => Library(() => { work(); return true; }, line);
+
+    // ConvertFrom-OtterJsonText.
+    object? FromJson(string text, int line)
+    {
+        if (string.IsNullOrWhiteSpace(text)) throw RuntimeError("There is no JSON here to read.", line);
+        try { return OtterJson.Read(text); }
+        catch (JsonProblem) { throw RuntimeError("This is not valid JSON, so Otter could not read it.", line); }
     }
 
     // D32.1: a date with no time of day has no hour, minute or second.
@@ -557,6 +662,16 @@ public sealed class Interpreter
                 return EvaluateOfOperation(ofOperation, scope);
             case CallExpr call:
                 return Call(call, scope);
+            case FileExistsExpr fileExists:
+            {
+                string path = PathArgument(fileExists.Path, scope);
+                return Library(() => OtterFiles.Exists(path), fileExists.Line);
+            }
+            case FileLockedExpr fileLocked:
+            {
+                string path = PathArgument(fileLocked.Path, scope);
+                return Library(() => OtterFiles.IsLocked(path), fileLocked.Line);
+            }
             case ClockExpr clock:
                 return new OtterDate(DateTime.Now, clock.Clock == ClockKind.Now);
             case DateDifferenceExpr difference:

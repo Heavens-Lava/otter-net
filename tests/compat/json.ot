@@ -1,0 +1,69 @@
+user has
+    name is "Jeff"
+    age is 41
+    pi is 3.14159265358979
+    third is 1 divided by 3
+    active is true
+    nothing is gone
+.
+tags are
+    "a"
+    "b"
+.
+empty are
+    "x"
+.
+remove "x" from empty
+tags of user is tags
+empty of user is empty
+convert user to json into text
+say text
+nums are
+    1
+    2.5
+.
+convert nums to json into numsText
+say numsText
+convert "it's <b> & \"q\"" to json into quoted
+say quoted
+convert gone to json into goneText
+say goneText
+convert 42 to json into fortyTwo
+say fortyTwo
+day is date from "2024-01-15"
+convert day to json into dayText
+say dayText
+convert "{\"name\": \"Ann\", \"scores\": [1, 2.5, 1e2], \"inner\": {\"ok\": true, \"none\": null}, 'single': 'yes', bare: 01}" from json into parsed
+say name of parsed
+say scores of parsed
+say ok of inner of parsed
+say none of inner of parsed
+say single of parsed
+say bare of parsed
+convert parsed to json into again
+say again
+convert "[\"milk\"]" from json into one
+say one
+say length of one
+convert "[]" from json into none
+say length of none
+convert "\"\/Date(0)\/\"" from json into stamp
+say stamp
+write "{\"items\": [1, {\"b\": \"c\"}]}" to "data.json"
+read json from "data.json" into data
+say items of data
+try
+    convert "[1,2,]" from json into bad
+otherwise into reason
+    say reason
+.
+try
+    convert "{\"a\":1,\"A\":2}" from json into bad
+otherwise into reason
+    say reason
+.
+try
+    convert "   " from json into bad
+otherwise into reason
+    say reason
+.

@@ -1,0 +1,69 @@
+# Files: read, write, append, copy, move, delete, exists (rules.md section 30)
+write "Hello!" to "hello.txt"
+read "hello.txt" into text
+say text
+append " More." to "hello.txt"
+append "Line two" to "log/notes.txt"
+read "hello.txt" into text
+say text
+if file "hello.txt" exists
+    say "hello.txt exists"
+.
+if file "nope.txt" exists
+    say "wrong"
+otherwise
+    say "nope.txt is missing"
+.
+if file "" exists
+    say "wrong"
+otherwise
+    say "an empty name never exists"
+.
+if file "log" exists
+    say "wrong"
+otherwise
+    say "a folder is not a file"
+.
+copy "hello.txt" to "backup/deep/hello.txt"
+read "backup/deep/hello.txt" into copied
+say "copied:" copied
+write "José Müller 你好" to "unicode.txt"
+read "unicode.txt" into accents
+say accents
+total is 3 plus 4
+write total to "number.txt"
+words are
+    "alpha"
+    "beta"
+.
+write words to "list.txt"
+read "list.txt" into listed
+say listed
+create folder "Archive"
+create folder "Archive"
+move "hello.txt" to "Archive"
+if file "Archive/hello.txt" exists
+    say "moved into Archive"
+.
+copy "number.txt" to "Archive"
+move "number.txt" to "renamed.txt"
+copy "renamed.txt" to "renamed.txt.bak"
+write "replaced" to "renamed.txt" atomically
+write "fresh" to "brand-new.txt" atomically
+read "renamed.txt" into renamed
+say renamed
+delete file "renamed.txt.bak"
+if file "renamed.txt.bak" exists
+    say "wrong"
+otherwise
+    say "deleted"
+.
+if file "renamed.txt" is locked
+    say "wrong"
+otherwise
+    say "not locked"
+.
+name is "list"
+fileName is name plus ".txt"
+read fileName into again
+say again

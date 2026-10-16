@@ -93,6 +93,21 @@ function Invoke-OtterProcess {
 
 function Show-Bytes { param([byte[]]$Bytes) return [System.Text.Encoding]::UTF8.GetString($Bytes) }
 
+# What a run left behind in its folder: every file and folder, with sizes,
+# contents and attributes, so file side effects are compared too.
+function Get-FolderSnapshot {
+    param([string]$Folder)
+    $lines = foreach ($item in @(Get-ChildItem -LiteralPath $Folder -Recurse -Force -ErrorAction SilentlyContinue)) {
+        $relative = $item.FullName.Substring($Folder.Length + 1)
+        if ($item.PSIsContainer) { "$relative\ [$($item.Attributes)]" }
+        else {
+            $hash = try { (Get-FileHash -LiteralPath $item.FullName -Algorithm SHA256 -ErrorAction Stop).Hash } catch { 'unreadable' }
+            "$relative $($item.Length) $hash [$($item.Attributes)]"
+        }
+    }
+    return @(@($lines) | Sort-Object)
+}
+
 function Get-FirstDifference {
     param([string]$A, [string]$B)
     $n = [Math]::Min($A.Length, $B.Length)
@@ -139,6 +154,7 @@ try {
                 $runs[$side] = Invoke-OtterProcess -FileName $candidateFile -Arguments $candidateArguments -WorkingDirectory $folder -InputText $inputText `
                     -Environment @{ OTTER_NET_TRACE = '1'; OTTER_POWERSHELL = $referenceScript }
             }
+            $runs[$side] | Add-Member -NotePropertyName Files -NotePropertyValue (Get-FolderSnapshot -Folder $folder)
         }
         $reference = $runs['reference']; $candidate = $runs['candidate']
         $traceLines = @(($candidate.Stderr -split "`r?`n") | Where-Object { $_ -like 'otter-net *' })
@@ -157,6 +173,11 @@ try {
                 $show = { param($t) ($t.Substring($from, [Math]::Min(80, [Math]::Max(0, $t.Length - $from))) -replace "`r", '\r' -replace "`n", '\n') }
                 $problems.Add("stdout differs at character $($at): reference [$(& $show $refOut)] otter-net [$(& $show $candOut)]")
             }
+        }
+        $fileDifferences = @(Compare-Object -ReferenceObject $reference.Files -DifferenceObject $candidate.Files -CaseSensitive)
+        if ($fileDifferences.Count -gt 0) {
+            $shown = ($fileDifferences | Select-Object -First 4 | ForEach-Object { "$(if ($_.SideIndicator -eq '<=') { 'reference' } else { 'otter-net' }) only: $($_.InputObject)" }) -join '; '
+            $problems.Add("files left behind differ: $shown")
         }
         if ($referenceStderr.Trim() -ne $candidateStderr.Trim()) { $problems.Add("stderr differs: reference [$($referenceStderr.Trim())] otter-net [$($candidateStderr.Trim())]") }
         $outcome = if ($problems.Count -eq 0) { 'match' } else { 'DIFFERENT' }

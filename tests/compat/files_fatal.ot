@@ -1,0 +1,3 @@
+write "kept" to "kept.txt"
+read "missing.txt" into text
+say "never"

@@ -331,3 +331,72 @@ public sealed class ProgramNode(IReadOnlyList<Stmt> statements)
 {
     public IReadOnlyList<Stmt> Statements { get; } = statements;
 }
+
+// ---- files and folders (rules.md section 30, D20, D21, D61, D72) ----------
+
+// read "notes.txt" into notes
+public sealed class ReadFileStmt(Expr path, string target, int line) : Stmt(line)
+{
+    public Expr Path { get; } = path;
+    public string Target { get; } = target;
+}
+
+// write "Hello!" to "hello.txt" [atomically]
+public sealed class WriteFileStmt(Expr content, Expr path, bool atomic, int line) : Stmt(line)
+{
+    public Expr Content { get; } = content;
+    public Expr Path { get; } = path;
+    public bool Atomic { get; } = atomic;
+}
+
+// append "line one" to "log.txt"
+public sealed class AppendFileStmt(Expr content, Expr path, int line) : Stmt(line)
+{
+    public Expr Content { get; } = content;
+    public Expr Path { get; } = path;
+}
+
+public enum FileAction { CopyFile, MoveFile, CopyFolder, MoveFolder }
+
+// copy "a.txt" to "backup" / move folder "Old" to "Archive"
+public sealed class TransferStmt(FileAction action, Expr source, Expr destination, int line) : Stmt(line)
+{
+    public FileAction Action { get; } = action;
+    public Expr Source { get; } = source;
+    public Expr Destination { get; } = destination;
+}
+
+// delete file "a.txt" / delete folder "Old" / create folder "Backup"
+public sealed class DeleteFileStmt(Expr path, int line) : Stmt(line) { public Expr Path { get; } = path; }
+public sealed class DeleteFolderStmt(Expr path, int line) : Stmt(line) { public Expr Path { get; } = path; }
+public sealed class CreateFolderStmt(Expr path, int line) : Stmt(line) { public Expr Path { get; } = path; }
+
+// get files in "Pictures" [and subfolders] into files (also folders)
+public sealed class GetEntriesStmt(bool folders, Expr folder, bool includeSubfolders, string target, int line) : Stmt(line)
+{
+    public bool Folders { get; } = folders;
+    public Expr Folder { get; } = folder;
+    public bool IncludeSubfolders { get; } = includeSubfolders;
+    public string Target { get; } = target;
+}
+
+// file "x" exists / file "x" is locked
+public sealed class FileExistsExpr(Expr path, int line) : Expr(line) { public Expr Path { get; } = path; }
+public sealed class FileLockedExpr(Expr path, int line) : Expr(line) { public Expr Path { get; } = path; }
+
+// ---- json (D29) -------------------------------------------------------------
+
+// read json from "settings.json" into settings
+public sealed class ReadJsonStmt(Expr path, string target, int line) : Stmt(line)
+{
+    public Expr Path { get; } = path;
+    public string Target { get; } = target;
+}
+
+// convert user to json into text / convert text from json into user
+public sealed class ConvertJsonStmt(bool toJson, Expr subject, string target, int line) : Stmt(line)
+{
+    public bool ToJson { get; } = toJson;
+    public Expr Subject { get; } = subject;
+    public string Target { get; } = target;
+}

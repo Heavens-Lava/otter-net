@@ -1,0 +1,54 @@
+# Folders and discovery (D20, D21)
+create folder "Photos/2024/summer"
+write "a" to "Photos/b.jpg"
+write "bb" to "Photos/A.png"
+write "ccc" to "Photos/_notes.txt"
+write "dddd" to "Photos/2024/one.jpg"
+write "eeeee" to "Photos/2024/summer/two.jpg"
+create folder "Photos/Zed"
+write "z" to "Photos/Zed/z.txt"
+get files in "Photos" into files
+say length of files
+say files
+for each file in files
+    say name of file extension of file size of file
+    if created of file is gone
+        say "wrong"
+    .
+.
+get files in "Photos" and subfolders into everything
+for each item in everything
+    say name of item size of item
+.
+get folders in "Photos" into folders
+for each folder in folders
+    say name of folder
+.
+get folders in "Photos" and subfolders into allFolders
+for each folder in allFolders
+    say name of folder
+.
+for each file in everything
+    if extension of file is ".jpg"
+        copy file to "Jpegs"
+    .
+.
+get files in "Jpegs" into jpegs
+say length of jpegs
+first is first of jpegs
+move first to "moved.jpg"
+if file "moved.jpg" exists
+    say "moved a file object"
+.
+copy folder "Photos" to "Backup"
+copy folder "Photos" to "Backup"
+copy folder "Photos" to "Nested/Deeper/Copy"
+move folder "Jpegs" to "Archive"
+create folder "Shelf"
+move folder "Archive" to "Shelf"
+create folder "Empty"
+delete folder "Empty"
+get folders in "." into top
+for each folder in top
+    say name of folder
+.
