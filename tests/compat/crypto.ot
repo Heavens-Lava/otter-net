@@ -1,0 +1,52 @@
+# hash (D91), encrypt and decrypt (D92). Text encrypted by either
+# implementation decrypts in the other.
+algorithms are
+    "md5"
+    "SHA1"
+    "sha-256"
+    "sha 384"
+    "sha512"
+.
+for each algorithm in algorithms
+    hash "Grüße" as algorithm into digest
+    say algorithm digest
+    hash "Grüße" as algorithm with key "k" into keyed
+    say algorithm keyed
+.
+hash "" as "sha256" into empty
+say empty
+hash "" as "sha256" with key "" into emptyKeyed
+say emptyKeyed
+hash 42 as "md5" into number
+say number
+try
+    hash "x" as "crc32" into nope
+otherwise into reason
+    say reason
+.
+madeByOtterPs is "oOXrfQ5BSxNN9SBiMWmzw4ixB/PjvergDI4yZ6+7ZHlhBTkuVNXikpzcRjppqpgC33o6CrrfvBUivFwq40x6ovOcaenqzVHwJZR9mQpvVklZysoirf3qBK4f3z52D8Aj"
+decrypt madeByOtterPs with key "pässword" into plain
+say plain
+encrypt "round trip" with key "secret" into roundTrip
+decrypt roundTrip with key "secret" into back
+say back
+if roundTrip is not "round trip"
+    say "encrypted text differs from the original"
+.
+encrypt "same" with key "secret" into first
+encrypt "same" with key "secret" into second
+if first is not second
+    say "every encryption is different"
+.
+bad are
+    "not base64 at all!"
+    "c2hvcnQ="
+.
+add roundTrip to bad
+for each cipher in bad
+    try
+        decrypt cipher with key "wrong" into nope
+    otherwise into reason
+        say reason
+    .
+.

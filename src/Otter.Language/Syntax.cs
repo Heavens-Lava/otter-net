@@ -427,6 +427,26 @@ public sealed class GetSystemFolderStmt(Expr folderName, string target, int line
 // set current directory to "Projects"
 public sealed class SetCurrentDirectoryStmt(Expr path, int line) : Stmt(line) { public Expr Path { get; } = path; }
 
+// ---- hashing and encryption (D91, D92) ------------------------------------
+
+// hash "text" as "sha256" [with key "k"] into digest
+public sealed class HashTextStmt(Expr text, Expr algorithm, Expr? key, string resultTarget, int line) : Stmt(line)
+{
+    public Expr Text { get; } = text;
+    public Expr Algorithm { get; } = algorithm;
+    public Expr? Key { get; } = key;
+    public string ResultTarget { get; } = resultTarget;
+}
+
+// encrypt "text" with key "k" into cipher / decrypt cipher with key "k" into text
+public sealed class CipherTextStmt(bool decrypt, Expr text, Expr key, string resultTarget, int line) : Stmt(line)
+{
+    public bool Decrypt { get; } = decrypt;
+    public Expr Text { get; } = text;
+    public Expr Key { get; } = key;
+    public string ResultTarget { get; } = resultTarget;
+}
+
 // ---- console (D100) --------------------------------------------------------
 
 // show progress 50 percent

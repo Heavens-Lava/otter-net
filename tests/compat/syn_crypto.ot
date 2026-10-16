@@ -1,0 +1,4 @@
+hash "x" into digest
+hash "x" as "md5" with secret "k" into digest
+encrypt "x" into y
+decrypt "x" with "k" into y

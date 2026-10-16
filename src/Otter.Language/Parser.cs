@@ -601,6 +601,11 @@ public sealed class Parser
                 return ReadRun(start);
             case TokenKind.Wait:
                 return ReadWait(start);
+            case TokenKind.Hash:
+                return ReadHash(start);
+            case TokenKind.Encrypt:
+            case TokenKind.Decrypt:
+                return ReadCipher(start);
             // show progress 50 percent (D100); showing a UI resource is not ported.
             case TokenKind.Show when At(1) is { Kind: TokenKind.Identifier } progressWord && Same(progressWord.Text, "progress"):
             {
@@ -875,6 +880,46 @@ public sealed class Parser
         "text", "attribute", "registry", "credential", "cursor", "random", "priority", "read", "writable",
         "current", "directory", "environment", "folder", "drag",
     };
+
+    // hash "text" as "sha256" [with key "k"] into digest (D91). Password
+    // hashing (D109) is not ported yet.
+    Stmt ReadHash(Token start)
+    {
+        Read();
+        if (Current.Kind == TokenKind.Identifier && Same(Current.Text, "password") && !IsAt(1, TokenKind.As)) throw Unsupported("hash password");
+        Expr text = ReadValue();
+        Expect(TokenKind.As, "I expected \"as\" and an algorithm name.");
+        Expr algorithm = ReadValue();
+        Expr? key = null;
+        if (Is(TokenKind.With))
+        {
+            Read();
+            ExpectWord("key", "I expected \"key\" after \"with\".", "hash \"text\" as \"sha256\" with key \"secret\" into digest");
+            key = ReadValue();
+        }
+        Expect(TokenKind.Into, "I expected \"into\" and a result name.");
+        Token digest = ReadVariableName("I expected a result name after \"into\".");
+        Expect(TokenKind.Newline, "I expected the hash statement to end here.");
+        return new HashTextStmt(text, algorithm, key, digest.Text, start.Line);
+    }
+
+    // encrypt/decrypt TEXT with key KEY into NAME (D92). The `using` cipher
+    // forms (D109) are not ported yet.
+    Stmt ReadCipher(Token start)
+    {
+        Read();
+        bool decrypt = start.Kind == TokenKind.Decrypt;
+        string verb = decrypt ? "decrypt" : "encrypt";
+        Expr text = ReadValue();
+        if (Current.Kind == TokenKind.Identifier && Same(Current.Text, "using")) throw Unsupported($"{verb} using");
+        Expect(TokenKind.With, "I expected \"with key\" and a key.");
+        ExpectWord("key", "I expected \"key\" after \"with\".", decrypt ? "decrypt \"cipher\" with key \"secret\" into text" : "encrypt \"text\" with key \"secret\" into cipher");
+        Expr key = ReadValue();
+        Expect(TokenKind.Into, "I expected \"into\" and a result name.");
+        Token result = ReadVariableName("I expected a result name after \"into\".");
+        Expect(TokenKind.Newline, $"I expected the {verb} statement to end here.");
+        return new CipherTextStmt(decrypt, text, key, result.Text, start.Line);
+    }
 
     // wait 5 seconds (D101). `wait for process` is not ported yet.
     Stmt ReadWait(Token start)

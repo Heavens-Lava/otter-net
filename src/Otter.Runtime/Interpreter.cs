@@ -540,6 +540,24 @@ public sealed class Interpreter
                 Environment.CurrentDirectory = full;
                 return;
             }
+            // ---- hashing and encryption (D91, D92) ----
+            case HashTextStmt hash:
+            {
+                string text = Values.Format(Evaluate(hash.Text, scope));
+                string algorithm = Values.Format(Evaluate(hash.Algorithm, scope));
+                string? key = hash.Key == null ? null : Values.Format(Evaluate(hash.Key, scope));
+                try { scope.Set(hash.ResultTarget, OtterCrypto.Hash(text, algorithm, key)); }
+                catch (CryptoProblem problem) { throw RuntimeError(problem.Message, hash.Line); }
+                return;
+            }
+            case CipherTextStmt cipher:
+            {
+                string text = Values.Format(Evaluate(cipher.Text, scope));
+                string key = Values.Format(Evaluate(cipher.Key, scope));
+                try { scope.Set(cipher.ResultTarget, cipher.Decrypt ? OtterCrypto.Decrypt(text, key) : OtterCrypto.Encrypt(text, key)); }
+                catch (CryptoProblem problem) { throw RuntimeError(problem.Message, cipher.Line); }
+                return;
+            }
             // ---- console (D100) ----
             case ShowProgressStmt progress:
             {
