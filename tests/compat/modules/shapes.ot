@@ -1,0 +1,5 @@
+use "helpers.ot"
+
+to area w h
+    return w times h
+.

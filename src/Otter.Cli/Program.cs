@@ -57,7 +57,12 @@ public static class Program
         if (mode == null || path == null) return FallbackOrRefuse(args, engine, "this command is not native yet");
         if (!File.Exists(path)) return FallbackOrRefuse(args, engine, "the file does not exist (the PowerShell Otter reports it)");
 
-        string source = File.ReadAllText(path);
+        // `use` lines are expanded first, exactly as otterPS does (D60); a
+        // program without them reads back as its own lines.
+        ResolvedProgram resolved;
+        try { resolved = Modules.Resolve(path); }
+        catch (ModuleProblem problem) { return FallbackOrRefuse(args, engine, $"{problem.Message} (reported by the PowerShell Otter)"); }
+        string source = resolved.CombinedSource;
         ProgramNode program;
         try
         {
@@ -101,7 +106,9 @@ public static class Program
         catch (OtterError error)
         {
             output.WriteLine("");
-            output.WriteLine(error.FormatDetailed());
+            // Line and file as the programmer wrote them, even inside an
+            // imported file.
+            output.WriteLine(resolved.Remap(error).FormatDetailed());
             output.WriteLine("");
             output.Flush();
             return ExitRuntimeError;

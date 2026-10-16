@@ -1,0 +1,4 @@
+to risky n
+    say "about to divide"
+    return n / 0
+.

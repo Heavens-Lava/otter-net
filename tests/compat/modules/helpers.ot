@@ -1,0 +1,7 @@
+to greet who
+    say "Hello," who
+.
+
+to double n
+    return n times 2
+.

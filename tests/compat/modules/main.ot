@@ -1,0 +1,7 @@
+# a program in three files
+use "helpers.ot"
+USE "shapes.ot"
+
+greet "Ada"
+say double 21
+say area 3 4
