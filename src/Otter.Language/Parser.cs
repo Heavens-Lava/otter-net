@@ -1741,6 +1741,8 @@ public sealed class Parser
             Read(); Read(); Read();
             return new BytesExpr(toOp, ReadValue(), token.Line);
         }
+        // query parameter X (D103 routing) is not ported yet.
+        if (token.Kind == TokenKind.Query && IsAt(1, TokenKind.Parameter)) throw Unsupported("query parameter");
         bool plainXmlWord = false;
         // text from xml X / text of NAME in ELEMENT are XML (D105); text of X
         // is the property; any other text is an ordinary name.
