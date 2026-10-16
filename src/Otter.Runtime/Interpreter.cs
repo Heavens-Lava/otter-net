@@ -18,6 +18,9 @@ public sealed class Interpreter
     readonly Scope globals;
     readonly bool echoInput;
     int callDepth;
+    // A `show progress` bar is on the current line until something else is
+    // written (otterPS's Complete-OtterProgressBarLine).
+    bool progressBarActive;
     readonly PowerShellRandom random = new();
 
     // echoInput: when input is redirected, PowerShell's Read-Host writes each
@@ -42,6 +45,16 @@ public sealed class Interpreter
     // for each character (D100). Otherwise `ask secretly` reads like `ask`,
     // as otterPS's Read-OtterSecretLine falls back to Read-Host.
     public Func<string?>? ReadSecretLine { get; init; }
+
+    // Set when the output is a real console: moves the cursor (column, row).
+    public Action<int, int>? MoveCursor { get; init; }
+
+    void CompleteProgressBarLine()
+    {
+        if (!progressBarActive) return;
+        output.WriteLine("");
+        progressBarActive = false;
+    }
 
     // `return` (and `stop`) unwind to the function call that is running.
     sealed class ReturnSignal(object? value, int line) : Exception("return")
@@ -84,8 +97,17 @@ public sealed class Interpreter
                 if (say.Parts.Count == 0)
                 {
                     // A bare `say in color X` formats the color without checking it is text.
-                    if (say.Color != null) WriteLine("", ConsoleColorNamed(Values.Format(Evaluate(say.Color, scope)), say.Line));
-                    else output.WriteLine("");
+                    if (say.Color != null)
+                    {
+                        ConsoleColor emptyColor = ConsoleColorNamed(Values.Format(Evaluate(say.Color, scope)), say.Line);
+                        CompleteProgressBarLine();
+                        WriteLine("", emptyColor);
+                    }
+                    else
+                    {
+                        CompleteProgressBarLine();
+                        output.WriteLine("");
+                    }
                     return;
                 }
                 var rendered = new string[say.Parts.Count];
@@ -93,6 +115,7 @@ public sealed class Interpreter
                 string text = string.Join(" ", rendered);
                 if (say.Color == null)
                 {
+                    CompleteProgressBarLine();
                     output.WriteLine(text);
                     return;
                 }
@@ -101,7 +124,9 @@ public sealed class Interpreter
                 {
                     throw RuntimeError($"I need text for a color name, but this is {Values.TypeName(colorValue)}.", say.Line, "say \"Error!\" in color \"red\"");
                 }
-                WriteLine(text, ConsoleColorNamed(colorName, say.Line));
+                ConsoleColor color = ConsoleColorNamed(colorName, say.Line);
+                CompleteProgressBarLine();
+                WriteLine(text, color);
                 return;
             }
             case AssignStmt assign:
@@ -134,6 +159,7 @@ public sealed class Interpreter
             // ask "What is your name?" and call it name      (D6)
             case AskStmt ask:
             {
+                CompleteProgressBarLine();
                 string prompt = Values.Format(Evaluate(ask.Prompt, scope));
                 output.Write(prompt + " ");
                 output.Flush();
@@ -373,7 +399,9 @@ public sealed class Interpreter
                     DiagnosticLevel.Problem => "error",
                     _ => "log",
                 };
-                output.WriteLine($"{label}: {string.Join(" ", rendered)}");
+                string line = $"{label}: {string.Join(" ", rendered)}";
+                CompleteProgressBarLine();
+                output.WriteLine(line);
                 return;
             }
             // ---- files and folders (Otter.Library.psm1) ----
@@ -510,6 +538,60 @@ public sealed class Interpreter
                     throw RuntimeError($"I cannot find a folder called \"{path}\".", setDirectory.Line, "set current directory to \"path/to/folder\"");
                 }
                 Environment.CurrentDirectory = full;
+                return;
+            }
+            // ---- console (D100) ----
+            case ShowProgressStmt progress:
+            {
+                double percent = RequireNumber(Evaluate(progress.Percent, scope), progress.Line, "a progress percentage");
+                if (percent < 0 || percent > 100)
+                {
+                    throw RuntimeError($"I need a percentage between 0 and 100, but got {Values.Format(percent)}.", progress.Line, "show progress 50 percent");
+                }
+                const int width = 20;
+                int filled = (int)Math.Round(width * (percent / 100), MidpointRounding.ToEven);
+                output.Write($"\r[{new string('#', filled)}{new string('-', width - filled)}] {Values.Format(percent)}%");
+                progressBarActive = true;
+                return;
+            }
+            case ChooseFromListStmt choose:
+            {
+                CompleteProgressBarLine();
+                object? optionsValue = Evaluate(choose.Options, scope);
+                if (optionsValue is not OtterList options || options.Count == 0) throw RuntimeError("I cannot choose from an empty list.", choose.Line);
+                for (int i = 0; i < options.Count; i++) output.WriteLine($"  {i + 1}. {Values.Format(options[i])}");
+                object? selected = null;
+                bool chosen = false;
+                while (!chosen)
+                {
+                    output.Write("Choose a number: ");
+                    string? typed = input.ReadLine();
+                    if (echoInput && typed != null) output.WriteLine(typed);
+                    if (typed != null && int.TryParse(typed, NumberStyles.Integer, CultureInfo.CurrentCulture, out int number) && number >= 1 && number <= options.Count)
+                    {
+                        selected = options[number - 1];
+                        chosen = true;
+                    }
+                    else WriteLine($"  Please enter a number from 1 to {options.Count}.", ConsoleColor.Yellow);
+                }
+                scope.Set(choose.Target, selected);
+                return;
+            }
+            case SetCursorStmt cursor:
+            {
+                double row = RequireNumber(Evaluate(cursor.Row, scope), cursor.Line, "a cursor row");
+                double column = RequireNumber(Evaluate(cursor.Column, scope), cursor.Line, "a cursor column");
+                if (row < 1 || column < 1) throw RuntimeError("I need a row and column of 1 or greater.", cursor.Line, "set cursor to row 1 column 1");
+                if (MoveCursor == null)
+                {
+                    // Without a console, .NET Framework reports the redirected handle.
+                    throw RuntimeError("I could not move the cursor there. Exception calling \"SetCursorPosition\" with \"2\" argument(s): \"The handle is invalid." + (char)13 + (char)10 + "\"", cursor.Line);
+                }
+                try { MoveCursor((int)Math.Round(column, MidpointRounding.ToEven) - 1, (int)Math.Round(row, MidpointRounding.ToEven) - 1); }
+                catch (Exception e) when (e is IOException or ArgumentOutOfRangeException or OverflowException)
+                {
+                    throw RuntimeError($"I could not move the cursor there. {e.Message}", cursor.Line);
+                }
                 return;
             }
             // ---- waiting and timers (D101) ----
@@ -894,6 +976,9 @@ public sealed class Interpreter
                 double right = RequireNumber(Evaluate(minMax.Right, scope), minMax.Line, "comparing sizes");
                 return minMax.IsMax ? Math.Max(left, right) : Math.Min(left, right);
             }
+            // D100: false when input or output is redirected.
+            case ConsoleInteractiveExpr:
+                return !(Console.IsInputRedirected || Console.IsOutputRedirected);
             case FileExistsExpr fileExists:
             {
                 string path = PathArgument(fileExists.Path, scope);

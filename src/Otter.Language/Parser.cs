@@ -601,6 +601,25 @@ public sealed class Parser
                 return ReadRun(start);
             case TokenKind.Wait:
                 return ReadWait(start);
+            // show progress 50 percent (D100); showing a UI resource is not ported.
+            case TokenKind.Show when At(1) is { Kind: TokenKind.Identifier } progressWord && Same(progressWord.Text, "progress"):
+            {
+                Read(); Read();
+                Expr percent = ReadValue();
+                Expect(TokenKind.Percent, "I expected \"percent\" after the progress amount.");
+                Expect(TokenKind.Newline, "I expected the show progress statement to end here.");
+                return new ShowProgressStmt(percent, start.Line);
+            }
+            // choose from options into choice (D100); file dialogs are not ported.
+            case TokenKind.Choose when IsAt(1, TokenKind.From):
+            {
+                Read(); Read();
+                Expr options = ReadValue();
+                Expect(TokenKind.Into, "I expected \"into\" and a result name.");
+                Token choice = ReadVariableName("I expected a result name after \"into\".");
+                Expect(TokenKind.Newline, "I expected the choose statement to end here.");
+                return new ChooseFromListStmt(options, choice.Text, start.Line);
+            }
             case TokenKind.Start when At(1) is { Kind: TokenKind.Identifier } timerWord && Same(timerWord.Text, "timer"):
             {
                 Read(); Read();
@@ -967,6 +986,18 @@ public sealed class Parser
             Expr seed = ReadValue();
             Expect(TokenKind.Newline, "I expected the set random seed statement to end here.");
             return new SetRandomSeedStmt(seed, start.Line);
+        }
+        // set cursor to row 5 column 10 (D100)
+        if (Current.Kind == TokenKind.Identifier && Same(Current.Text, "cursor"))
+        {
+            Read();
+            Expect(TokenKind.To, "I expected \"to\" after \"cursor\".");
+            ExpectWord("row", "I expected \"row\" after \"to\".", "set cursor to row 5 column 10");
+            Expr row = ReadValue();
+            ExpectWord("column", "I expected \"column\" after the row number.", "set cursor to row 5 column 10");
+            Expr column = ReadValue();
+            Expect(TokenKind.Newline, "I expected the set cursor statement to end here.");
+            return new SetCursorStmt(row, column, start.Line);
         }
         // set current directory to "Projects" (D94)
         if (Current.Kind == TokenKind.Identifier && Same(Current.Text, "current"))
@@ -1656,7 +1687,7 @@ public sealed class Parser
             case TokenKind.Gone: Read(); return new LiteralExpr(null, token.Line);
             case TokenKind.Today: Read(); return new ClockExpr(ClockKind.Today, token.Line);
             case TokenKind.Now: Read(); return new ClockExpr(ClockKind.Now, token.Line);
-            case TokenKind.ConsoleInteractive: throw Unsupported($"'{token.Text}'");
+            case TokenKind.ConsoleInteractive: Read(); return new ConsoleInteractiveExpr(token.Line);
             default:
                 throw Error("I expected a value here.", token, "Add a text value, number, true, false, or variable name.");
         }

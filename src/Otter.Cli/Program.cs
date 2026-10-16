@@ -132,6 +132,7 @@ public static class Program
             {
                 WriteColoredLine = Console.IsOutputRedirected ? null : (text, color) => WriteInColor(output, text, color),
                 ReadSecretLine = Console.IsInputRedirected ? null : () => ReadSecretLine(output),
+                MoveCursor = Console.IsOutputRedirected ? null : (column, row) => { output.Flush(); Console.SetCursorPosition(column, row); },
             }.Run(program);
             output.Flush();
             return ExitSuccess;

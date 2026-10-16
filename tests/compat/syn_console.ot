@@ -1,0 +1,4 @@
+show progress 50
+set cursor to 1 1
+set cursor to row 1 col 2
+choose from

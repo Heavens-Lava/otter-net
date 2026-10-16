@@ -1,0 +1,43 @@
+show progress 0 percent
+show progress 33.3 percent
+show progress 50 percent
+say "after bar"
+show progress 100 percent
+log "logged"
+show progress 12.5 percent
+options are
+    "tea"
+    "coffee"
+.
+choose from options into drink
+say drink
+if console is interactive
+    say "interactive"
+otherwise
+    say "not interactive"
+.
+try
+    show progress 101 percent
+otherwise into reason
+    say reason
+.
+try
+    set cursor to row 1 column 1
+otherwise into reason
+    say reason
+.
+try
+    set cursor to row 0 column 1
+otherwise into reason
+    say reason
+.
+empty are
+    "x"
+.
+remove "x" from empty
+try
+    choose from empty into nothing
+otherwise into reason
+    say reason
+.
+show progress 70 percent

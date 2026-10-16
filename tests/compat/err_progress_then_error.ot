@@ -1,0 +1,3 @@
+# A failing say after a progress bar: no extra line before the error.
+show progress 40 percent
+say missingName

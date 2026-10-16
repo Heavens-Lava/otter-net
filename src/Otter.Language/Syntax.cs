@@ -427,6 +427,28 @@ public sealed class GetSystemFolderStmt(Expr folderName, string target, int line
 // set current directory to "Projects"
 public sealed class SetCurrentDirectoryStmt(Expr path, int line) : Stmt(line) { public Expr Path { get; } = path; }
 
+// ---- console (D100) --------------------------------------------------------
+
+// show progress 50 percent
+public sealed class ShowProgressStmt(Expr percent, int line) : Stmt(line) { public Expr Percent { get; } = percent; }
+
+// choose from options into choice
+public sealed class ChooseFromListStmt(Expr options, string target, int line) : Stmt(line)
+{
+    public Expr Options { get; } = options;
+    public string Target { get; } = target;
+}
+
+// set cursor to row 5 column 10
+public sealed class SetCursorStmt(Expr row, Expr column, int line) : Stmt(line)
+{
+    public Expr Row { get; } = row;
+    public Expr Column { get; } = column;
+}
+
+// console is interactive
+public sealed class ConsoleInteractiveExpr(int line) : Expr(line);
+
 // ---- waiting and timers (D101) ---------------------------------------------
 
 // wait 5 seconds
