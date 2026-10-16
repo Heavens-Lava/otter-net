@@ -1,0 +1,43 @@
+# sine/cosine/tangent (degrees), log, natural log, larger of, smaller of (D89, D90)
+say sine of 90
+say sine of 30
+say cosine of 60
+say tangent of 45
+say log of 1000
+say natural log of 10
+say larger of 3 and 7
+say smaller of 3 and 7
+say larger of "12" and 4
+half is 1 divided by 3
+say sine of half
+minusOne is 0 minus 1
+items are
+    0
+    "x"
+.
+add minusOne to items
+for each item in items
+    try
+        say log of item
+    otherwise into reason
+        say reason
+    .
+    try
+        say natural log of item
+    otherwise into reason
+        say reason
+    .
+.
+negative is 0 minus half
+try
+    say square root of negative
+otherwise into reason
+    say reason
+.
+try
+    say larger of "a" and 2
+otherwise into reason
+    say reason
+.
+big is larger of 2 and 3 plus 1
+say big

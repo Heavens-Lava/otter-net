@@ -70,12 +70,21 @@ public enum OfOperation
 {
     Length, Uppercase, Lowercase, First, Last,
     AbsoluteValue, SquareRoot, Round, RoundUp, RoundDown,
+    Sine, Cosine, Tangent, LogTen, NaturalLog,
 }
 
 public sealed class OfOperationExpr(OfOperation operation, Expr subject, int line) : Expr(line)
 {
     public OfOperation Operation { get; } = operation;
     public Expr Subject { get; } = subject;
+}
+
+// larger of X and Y / smaller of X and Y (D89)
+public sealed class MinMaxExpr(bool isMax, Expr left, Expr right, int line) : Expr(line)
+{
+    public bool IsMax { get; } = isMax;
+    public Expr Left { get; } = left;
+    public Expr Right { get; } = right;
 }
 
 public enum TimeUnit { Year, Month, Day, Hour, Minute, Second }
@@ -383,6 +392,26 @@ public sealed class GetEntriesStmt(bool folders, Expr folder, bool includeSubfol
 // file "x" exists / file "x" is locked
 public sealed class FileExistsExpr(Expr path, int line) : Expr(line) { public Expr Path { get; } = path; }
 public sealed class FileLockedExpr(Expr path, int line) : Expr(line) { public Expr Path { get; } = path; }
+
+// ---- random (D30, D101) ---------------------------------------------------
+
+// random number from 1 to 10 into n
+public sealed class RandomNumberStmt(Expr from, Expr to, string target, int line) : Stmt(line)
+{
+    public Expr From { get; } = from;
+    public Expr To { get; } = to;
+    public string Target { get; } = target;
+}
+
+// random item from games into game
+public sealed class RandomItemStmt(Expr collection, string target, int line) : Stmt(line)
+{
+    public Expr Collection { get; } = collection;
+    public string Target { get; } = target;
+}
+
+// set random seed to 42
+public sealed class SetRandomSeedStmt(Expr seed, int line) : Stmt(line) { public Expr Seed { get; } = seed; }
 
 // ---- json (D29) -------------------------------------------------------------
 

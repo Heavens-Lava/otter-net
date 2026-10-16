@@ -583,6 +583,8 @@ public sealed class Parser
             }
             case TokenKind.Convert:
                 return ReadConvert(start);
+            case TokenKind.Random:
+                return ReadRandom(start);
             case TokenKind.Get:
                 return ReadGet(start);
             case TokenKind.Set:
@@ -777,9 +779,55 @@ public sealed class Parser
         "current", "directory", "environment", "folder", "drag",
     };
 
+    // random number from 1 to 10 into n / random item from games into g (D30)
+    Stmt ReadRandom(Token start)
+    {
+        Read();
+        Token what = Current;
+        if (what.Kind == TokenKind.Identifier && Same(what.Text, "number"))
+        {
+            Read();
+            Expect(TokenKind.From, "I expected \"from\" and the lowest number.");
+            Expr from = ReadMathExpression();
+            Expect(TokenKind.To, "I expected \"to\" and the highest number.");
+            Expr to = ReadMathExpression();
+            Expect(TokenKind.Into, "I expected \"into\" and a variable name.");
+            Token number = ReadVariableName("I expected a variable name after \"into\".");
+            Expect(TokenKind.Newline, "I expected the random statement to end here.");
+            return new RandomNumberStmt(from, to, number.Text, start.Line);
+        }
+        if (what.Kind == TokenKind.Item || (what.Kind == TokenKind.Identifier && Same(what.Text, "item")))
+        {
+            Read();
+            Expect(TokenKind.From, "I expected \"from\" and a list.");
+            Expr collection = ReadValue();
+            Expect(TokenKind.Into, "I expected \"into\" and a variable name.");
+            Token item = ReadVariableName("I expected a variable name after \"into\".");
+            Expect(TokenKind.Newline, "I expected the random statement to end here.");
+            return new RandomItemStmt(collection, item.Text, start.Line);
+        }
+        throw Error("I expected \"number\" or \"item\" after \"random\".", what,
+            "Write \"random number from 1 to 10 into n\" or \"random item from games into g\".");
+    }
+
     Stmt ReadSet(Token start)
     {
         Read();
+        // set random seed to 42 (D101)
+        if (Current.Kind is TokenKind.Random or TokenKind.Identifier && Same(Current.Text, "random"))
+        {
+            Read();
+            Token seedWord = Current;
+            if (seedWord.Kind != TokenKind.Identifier || !Same(seedWord.Text, "seed"))
+            {
+                throw Error("I expected \"seed\" after \"random\".", seedWord, "set random seed to 42");
+            }
+            Read();
+            Expect(TokenKind.To, "I expected \"to\" after \"seed\".");
+            Expr seed = ReadValue();
+            Expect(TokenKind.Newline, "I expected the set random seed statement to end here.");
+            return new SetRandomSeedStmt(seed, start.Line);
+        }
         if (Current.Kind == TokenKind.Identifier && SameAny(Current.Text, SpecialSetWords)) throw Unsupported($"set {Current.Text}");
         Expr key = ReadValue();
         Expect(TokenKind.To, "I expected \"to\" and a value.");
@@ -1330,9 +1378,24 @@ public sealed class Parser
             case TokenKind.Round: return ReadOfOperation(token, OfOperation.Round);
             case TokenKind.RoundUp: return ReadOfOperation(token, OfOperation.RoundUp);
             case TokenKind.RoundDown: return ReadOfOperation(token, OfOperation.RoundDown);
-            case TokenKind.Sine or TokenKind.Cosine or TokenKind.Tangent or TokenKind.LogTen or TokenKind.NaturalLog
-                or TokenKind.ElapsedTime or TokenKind.ElapsedMilliseconds or TokenKind.Larger or TokenKind.Smaller:
+            case TokenKind.Sine: return ReadOfOperation(token, OfOperation.Sine);
+            case TokenKind.Cosine: return ReadOfOperation(token, OfOperation.Cosine);
+            case TokenKind.Tangent: return ReadOfOperation(token, OfOperation.Tangent);
+            case TokenKind.LogTen: return ReadOfOperation(token, OfOperation.LogTen);
+            case TokenKind.NaturalLog: return ReadOfOperation(token, OfOperation.NaturalLog);
+            // Timers (D101) are not ported yet.
+            case TokenKind.ElapsedTime or TokenKind.ElapsedMilliseconds:
                 throw Unsupported($"'{token.Text} of'");
+            // larger of X and Y / smaller of X and Y (D89)
+            case TokenKind.Larger or TokenKind.Smaller:
+            {
+                Read();
+                Expect(TokenKind.Of, "I expected \"of\" after this operation.");
+                Expr left = ReadValue();
+                Expect(TokenKind.And, "I expected \"and\" and the second value.");
+                Expr right = ReadValue();
+                return new MinMaxExpr(token.Kind == TokenKind.Larger, left, right, token.Line);
+            }
         }
         // today / now (D32) and pi (D90) always mean the built-in value here.
         if (token.Kind == TokenKind.Identifier && Same(token.Text, "today")) { Read(); return new ClockExpr(ClockKind.Today, token.Line); }

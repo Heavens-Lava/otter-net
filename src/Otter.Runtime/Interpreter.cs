@@ -18,6 +18,7 @@ public sealed class Interpreter
     readonly Scope globals;
     readonly bool echoInput;
     int callDepth;
+    readonly PowerShellRandom random = new();
 
     // echoInput: when input is redirected, PowerShell's Read-Host writes each
     // line it reads back to the output, so otterPS's transcript shows it.
@@ -402,6 +403,32 @@ public sealed class Interpreter
                 scope.Set(entries.Target, Library(() => OtterFiles.Entries(path, entries.Folders, entries.IncludeSubfolders), entries.Line));
                 return;
             }
+            // ---- random (D30, D101) ----
+            case RandomNumberStmt randomNumber:
+            {
+                object? fromValue = Evaluate(randomNumber.From, scope);
+                object? toValue = Evaluate(randomNumber.To, scope);
+                double from = RequireNumber(fromValue, randomNumber.Line, "the lowest number");
+                double to = RequireNumber(toValue, randomNumber.Line, "the highest number");
+                if (from > to) (from, to) = (to, from);
+                // Get-Random -Maximum is exclusive, so one is added to include the top.
+                int picked = random.Next(PowerShellInt(Math.Floor(from), randomNumber.Line), PowerShellInt(Math.Floor(to), randomNumber.Line) + 1);
+                scope.Set(randomNumber.Target, (double)picked);
+                return;
+            }
+            case RandomItemStmt randomItem:
+            {
+                object? collection = Evaluate(randomItem.Collection, scope);
+                if (collection is not OtterList list) throw RuntimeError($"I can only pick from a list, but this is {Values.TypeName(collection)}.", randomItem.Line);
+                scope.Set(randomItem.Target, list.Count == 0 ? null : list[random.Next(0, list.Count)]);
+                return;
+            }
+            case SetRandomSeedStmt setSeed:
+            {
+                double seed = RequireNumber(Evaluate(setSeed.Seed, scope), setSeed.Line, "a random seed");
+                random.Seed(PowerShellInt(seed, setSeed.Line));
+                return;
+            }
             // ---- json (D29) ----
             case ReadJsonStmt readJson:
             {
@@ -465,6 +492,18 @@ public sealed class Interpreter
     {
         if (Values.TryNumber(left, out double l) && Values.TryNumber(right, out double r)) return l.CompareTo(r);
         return string.CompareOrdinal(Values.Format(left), Values.Format(right));
+    }
+
+    // PowerShell's [int] cast: the nearest whole number, halves to even.
+    // Out of range is an error there too; otter-net names it plainly.
+    int PowerShellInt(double value, int line)
+    {
+        double rounded = Math.Round(value, MidpointRounding.ToEven);
+        if (double.IsNaN(rounded) || rounded < int.MinValue || rounded > int.MaxValue)
+        {
+            throw RuntimeError($"{Values.FormatNumber(value)} is too large for a random number.", line);
+        }
+        return (int)rounded;
     }
 
     // Get-OtterPathArgument: typed text, or a file or folder object.
@@ -662,6 +701,12 @@ public sealed class Interpreter
                 return EvaluateOfOperation(ofOperation, scope);
             case CallExpr call:
                 return Call(call, scope);
+            case MinMaxExpr minMax:
+            {
+                double left = RequireNumber(Evaluate(minMax.Left, scope), minMax.Line, "comparing sizes");
+                double right = RequireNumber(Evaluate(minMax.Right, scope), minMax.Line, "comparing sizes");
+                return minMax.IsMax ? Math.Max(left, right) : Math.Min(left, right);
+            }
             case FileExistsExpr fileExists:
             {
                 string path = PathArgument(fileExists.Path, scope);
@@ -805,8 +850,27 @@ public sealed class Interpreter
             case OfOperation.SquareRoot:
             {
                 double n = RequireNumber(subject, operation.Line, "the square root");
-                if (n < 0) throw RuntimeError($"I can't take the square root of a negative number ({Values.FormatNumber(n)}).", operation.Line);
+                if (n < 0) throw RuntimeError($"I can't take the square root of a negative number ({Values.PowerShellText(n)}).", operation.Line);
                 return Math.Sqrt(n);
+            }
+            // D90: angles in degrees.
+            case OfOperation.Sine:
+                return Math.Sin(RequireNumber(subject, operation.Line, "sine") * Math.PI / 180.0);
+            case OfOperation.Cosine:
+                return Math.Cos(RequireNumber(subject, operation.Line, "cosine") * Math.PI / 180.0);
+            case OfOperation.Tangent:
+                return Math.Tan(RequireNumber(subject, operation.Line, "tangent") * Math.PI / 180.0);
+            case OfOperation.LogTen:
+            {
+                double n = RequireNumber(subject, operation.Line, "a logarithm");
+                if (n <= 0) throw RuntimeError($"I can't take the log of a number that isn't positive ({Values.PowerShellText(n)}).", operation.Line);
+                return Math.Log10(n);
+            }
+            case OfOperation.NaturalLog:
+            {
+                double n = RequireNumber(subject, operation.Line, "a logarithm");
+                if (n <= 0) throw RuntimeError($"I can't take the natural log of a number that isn't positive ({Values.PowerShellText(n)}).", operation.Line);
+                return Math.Log(n);
             }
             case OfOperation.Round:
                 return Math.Round(RequireNumber(subject, operation.Line, "rounding"), 0, MidpointRounding.AwayFromZero);

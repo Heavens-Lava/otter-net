@@ -1,0 +1,51 @@
+# Seeded random numbers repeat exactly (D30, D101): the same seed gives the
+# same picks in both implementations.
+set random seed to 42
+picks are
+    0
+.
+remove 0 from picks
+count from 1 to 40 as i
+    random number from 1 to 1000 into pick
+    add pick to picks
+.
+say picks
+set random seed to 7.5
+random number from 0 to 1 into coin
+minusFive is 0 minus 5
+random number from minusFive to 5 into signed
+random number from 10 to 10 into same
+random number from 9.9 to 2.1 into swapped
+say coin signed same swapped
+set random seed to 42
+random number from 1 to 1000 into again
+say again
+letters are
+    "a"
+    "b"
+    "c"
+    "d"
+.
+count from 1 to 10 as i
+    random item from letters into letter
+    say letter
+.
+empty are
+    "x"
+.
+remove "x" from empty
+random item from empty into nothing
+say nothing
+try
+    random item from "abc" into bad
+otherwise into reason
+    say reason
+.
+try
+    random number from "low" to 3 into bad
+otherwise into reason
+    say reason
+.
+set random seed to 2147483647
+random number from 1 to 2147483646 into large
+say large

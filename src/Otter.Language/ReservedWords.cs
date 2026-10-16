@@ -112,6 +112,8 @@ public static class ReservedWords
                 case ReadJsonStmt readJson: Variable(readJson.Target, line); break;
                 case ConvertJsonStmt convert: Variable(convert.Target, line); break;
                 case GetEntriesStmt entries: Variable(entries.Target, line); break;
+                case RandomNumberStmt randomNumber: Variable(randomNumber.Target, line); break;
+                case RandomItemStmt randomItem: Variable(randomItem.Target, line); break;
                 case TryStmt attempt:
                     Variable(attempt.ErrorTarget, line);
                     Statements(attempt.Body);

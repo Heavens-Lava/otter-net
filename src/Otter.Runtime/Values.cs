@@ -98,6 +98,11 @@ public static class Values
         return text == "-0" ? "0" : text;
     }
 
+    // A number inside a PowerShell string ("($n)"): .NET Framework's
+    // double.ToString(), 15 significant digits, never a negative zero.
+    public static string PowerShellText(double number) =>
+        number == 0 ? "0" : number.ToString("G15", CultureInfo.InvariantCulture);
+
     public static string TypeName(object? value) => value switch
     {
         null => "gone",
