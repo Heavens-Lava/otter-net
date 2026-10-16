@@ -252,6 +252,22 @@ public sealed class FindStmt(string itemName, Expr collection, Expr condition, s
     public string Target { get; } = target;
 }
 
+// get "Jeff" from scores into score (D41)
+public sealed class GetKeyStmt(Expr key, Expr target, string resultTarget, int line) : Stmt(line)
+{
+    public Expr Key { get; } = key;
+    public Expr Target { get; } = target;
+    public string ResultTarget { get; } = resultTarget;
+}
+
+// set "Jeff" to 100 in scores (D41: creates or replaces)
+public sealed class SetKeyStmt(Expr key, Expr value, Expr target, int line) : Stmt(line)
+{
+    public Expr Key { get; } = key;
+    public Expr Value { get; } = value;
+    public Expr Target { get; } = target;
+}
+
 public sealed class ReturnStmt(Expr? value, int line) : Stmt(line) { public Expr? Value { get; } = value; }
 
 public sealed class ProgramNode(IReadOnlyList<Stmt> statements)

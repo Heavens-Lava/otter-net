@@ -265,6 +265,22 @@ public sealed class Interpreter
                 scope.Set(find.Target, found);
                 return;
             }
+            // get "Jeff" from scores into score (D41): a key never set is gone.
+            case GetKeyStmt getKey:
+            {
+                OtterThing thing = DynamicKeyTarget(Evaluate(getKey.Target, scope), getKey.Line, "read from");
+                string key = StringKey(Evaluate(getKey.Key, scope), getKey.Line);
+                scope.Set(getKey.ResultTarget, thing.ReadProperty(key));
+                return;
+            }
+            // set "Jeff" to 100 in scores (D41): creates or replaces.
+            case SetKeyStmt setKey:
+            {
+                OtterThing thing = DynamicKeyTarget(Evaluate(setKey.Target, scope), setKey.Line, "write to");
+                string key = StringKey(Evaluate(setKey.Key, scope), setKey.Line);
+                thing.WriteProperty(key, Evaluate(setKey.Value, scope));
+                return;
+            }
             case ReturnStmt returnStmt:
                 throw new ReturnSignal(returnStmt.Value == null ? null : Evaluate(returnStmt.Value, scope), returnStmt.Line);
             default:
@@ -308,6 +324,21 @@ public sealed class Interpreter
     {
         if (Values.TryNumber(left, out double l) && Values.TryNumber(right, out double r)) return l.CompareTo(r);
         return string.CompareOrdinal(Values.Format(left), Values.Format(right));
+    }
+
+    // D41: dynamic keys only on a plain thing, never a typed one.
+    OtterThing DynamicKeyTarget(object? value, int line, string verb)
+    {
+        if (value is not OtterThing thing) throw RuntimeError($"I can only {verb} a thing, but this is {Values.TypeName(value)}.", line);
+        if (thing.TypeName != "thing") throw RuntimeError($"I can only {verb} properties dynamically on a thing, but this is a {thing.TypeName}.", line);
+        return thing;
+    }
+
+    // D41: keys are text, on purpose.
+    string StringKey(object? value, int line)
+    {
+        if (value is string text) return text;
+        throw RuntimeError($"I need text for a dynamic key, but this is {Values.TypeName(value)}.", line, "get \"Jeff\" from scores into score");
     }
 
     // D12: add to a number is arithmetic, add to a list appends.

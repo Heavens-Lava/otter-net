@@ -1,0 +1,5 @@
+a Pet has
+    name
+.
+rex is a Pet with name "Rex"
+set "name" to "Max" in rex

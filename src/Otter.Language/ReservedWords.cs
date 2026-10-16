@@ -76,6 +76,7 @@ public static class ReservedWords
         SplitStmt s => Variable(s.Target),
         JoinStmt j => Variable(j.Target),
         FindStmt f => Variable(f.Target) ?? Variable(f.ItemName),
+        GetKeyStmt g => Variable(g.ResultTarget),
         WhileStmt w => FindIn(w.Body),
         TryStmt t => Variable(t.ErrorTarget) ?? FindIn(t.Body) ?? FindIn(t.OtherwiseBody),
         RepeatStmt r => FindIn(r.Body),

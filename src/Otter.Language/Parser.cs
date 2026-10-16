@@ -132,7 +132,7 @@ public sealed class Parser
     // main statement switch. otter-net does not run those yet.
     static readonly string[] SpecialStatementWords =
     {
-        "the", "close", "stop", "cancel", "set", "store", "delete", "generate", "open", "listen", "send",
+        "the", "close", "stop", "cancel", "store", "delete", "generate", "open", "listen", "send",
         "route", "go", "watch", "primary", "secondary", "danger",
         "window", "page", "card", "heading", "text", "button", "panel", "section", "sidebar", "main",
         "link", "image", "input", "grid",
@@ -372,6 +372,10 @@ public sealed class Parser
                 Expect(TokenKind.Newline, "I expected the find statement to end here.");
                 return new FindStmt(item.Text, collection, condition, target.Text, start.Line);
             }
+            case TokenKind.Get:
+                return ReadGet(start);
+            case TokenKind.Set:
+                return ReadSet(start);
             case TokenKind.Add:
                 return ReadAdd(start);
             case TokenKind.Remove:
@@ -394,6 +398,57 @@ public sealed class Parser
                 // otterPS has many more statements (files, UI, try, use ...).
                 throw Unsupported($"the '{start.Text}' statement");
         }
+    }
+
+    // Words that start one of otterPS's other `get` forms (clipboard,
+    // environment variables, system folders, processes, the registry, files,
+    // databases ...). Only the D41 form `get KEY from THING into NAME` runs here.
+    static readonly string[] SpecialGetWords =
+    {
+        "arguments", "clipboard", "columns", "credential", "current", "environment", "event", "owner",
+        "processes", "registry", "symbolic", "system", "tables", "all",
+    };
+
+    Stmt ReadGet(Token start)
+    {
+        Read();
+        Token kind = Current;
+        if (kind.Kind is TokenKind.Distinct or TokenKind.Files or TokenKind.Folders or TokenKind.Json ||
+            (kind.Kind is TokenKind.Identifier or TokenKind.Newline or TokenKind.Indent && SameAny(kind.Text, SpecialGetWords)))
+        {
+            throw Unsupported($"get {kind.Text}");
+        }
+        if (kind.Kind is TokenKind.Newline or TokenKind.Indent) throw Unsupported("queries");
+        Expr key = ReadValue();
+        // Without `from` it is an HTTP request (`get "https://..." into page`).
+        if (!Is(TokenKind.From)) throw Unsupported("HTTP get");
+        Read();
+        Expr target = ReadValue();
+        // A clause continued on an indented line (D38A).
+        if (Is(TokenKind.Newline) && IsAt(1, TokenKind.Indent)) throw Unsupported("a continued get clause");
+        Expect(TokenKind.Into, "I expected \"into\" and a result name.");
+        Token result = ReadVariableName("I expected a result name after \"into\".");
+        Expect(TokenKind.Newline, "I expected the get statement to end here.");
+        return new GetKeyStmt(key, target, result.Text, start.Line);
+    }
+
+    static readonly string[] SpecialSetWords =
+    {
+        "text", "attribute", "registry", "credential", "cursor", "random", "priority", "read", "writable",
+        "current", "directory", "environment", "folder", "drag",
+    };
+
+    Stmt ReadSet(Token start)
+    {
+        Read();
+        if (Current.Kind == TokenKind.Identifier && SameAny(Current.Text, SpecialSetWords)) throw Unsupported($"set {Current.Text}");
+        Expr key = ReadValue();
+        Expect(TokenKind.To, "I expected \"to\" and a value.");
+        Expr value = ReadValue();
+        Expect(TokenKind.In, "I expected \"in\" and a target thing.");
+        Expr target = ReadValue();
+        Expect(TokenKind.Newline, "I expected the set statement to end here.");
+        return new SetKeyStmt(key, value, target, start.Line);
     }
 
     Stmt ReadAdd(Token start)

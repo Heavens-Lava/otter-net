@@ -1,0 +1,15 @@
+scores has Ada 90
+set "Bob" to 75 in scores
+set "Ada" to 95 in scores
+get "Ada" from scores into ada
+get "Bob" from scores into bob
+get "Nobody" from scores into nobody
+say ada bob nobody
+key is "Bob"
+get key from scores into again
+say again
+say Ada of scores
+say Bob of scores
+empty is a thing
+set "first" to "yes" in empty
+say first of empty
