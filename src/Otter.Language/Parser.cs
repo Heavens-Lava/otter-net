@@ -260,6 +260,24 @@ public sealed class Parser
         return body;
     }
 
+    // The cases of Read-OtterStatement's main switch in otterPS.
+    static readonly HashSet<TokenKind> OtterPsStatementKinds = new()
+    {
+        TokenKind.Await, TokenKind.State, TokenKind.Derive, TokenKind.Memo, TokenKind.On, TokenKind.Shared, TokenKind.Use,
+        TokenKind.Focus, TokenKind.Hide, TokenKind.Layout, TokenKind.Say, TokenKind.If, TokenKind.When, TokenKind.Respond,
+        TokenKind.Start, TokenKind.Listen, TokenKind.Post, TokenKind.Put, TokenKind.Show, TokenKind.While, TokenKind.Repeat,
+        TokenKind.Count, TokenKind.Sum, TokenKind.Average, TokenKind.Minimum, TokenKind.Maximum, TokenKind.ForEach,
+        TokenKind.Ask, TokenKind.Get, TokenKind.Set, TokenKind.Create, TokenKind.Try, TokenKind.Fail, TokenKind.Kill,
+        TokenKind.Wait, TokenKind.Lock, TokenKind.Sign, TokenKind.Restart, TokenKind.Shut, TokenKind.Print, TokenKind.Zip,
+        TokenKind.Unzip, TokenKind.Hash, TokenKind.Encrypt, TokenKind.Decrypt, TokenKind.Sort, TokenKind.Reverse,
+        TokenKind.Replace, TokenKind.Split, TokenKind.Join, TokenKind.Find, TokenKind.Format, TokenKind.Log, TokenKind.Warn,
+        TokenKind.Problem, TokenKind.Random, TokenKind.Convert, TokenKind.Read, TokenKind.Write, TokenKind.Append,
+        TokenKind.Copy, TokenKind.Move, TokenKind.Delete, TokenKind.Download, TokenKind.Connect, TokenKind.Disconnect,
+        TokenKind.Query, TokenKind.Execute, TokenKind.BeginTransaction, TokenKind.Commit, TokenKind.Rollback,
+        TokenKind.Notify, TokenKind.Choose, TokenKind.Run, TokenKind.A, TokenKind.To, TokenKind.Return, TokenKind.Add,
+        TokenKind.Remove, TokenKind.Identifier, TokenKind.Number, TokenKind.Indent, TokenKind.Dedent,
+    };
+
     // Words that start one of otterPS's special statement forms before its
     // main statement switch. otter-net does not run those yet.
     static readonly string[] SpecialStatementWords =
@@ -588,7 +606,13 @@ public sealed class Parser
             case TokenKind.Dedent:
                 throw Error("Unexpected unindent.", start, "Make sure block indentation lines up.");
             default:
-                // otterPS has many more statements (files, UI, try, use ...).
+                // A word no statement starts with is a syntax error in otterPS;
+                // a statement otterPS has that otter-net does not run yet goes
+                // to the PowerShell Otter.
+                if (!OtterPsStatementKinds.Contains(statementKind))
+                {
+                    throw Error($"I don't understand '{start.Text}'.", start, "Start a statement with a word such as say, if, or a variable name.");
+                }
                 throw Unsupported($"the '{start.Text}' statement");
         }
     }
@@ -1338,7 +1362,23 @@ public sealed class Parser
         {
             ordinaryName = !(At(1) is { } next && SameAny(next.Text, nextWords));
         }
-        if (token.Kind == TokenKind.Identifier && exactPhrase ? phraseFollows : SpecialValueWords.Contains(token.Text) && !ordinaryName)
+        // element/elements/child/children SELECTOR in X and attribute NAME of X
+        // (D105) are tried and abandoned, as otterPS does: when no selector and
+        // "in" (or "of") follow, the word is an ordinary name.
+        bool plainXmlWord = false;
+        if (token.Kind == TokenKind.Identifier && SameAny(token.Text, "element", "elements", "child", "children", "attribute"))
+        {
+            int saved = position;
+            Read();
+            bool selectorRead = true;
+            try { ReadValue(); }
+            catch (OtterError) { selectorRead = false; }
+            bool xmlForm = selectorRead && Is(Same(token.Text, "attribute") ? TokenKind.Of : TokenKind.In);
+            position = saved;
+            if (xmlForm) throw Unsupported("xml");
+            plainXmlWord = true;
+        }
+        if (!plainXmlWord && (token.Kind == TokenKind.Identifier && exactPhrase ? phraseFollows : SpecialValueWords.Contains(token.Text) && !ordinaryName))
         {
             throw Unsupported($"'{token.Text}'");
         }

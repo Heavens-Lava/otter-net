@@ -312,6 +312,13 @@ public static class OtterFiles
             visible = folder.EnumerateFileSystemInfos()
                 .Where(entry => (entry.Attributes & FileAttributes.Hidden) == 0)
                 .ToList();
+            // NTFS lists names in upper-cased ordinal order; other file systems
+            // use their own (ext4 hashes names), so the same program would list
+            // its files differently. Elsewhere, sort the way Windows lists them.
+            if (!OperatingSystem.IsWindows())
+            {
+                visible = visible.OrderBy(entry => entry.Name.ToUpperInvariant(), StringComparer.Ordinal).ToList();
+            }
         }
         catch (Exception e) when (IsFileSystemFailure(e)) { return; }
         foreach (FileSystemInfo entry in visible)

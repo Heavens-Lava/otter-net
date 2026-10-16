@@ -31,6 +31,11 @@ jobs:
       - name: Compatibility - otterPS conformance, examples and tests/compat
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File tools/compare.ps1 -OtterPs otterps -OtterNet artifacts/win-x64/otter.exe -ReportPath results/compat-windows.md
+      - name: Differential fuzz - otterPS's generators, 150 programs and 150 mutated
+        shell: powershell
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File tools/New-FuzzCorpus.ps1 -OtterPs otterps -OutputDirectory fuzz -Count 150 -Mutated
+          powershell -NoProfile -ExecutionPolicy Bypass -File tools/compare.ps1 -OtterPs otterps -OtterNet artifacts/win-x64/otter.exe -Corpus fuzz -TimeoutSeconds 20 -ReportPath results/fuzz-windows.md
       - name: Benchmarks against otterPS 1.0.1
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File tools/bench.ps1 -OtterPs otterps -OtterNet artifacts/win-x64/otter.exe -Runs 7 -ReportPath results/bench-windows.md
@@ -110,10 +115,11 @@ jobs:
       - name: Compare with otterPS's output on Windows
         shell: pwsh
         run: |
-          $reference = Get-ChildItem downloaded -Recurse -Directory -Filter windows-otterps | Select-Object -First 1
+          $reference = Get-Item downloaded/windows/outputs/windows-otterps
           $lines = @('# Cross-platform output check', '', "Reference: otterPS 1.0.1 on Windows. Line endings and the temporary folder's path are normalised.", '')
-          foreach ($platform in @('windows-native', 'linux-x64', 'osx-arm64')) {
-              $folder = Get-ChildItem downloaded -Recurse -Directory -Filter $platform | Select-Object -First 1
+          $captured = [ordered]@{ 'windows-native' = 'downloaded/windows/outputs/windows-native'; 'linux-x64' = 'downloaded/linux-x64/outputs/linux-x64'; 'osx-arm64' = 'downloaded/osx-arm64/outputs/osx-arm64' }
+          foreach ($platform in $captured.Keys) {
+              $folder = Get-Item $captured[$platform] -ErrorAction SilentlyContinue
               if (-not $folder) { $lines += "- ${platform}: no output captured"; continue }
               $different = @()
               foreach ($expected in Get-ChildItem $reference.FullName -Filter *.out) {

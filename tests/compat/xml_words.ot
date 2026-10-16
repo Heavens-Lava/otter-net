@@ -1,0 +1,23 @@
+# element, elements, child, children and attribute are ordinary names unless
+# the XML form follows (otterPS tries it and backtracks). Found by the fuzz
+# corpus, where every program has a "child" variable.
+leaf has
+    score is 18
+.
+branch has
+    child is leaf
+.
+child is 3
+element is "e"
+children are
+    1
+    2
+.
+attribute is "colour"
+say child element children attribute
+say score of child of branch
+total is child plus 4
+say total
+if child is 3
+    say "child is a number"
+.

@@ -1,0 +1,6 @@
+say "before"
+otherwise
+    say "stray"
+.
+then
+say "after"
