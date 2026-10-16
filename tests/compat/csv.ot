@@ -1,0 +1,91 @@
+# CSV (D95): headers become property names, every cell is text.
+write "name,city,notes\nAnn,Denver,\"likes \"\"tea\"\", and cake\"\nBo,\"Fort, Worth\",\n\n" to "people.csv"
+read csv from "people.csv" into people
+say length of people
+for each person in people
+    say name of person "|" city of person "|" notes of person
+.
+first is first of people
+city of first is "Boulder"
+write csv people to "out.csv"
+read "out.csv" into written
+say written
+convert people to csv into text
+say text
+convert "left,right\n1,2\n3,4" from csv into pairs
+say right of last of pairs
+total is left of first of pairs plus 10
+say total
+tags are
+    "x"
+    "y"
+.
+row has
+    tags is tags
+    missing is gone
+    count is 3
+.
+rows are
+    "z"
+.
+remove "z" from rows
+add row to rows
+convert rows to csv into tagText
+say tagText
+sources are
+    ""
+    "   "
+    "a,b\n1"
+    "a,a\n1,2"
+    "a,,b\n1,2,3"
+    "a,b\n\"open,2"
+    "only"
+    "\n\n"
+.
+for each source in sources
+    try
+        convert source from csv into parsed
+        say "ok" length of parsed
+    otherwise into reason
+        say reason
+    .
+.
+emptyList are
+    "e"
+.
+remove "e" from emptyList
+bad are
+    1
+.
+blank has
+.
+blanks are
+    "q"
+.
+remove "q" from blanks
+add blank to blanks
+other has
+    name is "x"
+.
+mixed are
+    "w"
+.
+remove "w" from mixed
+add row to mixed
+add other to mixed
+targets are
+    "q"
+.
+remove "q" from targets
+add emptyList to targets
+add bad to targets
+add blanks to targets
+add mixed to targets
+add "text" to targets
+for each target in targets
+    try
+        convert target to csv into out
+    otherwise into reason
+        say reason
+    .
+.

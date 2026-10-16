@@ -422,6 +422,30 @@ public sealed class ReadJsonStmt(Expr path, string target, int line) : Stmt(line
     public string Target { get; } = target;
 }
 
+// ---- csv (D95) --------------------------------------------------------------
+
+// read csv from "customers.csv" into customers
+public sealed class ReadCsvStmt(Expr path, string target, int line) : Stmt(line)
+{
+    public Expr Path { get; } = path;
+    public string Target { get; } = target;
+}
+
+// write csv customers to "export.csv"
+public sealed class WriteCsvStmt(Expr rows, Expr path, int line) : Stmt(line)
+{
+    public Expr Rows { get; } = rows;
+    public Expr Path { get; } = path;
+}
+
+// convert customers to csv into text / convert text from csv into customers
+public sealed class ConvertCsvStmt(bool toCsv, Expr subject, string target, int line) : Stmt(line)
+{
+    public bool ToCsv { get; } = toCsv;
+    public Expr Subject { get; } = subject;
+    public string Target { get; } = target;
+}
+
 // convert user to json into text / convert text from json into user
 public sealed class ConvertJsonStmt(bool toJson, Expr subject, string target, int line) : Stmt(line)
 {

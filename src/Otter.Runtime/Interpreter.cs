@@ -403,6 +403,31 @@ public sealed class Interpreter
                 scope.Set(entries.Target, Library(() => OtterFiles.Entries(path, entries.Folders, entries.IncludeSubfolders), entries.Line));
                 return;
             }
+            // ---- csv (D95) ----
+            case ReadCsvStmt readCsv:
+            {
+                string path = PathArgument(readCsv.Path, scope);
+                string text = Library(() => OtterFiles.Read(path), readCsv.Line);
+                scope.Set(readCsv.Target, Csv(() => OtterCsv.Read(text), readCsv.Line));
+                return;
+            }
+            case WriteCsvStmt writeCsv:
+            {
+                object? rows = Evaluate(writeCsv.Rows, scope);
+                string path = PathArgument(writeCsv.Path, scope);
+                string text = Csv(() => OtterCsv.Write(rows), writeCsv.Line);
+                Library(() => OtterFiles.Write(path, text, atomic: false), writeCsv.Line);
+                return;
+            }
+            case ConvertCsvStmt convertCsv:
+            {
+                object? subject = Evaluate(convertCsv.Subject, scope);
+                object? converted = convertCsv.ToCsv
+                    ? Csv(() => OtterCsv.Write(subject), convertCsv.Line)
+                    : Csv(() => OtterCsv.Read(Values.Format(subject)), convertCsv.Line);
+                scope.Set(convertCsv.Target, converted);
+                return;
+            }
             // ---- random (D30, D101) ----
             case RandomNumberStmt randomNumber:
             {
@@ -523,6 +548,12 @@ public sealed class Interpreter
     }
 
     void Library(Action work, int line) => Library(() => { work(); return true; }, line);
+
+    T Csv<T>(Func<T> work, int line)
+    {
+        try { return work(); }
+        catch (CsvProblem problem) { throw RuntimeError(problem.Message, line); }
+    }
 
     // ConvertFrom-OtterJsonText.
     object? FromJson(string text, int line)

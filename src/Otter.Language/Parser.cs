@@ -623,7 +623,16 @@ public sealed class Parser
     Stmt ReadRead(Token start)
     {
         Read();
-        if (Is(TokenKind.Csv)) throw Unsupported("read csv");
+        if (Is(TokenKind.Csv))
+        {
+            Read();
+            Expect(TokenKind.From, "I expected \"from\" and a CSV file path.");
+            Expr csvPath = ReadValue();
+            Expect(TokenKind.Into, "I expected \"into\" and a variable name.");
+            Token csvTarget = ReadVariableName("I expected a variable name after \"into\".");
+            Expect(TokenKind.Newline, "I expected the read statement to end here.");
+            return new ReadCsvStmt(csvPath, csvTarget.Text, start.Line);
+        }
         bool json = Is(TokenKind.Json);
         if (json)
         {
@@ -641,7 +650,15 @@ public sealed class Parser
     Stmt ReadWrite(Token start)
     {
         Read();
-        if (Is(TokenKind.Csv)) throw Unsupported("write csv");
+        if (Is(TokenKind.Csv))
+        {
+            Read();
+            Expr rows = ReadValue();
+            Expect(TokenKind.To, "I expected \"to\" and a CSV file path.");
+            Expr csvPath = ReadValue();
+            Expect(TokenKind.Newline, "I expected the write CSV statement to end here.");
+            return new WriteCsvStmt(rows, csvPath, start.Line);
+        }
         if (Current.Kind == TokenKind.Identifier && SameAny(Current.Text, "xml", "bytes")) throw Unsupported($"write {Current.Text}");
         Expr content = ReadValue();
         Expect(TokenKind.To, "I expected \"to\" and a file path.");
@@ -709,8 +726,7 @@ public sealed class Parser
         if (toJson) Read();
         else Expect(TokenKind.From, "I expected \"to json/csv\" or \"from json/csv\" here.");
         Token format = Current;
-        if (format.Kind == TokenKind.Csv) throw Unsupported("csv");
-        if (format.Kind != TokenKind.Json)
+        if (format.Kind is not (TokenKind.Json or TokenKind.Csv))
         {
             throw toJson
                 ? Error("I expected \"json\" or \"csv\" after \"to\".", format, "Write \"convert rows to csv into text\" or \"convert user to json into text\".")
@@ -720,6 +736,7 @@ public sealed class Parser
         Expect(TokenKind.Into, "I expected \"into\" and a variable name.");
         Token target = ReadVariableName("I expected a variable name after \"into\".");
         Expect(TokenKind.Newline, "I expected the convert statement to end here.");
+        if (format.Kind == TokenKind.Csv) return new ConvertCsvStmt(toJson, subject, target.Text, start.Line);
         return new ConvertJsonStmt(toJson, subject, target.Text, start.Line);
     }
 
