@@ -460,6 +460,58 @@ public sealed class Interpreter
                 scope.Set(convertCsv.Target, converted);
                 return;
             }
+            // ---- environment and folders (D67, D94) ----
+            case GetEnvironmentVariableStmt getVariable:
+            {
+                string name = Values.Format(Evaluate(getVariable.Name, scope));
+                scope.Set(getVariable.Target, EnvironmentVariable(name));
+                return;
+            }
+            case SetEnvironmentVariableStmt setVariable:
+            {
+                string name = Values.Format(Evaluate(setVariable.Name, scope));
+                object? value = Evaluate(setVariable.Value, scope);
+                // .NET Framework's refusals reach the user as otterPS's internal
+                // error, word for word.
+                if (name.Length == 0)
+                {
+                    throw new InternalProblem("Exception calling \"SetEnvironmentVariable\" with \"2\" argument(s): \"String cannot be of zero length." + (char)13 + (char)10 + "Parameter name: variable\"");
+                }
+                if (name.Contains('='))
+                {
+                    throw new InternalProblem("Exception calling \"SetEnvironmentVariable\" with \"2\" argument(s): \"Environment variable name cannot contain equal character.\"");
+                }
+                Environment.SetEnvironmentVariable(name, value is null ? null : Values.Format(value));
+                return;
+            }
+            case GetSystemFolderStmt systemFolder:
+            {
+                string folderName = Values.Format(Evaluate(systemFolder.FolderName, scope));
+                string path = folderName.ToLowerInvariant() switch
+                {
+                    "temp" => Path.GetTempPath(),
+                    "appdata" => Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                    "user" => Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                    "current" => Environment.CurrentDirectory,
+                    _ => throw RuntimeError($"I do not know a system folder called \"{folderName}\".", systemFolder.Line,
+                        "get system folder \"temp\" into path (also: \"appdata\", \"user\", \"current\")"),
+                };
+                scope.Set(systemFolder.Target, path);
+                return;
+            }
+            case SetCurrentDirectoryStmt setDirectory:
+            {
+                string path = PathArgument(setDirectory.Path, scope);
+                string? full = null;
+                try { full = Path.GetFullPath(path, Environment.CurrentDirectory); }
+                catch (Exception e) when (e is ArgumentException or NotSupportedException or IOException) { }
+                if (full == null || !Directory.Exists(full))
+                {
+                    throw RuntimeError($"I cannot find a folder called \"{path}\".", setDirectory.Line, "set current directory to \"path/to/folder\"");
+                }
+                Environment.CurrentDirectory = full;
+                return;
+            }
             // ---- random (D30, D101) ----
             case RandomNumberStmt randomNumber:
             {
@@ -549,6 +601,14 @@ public sealed class Interpreter
     {
         if (Values.TryNumber(left, out double l) && Values.TryNumber(right, out double r)) return l.CompareTo(r);
         return string.CompareOrdinal(Values.Format(left), Values.Format(right));
+    }
+
+    // [Environment]::GetEnvironmentVariable: gone when it is not set, and for
+    // a name no variable can have (empty, or with "=").
+    static object? EnvironmentVariable(string name)
+    {
+        if (name.Length == 0 || name.Contains('=')) return null;
+        return Environment.GetEnvironmentVariable(name);
     }
 
     // PowerShell's [int] cast: the nearest whole number, halves to even.

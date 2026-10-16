@@ -148,10 +148,12 @@ public static class Program
         }
         catch (Exception unexpected) when (unexpected is not OutOfMemoryException)
         {
-            // Never a raw .NET exception in front of a user (D14).
+            // Never a raw .NET exception in front of a user (D14); laid out
+            // as otter.ps1's Show-OtterFailure lays out the same situation.
             output.WriteLine("");
             output.WriteLine("Otter hit a problem inside itself, which means this is a bug in Otter.");
             output.WriteLine($"  {unexpected.Message}");
+            output.WriteLine("  Run again with -DebugErrors to see where.");
             output.WriteLine("");
             output.Flush();
             return ExitRuntimeError;

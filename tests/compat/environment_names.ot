@@ -1,0 +1,4 @@
+get environment variable "" into v
+say v
+get environment variable "a=b" into w
+say w

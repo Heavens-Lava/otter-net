@@ -765,6 +765,26 @@ public sealed class Parser
     {
         Read();
         Token kind = Current;
+        if (kind.Kind == TokenKind.Identifier && Same(kind.Text, "environment"))
+        {
+            Read();
+            ExpectWord("variable", "I expected \"variable\" after \"environment\".", "get environment variable \"PATH\" into value");
+            Expr name = ReadValue();
+            return new GetEnvironmentVariableStmt(name, ReadGetResult(), start.Line);
+        }
+        if (kind.Kind == TokenKind.Identifier && Same(kind.Text, "current"))
+        {
+            Read();
+            if (!IsFolderWord(Current)) throw Error("I expected \"directory\" or \"folder\" after \"current\".", Current, "get current directory into folder");
+            Read();
+            return new GetSystemFolderStmt(new LiteralExpr("current", start.Line), ReadGetResult(), start.Line);
+        }
+        if (kind.Kind == TokenKind.Identifier && Same(kind.Text, "system") && IsAt(1, TokenKind.Folder))
+        {
+            Read(); Read();
+            Expr folderName = ReadValue();
+            return new GetSystemFolderStmt(folderName, ReadGetResult(), start.Line);
+        }
         if (kind.Kind is TokenKind.Files or TokenKind.Folders)
         {
             Read();
@@ -801,6 +821,24 @@ public sealed class Parser
         Expect(TokenKind.Newline, "I expected the get statement to end here.");
         return new GetKeyStmt(key, target, result.Text, start.Line);
     }
+
+    // into NAME, then the end of the line, for the get forms.
+    string ReadGetResult()
+    {
+        Expect(TokenKind.Into, "I expected \"into\" and a result name.");
+        Token result = ReadVariableName("I expected a result name after \"into\".");
+        Expect(TokenKind.Newline, "I expected the get statement to end here.");
+        return result.Text;
+    }
+
+    void ExpectWord(string word, string message, string suggestion)
+    {
+        if (Current.Kind != TokenKind.Identifier || !Same(Current.Text, word)) throw Error(message, Current, suggestion);
+        Read();
+    }
+
+    static bool IsFolderWord(Token token) =>
+        token.Kind == TokenKind.Folder || (token.Kind == TokenKind.Identifier && SameAny(token.Text, "directory", "folder"));
 
     static readonly string[] SpecialSetWords =
     {
@@ -856,6 +894,28 @@ public sealed class Parser
             Expr seed = ReadValue();
             Expect(TokenKind.Newline, "I expected the set random seed statement to end here.");
             return new SetRandomSeedStmt(seed, start.Line);
+        }
+        // set current directory to "Projects" (D94)
+        if (Current.Kind == TokenKind.Identifier && Same(Current.Text, "current"))
+        {
+            Read();
+            if (!IsFolderWord(Current)) throw Error("I expected \"directory\" or \"folder\" after \"current\".", Current, "set current directory to \"Projects\"");
+            Read();
+            Expect(TokenKind.To, "I expected \"to\" and a folder path.");
+            Expr path = ReadValue();
+            Expect(TokenKind.Newline, "I expected the set statement to end here.");
+            return new SetCurrentDirectoryStmt(path, start.Line);
+        }
+        // set environment variable "NAME" to "VALUE" (D94)
+        if (Current.Kind == TokenKind.Identifier && Same(Current.Text, "environment"))
+        {
+            Read();
+            ExpectWord("variable", "I expected \"variable\" after \"environment\".", "set environment variable \"NAME\" to \"VALUE\"");
+            Expr name = ReadValue();
+            Expect(TokenKind.To, "I expected \"to\" and a value.");
+            Expr variableValue = ReadValue();
+            Expect(TokenKind.Newline, "I expected the set statement to end here.");
+            return new SetEnvironmentVariableStmt(name, variableValue, start.Line);
         }
         if (Current.Kind == TokenKind.Identifier && SameAny(Current.Text, SpecialSetWords)) throw Unsupported($"set {Current.Text}");
         Expr key = ReadValue();

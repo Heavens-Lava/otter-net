@@ -106,3 +106,8 @@ public sealed class OtterMultipleErrors : OtterError
         return string.Join("\n\n", blocks);
     }
 }
+
+// What otterPS shows when a .NET call inside it fails with something that is
+// not an Otter error: "Otter hit a problem inside itself ...". otter-net
+// raises it where otterPS is known to do that, with the same message.
+public sealed class InternalProblem(string message) : Exception(message);

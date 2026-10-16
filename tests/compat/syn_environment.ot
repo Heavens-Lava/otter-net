@@ -1,0 +1,3 @@
+get environment "PATH" into value
+set current thing to "x"
+get current time into t

@@ -1,0 +1,43 @@
+# Environment variables, the current folder and system folders (D67, D94).
+set environment variable "OTTER_TEST_VALUE" to "hello"
+get environment variable "OTTER_TEST_VALUE" into value
+say value
+set environment variable "OTTER_TEST_VALUE" to 42
+get environment variable "OTTER_TEST_VALUE" into value
+say value plus 1
+set environment variable "OTTER_TEST_VALUE" to gone
+get environment variable "OTTER_TEST_VALUE" into value
+say value
+get environment variable "OTTER_SURELY_NOT_SET_12345" into missing
+if missing is gone
+    say "not set"
+.
+get current directory into here
+get system folder "current" into same
+if here is same
+    say "current folder agrees"
+.
+create folder "Inner"
+set current directory to "Inner"
+write "inside" to "note.txt"
+get current folder into now1
+set current directory to ".."
+if file "Inner/note.txt" exists
+    say "relative paths follow the current folder"
+.
+get system folder "TEMP" into temp
+if file temp exists
+    say "wrong"
+otherwise
+    say "temp is a folder"
+.
+try
+    set current directory to "NoSuchFolder"
+otherwise into reason
+    say reason
+.
+try
+    get system folder "desktop" into nope
+otherwise into reason
+    say reason
+.

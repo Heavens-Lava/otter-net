@@ -400,6 +400,32 @@ public sealed class GetEntriesStmt(bool folders, Expr folder, bool includeSubfol
 public sealed class FileExistsExpr(Expr path, int line) : Expr(line) { public Expr Path { get; } = path; }
 public sealed class FileLockedExpr(Expr path, int line) : Expr(line) { public Expr Path { get; } = path; }
 
+// ---- environment and folders (D67, D94) ------------------------------------
+
+// get environment variable "PATH" into value
+public sealed class GetEnvironmentVariableStmt(Expr name, string target, int line) : Stmt(line)
+{
+    public Expr Name { get; } = name;
+    public string Target { get; } = target;
+}
+
+// set environment variable "NAME" to "VALUE"
+public sealed class SetEnvironmentVariableStmt(Expr name, Expr value, int line) : Stmt(line)
+{
+    public Expr Name { get; } = name;
+    public Expr Value { get; } = value;
+}
+
+// get system folder "temp" into path / get current directory into folder
+public sealed class GetSystemFolderStmt(Expr folderName, string target, int line) : Stmt(line)
+{
+    public Expr FolderName { get; } = folderName;
+    public string Target { get; } = target;
+}
+
+// set current directory to "Projects"
+public sealed class SetCurrentDirectoryStmt(Expr path, int line) : Stmt(line) { public Expr Path { get; } = path; }
+
 // ---- random (D30, D101) ---------------------------------------------------
 
 // random number from 1 to 10 into n
