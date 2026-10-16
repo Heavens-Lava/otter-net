@@ -114,6 +114,7 @@ public static class ReservedWords
                 case GetEntriesStmt entries: Variable(entries.Target, line); break;
                 case GetEnvironmentVariableStmt getVariable: Variable(getVariable.Target, line); break;
                 case GetSystemFolderStmt systemFolder: Variable(systemFolder.Target, line); break;
+                case RunCommandStmt runCommand: Variable(runCommand.ResultTarget, line); break;
                 case ReadCsvStmt readCsv: Variable(readCsv.Target, line); break;
                 case ConvertCsvStmt convertCsv: Variable(convertCsv.Target, line); break;
                 case RandomNumberStmt randomNumber: Variable(randomNumber.Target, line); break;

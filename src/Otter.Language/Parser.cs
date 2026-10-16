@@ -597,6 +597,8 @@ public sealed class Parser
                 return ReadConvert(start);
             case TokenKind.Random:
                 return ReadRandom(start);
+            case TokenKind.Run:
+                return ReadRun(start);
             case TokenKind.Get:
                 return ReadGet(start);
             case TokenKind.Set:
@@ -845,6 +847,25 @@ public sealed class Parser
         "text", "attribute", "registry", "credential", "cursor", "random", "priority", "read", "writable",
         "current", "directory", "environment", "folder", "drag",
     };
+
+    // run command "git status" [into result]. Starting a program without
+    // waiting (`run "notepad"`), remote and ssh commands are not ported yet.
+    Stmt ReadRun(Token start)
+    {
+        Read();
+        if (!Is(TokenKind.Command)) throw Unsupported("run without command");
+        Read();
+        Expr target = ReadValue();
+        if (Current.Kind == TokenKind.Identifier && SameAny(Current.Text, "on", "over")) throw Unsupported($"run command {Current.Text}");
+        string? resultTarget = null;
+        if (Is(TokenKind.Into))
+        {
+            Read();
+            resultTarget = ReadVariableName("I expected a variable name after \"into\".").Text;
+        }
+        Expect(TokenKind.Newline, "I expected the run statement to end here.");
+        return new RunCommandStmt(target, resultTarget, start.Line);
+    }
 
     // random number from 1 to 10 into n / random item from games into g (D30)
     Stmt ReadRandom(Token start)
@@ -1548,7 +1569,21 @@ public sealed class Parser
         {
             throw Unsupported($"'{token.Text}'");
         }
-        if (CommandResultPropertyAhead()) throw Unsupported("command results");
+        // exit code of result / error output of result (D65), and the other
+        // two-word properties, read like any property.
+        if (CommandResultPropertyAhead())
+        {
+            Token first = Read();
+            Token second = Read();
+            string propertyName = $"{first.Text} {second.Text}";
+            if ((Same(first.Text, "last") && Same(second.Text, "inserted") && Same(Current.Text, "id")) ||
+                (Same(first.Text, "primary") && Same(second.Text, "key") && Same(Current.Text, "position")))
+            {
+                propertyName += " " + Read().Text;
+            }
+            Expect(TokenKind.Of, "I expected \"of\" after this command result property.");
+            return new PropertyAccessExpr(propertyName, ReadValue(), first.Line);
+        }
         if (IsIdentifier(token))
         {
             if (knownFunctions.ContainsKey(token.Text)) return ReadFunctionCallExpression(token);

@@ -512,6 +512,16 @@ public sealed class Interpreter
                 Environment.CurrentDirectory = full;
                 return;
             }
+            // ---- commands ----
+            case RunCommandStmt runCommand:
+            {
+                string commandLine = Values.Format(Evaluate(runCommand.Target, scope));
+                OtterThing result;
+                try { result = OtterCommands.Run(commandLine); }
+                catch (CommandProblem problem) { throw RuntimeError(problem.Message, runCommand.Line); }
+                if (runCommand.ResultTarget != null) scope.Set(runCommand.ResultTarget, result);
+                return;
+            }
             // ---- random (D30, D101) ----
             case RandomNumberStmt randomNumber:
             {

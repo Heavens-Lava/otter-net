@@ -426,6 +426,15 @@ public sealed class GetSystemFolderStmt(Expr folderName, string target, int line
 // set current directory to "Projects"
 public sealed class SetCurrentDirectoryStmt(Expr path, int line) : Stmt(line) { public Expr Path { get; } = path; }
 
+// ---- commands (rules.md section 31) ----------------------------------------
+
+// run command "git status" [into result]
+public sealed class RunCommandStmt(Expr target, string? resultTarget, int line) : Stmt(line)
+{
+    public Expr Target { get; } = target;
+    public string? ResultTarget { get; } = resultTarget;
+}
+
 // ---- random (D30, D101) ---------------------------------------------------
 
 // random number from 1 to 10 into n

@@ -1,0 +1,35 @@
+# run command (rules.md section 31): no shell in between, results as a thing.
+run command "cmd /c echo hi" into result
+say "[" output of result "]" exit code of result
+run command "cmd /c exit 3" into exited
+say exit code of exited
+run command "cmd /c echo oops 1>&2" into noisy
+say "[" error output of noisy "]"
+run command "cmd /c echo \"a  b\" && echo second" into quoted
+say output of quoted
+run command "cmd /c echo done"
+write "param($first, $second)\nWrite-Output \"ps1:$first|$second\"\nexit 7" to "script.ps1"
+run command "script.ps1 one \"two words\"" into ps
+say output of ps exit code of ps
+write "@echo off\necho arg1=%1\necho arg2=%2" to "tool.cmd"
+run command "tool.cmd plain \"has space\"" into tool
+say output of tool
+run command "tool.cmd foo&echo injected" into guarded
+say output of guarded
+run command "tool" into bare
+say exit code of bare
+cases are
+    "say \"open"
+    "   "
+    "definitely-not-a-program-xyz"
+    "Get-ChildItem"
+    "tool.cmd 50%"
+.
+for each line in cases
+    try
+        run command line into result
+        say "ran:" output of result
+    otherwise into reason
+        say reason
+    .
+.
