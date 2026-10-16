@@ -136,13 +136,18 @@ try {
             $results.Add([pscustomobject]@{ File = $name; Outcome = 'skipped'; Engine = ''; Detail = "output changes from run to run: $($nondeterministic[$file.Name])" })
             continue
         }
+        # One snapshot of the program's folder for both sides, so a file
+        # changing while the comparison runs cannot make the sides differ.
+        $snapshot = Join-Path $work "source-$index"
+        New-Item -ItemType Directory -Path $snapshot | Out-Null
+        Get-ChildItem -LiteralPath $file.DirectoryName -File | Copy-Item -Destination $snapshot
         $runs = @{}
         foreach ($side in @('reference', 'candidate')) {
             # Both sides run in the same path (a program may print its folder).
             $folder = Join-Path $work "$index"
             if (Test-Path -LiteralPath $folder) { Remove-Item -LiteralPath $folder -Recurse -Force }
             New-Item -ItemType Directory -Path $folder | Out-Null
-            Get-ChildItem -LiteralPath $file.DirectoryName -File | Copy-Item -Destination $folder
+            Get-ChildItem -LiteralPath $snapshot -File | Copy-Item -Destination $folder
             if ($side -eq 'reference') {
                 $runs[$side] = Invoke-OtterProcess -FileName 'powershell.exe' -Arguments @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $referenceScript, 'run', $file.Name) `
                     -WorkingDirectory $folder -InputText $inputText -Environment @{}
@@ -156,6 +161,7 @@ try {
             }
             $runs[$side] | Add-Member -NotePropertyName Files -NotePropertyValue (Get-FolderSnapshot -Folder $folder)
         }
+        Remove-Item -LiteralPath $snapshot -Recurse -Force -ErrorAction SilentlyContinue
         $reference = $runs['reference']; $candidate = $runs['candidate']
         $traceLines = @(($candidate.Stderr -split "`r?`n") | Where-Object { $_ -like 'otter-net *' })
         $engine = if ($traceLines | Where-Object { $_ -like 'otter-net native*' }) { 'native' } elseif ($traceLines) { ($traceLines[0] -replace '^otter-net fallback: ', 'fallback: ') } else { '?' }
