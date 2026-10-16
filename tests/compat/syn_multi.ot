@@ -1,0 +1,17 @@
+say "start"
+x is
+name is "Jeff"
+if name is "Jeff"
+    say "inside"
+    y is is 3
+    say "after"
+.
+read "a.txt" into
+for each in items
+    say item
+.
+count from 1 to as n
+    say n
+.
+say "end"
+.

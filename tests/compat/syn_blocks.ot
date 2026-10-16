@@ -1,0 +1,21 @@
+to greet person
+    say "Hello" person
+    total is plus 2
+.
+while
+    say "loop"
+.
+repeat 3
+say "no block"
+if x is 1
+        say "deep"
+  say "odd"
+.
+otherwise
+    say "dangling"
+.
+try
+    fail "x"
+otherwise into
+    say reason
+.

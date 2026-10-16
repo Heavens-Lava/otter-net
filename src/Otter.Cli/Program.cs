@@ -72,15 +72,25 @@ public static class Program
         {
             return FallbackOrRefuse(args, engine, $"{unsupported.Feature} (line {unsupported.Line}) is not native yet");
         }
-        catch (OtterError)
+        catch (OtterError syntaxError)
         {
-            // Until the parser is complete, syntax errors are reported by the
-            // PowerShell Otter, so they read exactly as they always have.
-            return FallbackOrRefuse(args, engine, "a syntax error (reported by the PowerShell Otter)");
+            // Every syntax error, as otterPS reports them (D117).
+            Trace("native: syntax errors");
+            return ReportCheckError(resolved.Remap(syntaxError));
         }
-        if (ReservedWords.FirstReservedDeclaration(program) is { } reserved)
+        catch (Exception unexpected) when (unexpected is not OutOfMemoryException)
         {
-            return FallbackOrRefuse(args, engine, $"the reserved name '{reserved}' (reported by the PowerShell Otter)");
+            // A parser bug must not change what the user sees.
+            return FallbackOrRefuse(args, engine, $"the parser stopped unexpectedly ({unexpected.GetType().Name})");
+        }
+        // D-2: names the grammar would misread are refused before anything runs.
+        // PowerShell: $Source -split "`r?`n"
+        string[] sourceLines = source.Replace("\r\n", "\n").Split('\n');
+        List<OtterError> reserved = ReservedWords.Diagnostics(program, sourceLines);
+        if (reserved.Count > 0)
+        {
+            Trace("native: reserved names");
+            return ReportCheckError(resolved.Remap(new OtterMultipleErrors(reserved)));
         }
 
         if (mode == "check")
@@ -123,6 +133,19 @@ public static class Program
             output.Flush();
             return ExitRuntimeError;
         }
+    }
+
+    // A program that does not lex, parse or pass the check stage: nothing
+    // runs, and the errors are shown the way otter.ps1's Show-OtterFailure
+    // shows them, with the check exit code (D57).
+    static int ReportCheckError(OtterError error)
+    {
+        var output = new StreamWriter(Console.OpenStandardOutput(), new UTF8Encoding(false)) { NewLine = "\n" };
+        output.WriteLine("");
+        output.WriteLine(error.FormatDetailed());
+        output.WriteLine("");
+        output.Flush();
+        return ExitCheckError;
     }
 
     static void Trace(string text)

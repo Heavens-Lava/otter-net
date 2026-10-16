@@ -1,4 +1,4 @@
-to risky n
-    say "about to divide"
-    return n / 0
+to helper
+    say "helper"
+    value is is 2
 .

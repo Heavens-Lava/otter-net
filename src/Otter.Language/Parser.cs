@@ -12,11 +12,12 @@ public sealed class NotSupportedYet(string feature, int line) : Exception($"line
 // Tokens become the syntax tree. A port of otterPS's src/Otter.Parser.psm1
 // for the core language, function by function, with the same messages.
 //
-// Where otterPS takes one of its many special forms (dates, files, things,
-// UI, networking, queries ...), this parser throws NotSupportedYet instead of
-// guessing, and a syntax error is reported by the PowerShell Otter too - so
-// otter-net never prints a different error than otterPS while the parser is
-// still incomplete.
+// Where otterPS takes one of its special forms that otter-net does not run yet
+// (UI, networking, queries ...), this parser throws NotSupportedYet instead of
+// guessing, even in the middle of reporting syntax errors, so the PowerShell
+// Otter reports that program. Syntax errors are collected exactly as otterPS
+// collects them (D117): each damaged statement is recorded, the parser skips
+// to the next line or statement and goes on, up to 100 errors.
 public sealed class Parser
 {
     readonly IReadOnlyList<Token> tokens;
@@ -29,8 +30,17 @@ public sealed class Parser
     // Declared with `a Person has` (also a case-insensitive hashtable in otterPS).
     readonly HashSet<string> knownTypes = new(StringComparer.OrdinalIgnoreCase);
 
+    // ---- syntax-error recovery (otterPS's Record-OtterParserError) ----
+    const int MaxDiagnostics = 100;
+    readonly List<OtterError> diagnostics = new();
+    bool inRecoveryMode;
+    bool hitMaxDiagnostics;
+
     Parser(IReadOnlyList<Token> tokens) => this.tokens = tokens;
 
+    // Every syntax error in the program, or the program. Throws
+    // OtterMultipleErrors (one or more errors) as otterPS's ConvertTo-OtterAst
+    // does, and NotSupportedYet for anything not ported.
     public static ProgramNode Parse(IReadOnlyList<Token> tokens)
     {
         var parser = new Parser(tokens);
@@ -38,14 +48,115 @@ public sealed class Parser
         if (parser.Is(TokenKind.BlockEnd))
         {
             Token token = parser.Read();
-            throw parser.Error("There is no open block for this period to close.", token, "Remove this period or place it after an indented block.", "UnexpectedPeriod");
+            parser.Record(parser.Error("There is no open block for this period to close.", token, "Remove this period or place it after an indented block.", "UnexpectedPeriod"));
         }
         if (!parser.Is(TokenKind.EndOfFile))
         {
             Token token = parser.Current;
-            throw parser.Error($"Unexpected input at end of program: '{token.Text}'.", token, "Make sure all statements and blocks are valid.", "TrailingInput");
+            parser.Record(parser.Error($"Unexpected input at end of program: '{token.Text}'.", token, "Make sure all statements and blocks are valid.", "TrailingInput"));
         }
+        if (parser.diagnostics.Count > 0) throw new OtterMultipleErrors(parser.diagnostics);
         return new ProgramNode(statements);
+    }
+
+    // Only the first error of a damaged statement counts; the rest would be
+    // echoes of it.
+    void Record(OtterError error)
+    {
+        if (hitMaxDiagnostics) return;
+        if (diagnostics.Count >= MaxDiagnostics)
+        {
+            hitMaxDiagnostics = true;
+            diagnostics.Add(new OtterError("Too many syntax errors; parsing stopped.", error.Line, "parser", error.Column,
+                SourceLine(error.Line), "Fix the reported errors and run check again.", "TooManyErrors"));
+            return;
+        }
+        if (!inRecoveryMode)
+        {
+            diagnostics.Add(error);
+            inRecoveryMode = true;
+        }
+    }
+
+    static readonly HashSet<TokenKind> StatementStarterKinds = new()
+    {
+        TokenKind.Say, TokenKind.If, TokenKind.While, TokenKind.Repeat, TokenKind.Count, TokenKind.ForEach,
+        TokenKind.Set, TokenKind.Make, TokenKind.Write, TokenKind.Get, TokenKind.Post, TokenKind.Put,
+        TokenKind.Delete, TokenKind.Start, TokenKind.Return, TokenKind.On, TokenKind.To, TokenKind.Use,
+        TokenKind.Try, TokenKind.Log, TokenKind.Warn, TokenKind.Problem, TokenKind.Connect,
+        TokenKind.Disconnect, TokenKind.Query, TokenKind.Execute, TokenKind.BeginTransaction,
+        TokenKind.Commit, TokenKind.Rollback, TokenKind.Notify, TokenKind.Choose, TokenKind.Download,
+        TokenKind.State, TokenKind.Derive, TokenKind.Await, TokenKind.A, TokenKind.Number,
+    };
+
+    static readonly HashSet<string> StatementStarterTexts = new(StringComparer.Ordinal)
+    {
+        "say", "if", "while", "repeat", "count", "for", "each", "set", "make",
+        "write", "get", "post", "put", "delete", "start", "cancel", "return",
+        "stop", "on", "to", "use", "try", "log", "warn", "problem", "connect",
+        "disconnect", "query", "execute", "begin", "commit", "rollback",
+        "notify", "choose", "download", "state", "derive", "await", "listen",
+        "watch", "lock", "unlock", "open", "route", "go", "replace", "remove", "add",
+        "window", "page", "card", "heading", "text", "button", "panel", "section",
+        "sidebar", "main", "link", "image", "input", "grid", "primary", "secondary", "danger",
+    };
+
+    static bool IsStatementStarter(Token token) =>
+        StatementStarterKinds.Contains(token.Kind) ||
+        (token.Text.Length > 0 && StatementStarterTexts.Contains(token.Text.ToLowerInvariant()));
+
+    // Skip the rest of a damaged statement: to the end of its line, or to
+    // the next statement word, never past the end of the block it is in.
+    void Synchronize(int failedPosition)
+    {
+        int nestedDepth = 0;
+        while (position < tokens.Count)
+        {
+            Token token = Current;
+            if (token.Kind == TokenKind.EndOfFile) break;
+            if (token.Kind == TokenKind.Indent)
+            {
+                nestedDepth++;
+                Read();
+                continue;
+            }
+            if (token.Kind == TokenKind.Dedent)
+            {
+                if (nestedDepth > 0)
+                {
+                    nestedDepth--;
+                    Read();
+                    continue;
+                }
+                break;
+            }
+            if (token.Kind == TokenKind.BlockEnd && nestedDepth == 0) break;
+            if (token.Kind == TokenKind.Newline)
+            {
+                Read();
+                if (nestedDepth == 0) break;
+                continue;
+            }
+            if (nestedDepth == 0 && position > failedPosition && IsStatementStarter(token)) break;
+            Read();
+        }
+
+        // An indented block under the damaged line goes with it.
+        if (Is(TokenKind.Indent))
+        {
+            Read();
+            int depth = 1;
+            while (depth > 0 && !Is(TokenKind.EndOfFile))
+            {
+                Token token = Read();
+                if (token.Kind == TokenKind.Indent) depth++;
+                else if (token.Kind == TokenKind.Dedent) depth--;
+            }
+            if (Is(TokenKind.BlockEnd)) Read();
+        }
+
+        // Always make progress.
+        if (position <= failedPosition && !Is(TokenKind.EndOfFile)) Read();
     }
 
     // ---- token helpers -----------------------------------------------------
@@ -119,7 +230,18 @@ public sealed class Parser
         SkipNewlines();
         while (!Is(TokenKind.Dedent) && !Is(TokenKind.EndOfFile) && !Is(TokenKind.BlockEnd))
         {
-            statements.Add(ReadStatement());
+            if (hitMaxDiagnostics) break;
+            int before = position;
+            try
+            {
+                inRecoveryMode = false;
+                statements.Add(ReadStatement());
+            }
+            catch (OtterError error)
+            {
+                Record(error);
+                Synchronize(before);
+            }
             SkipNewlines();
         }
         return statements;

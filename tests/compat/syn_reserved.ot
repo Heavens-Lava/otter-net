@@ -1,0 +1,17 @@
+to main
+    say "never"
+.
+to report completed failed
+    say completed
+.
+completed is 5
+items are
+    1
+.
+for each running in items
+    say running
+.
+read "x.txt" into Stopped
+to start
+    say "x"
+.
