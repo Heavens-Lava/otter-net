@@ -71,6 +71,7 @@ public enum OfOperation
     Length, Uppercase, Lowercase, First, Last,
     AbsoluteValue, SquareRoot, Round, RoundUp, RoundDown,
     Sine, Cosine, Tangent, LogTen, NaturalLog,
+    ElapsedTime, ElapsedMilliseconds,
 }
 
 public sealed class OfOperationExpr(OfOperation operation, Expr subject, int line) : Expr(line)
@@ -87,7 +88,7 @@ public sealed class MinMaxExpr(bool isMax, Expr left, Expr right, int line) : Ex
     public Expr Right { get; } = right;
 }
 
-public enum TimeUnit { Year, Month, Day, Hour, Minute, Second }
+public enum TimeUnit { Year, Month, Day, Hour, Minute, Second, Millisecond }
 
 public enum ClockKind { Today, Now }
 
@@ -425,6 +426,18 @@ public sealed class GetSystemFolderStmt(Expr folderName, string target, int line
 
 // set current directory to "Projects"
 public sealed class SetCurrentDirectoryStmt(Expr path, int line) : Stmt(line) { public Expr Path { get; } = path; }
+
+// ---- waiting and timers (D101) ---------------------------------------------
+
+// wait 5 seconds
+public sealed class WaitDelayStmt(Expr duration, TimeUnit unit, int line) : Stmt(line)
+{
+    public Expr Duration { get; } = duration;
+    public TimeUnit Unit { get; } = unit;
+}
+
+// start timer workTimer
+public sealed class StartTimerStmt(string target, int line) : Stmt(line) { public string Target { get; } = target; }
 
 // ---- commands (rules.md section 31) ----------------------------------------
 

@@ -512,6 +512,35 @@ public sealed class Interpreter
                 Environment.CurrentDirectory = full;
                 return;
             }
+            // ---- waiting and timers (D101) ----
+            case WaitDelayStmt wait:
+            {
+                double amount = RequireNumber(Evaluate(wait.Duration, scope), wait.Line, "a wait duration");
+                if (amount < 0) throw RuntimeError($"I can't wait a negative amount of time ({Values.PowerShellText(amount)}).", wait.Line);
+                double milliseconds = wait.Unit switch
+                {
+                    TimeUnit.Millisecond => amount,
+                    TimeUnit.Minute => amount * 60000,
+                    TimeUnit.Hour => amount * 3600000,
+                    TimeUnit.Day => amount * 86400000,
+                    TimeUnit.Month => amount * 2629746000,
+                    TimeUnit.Year => amount * 31556952000,
+                    _ => amount * 1000,
+                };
+                // [Math]::Round: halves to even. Nothing else can happen while a
+                // console program waits, so this is a plain sleep.
+                double target = Math.Round(milliseconds);
+                var clock = System.Diagnostics.Stopwatch.StartNew();
+                while (clock.ElapsedMilliseconds < target)
+                {
+                    double remaining = target - clock.ElapsedMilliseconds;
+                    if (remaining > 0) Thread.Sleep((int)Math.Min(remaining, int.MaxValue));
+                }
+                return;
+            }
+            case StartTimerStmt startTimer:
+                scope.Set(startTimer.Target, new OtterTimer());
+                return;
             // ---- commands ----
             case RunCommandStmt runCommand:
             {
@@ -1010,6 +1039,15 @@ public sealed class Interpreter
                 double n = RequireNumber(subject, operation.Line, "the square root");
                 if (n < 0) throw RuntimeError($"I can't take the square root of a negative number ({Values.PowerShellText(n)}).", operation.Line);
                 return Math.Sqrt(n);
+            }
+            case OfOperation.ElapsedTime:
+            case OfOperation.ElapsedMilliseconds:
+            {
+                if (subject is not OtterTimer timer)
+                {
+                    throw RuntimeError($"I can only measure elapsed time of a timer, but this is {Values.TypeName(subject)}.", operation.Line, "start timer workTimer");
+                }
+                return operation.Operation == OfOperation.ElapsedTime ? timer.Clock.Elapsed.TotalSeconds : timer.Clock.Elapsed.TotalMilliseconds;
             }
             // D90: angles in degrees.
             case OfOperation.Sine:

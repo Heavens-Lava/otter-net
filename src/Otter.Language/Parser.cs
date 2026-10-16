@@ -599,6 +599,15 @@ public sealed class Parser
                 return ReadRandom(start);
             case TokenKind.Run:
                 return ReadRun(start);
+            case TokenKind.Wait:
+                return ReadWait(start);
+            case TokenKind.Start when At(1) is { Kind: TokenKind.Identifier } timerWord && Same(timerWord.Text, "timer"):
+            {
+                Read(); Read();
+                Token timer = ReadVariableName("I expected a timer name after \"start timer\".");
+                Expect(TokenKind.Newline, "I expected the start timer statement to end here.");
+                return new StartTimerStmt(timer.Text, start.Line);
+            }
             case TokenKind.Get:
                 return ReadGet(start);
             case TokenKind.Set:
@@ -847,6 +856,49 @@ public sealed class Parser
         "text", "attribute", "registry", "credential", "cursor", "random", "priority", "read", "writable",
         "current", "directory", "environment", "folder", "drag",
     };
+
+    // wait 5 seconds (D101). `wait for process` is not ported yet.
+    Stmt ReadWait(Token start)
+    {
+        Read();
+        if (Current.Kind == TokenKind.Identifier && Same(Current.Text, "for"))
+        {
+            Read();
+            if (Current.Kind == TokenKind.Identifier && Same(Current.Text, "process")) throw Unsupported("wait for process");
+            throw Error("I expected \"process\" after \"for\".", Current, "wait for process p up to 5 seconds");
+        }
+        Expr duration = ReadValue();
+        Token unitToken = Current;
+        TimeUnit? unit = unitToken.Kind switch
+        {
+            TokenKind.Year => TimeUnit.Year,
+            TokenKind.Month => TimeUnit.Month,
+            TokenKind.Day => TimeUnit.Day,
+            TokenKind.Hour => TimeUnit.Hour,
+            TokenKind.Minute => TimeUnit.Minute,
+            TokenKind.Second => TimeUnit.Second,
+            TokenKind.Millisecond => TimeUnit.Millisecond,
+            _ => null,
+        };
+        if (unit == null && unitToken.Kind == TokenKind.Identifier)
+        {
+            unit = unitToken.Text.ToLowerInvariant() switch
+            {
+                "year" or "years" => TimeUnit.Year,
+                "month" or "months" => TimeUnit.Month,
+                "day" or "days" => TimeUnit.Day,
+                "hour" or "hours" => TimeUnit.Hour,
+                "minute" or "minutes" => TimeUnit.Minute,
+                "second" or "seconds" => TimeUnit.Second,
+                "millisecond" or "milliseconds" => TimeUnit.Millisecond,
+                _ => null,
+            };
+        }
+        if (unit == null) throw Error("I expected a time unit (seconds, minutes, milliseconds, ...) after the wait duration.", unitToken, "wait 5 seconds");
+        Read();
+        Expect(TokenKind.Newline, "I expected the wait statement to end here.");
+        return new WaitDelayStmt(duration, unit.Value, start.Line);
+    }
 
     // run command "git status" [into result]. Starting a program without
     // waiting (`run "notepad"`), remote and ssh commands are not ported yet.
@@ -1493,9 +1545,9 @@ public sealed class Parser
             case TokenKind.Tangent: return ReadOfOperation(token, OfOperation.Tangent);
             case TokenKind.LogTen: return ReadOfOperation(token, OfOperation.LogTen);
             case TokenKind.NaturalLog: return ReadOfOperation(token, OfOperation.NaturalLog);
-            // Timers (D101) are not ported yet.
-            case TokenKind.ElapsedTime or TokenKind.ElapsedMilliseconds:
-                throw Unsupported($"'{token.Text} of'");
+            // elapsed time of workTimer / elapsed milliseconds of workTimer (D101)
+            case TokenKind.ElapsedTime: return ReadOfOperation(token, OfOperation.ElapsedTime);
+            case TokenKind.ElapsedMilliseconds: return ReadOfOperation(token, OfOperation.ElapsedMilliseconds);
             // larger of X and Y / smaller of X and Y (D89)
             case TokenKind.Larger or TokenKind.Smaller:
             {

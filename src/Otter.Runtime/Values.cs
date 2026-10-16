@@ -181,3 +181,12 @@ public static class Values
         return text;
     }
 }
+
+// start timer workTimer (D101): a monotonic clock. otterPS holds a
+// System.Diagnostics.Stopwatch, which prints as its type name on .NET
+// Framework (on .NET 10 it would print the elapsed time instead).
+public sealed class OtterTimer
+{
+    public System.Diagnostics.Stopwatch Clock { get; } = System.Diagnostics.Stopwatch.StartNew();
+    public override string ToString() => "System.Diagnostics.Stopwatch";
+}

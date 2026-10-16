@@ -1,0 +1,38 @@
+start timer workTimer
+say workTimer
+wait 50 milliseconds
+elapsed is elapsed milliseconds of workTimer
+if elapsed is at least 45
+    say "waited"
+.
+seconds is elapsed time of workTimer
+if seconds is less than 5
+    say "seconds ok"
+.
+try
+    total is workTimer plus 1
+otherwise into reason
+    say reason
+.
+try
+    x is elapsed time of 5
+otherwise into reason
+    say reason
+.
+try
+    wait "soon" seconds
+otherwise into reason
+    say reason
+.
+minusOne is 0 minus 1
+try
+    wait minusOne seconds
+otherwise into reason
+    say reason
+.
+if workTimer is workTimer
+    say "same timer"
+.
+wait 0 SECONDS
+wait 0.01 minute
+say "end"
