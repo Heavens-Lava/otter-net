@@ -373,7 +373,7 @@ public sealed class AppendFileStmt(Expr content, Expr path, int line) : Stmt(lin
     public Expr Path { get; } = path;
 }
 
-public enum FileAction { CopyFile, MoveFile, CopyFolder, MoveFolder }
+public enum FileAction { CopyFile, MoveFile, CopyFolder, MoveFolder, ZipFolder, Unzip }
 
 // copy "a.txt" to "backup" / move folder "Old" to "Archive"
 public sealed class TransferStmt(FileAction action, Expr source, Expr destination, int line) : Stmt(line)

@@ -434,6 +434,8 @@ public sealed class Interpreter
                     FileAction.CopyFile => () => OtterFiles.CopyFile(source, destination),
                     FileAction.MoveFile => () => OtterFiles.MoveFile(source, destination),
                     FileAction.CopyFolder => () => OtterFiles.CopyFolder(source, destination),
+                    FileAction.ZipFolder => () => OtterFiles.ZipFolder(source, destination),
+                    FileAction.Unzip => () => OtterFiles.Unzip(source, destination),
                     _ => () => OtterFiles.MoveFolder(source, destination),
                 };
                 Library(action, transfer.Line);

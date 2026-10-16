@@ -1,0 +1,48 @@
+# zip folder / unzip (D87). The archive is deleted at the end: its compressed
+# bytes may differ between .NET Framework and .NET 10; what it unpacks to
+# must not.
+create folder "Source/inner/empty"
+write "alpha" to "Source/a.txt"
+write "Grüße" to "Source/inner/b.txt"
+zip folder "Source" into "out/archive.zip"
+if file "out/archive.zip" exists
+    say "zipped"
+.
+unzip "out/archive.zip" into "Restored"
+read "Restored/inner/b.txt" into restored
+say restored
+get files in "Restored" and subfolders into files
+for each file in files
+    say name of file size of file
+.
+get folders in "Restored" and subfolders into folders
+for each folder in folders
+    say name of folder
+.
+try
+    zip folder "Source" into "out/archive.zip"
+otherwise into reason
+    say reason
+.
+try
+    zip folder "Missing" into "x.zip"
+otherwise into reason
+    say reason
+.
+try
+    unzip "nope.zip" into "x"
+otherwise into reason
+    say reason
+.
+write "not a zip" to "fake.zip"
+try
+    unzip "fake.zip" into "FromFake"
+otherwise into reason
+    say reason
+.
+try
+    unzip "out/archive.zip" into "Restored"
+otherwise into reason
+    say reason
+.
+delete file "out/archive.zip"

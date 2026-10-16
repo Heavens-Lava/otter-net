@@ -603,6 +603,26 @@ public sealed class Parser
                 return ReadWait(start);
             case TokenKind.Hash:
                 return ReadHash(start);
+            // zip folder "src" into "archive.zip" / unzip "archive.zip" into "dest" (D87)
+            case TokenKind.Zip:
+            {
+                Read();
+                Expect(TokenKind.Folder, "I expected \"folder\" after \"zip\".");
+                Expr folder = ReadValue();
+                Expect(TokenKind.Into, "I expected \"into\" and an archive path.");
+                Expr archive = ReadValue();
+                Expect(TokenKind.Newline, "I expected the zip statement to end here.");
+                return new TransferStmt(FileAction.ZipFolder, folder, archive, start.Line);
+            }
+            case TokenKind.Unzip:
+            {
+                Read();
+                Expr archive = ReadValue();
+                Expect(TokenKind.Into, "I expected \"into\" and a destination folder.");
+                Expr destination = ReadValue();
+                Expect(TokenKind.Newline, "I expected the unzip statement to end here.");
+                return new TransferStmt(FileAction.Unzip, archive, destination, start.Line);
+            }
             case TokenKind.Encrypt:
             case TokenKind.Decrypt:
                 return ReadCipher(start);

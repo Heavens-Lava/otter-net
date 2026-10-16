@@ -61,6 +61,12 @@ public static class OtterFiles
         catch (Exception e) when (IsFileSystemFailure(e)) { throw new FileProblem($"I could not make the folder \"{folder}\"."); }
     }
 
+    // A .NET method failing inside PowerShell reaches otterPS's message
+    // wrapped as PowerShell wraps it (MethodInvocationException). Cmdlets
+    // (Copy-Item, Move-Item, Remove-Item, New-Item) report the bare message.
+    static string Calling(string method, int arguments, Exception e) =>
+        $"Exception calling \"{method}\" with \"{arguments}\" argument(s): \"{e.Message}\"";
+
     static bool IsFileSystemFailure(Exception e) =>
         e is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException or System.Security.SecurityException;
 
@@ -143,7 +149,7 @@ public static class OtterFiles
         string full = Resolve(path);
         if (!File.Exists(full)) throw new FileProblem($"I could not find a file called \"{path}\".", $"if file \"{path}\" exists");
         try { return File.ReadAllText(full, Utf8NoBom); }
-        catch (Exception e) when (IsFileSystemFailure(e)) { throw new FileProblem($"I could not read \"{path}\". {e.Message}"); }
+        catch (Exception e) when (IsFileSystemFailure(e)) { throw new FileProblem($"I could not read \"{path}\". {Calling("ReadAllText", 2, e)}"); }
     }
 
     // write "Hello!" to "hello.txt" [atomically] - replaces what was there,
@@ -156,27 +162,34 @@ public static class OtterFiles
         if (!atomic)
         {
             try { File.WriteAllText(full, content, Utf8NoBom); }
-            catch (Exception e) when (IsFileSystemFailure(e)) { throw new FileProblem($"I could not write to \"{path}\". {e.Message}"); }
+            catch (Exception e) when (IsFileSystemFailure(e)) { throw new FileProblem($"I could not write to \"{path}\". {Calling("WriteAllText", 3, e)}"); }
             return;
         }
         // D72: a temporary file in the same folder, renamed into place.
         if (File.Exists(full) && new FileInfo(full).IsReadOnly) throw new FileProblem($"I could not write to \"{path}\". The file is read-only.");
         string temporary = full + ".otter-tmp-" + Guid.NewGuid().ToString("N").Substring(0, 8);
         string backup = full + ".otter-bak-" + Guid.NewGuid().ToString("N").Substring(0, 8);
+        // Which .NET call failed is part of PowerShell's message.
+        (string Name, int Arguments) step = ("WriteAllText", 3);
         try
         {
             File.WriteAllText(temporary, content, Utf8NoBom);
             if (File.Exists(full))
             {
+                step = ("Replace", 3);
                 File.Replace(temporary, full, backup);
                 try { File.Delete(backup); } catch (Exception e) when (IsFileSystemFailure(e)) { }
             }
-            else File.Move(temporary, full);
+            else
+            {
+                step = ("Move", 2);
+                File.Move(temporary, full);
+            }
         }
         catch (Exception e) when (IsFileSystemFailure(e))
         {
             try { if (File.Exists(temporary)) File.Delete(temporary); } catch (Exception cleanup) when (IsFileSystemFailure(cleanup)) { }
-            throw new FileProblem($"I could not write to \"{path}\". {e.Message}");
+            throw new FileProblem($"I could not write to \"{path}\". {Calling(step.Name, step.Arguments, e)}");
         }
     }
 
@@ -187,7 +200,7 @@ public static class OtterFiles
         EnsureParentFolder(full);
         if (Directory.Exists(full)) throw new FileProblem($"\"{path}\" is a folder, not a file.");
         try { File.AppendAllText(full, content, Utf8NoBom); }
-        catch (Exception e) when (IsFileSystemFailure(e)) { throw new FileProblem($"I could not append to \"{path}\". {e.Message}"); }
+        catch (Exception e) when (IsFileSystemFailure(e)) { throw new FileProblem($"I could not append to \"{path}\". {Calling("AppendAllText", 3, e)}"); }
     }
 
     // copy "hello.txt" to "backup/hello.txt"; copy into a folder keeps the name.
@@ -270,7 +283,7 @@ public static class OtterFiles
             return false;
         }
         catch (IOException) { return true; }
-        catch (Exception e) when (IsFileSystemFailure(e)) { throw new FileProblem($"I could not check whether \"{path}\" is locked. {e.Message}"); }
+        catch (Exception e) when (IsFileSystemFailure(e)) { throw new FileProblem($"I could not check whether \"{path}\" is locked. {Calling("Open", 4, e)}"); }
     }
 
     static bool SamePath(string a, string b) =>
@@ -389,6 +402,38 @@ public static class OtterFiles
                 ClearReadOnly(target);
                 ((FileInfo)entry).CopyTo(target, overwrite: true);
             }
+        }
+    }
+
+    // zip folder "src" into "archive.zip" (D87) - never over an existing file.
+    // The archive holds the same entries as otterPS's; its compressed bytes
+    // can differ, because .NET Framework and .NET 10 ship different zlib builds.
+    public static void ZipFolder(string source, string archivePath)
+    {
+        string folder = RequireFolder(source);
+        string archive = Resolve(archivePath);
+        EnsureParentFolder(archive);
+        if (File.Exists(archive) || Directory.Exists(archive))
+        {
+            throw new FileProblem($"\"{archivePath}\" already exists - I will not overwrite an existing archive.", $"delete \"{archivePath}\" first if you want to replace it");
+        }
+        try { System.IO.Compression.ZipFile.CreateFromDirectory(folder, archive); }
+        catch (Exception e) when (IsFileSystemFailure(e) || e is System.IO.InvalidDataException)
+        {
+            throw new FileProblem($"I could not zip \"{source}\" to \"{archivePath}\". {Calling("CreateFromDirectory", 2, e)}");
+        }
+    }
+
+    // unzip "archive.zip" into "dest" (D87) - makes the folder if need be.
+    public static void Unzip(string archivePath, string destination)
+    {
+        string archive = Resolve(archivePath);
+        if (!File.Exists(archive)) throw new FileProblem($"I could not find an archive called \"{archivePath}\".");
+        string folder = Resolve(destination);
+        try { System.IO.Compression.ZipFile.ExtractToDirectory(archive, folder); }
+        catch (Exception e) when (IsFileSystemFailure(e) || e is System.IO.InvalidDataException)
+        {
+            throw new FileProblem($"I could not unzip \"{archivePath}\" to \"{destination}\". {Calling("ExtractToDirectory", 2, e)}");
         }
     }
 
