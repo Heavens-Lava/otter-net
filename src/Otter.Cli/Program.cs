@@ -22,7 +22,23 @@ public static class Program
     // otterPS's exit codes.
     const int ExitSuccess = 0, ExitUsageError = 1, ExitCheckError = 2, ExitRuntimeError = 3;
 
+    // Each Otter call nests several interpreter frames, so the default 1 MB
+    // stack ran out before Otter's own call depth limit (250, as otterPS) and
+    // the process died with a raw stack overflow. Parsing and running happen
+    // on a thread whose stack is large enough for the limit to be reached
+    // first, with the error the user would see from otterPS.
+    const int StackSize = 256 * 1024 * 1024;
+
     public static int Main(string[] args)
+    {
+        int exitCode = ExitUsageError;
+        var worker = new Thread(() => exitCode = Run(args), StackSize);
+        worker.Start();
+        worker.Join();
+        return exitCode;
+    }
+
+    static int Run(string[] args)
     {
         Console.OutputEncoding = new UTF8Encoding(false);
         string engine = Environment.GetEnvironmentVariable("OTTER_ENGINE") ?? "";

@@ -1,0 +1,12 @@
+# Regression: "fib n minus 1" is (fib n) minus 1, so this recursion never
+# ends. otterPS stops at its call depth limit; otter-net crashed with a raw
+# .NET stack overflow before reaching the same limit (found 2026-10-16).
+to fib n
+    if n is less than 2
+        return n
+    .
+    left is fib n minus 1
+    right is fib n minus 2
+    return left plus right
+.
+say fib 20

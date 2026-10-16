@@ -1,0 +1,16 @@
+# Deep but finite recursion through nested blocks stays within the limit.
+to down n
+    if n is greater than 0
+        while true
+            repeat 1 times
+                count from 1 to 1 as i
+                    smaller is n minus 1
+                    result is down smaller
+                    return result plus 1
+                .
+            .
+        .
+    .
+    return 0
+.
+say down 240
