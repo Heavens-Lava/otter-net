@@ -1,0 +1,9 @@
+# Regression: everything said before a program hangs must already be on the
+# console. otter-net buffered its output, so a never-ending program (stopped
+# by the harness's timeout, or by Ctrl+C) showed nothing (fuzz, 2026-10-16).
+say "first line"
+say "second line"
+step is 2
+while step is at least 2
+    total is step
+.

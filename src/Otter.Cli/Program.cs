@@ -119,7 +119,10 @@ public static class Program
         Trace("native: run");
         // otterPS writes through Write-Host, which ends every line with "\n"
         // (only the lines inside an error block end with Environment.NewLine).
-        var output = new StreamWriter(Console.OpenStandardOutput(), new UTF8Encoding(false)) { NewLine = "\n", AutoFlush = false };
+        // Each write reaches the console at once, as Write-Host's does: a
+        // program stopped with Ctrl+C, or one that never ends, has still shown
+        // everything it said (found by the fuzz corpus, 2026-10-16).
+        var output = new StreamWriter(Console.OpenStandardOutput(), new UTF8Encoding(false)) { NewLine = "\n", AutoFlush = true };
         // Input piped from Windows PowerShell starts with a byte order mark;
         // the reader drops it, as PowerShell's Read-Host does.
         var input = new StreamReader(Console.OpenStandardInput(), new UTF8Encoding(false), detectEncodingFromByteOrderMarks: true);
