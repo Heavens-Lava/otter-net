@@ -128,7 +128,11 @@ public static class Program
         var input = new StreamReader(Console.OpenStandardInput(), new UTF8Encoding(false), detectEncodingFromByteOrderMarks: true);
         try
         {
-            new Interpreter(output, input, source, programArguments, echoInput: Console.IsInputRedirected).Run(program);
+            new Interpreter(output, input, source, programArguments, echoInput: Console.IsInputRedirected)
+            {
+                WriteColoredLine = Console.IsOutputRedirected ? null : (text, color) => WriteInColor(output, text, color),
+                ReadSecretLine = Console.IsInputRedirected ? null : () => ReadSecretLine(output),
+            }.Run(program);
             output.Flush();
             return ExitSuccess;
         }
@@ -151,6 +155,49 @@ public static class Program
             output.WriteLine("");
             output.Flush();
             return ExitRuntimeError;
+        }
+    }
+
+    // Write-Host -ForegroundColor: the line in that color, then the
+    // console's own color again.
+    static void WriteInColor(TextWriter output, string text, ConsoleColor color)
+    {
+        output.Flush();
+        ConsoleColor previous = Console.ForegroundColor;
+        Console.ForegroundColor = color;
+        try { output.Write(text); output.Flush(); }
+        finally { Console.ForegroundColor = previous; }
+        output.Write("\n");
+        output.Flush();
+    }
+
+    // Read-OtterSecretLine: a "*" for each character typed, Backspace takes
+    // one back, Enter ends the line.
+    static string ReadSecretLine(TextWriter output)
+    {
+        var typed = new StringBuilder();
+        while (true)
+        {
+            ConsoleKeyInfo key = Console.ReadKey(intercept: true);
+            if (key.Key == ConsoleKey.Enter)
+            {
+                output.Write("\n");
+                return typed.ToString();
+            }
+            if (key.Key == ConsoleKey.Backspace)
+            {
+                if (typed.Length > 0)
+                {
+                    typed.Length--;
+                    output.Write("\b \b");
+                }
+                continue;
+            }
+            if (key.KeyChar != '\0' && !char.IsControl(key.KeyChar))
+            {
+                typed.Append(key.KeyChar);
+                output.Write("*");
+            }
         }
     }
 

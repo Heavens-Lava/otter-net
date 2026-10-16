@@ -124,7 +124,12 @@ public sealed class CallExpr(string name, IReadOnlyList<Expr> arguments, int lin
 
 // ---- statements ------------------------------------------------------------
 
-public sealed class SayStmt(IReadOnlyList<Expr> parts, int line) : Stmt(line) { public IReadOnlyList<Expr> Parts { get; } = parts; }
+// say "Hello" name [in color "red"] (D8, D100)
+public sealed class SayStmt(IReadOnlyList<Expr> parts, Expr? color, int line) : Stmt(line)
+{
+    public IReadOnlyList<Expr> Parts { get; } = parts;
+    public Expr? Color { get; } = color;
+}
 
 // name is "Jeff" (target is a VariableExpr) / age of person is 30 (a PropertyAccessExpr).
 public sealed class AssignStmt(Expr target, Expr value, int line) : Stmt(line)
@@ -150,10 +155,12 @@ public sealed class TypeDefStmt(string typeName, IReadOnlyList<string> fieldName
     public IReadOnlyList<string> FieldNames { get; } = fieldNames;
 }
 
-public sealed class AskStmt(Expr prompt, string name, int line) : Stmt(line)
+// ask [secretly] "Name?" and call it name (D6, D100)
+public sealed class AskStmt(Expr prompt, string name, bool secret, int line) : Stmt(line)
 {
     public Expr Prompt { get; } = prompt;
     public string Name { get; } = name;
+    public bool Secret { get; } = secret;
 }
 
 public sealed class MathIntoStmt(Expr expression, string target, int line) : Stmt(line)

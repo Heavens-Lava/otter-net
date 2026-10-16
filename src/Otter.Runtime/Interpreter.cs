@@ -33,6 +33,16 @@ public sealed class Interpreter
         globals.Set("arguments", new OtterList(arguments.Select(a => (object?)a)));
     }
 
+    // Set by the `otter` command when it writes to a real console: shows a
+    // line in a color, as Write-Host -ForegroundColor does. Without it (output
+    // redirected) the text is written plainly, as Write-Host writes it then.
+    public Action<string, ConsoleColor>? WriteColoredLine { get; init; }
+
+    // Set when typing comes from a real console: reads a line showing "*"
+    // for each character (D100). Otherwise `ask secretly` reads like `ask`,
+    // as otterPS's Read-OtterSecretLine falls back to Read-Host.
+    public Func<string?>? ReadSecretLine { get; init; }
+
     // `return` (and `stop`) unwind to the function call that is running.
     sealed class ReturnSignal(object? value, int line) : Exception("return")
     {
@@ -71,10 +81,27 @@ public sealed class Interpreter
             // say "Hello" name     (D8: parts joined by exactly one space)
             case SayStmt say:
             {
-                if (say.Parts.Count == 0) { output.WriteLine(""); return; }
+                if (say.Parts.Count == 0)
+                {
+                    // A bare `say in color X` formats the color without checking it is text.
+                    if (say.Color != null) WriteLine("", ConsoleColorNamed(Values.Format(Evaluate(say.Color, scope)), say.Line));
+                    else output.WriteLine("");
+                    return;
+                }
                 var rendered = new string[say.Parts.Count];
                 for (int i = 0; i < say.Parts.Count; i++) rendered[i] = Values.Format(Evaluate(say.Parts[i], scope));
-                output.WriteLine(string.Join(" ", rendered));
+                string text = string.Join(" ", rendered);
+                if (say.Color == null)
+                {
+                    output.WriteLine(text);
+                    return;
+                }
+                object? colorValue = Evaluate(say.Color, scope);
+                if (colorValue is not string colorName)
+                {
+                    throw RuntimeError($"I need text for a color name, but this is {Values.TypeName(colorValue)}.", say.Line, "say \"Error!\" in color \"red\"");
+                }
+                WriteLine(text, ConsoleColorNamed(colorName, say.Line));
                 return;
             }
             case AssignStmt assign:
@@ -110,9 +137,14 @@ public sealed class Interpreter
                 string prompt = Values.Format(Evaluate(ask.Prompt, scope));
                 output.Write(prompt + " ");
                 output.Flush();
-                string? typed = input.ReadLine();
-                // At the end of the input there is nothing to echo.
-                if (echoInput && typed != null) output.WriteLine(typed);
+                string? typed;
+                if (ask.Secret && ReadSecretLine != null) typed = ReadSecretLine();
+                else
+                {
+                    typed = input.ReadLine();
+                    // At the end of the input there is nothing to echo.
+                    if (echoInput && typed != null) output.WriteLine(typed);
+                }
                 scope.Set(ask.Name, Values.FromInput(typed));
                 return;
             }
@@ -529,6 +561,31 @@ public sealed class Interpreter
             throw RuntimeError($"{Values.FormatNumber(value)} is too large for a random number.", line);
         }
         return (int)rounded;
+    }
+
+    static readonly string[] ConsoleColorNames =
+    {
+        "red", "green", "yellow", "blue", "cyan", "magenta", "white", "black",
+        "gray", "darkgray", "darkred", "darkgreen", "darkyellow", "darkblue",
+        "darkcyan", "darkmagenta",
+    };
+
+    // Get-OtterConsoleColor (D100).
+    ConsoleColor ConsoleColorNamed(string name, int line)
+    {
+        string normalized = name.Trim().ToLowerInvariant();
+        if (!ConsoleColorNames.Contains(normalized))
+        {
+            throw RuntimeError($"I don't recognize the color \"{name}\". Valid colors are: {string.Join(", ", ConsoleColorNames)}.", line,
+                "say \"Error!\" in color \"red\"");
+        }
+        return Enum.Parse<ConsoleColor>(normalized, ignoreCase: true);
+    }
+
+    void WriteLine(string text, ConsoleColor color)
+    {
+        if (WriteColoredLine != null) WriteColoredLine(text, color);
+        else output.WriteLine(text);
     }
 
     // Get-OtterPathArgument: typed text, or a file or folder object.

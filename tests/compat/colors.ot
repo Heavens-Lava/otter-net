@@ -1,0 +1,26 @@
+# say ... in color, ask secretly (D100). With output redirected the color is
+# not part of the text; with input redirected, ask secretly reads like ask.
+say "Error!" in color "red"
+say "Fine" "and" 3 in color " DarkGreen "
+shade is "cyan"
+say "From a variable" in color shade
+say in color "blue"
+ask secretly "Password:" and call it password
+say "length" length of password
+ask secretly "PIN:" and call it pin
+say pin plus 1
+try
+    say "x" in color "purple"
+otherwise into reason
+    say reason
+.
+try
+    say "x" in color 5
+otherwise into reason
+    say reason
+.
+try
+    say in color 5
+otherwise into reason
+    say reason
+.

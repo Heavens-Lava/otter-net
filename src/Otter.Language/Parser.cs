@@ -342,9 +342,20 @@ public sealed class Parser
                 Read();
                 var parts = new List<Expr>();
                 while (!Is(TokenKind.Newline) && !Is(TokenKind.In)) parts.Add(ReadMathExpression());
-                if (Is(TokenKind.In)) throw Unsupported("say in color");
+                Expr? color = null;
+                if (Is(TokenKind.In))
+                {
+                    Read();
+                    Token colorWord = Current;
+                    if (colorWord.Kind != TokenKind.Identifier || !Same(colorWord.Text, "color"))
+                    {
+                        throw Error("I expected \"color\" after \"in\".", colorWord, "say \"Error!\" in color \"red\"");
+                    }
+                    Read();
+                    color = ReadValue();
+                }
                 Expect(TokenKind.Newline, "I expected the say statement to end here.");
-                return new SayStmt(parts, start.Line);
+                return new SayStmt(parts, color, start.Line);
             }
             case TokenKind.If:
             {
@@ -395,14 +406,15 @@ public sealed class Parser
             case TokenKind.Ask:
             {
                 Read();
-                if (Current.Kind == TokenKind.Identifier && Same(Current.Text, "secretly")) throw Unsupported("ask secretly");
+                bool secret = Current.Kind == TokenKind.Identifier && Same(Current.Text, "secretly");
+                if (secret) Read();
                 Expr prompt = ReadValue();
                 Expect(TokenKind.And, "I expected \"and call it\" after the question.");
                 Expect(TokenKind.Call, "I expected \"call\" after \"and\".");
                 Expect(TokenKind.It, "I expected \"it\" after \"call\".");
                 Token name = ReadVariableName("I expected a variable name after \"call it\".");
                 Expect(TokenKind.Newline, "I expected the question to end here.");
-                return new AskStmt(prompt, name.Text, start.Line);
+                return new AskStmt(prompt, name.Text, secret, start.Line);
             }
             case TokenKind.To:
             {
