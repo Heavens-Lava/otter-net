@@ -1,0 +1,5 @@
+d is xml from csv "x"
+e is xml with "x"
+f is pretty text from json d
+set attribute "a" to "b"
+write xml d to "f.xml"

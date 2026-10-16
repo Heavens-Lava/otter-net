@@ -1,0 +1,42 @@
+# otterPS reads XML through PowerShell's adapter, where an attribute or
+# child element named like a property (name, innertext, outerxml,
+# attributes, childnodes, parentnode) is read instead of the property.
+shop is xml from text "<shop><item name=\"apple\">red</item><item>pear</item><item><name>plum</name></item></shop>"
+items is elements "item" in shop
+say length of items
+for each item in items
+    say name of item
+    say text of item
+.
+everything is children 0 in shop
+for each child in everything
+    say text from xml child
+.
+person is xml from text "<person><name>Ann</name><name>Bo</name></person>"
+say name of root of person
+nested is xml from text "<x><name><deep/></name></x>"
+say name of root of nested
+odd is xml from text "<odd innertext=\"it\" outerxml=\"ox\" attributes=\"at\" id=\"1\">real</odd>"
+oddRoot is root of odd
+say text of oddRoot
+say oddRoot
+say text from xml oddRoot
+say attributes of oddRoot
+say text of odd
+say odd
+tree is xml from text "<tree><childnodes>c</childnodes><leaf/></tree>"
+say length of children 0 in tree
+if element "leaf" exists in tree
+    say "wrong"
+otherwise
+    say "leaf hidden behind childnodes"
+.
+upper is xml from text "<u NAME=\"shout\"/>"
+say name of root of upper
+plain is xml from text "<library><book id=\"1\"/><book id=\"2\"/></library>"
+say length of elements "book" in plain
+first is element "book" in plain
+remove element first
+say plain
+outer is xml from text "<OuterXml>v</OuterXml>"
+say outer

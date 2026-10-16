@@ -427,6 +427,105 @@ public sealed class GetSystemFolderStmt(Expr folderName, string target, int line
 // set current directory to "Projects"
 public sealed class SetCurrentDirectoryStmt(Expr path, int line) : Stmt(line) { public Expr Path { get; } = path; }
 
+// ---- xml (D105) ------------------------------------------------------------
+
+public enum XmlSourceKind { Text, File, Root }
+
+// xml from text X / xml from file X / xml with root X
+public sealed class XmlFromExpr(XmlSourceKind source, Expr value, int line) : Expr(line)
+{
+    public XmlSourceKind Source { get; } = source;
+    public Expr Value { get; } = value;
+}
+
+public enum XmlSelectKind { Element, Elements, Child, Children }
+
+// element "book" in doc / elements "book" in doc / child 0 in book / children of ... in book
+public sealed class XmlSelectExpr(XmlSelectKind kind, Expr selector, Expr xml, int line) : Expr(line)
+{
+    public XmlSelectKind Kind { get; } = kind;
+    public Expr Selector { get; } = selector;
+    public Expr Xml { get; } = xml;
+}
+
+// attribute "id" of book
+public sealed class XmlAttributeExpr(Expr name, Expr element, int line) : Expr(line)
+{
+    public Expr Name { get; } = name;
+    public Expr Element { get; } = element;
+}
+
+// text of "title" in book
+public sealed class XmlTextOfNameInExpr(Expr name, Expr xml, int line) : Expr(line)
+{
+    public Expr Name { get; } = name;
+    public Expr Xml { get; } = xml;
+}
+
+// element "book" exists in doc
+public sealed class XmlElementExistsExpr(Expr selector, Expr xml, int line) : Expr(line)
+{
+    public Expr Selector { get; } = selector;
+    public Expr Xml { get; } = xml;
+}
+
+// book has attribute "id"
+public sealed class XmlHasAttributeExpr(Expr element, Expr name, int line) : Expr(line)
+{
+    public Expr Element { get; } = element;
+    public Expr Name { get; } = name;
+}
+
+// text from xml doc / pretty text from xml doc
+public sealed class XmlToTextExpr(Expr xml, bool pretty, int line) : Expr(line)
+{
+    public Expr Xml { get; } = xml;
+    public bool Pretty { get; } = pretty;
+}
+
+// write xml doc to file "books.xml"
+public sealed class XmlWriteFileStmt(Expr xml, Expr path, int line) : Stmt(line)
+{
+    public Expr Xml { get; } = xml;
+    public Expr Path { get; } = path;
+}
+
+// add element "book" [with text T] to library [and call it book]
+public sealed class XmlAddElementStmt(Expr name, Expr xml, Expr? text, string? target, int line) : Stmt(line)
+{
+    public Expr Name { get; } = name;
+    public Expr Xml { get; } = xml;
+    public Expr? Text { get; } = text;
+    public string? Target { get; } = target;
+}
+
+// remove element book
+public sealed class XmlRemoveElementStmt(Expr element, int line) : Stmt(line) { public Expr Element { get; } = element; }
+
+// remove attribute "id" from book
+public sealed class XmlRemoveAttributeStmt(Expr name, Expr element, int line) : Stmt(line)
+{
+    public Expr Name { get; } = name;
+    public Expr Element { get; } = element;
+}
+
+// set text of book to V / set text of "title" in doc to V
+public sealed class XmlSetTextStmt(Expr? element, Expr? nameIn, Expr? xmlIn, Expr value, int line) : Stmt(line)
+{
+    public Expr? Element { get; } = element;
+    public Expr? NameIn { get; } = nameIn;
+    public Expr? XmlIn { get; } = xmlIn;
+    public Expr Value { get; } = value;
+}
+
+// set attribute "id" of book to V
+public sealed class XmlSetAttributeStmt(Expr name, Expr element, Expr value, int line) : Stmt(line)
+{
+    public Expr Name { get; } = name;
+    public Expr Element { get; } = element;
+    public Expr Value { get; } = value;
+}
+
 // ---- bytes (D102, D115) ----------------------------------------------------
 
 public enum BytesOp { Empty, FromText, FromHex, FromBase64, ToText, ToHex, ToBase64 }

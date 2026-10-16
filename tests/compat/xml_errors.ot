@@ -1,0 +1,81 @@
+# XML problems, in otterPS's words.
+doc is xml from text "<root><item>1</item></root>"
+attempts are
+    "x"
+.
+try
+    bad is xml from text "<unclosed>"
+otherwise into reason
+    say reason
+.
+try
+    bad is xml from text "not xml at all"
+otherwise into reason
+    say reason
+.
+try
+    say name of doc
+otherwise into reason
+    say reason
+.
+try
+    say colour of doc
+otherwise into reason
+    say reason
+.
+try
+    say root of root of doc
+otherwise into reason
+    say reason
+.
+try
+    say text of "missing" in doc
+otherwise into reason
+    say reason
+.
+try
+    set text of "missing" in doc to "x"
+otherwise into reason
+    say reason
+.
+try
+    set attribute "a" of doc to "x"
+otherwise into reason
+    say reason
+.
+try
+    say element "item" in "text"
+otherwise into reason
+    say reason
+.
+try
+    say attribute "a" of 5
+otherwise into reason
+    say reason
+.
+try
+    write xml "text" to file "x.xml"
+otherwise into reason
+    say reason
+.
+try
+    add element "x" to 5
+otherwise into reason
+    say reason
+.
+try
+    remove element doc
+otherwise into reason
+    say reason
+.
+try
+    loaded is xml from file "missing.xml"
+otherwise into reason
+    say reason
+.
+try
+    say child "first" in doc
+otherwise into reason
+    say reason
+.
+add element "has space" to doc

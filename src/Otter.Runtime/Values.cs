@@ -80,6 +80,8 @@ public static class Values
             case OtterType type: return $"the type {type.Name}";
             // Only the count: hex and text are separate, explicit readings.
             case OtterBytes bytes: return $"<{bytes.Value.Length} bytes>";
+            // The xml's own text is the value.
+            case OtterXml xml: return PowerShellXml.Text(PowerShellXml.OuterXml(xml.Node));
             // Printing a function is almost always a forgotten call.
             case OtterFunction function: return $"<{function.Name}, something Otter can do>";
             default: return value.ToString() ?? "";
@@ -114,6 +116,7 @@ public static class Values
         OtterType type => $"the type {type.Name}",
         OtterDate date => date.HasTime ? "a date and time" : "a date",
         OtterBytes => "bytes",
+        OtterXml => "xml",
         OtterList => "a list",
         double => "a number",
         string => "some text",
@@ -194,6 +197,15 @@ public static class Values
 public sealed class OtterBytes(byte[] value)
 {
     public byte[] Value { get; } = value;
+}
+
+// D105: an xml document or one element of it.
+public sealed class OtterXml(System.Xml.XmlNode node)
+{
+    public System.Xml.XmlNode Node { get; } = node;
+    // otterPS's OtterXml class has no ToString, so where PowerShell turns it
+    // into text (comparing with "is") it is its class name.
+    public override string ToString() => "OtterXml";
 }
 
 // start timer workTimer (D101): a monotonic clock. otterPS holds a

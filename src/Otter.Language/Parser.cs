@@ -3,6 +3,10 @@ namespace Otter.Language;
 // Thrown when a program uses something otter-net has not ported yet. The
 // `otter` command then hands the whole program to the PowerShell Otter, so
 // the user gets exactly today's behaviour - before anything has run.
+// An attempted reading of a line that does not fit, so the parser goes back
+// and reads it another way (otterPS's try/catch backtracking).
+sealed class NotThisForm() : Exception("not this form");
+
 public sealed class NotSupportedYet(string feature, int line) : Exception($"line {line}: {feature}")
 {
     public string Feature { get; } = feature;
@@ -726,7 +730,17 @@ public sealed class Parser
             Expect(TokenKind.Newline, "I expected the write CSV statement to end here.");
             return new WriteCsvStmt(rows, csvPath, start.Line);
         }
-        if (Current.Kind == TokenKind.Identifier && Same(Current.Text, "xml")) throw Unsupported("write xml");
+        // write xml doc to file "books.xml" (D105)
+        if (Current.Kind == TokenKind.Identifier && Same(Current.Text, "xml"))
+        {
+            Read();
+            Expr xml = ReadValue();
+            Expect(TokenKind.To, "I expected \"to\" and a file path.");
+            Expect(TokenKind.File, "I expected \"file\" and a path.", "Write: write xml document to file \"books.xml\"");
+            Expr xmlPath = ReadValue();
+            Expect(TokenKind.Newline, "I expected the write xml statement to end here.");
+            return new XmlWriteFileStmt(xml, xmlPath, start.Line);
+        }
         // write bytes data to file "copy.png" [atomically] (D115)
         if (Current.Kind == TokenKind.Identifier && Same(Current.Text, "bytes"))
         {
@@ -1069,6 +1083,36 @@ public sealed class Parser
             Expect(TokenKind.Newline, "I expected the set random seed statement to end here.");
             return new SetRandomSeedStmt(seed, start.Line);
         }
+        // set text of X to V / set text of NAME in X to V (D105)
+        if (Current.Kind == TokenKind.Identifier && Same(Current.Text, "text") && IsAt(1, TokenKind.Of))
+        {
+            Read(); Read();
+            Expr? element = ReadValue();
+            Expr? nameIn = null, xmlIn = null;
+            if (Is(TokenKind.In))
+            {
+                Read();
+                nameIn = element;
+                xmlIn = ReadValue();
+                element = null;
+            }
+            Expect(TokenKind.To, "I expected \"to\" and a value.");
+            Expr textValue = ReadMathExpression();
+            Expect(TokenKind.Newline, "I expected the set text statement to end here.");
+            return new XmlSetTextStmt(element, nameIn, xmlIn, textValue, start.Line);
+        }
+        // set attribute "id" of book to V (D105)
+        if (Current.Kind == TokenKind.Identifier && Same(Current.Text, "attribute"))
+        {
+            Read();
+            Expr attributeName = ReadValue();
+            Expect(TokenKind.Of, "I expected \"of\" and an element after the attribute name.", "Write: set attribute \"id\" of book to \"42\"");
+            Expr element = ReadValue();
+            Expect(TokenKind.To, "I expected \"to\" and a value.");
+            Expr attributeValue = ReadMathExpression();
+            Expect(TokenKind.Newline, "I expected the set attribute statement to end here.");
+            return new XmlSetAttributeStmt(attributeName, element, attributeValue, start.Line);
+        }
         // set cursor to row 5 column 10 (D100)
         if (Current.Kind == TokenKind.Identifier && Same(Current.Text, "cursor"))
         {
@@ -1125,7 +1169,42 @@ public sealed class Parser
     Stmt ReadAdd(Token start)
     {
         Read();
-        if (Current.Kind == TokenKind.Identifier && Same(Current.Text, "element")) throw Unsupported("xml");
+        // add element NAME [with text T] to X [and call it N] (D105), tried
+        // and abandoned for D12's add when it does not fit.
+        if (Current.Kind == TokenKind.Identifier && Same(Current.Text, "element"))
+        {
+            int saved = position;
+            Stmt? added = null;
+            try
+            {
+                Read();
+                Expr name = ReadValue();
+                Expr? text = null;
+                if (Is(TokenKind.With))
+                {
+                    Read();
+                    if (!(Current.Kind == TokenKind.Identifier && Same(Current.Text, "text"))) throw new NotThisForm();
+                    Read();
+                    text = ReadValue();
+                }
+                if (!Is(TokenKind.To)) throw new NotThisForm();
+                Read();
+                Expr xml = ReadValue();
+                string? target = null;
+                if (Is(TokenKind.And))
+                {
+                    Read();
+                    Expect(TokenKind.Call, "I expected \"call\" after \"and\".");
+                    Expect(TokenKind.It, "I expected \"it\" after \"call\".");
+                    target = ReadVariableName("I expected a name after \"call it\".").Text;
+                }
+                Expect(TokenKind.Newline, "I expected the add element statement to end here.");
+                added = new XmlAddElementStmt(name, xml, text, target, start.Line);
+            }
+            catch (Exception e) when (e is OtterError or NotThisForm) { }
+            if (added != null) return added;
+            position = saved;
+        }
         if (Same(start.Text, "increase"))
         {
             Token target = ReadVariableName("I expected a variable name after \"increase\".");
@@ -1160,7 +1239,43 @@ public sealed class Parser
     Stmt ReadRemove(Token start)
     {
         Read();
-        if (Current.Kind == TokenKind.Identifier && SameAny(Current.Text, "element", "attribute")) throw Unsupported("xml");
+        // remove element X / remove attribute NAME from X (D105), tried and
+        // abandoned for D12's remove when they do not fit.
+        if (Current.Kind == TokenKind.Identifier && Same(Current.Text, "element"))
+        {
+            int saved = position;
+            Stmt? removedElement = null;
+            try
+            {
+                Read();
+                Expr element = ReadValue();
+                if (!Is(TokenKind.Newline)) throw new NotThisForm();
+                Read();
+                removedElement = new XmlRemoveElementStmt(element, start.Line);
+            }
+            catch (Exception e) when (e is OtterError or NotThisForm) { }
+            if (removedElement != null) return removedElement;
+            position = saved;
+        }
+        if (Current.Kind == TokenKind.Identifier && Same(Current.Text, "attribute"))
+        {
+            int saved = position;
+            Stmt? removedAttribute = null;
+            try
+            {
+                Read();
+                Expr name = ReadValue();
+                if (!Is(TokenKind.From)) throw new NotThisForm();
+                Read();
+                Expr element = ReadValue();
+                if (!Is(TokenKind.Newline)) throw new NotThisForm();
+                Read();
+                removedAttribute = new XmlRemoveAttributeStmt(name, element, start.Line);
+            }
+            catch (Exception e) when (e is OtterError or NotThisForm) { }
+            if (removedAttribute != null) return removedAttribute;
+            position = saved;
+        }
         if (Same(start.Text, "decrease"))
         {
             Token target = ReadVariableName("I expected a variable name after \"decrease\".");
@@ -1744,16 +1859,47 @@ public sealed class Parser
         // query parameter X (D103 routing) is not ported yet.
         if (token.Kind == TokenKind.Query && IsAt(1, TokenKind.Parameter)) throw Unsupported("query parameter");
         bool plainXmlWord = false;
-        // text from xml X / text of NAME in ELEMENT are XML (D105); text of X
-        // is the property; any other text is an ordinary name.
+        // xml from text|file X / xml with root X (D105)
+        if (token.Kind == TokenKind.Identifier && Same(token.Text, "xml") && (IsAt(1, TokenKind.From) || IsAt(1, TokenKind.With)))
+        {
+            Read();
+            Token fromOrWith = Read();
+            if (fromOrWith.Kind == TokenKind.From)
+            {
+                Token kindWord = Current;
+                if (kindWord.Kind == TokenKind.Identifier && Same(kindWord.Text, "text")) { Read(); return new XmlFromExpr(XmlSourceKind.Text, ReadValue(), token.Line); }
+                if (kindWord.Kind == TokenKind.File) { Read(); return new XmlFromExpr(XmlSourceKind.File, ReadValue(), token.Line); }
+                throw Error("I expected \"text\" or \"file\" after \"xml from\".", kindWord, "Write: xml from text source, or xml from file \"books.xml\"");
+            }
+            ExpectWord("root", "I expected \"root\" after \"xml with\".", "Write: xml with root \"library\"");
+            return new XmlFromExpr(XmlSourceKind.Root, ReadValue(), token.Line);
+        }
+        // pretty text from xml X
+        if (token.Kind == TokenKind.Identifier && Same(token.Text, "pretty") && At(1) is { Kind: TokenKind.Identifier } prettyText &&
+            Same(prettyText.Text, "text") && IsAt(2, TokenKind.From))
+        {
+            Read(); Read(); Read();
+            ExpectWord("xml", "I expected \"xml\" after \"pretty text from\".", "Write: pretty text from xml document");
+            return new XmlToTextExpr(ReadValue(), true, token.Line);
+        }
+        // text from xml X / text of NAME in X (D105); text of X is the
+        // property; any other text is an ordinary name.
         if (token.Kind == TokenKind.Identifier && Same(token.Text, "text"))
         {
-            if (IsAt(1, TokenKind.From) && At(2) is { Kind: TokenKind.Identifier } xmlWord && Same(xmlWord.Text, "xml")) throw Unsupported("xml");
+            if (IsAt(1, TokenKind.From) && At(2) is { Kind: TokenKind.Identifier } xmlWord && Same(xmlWord.Text, "xml"))
+            {
+                Read(); Read(); Read();
+                return new XmlToTextExpr(ReadValue(), false, token.Line);
+            }
             if (IsAt(1, TokenKind.Of))
             {
                 Read(); Read();
                 Expr owner = ReadValue();
-                if (Is(TokenKind.In)) throw Unsupported("xml");
+                if (Is(TokenKind.In))
+                {
+                    Read();
+                    return new XmlTextOfNameInExpr(owner, ReadValue(), token.Line);
+                }
                 return new PropertyAccessExpr("text", owner, token.Line);
             }
             plainXmlWord = true;
@@ -1762,12 +1908,25 @@ public sealed class Parser
         {
             int saved = position;
             Read();
-            bool selectorRead = true;
-            try { ReadValue(); }
-            catch (OtterError) { selectorRead = false; }
-            bool xmlForm = selectorRead && Is(Same(token.Text, "attribute") ? TokenKind.Of : TokenKind.In);
+            Expr? selector = null;
+            try { selector = ReadValue(); }
+            catch (OtterError) { }
+            bool attribute = Same(token.Text, "attribute");
+            if (selector != null && Is(attribute ? TokenKind.Of : TokenKind.In))
+            {
+                Read();
+                Expr owner = ReadValue();
+                if (attribute) return new XmlAttributeExpr(selector, owner, token.Line);
+                XmlSelectKind kind = token.Text.ToLowerInvariant() switch
+                {
+                    "element" => XmlSelectKind.Element,
+                    "elements" => XmlSelectKind.Elements,
+                    "child" => XmlSelectKind.Child,
+                    _ => XmlSelectKind.Children,
+                };
+                return new XmlSelectExpr(kind, selector, owner, token.Line);
+            }
             position = saved;
-            if (xmlForm) throw Unsupported("xml");
             plainXmlWord = true;
         }
         if (!plainXmlWord && (token.Kind == TokenKind.Identifier && exactPhrase ? phraseFollows : SpecialValueWords.Contains(token.Text) && !ordinaryName))
@@ -1900,7 +2059,22 @@ public sealed class Parser
             return new NotExpr(ReadConditionPrimary(), not.Line);
         }
         Token head = Current;
-        if (head.Kind == TokenKind.Identifier && SameAny(head.Text, "element", "registry")) throw Unsupported($"'{head.Text}' conditions");
+        // element "book" exists in doc (D105). Only "exists" makes it this
+        // form; otherwise the line is read again from "element".
+        if (head.Kind == TokenKind.Identifier && Same(head.Text, "element"))
+        {
+            int saved = position;
+            Read();
+            Expr selector = ReadValue();
+            if (Is(TokenKind.Exists))
+            {
+                Read();
+                Expect(TokenKind.In, "I expected \"in\" after \"exists\".");
+                return new XmlElementExistsExpr(selector, ReadValue(), head.Line);
+            }
+            position = saved;
+        }
+        if (head.Kind == TokenKind.Identifier && Same(head.Text, "registry")) throw Unsupported("'registry' conditions");
         // file "x" exists / file "x" is locked (D72); read only and
         // symbolic links are left to otterPS.
         if (head.Kind == TokenKind.File)
@@ -1928,7 +2102,13 @@ public sealed class Parser
         }
         if (Current.Kind == TokenKind.Identifier && Same(Current.Text, "securely")) throw Unsupported("securely equals");
         if (StatePredicateAhead() || (Is(TokenKind.Is) && At(1)?.Kind == TokenKind.Open)) throw Unsupported("state checks");
-        if (Is(TokenKind.Has) && At(1) is { Kind: TokenKind.Identifier } attribute && Same(attribute.Text, "attribute")) throw Unsupported("xml");
+        // book has attribute "id" (D105)
+        if (Is(TokenKind.Has) && At(1) is { Kind: TokenKind.Identifier } attribute && Same(attribute.Text, "attribute"))
+        {
+            Token hasWord = Read();
+            Read();
+            return new XmlHasAttributeExpr(left, ReadValue(), hasWord.Line);
+        }
         if (Is(TokenKind.Contains))
         {
             Token op = Read();

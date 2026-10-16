@@ -679,6 +679,82 @@ public sealed class Interpreter
                 random.Seed(PowerShellInt(seed, setSeed.Line));
                 return;
             }
+            // ---- xml (D105) ----
+            case XmlWriteFileStmt writeXml:
+            {
+                object? value = Evaluate(writeXml.Xml, scope);
+                if (value is not OtterXml xml) throw RuntimeError($"I can only write xml, but this is {Values.TypeName(value)}.", writeXml.Line);
+                string path = PathArgument(writeXml.Path, scope);
+                string outer = PowerShellXml.Text(PowerShellXml.OuterXml(xml.Node));
+                Library(() => OtterFiles.Write(path, outer, atomic: false), writeXml.Line);
+                return;
+            }
+            case XmlAddElementStmt addElement:
+            {
+                string name = Values.Format(Evaluate(addElement.Name, scope));
+                object? value = Evaluate(addElement.Xml, scope);
+                if (value is not OtterXml xml) throw RuntimeError($"I can only add an element to xml, but this is {Values.TypeName(value)}.", addElement.Line);
+                object? ownerValue = xml.Node is System.Xml.XmlDocument ownDocument ? ownDocument
+                    : PowerShellXml.Property(xml.Node, "OwnerDocument", () => xml.Node.OwnerDocument);
+                if (ownerValue is not System.Xml.XmlDocument owner) throw NoSuchMethod(ownerValue, "CreateElement");
+                System.Xml.XmlElement created = XmlCall(() => owner.CreateElement(name), "CreateElement", 1, addElement.Line);
+                if (addElement.Text != null) created.InnerText = Values.Format(Evaluate(addElement.Text, scope));
+                // Adding to a whole document adds to (or creates) its root.
+                object? parentValue = xml.Node is System.Xml.XmlDocument document ? PowerShellXml.DocumentElement(document) ?? document : xml.Node;
+                if (parentValue is not System.Xml.XmlNode parent) throw NoSuchMethod(parentValue, "AppendChild");
+                XmlCall(() => parent.AppendChild(created), "AppendChild", 1, addElement.Line);
+                if (addElement.Target != null) scope.Set(addElement.Target, new OtterXml(created));
+                return;
+            }
+            case XmlRemoveElementStmt removeElement:
+            {
+                object? value = Evaluate(removeElement.Element, scope);
+                if (value is not OtterXml xml) throw RuntimeError($"I can only remove an xml element, but this is {Values.TypeName(value)}.", removeElement.Line);
+                RequireXmlElement(xml, "remove", removeElement.Line);
+                object? parentValue = PowerShellXml.Property(xml.Node, "ParentNode", () => xml.Node.ParentNode);
+                if (parentValue == null) throw RuntimeError("This element has no parent to remove it from.", removeElement.Line);
+                if (parentValue is not System.Xml.XmlNode parent) throw NoSuchMethod(parentValue, "RemoveChild");
+                XmlCall(() => parent.RemoveChild(xml.Node), "RemoveChild", 1, removeElement.Line);
+                return;
+            }
+            case XmlRemoveAttributeStmt removeAttribute:
+            {
+                string name = Values.Format(Evaluate(removeAttribute.Name, scope));
+                object? value = Evaluate(removeAttribute.Element, scope);
+                if (value is not OtterXml xml) throw RuntimeError($"I can only remove an attribute of an xml element, but this is {Values.TypeName(value)}.", removeAttribute.Line);
+                RequireXmlElement(xml, "remove an attribute of", removeAttribute.Line);
+                ((System.Xml.XmlElement)xml.Node).RemoveAttribute(name);
+                return;
+            }
+            case XmlSetTextStmt setText:
+            {
+                string text = Values.Format(Evaluate(setText.Value, scope));
+                if (setText.Element != null)
+                {
+                    object? value = Evaluate(setText.Element, scope);
+                    if (value is not OtterXml element) throw RuntimeError($"I can only set the text of an xml element, but this is {Values.TypeName(value)}.", setText.Line);
+                    RequireXmlElement(element, "set the text of", setText.Line);
+                    element.Node.InnerText = text;
+                    return;
+                }
+                string name = Values.Format(Evaluate(setText.NameIn!, scope));
+                object? within = Evaluate(setText.XmlIn!, scope);
+                if (within is not OtterXml xml) throw RuntimeError($"I can only set text within xml, but this is {Values.TypeName(within)}.", setText.Line);
+                List<System.Xml.XmlElement> found = XmlChildrenNamed(xml.Node, name);
+                if (found.Count == 0) throw RuntimeError($"I couldn't find an element called \"{name}\" to set the text of.", setText.Line);
+                found[0].InnerText = text;
+                return;
+            }
+            case XmlSetAttributeStmt setAttribute:
+            {
+                string name = Values.Format(Evaluate(setAttribute.Name, scope));
+                object? value = Evaluate(setAttribute.Element, scope);
+                if (value is not OtterXml xml) throw RuntimeError($"I can only set an attribute of an xml element, but this is {Values.TypeName(value)}.", setAttribute.Line);
+                RequireXmlElement(xml, "set an attribute of", setAttribute.Line);
+                string attributeValue = Values.Format(Evaluate(setAttribute.Value, scope));
+                XmlCall(() => ((System.Xml.XmlElement)xml.Node).SetAttribute(name, attributeValue), "SetAttribute", 2, setAttribute.Line);
+                return;
+            }
             case WriteBytesFileStmt writeBytes:
             {
                 object? data = Evaluate(writeBytes.Data, scope);
@@ -796,6 +872,92 @@ public sealed class Interpreter
         if (WriteColoredLine != null) WriteColoredLine(text, color);
         else output.WriteLine(text);
     }
+
+    // ---- xml (D105) ----
+
+    object? XmlFrom(XmlFromExpr from, Scope scope)
+    {
+        var document = new System.Xml.XmlDocument();
+        string text;
+        if (from.Source == XmlSourceKind.File)
+        {
+            string path = PathArgument(from.Value, scope);
+            text = Library(() => OtterFiles.Read(path), from.Line);
+        }
+        else text = Values.Format(Evaluate(from.Value, scope));
+        if (from.Source == XmlSourceKind.Root)
+        {
+            document.AppendChild(XmlCall(() => document.CreateElement(text), "CreateElement", 1, from.Line));
+            return new OtterXml(document);
+        }
+        try { document.LoadXml(text); }
+        catch (System.Xml.XmlException e) { throw RuntimeError($"This is not valid XML, so Otter could not read it: {e.Message}", from.Line); }
+        return new OtterXml(document);
+    }
+
+    // name / root / text / attributes of an xml value.
+    object? XmlProperty(OtterXml xml, string property, int line)
+    {
+        switch (property.ToLowerInvariant())
+        {
+            case "name":
+                RequireXmlElement(xml, "read the name of", line);
+                return PowerShellXml.Name(xml.Node);
+            case "root":
+            {
+                if (xml.Node is not System.Xml.XmlDocument document) throw RuntimeError("\"root of\" only makes sense on an xml document, not an element.", line);
+                object? root = PowerShellXml.DocumentElement(document);
+                return root switch
+                {
+                    null => null,
+                    System.Xml.XmlNode rootNode => new OtterXml(rootNode),
+                    _ => new OtterXml(document.DocumentElement!),
+                };
+            }
+            case "text":
+                return PowerShellXml.InnerText(xml.Node);
+            case "attributes":
+            {
+                RequireXmlElement(xml, "read the attributes of", line);
+                object? attributes = PowerShellXml.Property(xml.Node, "Attributes", () => xml.Node.Attributes);
+                return new OtterList(PowerShellXml.Enumerate(attributes).Select(item => item is System.Xml.XmlNode node ? PowerShellXml.Name(node) : null));
+            }
+            default:
+                throw RuntimeError($"This xml value has no property called \"{property}\". Try name, root, text, or attributes.", line);
+        }
+    }
+
+    // Only direct children are searched; a document searches its root.
+    static List<System.Xml.XmlElement> XmlChildren(System.Xml.XmlNode node) => PowerShellXml.ChildElements(node);
+
+    static List<System.Xml.XmlElement> XmlChildrenNamed(System.Xml.XmlNode node, string name) =>
+        XmlChildren(node).Where(e => PowerShellXml.NameIs(e, name)).ToList();
+
+    // Calling an XML method on what PowerShell's adapter returned instead of
+    // a node (text, say) fails inside otterPS like this.
+    static InternalProblem NoSuchMethod(object? value, string method) =>
+        new($"Method invocation failed because [{(value is null ? "System.Object" : value is PowerShellArray ? "System.Object[]" : value.GetType().FullName)}] does not contain a method named '{method}'.");
+
+    void RequireXmlElement(OtterXml xml, string what, int line)
+    {
+        if (xml.Node is not System.Xml.XmlElement)
+        {
+            throw RuntimeError($"I can only {what} on an xml element, but this is an xml document. Use \"root of ...\" or \"element ... in ...\" to get an element first.", line);
+        }
+    }
+
+    // A System.Xml call that refuses its input (a name that is not a valid
+    // XML name, say) fails inside otterPS as a .NET method call.
+    T XmlCall<T>(Func<T> call, string method, int arguments, int line)
+    {
+        try { return call(); }
+        catch (Exception e) when (e is System.Xml.XmlException or ArgumentException or InvalidOperationException)
+        {
+            throw new InternalProblem($"Exception calling \"{method}\" with \"{arguments}\" argument(s): \"{e.Message}\"");
+        }
+    }
+
+    void XmlCall(Action call, string method, int arguments, int line) => XmlCall(() => { call(); return true; }, method, arguments, line);
 
     // empty bytes / bytes from text|hex|base64 X / text|hex|base64 from bytes X (D102)
     object? EvaluateBytes(BytesExpr bytes, Scope scope)
@@ -1044,6 +1206,82 @@ public sealed class Interpreter
                 return Call(call, scope);
             case BytesExpr bytes:
                 return EvaluateBytes(bytes, scope);
+            case XmlFromExpr xmlFrom:
+                return XmlFrom(xmlFrom, scope);
+            case XmlSelectExpr select:
+            {
+                object? value = Evaluate(select.Xml, scope);
+                if (value is not OtterXml xml) throw RuntimeError($"I can only look for elements in xml, but this is {Values.TypeName(value)}.", select.Line);
+                switch (select.Kind)
+                {
+                    case XmlSelectKind.Element:
+                    {
+                        var found = XmlChildrenNamed(xml.Node, Values.Format(Evaluate(select.Selector, scope)));
+                        return found.Count == 0 ? null : new OtterXml(found[0]);
+                    }
+                    case XmlSelectKind.Elements:
+                        return new OtterList(XmlChildrenNamed(xml.Node, Values.Format(Evaluate(select.Selector, scope))).Select(e => (object?)new OtterXml(e)));
+                    case XmlSelectKind.Child:
+                    {
+                        double index = RequireNumber(Evaluate(select.Selector, scope), select.Line, "a child index");
+                        var children = XmlChildren(xml.Node);
+                        int position = PowerShellInt(index, select.Line);
+                        return position < 0 || position >= children.Count ? null : new OtterXml(children[position]);
+                    }
+                    default:
+                        return new OtterList(XmlChildren(xml.Node).Select(e => (object?)new OtterXml(e)));
+                }
+            }
+            case XmlAttributeExpr attribute:
+            {
+                string name = Values.Format(Evaluate(attribute.Name, scope));
+                object? value = Evaluate(attribute.Element, scope);
+                if (value is not OtterXml xml) throw RuntimeError($"I can only read an attribute of an xml element, but this is {Values.TypeName(value)}.", attribute.Line);
+                RequireXmlElement(xml, "read an attribute of", attribute.Line);
+                var element = (System.Xml.XmlElement)xml.Node;
+                return element.HasAttribute(name) ? element.GetAttribute(name) : null;
+            }
+            case XmlTextOfNameInExpr textOf:
+            {
+                string name = Values.Format(Evaluate(textOf.Name, scope));
+                object? value = Evaluate(textOf.Xml, scope);
+                if (value is not OtterXml xml) throw RuntimeError($"I can only look for elements in xml, but this is {Values.TypeName(value)}.", textOf.Line);
+                var found = XmlChildrenNamed(xml.Node, name);
+                if (found.Count == 0) throw RuntimeError($"I couldn't find an element called \"{name}\".", textOf.Line);
+                return PowerShellXml.InnerText(found[0]);
+            }
+            case XmlElementExistsExpr exists:
+            {
+                object? value = Evaluate(exists.Xml, scope);
+                if (value is not OtterXml xml) throw RuntimeError($"I can only look for elements in xml, but this is {Values.TypeName(value)}.", exists.Line);
+                return XmlChildrenNamed(xml.Node, Values.Format(Evaluate(exists.Selector, scope))).Count > 0;
+            }
+            case XmlHasAttributeExpr hasAttribute:
+            {
+                object? value = Evaluate(hasAttribute.Element, scope);
+                if (value is not OtterXml xml) throw RuntimeError($"I can only ask whether an xml element has an attribute, but this is {Values.TypeName(value)}.", hasAttribute.Line);
+                RequireXmlElement(xml, "ask about an attribute of", hasAttribute.Line);
+                return ((System.Xml.XmlElement)xml.Node).HasAttribute(Values.Format(Evaluate(hasAttribute.Name, scope)));
+            }
+            case XmlToTextExpr toText:
+            {
+                object? value = Evaluate(toText.Xml, scope);
+                if (value is not OtterXml xml) throw RuntimeError($"I can only read text from xml, but this is {Values.TypeName(value)}.", toText.Line);
+                if (!toText.Pretty) return PowerShellXml.OuterXml(xml.Node);
+                var stream = new MemoryStream();
+                var settings = new System.Xml.XmlWriterSettings
+                {
+                    Indent = true,
+                    IndentChars = "  ",
+                    OmitXmlDeclaration = xml.Node is not System.Xml.XmlDocument,
+                    Encoding = new System.Text.UTF8Encoding(false),
+                };
+                using (var writer = System.Xml.XmlWriter.Create(stream, settings))
+                {
+                    xml.Node.WriteTo(writer);
+                }
+                return System.Text.Encoding.UTF8.GetString(stream.ToArray());
+            }
             case BytesFromFileExpr bytesFromFile:
             {
                 string path = PathArgument(bytesFromFile.Path, scope);
@@ -1105,6 +1343,7 @@ public sealed class Interpreter
                 object? target = Evaluate(property.Target, scope);
                 // D32.2: a date answers its own parts.
                 if (target is OtterDate date) return DatePart(date, property.Property, property.Line);
+                if (target is OtterXml xml) return XmlProperty(xml, property.Property, property.Line);
                 if (target is not OtterThing thing)
                 {
                     throw RuntimeError($"I can only read properties of a thing, but this is {Values.TypeName(target)}.", property.Line);

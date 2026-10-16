@@ -1,0 +1,64 @@
+# XML (D105): the documented examples, then every form and error.
+catalog is xml with root "library"
+library is root of catalog
+add element "book" to library and call it book
+set attribute "id" of book to "42"
+add element "title" with text "Learning Otter" to book
+say pretty text from xml catalog
+add element "book" to catalog and call it second
+set attribute "id" of second to 7
+add element "title" with text "Second Book" to second
+books is elements "book" in library
+say length of books
+for each b in books
+    t is text of "title" in b
+    i is attribute "id" of b
+    say t
+    say i
+.
+first is child 0 in library
+say name of first
+say child 5 in library
+say text from xml catalog
+say catalog
+say pretty text from xml book
+say attributes of book
+say text of book
+say NAME of book
+if element "book" exists in library
+    say "a book exists"
+.
+if element "magazine" exists in catalog
+    say "wrong"
+otherwise
+    say "no magazine"
+.
+if book has attribute "id"
+    say "book has an id"
+.
+if book has attribute "isbn"
+    say "wrong"
+.
+say attribute "isbn" of book
+set text of "title" in book to "Renamed"
+say text of "title" in book
+titleElement is element "title" in book
+set text of titleElement to "Again"
+say text from xml titleElement
+remove attribute "id" from book
+say text from xml book
+remove element second
+say length of elements "book" in library
+same is xml from text "<library/>"
+if same is catalog
+    say "xml values compare by class name in otterPS"
+.
+write xml catalog to file "out/catalog.xml"
+loaded is xml from file "out/catalog.xml"
+say text from xml loaded
+parsed is xml from text "<a x='1'><b>one</b><b>two</b><!-- c --><c/></a>"
+say length of children 0 in parsed
+say text of parsed
+element is "plain variable"
+say element
+remove element from things
