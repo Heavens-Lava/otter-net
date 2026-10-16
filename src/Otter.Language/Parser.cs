@@ -101,6 +101,16 @@ public sealed class Parser
         TokenKind.Year, TokenKind.Month, TokenKind.Day, TokenKind.Hour, TokenKind.Minute, TokenKind.Second,
     };
 
+    static TimeUnit ToTimeUnit(TokenKind kind) => kind switch
+    {
+        TokenKind.Year => TimeUnit.Year,
+        TokenKind.Month => TimeUnit.Month,
+        TokenKind.Day => TimeUnit.Day,
+        TokenKind.Hour => TimeUnit.Hour,
+        TokenKind.Minute => TimeUnit.Minute,
+        _ => TimeUnit.Second,
+    };
+
     // ---- statements --------------------------------------------------------
 
     List<Stmt> ReadStatements()
@@ -142,7 +152,19 @@ public sealed class Parser
     {
         Token start = Current;
 
-        if (TimeUnitKinds.Contains(start.Kind)) throw Unsupported("dates");
+        // days between startDate and endDate make days (D32)
+        if (TimeUnitKinds.Contains(start.Kind) && IsAt(1, TokenKind.Between))
+        {
+            Token unit = Read();
+            Read();
+            Expr from = ReadValue();
+            Expect(TokenKind.And, "I expected \"and\" and the second date.");
+            Expr to = ReadValue();
+            Expect(TokenKind.Make, "I expected \"make\" and a result name.");
+            Token target = ReadVariableName("I expected a result name after \"make\".");
+            Expect(TokenKind.Newline, "I expected the difference statement to end here.");
+            return new DateDifferenceStmt(ToTimeUnit(unit.Kind), from, to, target.Text, start.Line);
+        }
         if (IsAggregateQueryAhead()) throw Unsupported("queries");
 
         TokenKind statementKind = start.Kind;
@@ -372,6 +394,17 @@ public sealed class Parser
                 Expect(TokenKind.Newline, "I expected the find statement to end here.");
                 return new FindStmt(item.Text, collection, condition, target.Text, start.Line);
             }
+            case TokenKind.Format:
+            {
+                Read();
+                Expr subject = ReadValue();
+                Expect(TokenKind.As, "I expected \"as\" and a date format.");
+                Expr pattern = ReadValue();
+                Expect(TokenKind.Into, "I expected \"into\" and a variable name.");
+                Token target = ReadVariableName("I expected a variable name after \"into\".");
+                Expect(TokenKind.Newline, "I expected the format statement to end here.");
+                return new FormatDateStmt(subject, pattern, target.Text, start.Line);
+            }
             case TokenKind.Get:
                 return ReadGet(start);
             case TokenKind.Set:
@@ -466,7 +499,15 @@ public sealed class Parser
         if (TokenBeforeNewline(TokenKind.To))
         {
             Expr amount = ReadMathExpression();
-            if (TimeUnitKinds.Contains(Current.Kind)) throw Unsupported("dates");
+            // add 7 days to date (D32): the unit word is what tells it apart.
+            if (TimeUnitKinds.Contains(Current.Kind))
+            {
+                Token unit = Read();
+                Expect(TokenKind.To, "I expected \"to\" and a date name.");
+                Token dateName = ReadVariableName("I expected a date name after \"to\".");
+                Expect(TokenKind.Newline, "I expected the add statement to end here.");
+                return new DateAdjustStmt(amount, ToTimeUnit(unit.Kind), dateName.Text, false, start.Line);
+            }
             Expect(TokenKind.To, "I expected \"to\" and a variable name.");
             Token name = ReadVariableName("I expected a variable name after \"to\".");
             Expect(TokenKind.Newline, "I expected the add statement to end here.");
@@ -491,7 +532,15 @@ public sealed class Parser
             return new RemoveFromStmt(amount, target.Text, start.Line);
         }
         Expr removed = ReadMathExpression();
-        if (TimeUnitKinds.Contains(Current.Kind)) throw Unsupported("dates");
+        // remove 1 month from date (D32)
+        if (TimeUnitKinds.Contains(Current.Kind))
+        {
+            Token unit = Read();
+            Expect(TokenKind.From, "I expected \"from\" and a date name.");
+            Token dateName = ReadVariableName("I expected a date name after \"from\".");
+            Expect(TokenKind.Newline, "I expected the remove statement to end here.");
+            return new DateAdjustStmt(removed, ToTimeUnit(unit.Kind), dateName.Text, true, start.Line);
+        }
         Expect(TokenKind.From, "I expected \"from\" and a variable name.");
         Token from = ReadVariableName("I expected a variable name after \"from\".");
         Expect(TokenKind.Newline, "I expected the remove statement to end here.");
@@ -886,6 +935,39 @@ public sealed class Parser
         "hmac", "incoming", "local", "network", "remote", "sender", "secure", "tls", "sha256", "sha384", "sha512",
     };
 
+    // For these words otterPS's special form needs one of these next words
+    // (matched ignoring case); followed by anything else the word is an
+    // ordinary name. Taken from Read-OtterValue, condition by condition.
+    static readonly Dictionary<string, string[]> SpecialWhenFollowedBy = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["pretty"] = new[] { "text" },                           // pretty text from xml (D105)
+        ["current"] = new[] { "route" },                         // current route (D103)
+        ["old"] = new[] { "path" },                              // old path (D104)
+        ["change"] = new[] { "kind" },                           // change kind (D104)
+        ["changed"] = new[] { "file", "path" },                  // changed file name / changed path (D104)
+        ["received"] = new[] { "message", "response", "output", "error", "data" },   // D106, D116B, D113
+        ["close"] = new[] { "was", "code", "reason" },           // D106
+        ["websocket"] = new[] { "error" },                       // D106
+        ["secure"] = new[] { "random" },                         // secure random bytes (D109)
+        ["hmac"] = new[] { "sha256", "sha384", "sha512" },       // D109
+        ["drag"] = new[] { "data" },                             // D110
+        ["dragged"] = new[] { "item" },
+        ["drop"] = new[] { "x", "y" },
+        ["dropped"] = new[] { "files" },
+        ["sender"] = new[] { "address", "port" },                // D113
+        ["network"] = new[] { "error" },
+        ["incoming"] = new[] { "connection" },
+    };
+
+    // Tokens that cannot continue any of otterPS's special value forms.
+    static readonly HashSet<TokenKind> SafeFollowers = new()
+    {
+        TokenKind.Newline, TokenKind.EndOfFile, TokenKind.BlockEnd, TokenKind.Dedent,
+        TokenKind.Is, TokenKind.IsNot, TokenKind.IsAtLeast, TokenKind.IsAtMost, TokenKind.IsGreaterThan, TokenKind.IsLessThan,
+        TokenKind.And, TokenKind.Or, TokenKind.Minus, TokenKind.Times, TokenKind.DividedBy, TokenKind.Percent, TokenKind.Power,
+        TokenKind.Make, TokenKind.Into, TokenKind.Contains, TokenKind.StartsWith, TokenKind.EndsWith,
+    };
+
     // otterPS's Test-OtterCommandResultPropertyAt: `exit code of x` and friends.
     bool CommandResultPropertyAhead()
     {
@@ -912,7 +994,15 @@ public sealed class Parser
             Read();
             return new NotExpr(ReadValue(), token.Line);
         }
-        if (TimeUnitKinds.Contains(token.Kind)) throw Unsupported("dates");
+        // D42: `days between a and b` is a value too.
+        if (TimeUnitKinds.Contains(token.Kind) && IsAt(1, TokenKind.Between))
+        {
+            Read(); Read();
+            Expr start = ReadValue();
+            Expect(TokenKind.And, "I expected \"and\" and the second date.");
+            Expr end = ReadValue();
+            return new DateDifferenceExpr(ToTimeUnit(token.Kind), start, end, token.Line);
+        }
         switch (token.Kind)
         {
             case TokenKind.Length: return ReadOfOperation(token, OfOperation.Length);
@@ -929,13 +1019,35 @@ public sealed class Parser
                 or TokenKind.ElapsedTime or TokenKind.ElapsedMilliseconds or TokenKind.Larger or TokenKind.Smaller:
                 throw Unsupported($"'{token.Text} of'");
         }
-        // These three are ordinary names except in one exact phrase each.
-        bool exactPhrase = Same(token.Text, "date") || Same(token.Text, "bytes") || Same(token.Text, "empty");
+        // today / now (D32) and pi (D90) always mean the built-in value here.
+        if (token.Kind == TokenKind.Identifier && Same(token.Text, "today")) { Read(); return new ClockExpr(ClockKind.Today, token.Line); }
+        if (token.Kind == TokenKind.Identifier && Same(token.Text, "now")) { Read(); return new ClockExpr(ClockKind.Now, token.Line); }
+        if (token.Kind == TokenKind.Identifier && Same(token.Text, "pi")) { Read(); return new LiteralExpr(Math.PI, token.Line); }
+        // date from "2024-01-15" [using "MM/dd/yyyy"] (D101)
+        if (token.Kind == TokenKind.Identifier && Same(token.Text, "date") && IsAt(1, TokenKind.From))
+        {
+            Read(); Read();
+            Expr source = ReadValue();
+            Expr? format = null;
+            if (Current.Kind == TokenKind.Identifier && Same(Current.Text, "using")) { Read(); format = ReadValue(); }
+            return new DateFromTextExpr(source, format, token.Line);
+        }
+        // These four are ordinary names except in their exact phrases.
+        bool exactPhrase = Same(token.Text, "date") || Same(token.Text, "bytes") || Same(token.Text, "empty") || Same(token.Text, "text");
         bool phraseFollows =
             (Same(token.Text, "date") || Same(token.Text, "bytes")) ? IsAt(1, TokenKind.From)        // date from / bytes from (D101, D102)
+            : Same(token.Text, "text") ? IsAt(1, TokenKind.From) || IsAt(1, TokenKind.Of)            // text from bytes/xml, text of x (D102, D105)
             : Same(token.Text, "empty") ? At(1) is { Kind: TokenKind.Identifier } b && Same(b.Text, "bytes")   // empty bytes (D102)
             : false;
-        if (token.Kind == TokenKind.Identifier && exactPhrase ? phraseFollows : SpecialValueWords.Contains(token.Text))
+        // Every special form continues with a particular word; followed by
+        // the end of the line, a comparison, arithmetic, make or into, the
+        // word is an ordinary name (`pretty is "x"`, `say text`).
+        bool ordinaryName = At(1) is { } follower && (SafeFollowers.Contains(follower.Kind) || follower.Text == ",");
+        if (SpecialWhenFollowedBy.TryGetValue(token.Text, out var nextWords))
+        {
+            ordinaryName = !(At(1) is { } next && SameAny(next.Text, nextWords));
+        }
+        if (token.Kind == TokenKind.Identifier && exactPhrase ? phraseFollows : SpecialValueWords.Contains(token.Text) && !ordinaryName)
         {
             throw Unsupported($"'{token.Text}'");
         }
@@ -958,7 +1070,9 @@ public sealed class Parser
             case TokenKind.True: Read(); return new LiteralExpr(true, token.Line);
             case TokenKind.False: Read(); return new LiteralExpr(false, token.Line);
             case TokenKind.Gone: Read(); return new LiteralExpr(null, token.Line);
-            case TokenKind.Today or TokenKind.Now or TokenKind.ConsoleInteractive: throw Unsupported($"'{token.Text}'");
+            case TokenKind.Today: Read(); return new ClockExpr(ClockKind.Today, token.Line);
+            case TokenKind.Now: Read(); return new ClockExpr(ClockKind.Now, token.Line);
+            case TokenKind.ConsoleInteractive: throw Unsupported($"'{token.Text}'");
             default:
                 throw Error("I expected a value here.", token, "Add a text value, number, true, false, or variable name.");
         }

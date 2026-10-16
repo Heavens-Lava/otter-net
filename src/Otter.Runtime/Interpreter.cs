@@ -1,3 +1,4 @@
+using System.Globalization;
 using Otter.Language;
 
 namespace Otter.Runtime;
@@ -281,6 +282,54 @@ public sealed class Interpreter
                 thing.WriteProperty(key, Evaluate(setKey.Value, scope));
                 return;
             }
+            // days between a and b make n (D32)
+            case DateDifferenceStmt difference:
+            {
+                object? start = Evaluate(difference.Start, scope);
+                object? end = Evaluate(difference.End, scope);
+                scope.Set(difference.Target, MeasureDateDifference(start, end, difference.Unit, difference.Line));
+                return;
+            }
+            // add 7 days to date / remove 1 month from date (D32)
+            case DateAdjustStmt adjust:
+            {
+                string name = adjust.Target;
+                if (!scope.Has(name)) throw RuntimeError($"Otter could not find the variable \"{name}\".", adjust.Line);
+                if (scope.Get(name) is not OtterDate current)
+                {
+                    throw RuntimeError($"I can only add time to a date, but \"{name}\" holds {Values.TypeName(scope.Get(name))}.", adjust.Line);
+                }
+                double amount = RequireNumber(Evaluate(adjust.Amount, scope), adjust.Line, "the amount of time");
+                int whole = (int)Math.Truncate(amount);
+                if (adjust.IsRemoval) whole = -whole;
+                RequireUnitAllowed(current, adjust.Unit, adjust.Line);
+                DateTime moved = adjust.Unit switch
+                {
+                    TimeUnit.Year => current.Value.AddYears(whole),
+                    TimeUnit.Month => current.Value.AddMonths(whole),
+                    TimeUnit.Day => current.Value.AddDays(whole),
+                    TimeUnit.Hour => current.Value.AddHours(whole),
+                    TimeUnit.Minute => current.Value.AddMinutes(whole),
+                    _ => current.Value.AddSeconds(whole),
+                };
+                scope.Set(name, new OtterDate(moved, current.HasTime));
+                return;
+            }
+            // format date as "MM/dd/yyyy" into text (D32)
+            case FormatDateStmt format:
+            {
+                object? subject = Evaluate(format.Subject, scope);
+                if (subject is not OtterDate date) throw RuntimeError($"I can only format a date, but this is {Values.TypeName(subject)}.", format.Line);
+                string pattern = Values.Format(Evaluate(format.Format, scope));
+                string text;
+                try { text = date.Value.ToString(pattern, CultureInfo.InvariantCulture); }
+                catch (FormatException)
+                {
+                    throw RuntimeError($"I do not understand the date format {pattern}.", format.Line, "format date as \"MM/dd/yyyy\" into text");
+                }
+                scope.Set(format.Target, text);
+                return;
+            }
             case ReturnStmt returnStmt:
                 throw new ReturnSignal(returnStmt.Value == null ? null : Evaluate(returnStmt.Value, scope), returnStmt.Line);
             default:
@@ -324,6 +373,52 @@ public sealed class Interpreter
     {
         if (Values.TryNumber(left, out double l) && Values.TryNumber(right, out double r)) return l.CompareTo(r);
         return string.CompareOrdinal(Values.Format(left), Values.Format(right));
+    }
+
+    // D32.1: a date with no time of day has no hour, minute or second.
+    void RequireUnitAllowed(OtterDate date, TimeUnit unit, int line)
+    {
+        if (date.HasTime || unit is TimeUnit.Year or TimeUnit.Month or TimeUnit.Day) return;
+        throw RuntimeError($"This is a date with no time of day, so it has no {unit.ToString().ToLowerInvariant()}.", line, "started is now");
+    }
+
+    // year of date / month of date / hour of started ... (the part name is
+    // matched ignoring case, as otterPS's switch does)
+    object? DatePart(OtterDate date, string part, int line)
+    {
+        switch (part.ToLowerInvariant())
+        {
+            case "year": return (double)date.Value.Year;
+            case "month": return (double)date.Value.Month;
+            case "day": return (double)date.Value.Day;
+            case "hour": RequireUnitAllowed(date, TimeUnit.Hour, line); return (double)date.Value.Hour;
+            case "minute": RequireUnitAllowed(date, TimeUnit.Minute, line); return (double)date.Value.Minute;
+            case "second": RequireUnitAllowed(date, TimeUnit.Second, line); return (double)date.Value.Second;
+        }
+        throw RuntimeError($"A date has no part called \"{part}\".", line, "year of ...");
+    }
+
+    // Whole units, truncated toward zero, end minus start (D32.7). Years and
+    // months count calendar months, exactly as otterPS does.
+    object? MeasureDateDifference(object? start, object? end, TimeUnit unit, int line)
+    {
+        if (start is not OtterDate from) throw RuntimeError($"I can only measure time between two dates, but the first one is {Values.TypeName(start)}.", line);
+        if (end is not OtterDate to) throw RuntimeError($"I can only measure time between two dates, but the second one is {Values.TypeName(end)}.", line);
+        if (unit is TimeUnit.Year or TimeUnit.Month)
+        {
+            int months = (to.Value.Year - from.Value.Year) * 12 + (to.Value.Month - from.Value.Month);
+            if (months > 0 && to.Value.Day < from.Value.Day) months--;
+            if (months < 0 && to.Value.Day > from.Value.Day) months++;
+            return unit == TimeUnit.Month ? months : Math.Truncate(months / 12.0);
+        }
+        TimeSpan span = to.Value - from.Value;
+        return unit switch
+        {
+            TimeUnit.Day => Math.Truncate(span.TotalDays),
+            TimeUnit.Hour => Math.Truncate(span.TotalHours),
+            TimeUnit.Minute => Math.Truncate(span.TotalMinutes),
+            _ => Math.Truncate(span.TotalSeconds),
+        };
     }
 
     // D41: dynamic keys only on a plain thing, never a typed one.
@@ -449,10 +544,43 @@ public sealed class Interpreter
                 return EvaluateOfOperation(ofOperation, scope);
             case CallExpr call:
                 return Call(call, scope);
-            // name of person / city of address of user
+            case ClockExpr clock:
+                return new OtterDate(DateTime.Now, clock.Clock == ClockKind.Now);
+            case DateDifferenceExpr difference:
+                return MeasureDateDifference(Evaluate(difference.Start, scope), Evaluate(difference.End, scope), difference.Unit, difference.Line);
+            // date from "2024-01-15" [using "yyyy-MM-dd"] (D101)
+            case DateFromTextExpr fromText:
+            {
+                string text = Values.Format(Evaluate(fromText.Source, scope));
+                if (fromText.Format != null)
+                {
+                    string formatText = Values.Format(Evaluate(fromText.Format, scope));
+                    try
+                    {
+                        DateTime exact = DateTime.ParseExact(text, formatText, CultureInfo.InvariantCulture);
+                        return new OtterDate(exact, exact.TimeOfDay != TimeSpan.Zero);
+                    }
+                    catch (FormatException)
+                    {
+                        throw RuntimeError($"I couldn't understand \"{text}\" as a date using the format \"{formatText}\".", fromText.Line);
+                    }
+                }
+                try
+                {
+                    DateTime parsed = DateTime.Parse(text, CultureInfo.InvariantCulture);
+                    return new OtterDate(parsed, parsed.TimeOfDay != TimeSpan.Zero);
+                }
+                catch (FormatException)
+                {
+                    throw RuntimeError($"I couldn't understand \"{text}\" as a date.", fromText.Line, "date from \"2024-01-15\" using \"yyyy-MM-dd\"");
+                }
+            }
+            // name of person / city of address of user / year of date
             case PropertyAccessExpr property:
             {
                 object? target = Evaluate(property.Target, scope);
+                // D32.2: a date answers its own parts.
+                if (target is OtterDate date) return DatePart(date, property.Property, property.Line);
                 if (target is not OtterThing thing)
                 {
                     throw RuntimeError($"I can only read properties of a thing, but this is {Values.TypeName(target)}.", property.Line);
@@ -501,6 +629,18 @@ public sealed class Interpreter
         object? right = Evaluate(comparison.Right, scope);
         if (comparison.Op == CompareOp.Equal) return Values.AreEqual(left, right);
         if (comparison.Op == CompareOp.NotEqual) return !Values.AreEqual(left, right);
+        // D32.6: two dates order by their instant.
+        if (left is OtterDate leftDate && right is OtterDate rightDate)
+        {
+            int order = leftDate.Value.CompareTo(rightDate.Value);
+            return comparison.Op switch
+            {
+                CompareOp.AtLeast => order >= 0,
+                CompareOp.AtMost => order <= 0,
+                CompareOp.GreaterThan => order > 0,
+                _ => order < 0,
+            };
+        }
         double l = left is double ld ? ld : RequireNumber(left, comparison.Line, "the left side of this comparison");
         double r = right is double rd ? rd : RequireNumber(right, comparison.Line, "the right side of this comparison");
         return comparison.Op switch

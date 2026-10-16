@@ -1,0 +1,15 @@
+text is "hello"
+pretty is "nice"
+current is 3
+old is current plus 1
+secret is "shh"
+say text pretty current old secret
+say text plus " world"
+if text contains "ell"
+    say "contains"
+.
+words are
+    text
+    pretty
+.
+say words

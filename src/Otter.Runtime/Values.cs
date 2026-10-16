@@ -32,6 +32,23 @@ public sealed class OtterThing(string typeName)
     }
 }
 
+// A date, with or without a time of day (D32). A date with no time is pinned
+// to midnight, so two dates made the same day are equal.
+public sealed class OtterDate
+{
+    public OtterDate(DateTime value, bool hasTime)
+    {
+        HasTime = hasTime;
+        Value = hasTime ? value : value.Date;
+    }
+
+    public DateTime Value { get; }
+    public bool HasTime { get; }
+
+    // D32.5: ISO-style, sortable as text.
+    public override string ToString() => Value.ToString(HasTime ? "yyyy-MM-dd HH:mm:ss" : "yyyy-MM-dd", CultureInfo.InvariantCulture);
+}
+
 // a Person has / name / age: the property names a new Person starts with.
 public sealed class OtterType(string name, IReadOnlyList<string> fieldNames)
 {
@@ -88,6 +105,7 @@ public static class Values
         OtterFunction => "something Otter can do",
         OtterThing thing => $"a {thing.TypeName}",
         OtterType type => $"the type {type.Name}",
+        OtterDate date => date.HasTime ? "a date and time" : "a date",
         OtterList => "a list",
         double => "a number",
         string => "some text",
@@ -123,6 +141,8 @@ public static class Values
         if (left is null && right is null) return true;
         if (left is null || right is null) return false;
         if (left is bool || right is bool) return left is bool lb && right is bool rb && lb == rb;
+        // Two dates compare by their instant; a date never equals anything else.
+        if (left is OtterDate || right is OtterDate) return left is OtterDate ld && right is OtterDate rd && ld.Value == rd.Value;
         if (TryNumber(left, out double ln) && TryNumber(right, out double rn)) return ln == rn;
         if (left is OtterList ll && right is OtterList rl)
         {

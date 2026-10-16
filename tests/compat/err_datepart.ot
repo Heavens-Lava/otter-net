@@ -1,0 +1,2 @@
+d is date from "2024-01-01"
+say weekday of d

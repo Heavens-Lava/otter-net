@@ -78,6 +78,28 @@ public sealed class OfOperationExpr(OfOperation operation, Expr subject, int lin
     public Expr Subject { get; } = subject;
 }
 
+public enum TimeUnit { Year, Month, Day, Hour, Minute, Second }
+
+public enum ClockKind { Today, Now }
+
+// today / now (D32)
+public sealed class ClockExpr(ClockKind clock, int line) : Expr(line) { public ClockKind Clock { get; } = clock; }
+
+// date from "2024-01-15" [using "yyyy-MM-dd"] (D101)
+public sealed class DateFromTextExpr(Expr source, Expr? format, int line) : Expr(line)
+{
+    public Expr Source { get; } = source;
+    public Expr? Format { get; } = format;
+}
+
+// days between a and b (D42)
+public sealed class DateDifferenceExpr(TimeUnit unit, Expr start, Expr end, int line) : Expr(line)
+{
+    public TimeUnit Unit { get; } = unit;
+    public Expr Start { get; } = start;
+    public Expr End { get; } = end;
+}
+
 // name of person / city of address of user
 public sealed class PropertyAccessExpr(string property, Expr target, int line) : Expr(line)
 {
@@ -266,6 +288,32 @@ public sealed class SetKeyStmt(Expr key, Expr value, Expr target, int line) : St
     public Expr Key { get; } = key;
     public Expr Value { get; } = value;
     public Expr Target { get; } = target;
+}
+
+// days between a and b make n (D32)
+public sealed class DateDifferenceStmt(TimeUnit unit, Expr start, Expr end, string target, int line) : Stmt(line)
+{
+    public TimeUnit Unit { get; } = unit;
+    public Expr Start { get; } = start;
+    public Expr End { get; } = end;
+    public string Target { get; } = target;
+}
+
+// add 7 days to date / remove 1 month from date (D32)
+public sealed class DateAdjustStmt(Expr amount, TimeUnit unit, string target, bool isRemoval, int line) : Stmt(line)
+{
+    public Expr Amount { get; } = amount;
+    public TimeUnit Unit { get; } = unit;
+    public string Target { get; } = target;
+    public bool IsRemoval { get; } = isRemoval;
+}
+
+// format date as "MM/dd/yyyy" into text (D32)
+public sealed class FormatDateStmt(Expr subject, Expr format, string target, int line) : Stmt(line)
+{
+    public Expr Subject { get; } = subject;
+    public Expr Format { get; } = format;
+    public string Target { get; } = target;
 }
 
 public sealed class ReturnStmt(Expr? value, int line) : Stmt(line) { public Expr? Value { get; } = value; }

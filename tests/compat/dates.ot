@@ -1,0 +1,41 @@
+dayOne is date from "2024-01-31"
+dayTwo is date from "2024-02-28"
+say dayOne dayTwo
+say months between dayOne and dayTwo
+say days between dayOne and dayTwo
+say days between dayTwo and dayOne
+months between dayOne and dayTwo make m
+say m
+leap is date from "2024-01-31"
+add 1 month to leap
+say leap
+remove 2 days from leap
+say leap
+meeting is date from "03/15/2025 14:30" using "MM/dd/yyyy HH:mm"
+say meeting
+say hour of meeting minute of meeting Year of meeting
+add 90 minutes to meeting
+say meeting
+format meeting as "dddd d MMMM yyyy, h:mm tt" into pretty
+say pretty
+say years between date from "2000-06-15" and date from "2026-06-14"
+say hours between date from "2026-01-01" and date from "2026-01-02 06:00"
+if dayOne is less than dayTwo
+    say "earlier"
+.
+if dayOne is date from "2024-01-31"
+    say "same day"
+.
+if dayOne is "2024-01-31"
+    say "wrong"
+.
+if year of today is at least 2026
+    say "today works"
+.
+if now is at least today
+    say "now is not before today"
+.
+say pi
+x is 2.5
+add x days to dayOne
+say dayOne
