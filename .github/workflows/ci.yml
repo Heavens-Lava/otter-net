@@ -80,6 +80,11 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
+      # The reference output is captured on a UTC machine, and JSON dates
+      # depend on the time zone (docs/CROSS-PLATFORM-CONSISTENCY.md, 8).
+      - name: Time zone UTC, like the reference
+        if: runner.os == 'Windows'
+        run: tzutil /s "UTC"
       - name: Publish native (AOT)
         run: dotnet publish src/Otter.Cli/Otter.Cli.csproj -c Release -r ${{ matrix.rid }} -p:UseAppHost=true -o artifacts/${{ matrix.rid }} --nologo
       - name: Capture output of tests/compat
@@ -163,6 +168,12 @@ jobs:
           $lines = @('# Cross-platform output check', '', "Reference: otterPS 1.0.1 on Windows. Line endings and the temporary folder's path are normalised.", '')
           $captured = [ordered]@{ 'windows-native' = 'downloaded/windows/outputs/windows-native' }
           foreach ($rid in 'osx-arm64', 'osx-x64', 'win-arm64', 'linux-x64', 'linux-arm64') { $captured[$rid] = "downloaded/$rid/outputs/$rid" }
+          # Differences that are expected, with the reason. Any other
+          # difference fails the check.
+          $declared = @(
+              @{ Platforms = 'osx-*', 'linux-*'; Programs = 'commands.ot'; Reason = 'runs cmd.exe and .cmd files: a Windows-only test' }
+              @{ Platforms = 'osx-*', 'linux-*'; Programs = 'files_errors.ot', 'zip.ot'; Reason = 'paths in messages use the platform separator, / (docs/CROSS-PLATFORM-CONSISTENCY.md, 7)' }
+          )
           $failed = $false
           foreach ($platform in $captured.Keys) {
               $folder = Get-Item $captured[$platform] -ErrorAction SilentlyContinue
@@ -174,9 +185,15 @@ jobs:
                   if ((Get-Content -Raw $expected.FullName) -cne (Get-Content -Raw $actual)) { $different += $expected.BaseName }
               }
               $total = (Get-ChildItem $reference.FullName -Filter *.out).Count
-              $lines += "- ${platform}: $($total - $different.Count) of $total identical" + $(if ($different) { ". Different: " + ($different -join ', ') } else { '' })
+              $expectedHere = @($different | Where-Object { $program = $_; $declared | Where-Object { $rule = $_; ($rule.Programs -contains $program) -and ($rule.Platforms | Where-Object { $platform -like $_ }) } })
+              $unexpected = @($different | Where-Object { $expectedHere -notcontains $_ })
+              if ($unexpected) { $failed = $true }
+              $lines += "- ${platform}: $($total - $different.Count) of $total identical" +
+                  $(if ($expectedHere) { ". Declared differences: " + ($expectedHere -join ', ') } else { '' }) +
+                  $(if ($unexpected) { ". **Unexpected: " + ($unexpected -join ', ') + "**" } else { '' })
           }
+          $lines += '' ; $lines += 'Declared differences:' ; $lines += @($declared | ForEach-Object { "- $($_.Programs -join ', ') on $($_.Platforms -join ', '): $($_.Reason)" })
           $lines | Out-File -Append $env:GITHUB_STEP_SUMMARY
           $lines | Write-Host
-          # A platform whose build or run produced nothing is a failure.
+          # A platform that produced nothing, or an undeclared difference, is a failure.
           if ($failed) { exit 1 }

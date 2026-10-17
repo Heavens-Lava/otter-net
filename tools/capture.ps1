@@ -68,7 +68,9 @@ try {
         [void]$stdout.Wait(5000)
 
         $text = $stdout.Result -replace "`r`n", "`n"
-        $text = $text.Replace($folder, '<work>')
+        # On macOS the temporary folder (/var/...) is a link to /private/var/...,
+        # and messages quote the resolved path.
+        $text = $text.Replace('/private' + $folder, '<work>').Replace($folder, '<work>')
         $relative = $program.FullName.Substring($Corpus.Length).TrimStart('\', '/') -replace '[\\/]', '__'
         $saved = "exit: $exit`n$text"
         [System.IO.File]::WriteAllText((Join-Path $OutDir "$relative.out"), $saved, [System.Text.UTF8Encoding]::new($false))
