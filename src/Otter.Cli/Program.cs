@@ -1,7 +1,5 @@
 using System.Diagnostics;
 using System.Text;
-using Otter.Language;
-using Otter.Runtime;
 
 namespace Otter.Cli;
 
@@ -20,7 +18,7 @@ public static class Program
     public const string Version = "1.0.1";
 
     // otterPS's exit codes.
-    const int ExitSuccess = 0, ExitUsageError = 1, ExitCheckError = 2, ExitRuntimeError = 3;
+    const int ExitUsageError = 1, ExitRuntimeError = 3;
 
     // Each Otter call nests several interpreter frames, so the default 1 MB
     // stack ran out before Otter's own call depth limit (250, as otterPS) and
@@ -46,124 +44,37 @@ public static class Program
         {
             return Fallback(args, "OTTER_ENGINE=powershell");
         }
-
-        if (args.Length == 1 && args[0] is "--version" or "-v" or "version")
-        {
-            Trace("native: --version");
-            Console.Out.Write($"Otter {Version}\n");
-            return ExitSuccess;
-        }
-
-        // otter file.ot [args]  |  otter run file.ot [args]  |  otter check file.ot
-        string? mode = null;
-        string? path = null;
-        string[] programArguments = Array.Empty<string>();
-        if (args.Length >= 1 && args[0].EndsWith(".ot", StringComparison.OrdinalIgnoreCase))
-        {
-            mode = "run"; path = args[0]; programArguments = args[1..];
-        }
-        else if (args.Length >= 2 && args[0] == "run" && args[1].EndsWith(".ot", StringComparison.OrdinalIgnoreCase))
-        {
-            mode = "run"; path = args[1]; programArguments = args[2..];
-        }
-        else if (args.Length == 2 && args[0] == "check" && args[1].EndsWith(".ot", StringComparison.OrdinalIgnoreCase))
-        {
-            mode = "check"; path = args[1];
-        }
-        if (mode == null || path == null) return FallbackOrRefuse(args, engine, "this command is not native yet");
-        if (!File.Exists(path)) return FallbackOrRefuse(args, engine, "the file does not exist (the PowerShell Otter reports it)");
-
-        // `use` lines are expanded first, exactly as otterPS does (D60); a
-        // program without them reads back as its own lines.
-        ResolvedProgram resolved;
-        try { resolved = Modules.Resolve(path); }
-        catch (ModuleProblem problem) { return FallbackOrRefuse(args, engine, $"{problem.Message} (reported by the PowerShell Otter)"); }
-        string source = resolved.CombinedSource;
-        ProgramNode program;
         try
         {
-            program = Parser.Parse(Lexer.Tokenize(source));
+            CommandLine line = CommandLine.Bind(args);
+            int code = Cli.Run(line);
+            Trace($"native: exit {code}");
+            return code;
         }
-        catch (NotSupportedYet unsupported)
+        catch (CliExit exit)
         {
-            return FallbackOrRefuse(args, engine, $"{unsupported.Feature} (line {unsupported.Line}) is not native yet");
+            Trace($"native: exit {exit.Code}");
+            return exit.Code;
         }
-        catch (OtterError syntaxError)
+        catch (NeedsPowerShell unsupported)
         {
-            // Every syntax error, as otterPS reports them (D117).
-            Trace("native: syntax errors");
-            return ReportCheckError(resolved.Remap(syntaxError));
-        }
-        catch (Exception unexpected) when (unexpected is not OutOfMemoryException)
-        {
-            // A parser bug must not change what the user sees.
-            return FallbackOrRefuse(args, engine, $"the parser stopped unexpectedly ({unexpected.GetType().Name})");
-        }
-        // D-2: names the grammar would misread are refused before anything runs.
-        // PowerShell: $Source -split "`r?`n"
-        string[] sourceLines = source.Replace("\r\n", "\n").Split('\n');
-        List<OtterError> reserved = ReservedWords.Diagnostics(program, sourceLines);
-        if (reserved.Count > 0)
-        {
-            Trace("native: reserved names");
-            return ReportCheckError(resolved.Remap(new OtterMultipleErrors(reserved)));
-        }
-
-        if (mode == "check")
-        {
-            Trace("native: check");
-            Console.Out.Write($"Otter: {path} is valid.\n");
-            return ExitSuccess;
-        }
-
-        Trace("native: run");
-        // otterPS writes through Write-Host, which ends every line with "\n"
-        // (only the lines inside an error block end with Environment.NewLine).
-        // Each write reaches the console at once, as Write-Host's does: a
-        // program stopped with Ctrl+C, or one that never ends, has still shown
-        // everything it said (found by the fuzz corpus, 2026-10-16).
-        var output = new StreamWriter(Console.OpenStandardOutput(), new UTF8Encoding(false)) { NewLine = "\n", AutoFlush = true };
-        // Input piped from Windows PowerShell starts with a byte order mark;
-        // the reader drops it, as PowerShell's Read-Host does.
-        var input = new StreamReader(Console.OpenStandardInput(), new UTF8Encoding(false), detectEncodingFromByteOrderMarks: true);
-        try
-        {
-            new Interpreter(output, input, source, programArguments, echoInput: Console.IsInputRedirected)
+            if (Host.HasWritten)
             {
-                WriteColoredLine = Console.IsOutputRedirected ? null : (text, color) => WriteInColor(output, text, color),
-                ReadSecretLine = Console.IsInputRedirected ? null : () => ReadSecretLine(output),
-                MoveCursor = Console.IsOutputRedirected ? null : (column, row) => { output.Flush(); Console.SetCursorPosition(column, row); },
-            }.Run(program);
-            output.Flush();
-            return ExitSuccess;
+                // A command that has started must never start again elsewhere.
+                Console.Error.WriteLine($"otter-net: internal error, {unsupported.Message} after output began.");
+                return ExitRuntimeError;
+            }
+            return FallbackOrRefuse(args, engine, unsupported.Message);
         }
-        catch (OtterError error)
+        finally
         {
-            output.WriteLine("");
-            // Line and file as the programmer wrote them, even inside an
-            // imported file.
-            output.WriteLine(resolved.Remap(error).FormatDetailed());
-            output.WriteLine("");
-            output.Flush();
-            return ExitRuntimeError;
-        }
-        catch (Exception unexpected) when (unexpected is not OutOfMemoryException)
-        {
-            // Never a raw .NET exception in front of a user (D14); laid out
-            // as otter.ps1's Show-OtterFailure lays out the same situation.
-            output.WriteLine("");
-            output.WriteLine("Otter hit a problem inside itself, which means this is a bug in Otter.");
-            output.WriteLine($"  {unexpected.Message}");
-            output.WriteLine("  Run again with -DebugErrors to see where.");
-            output.WriteLine("");
-            output.Flush();
-            return ExitRuntimeError;
+            Host.Out.Flush();
         }
     }
 
     // Write-Host -ForegroundColor: the line in that color, then the
     // console's own color again.
-    static void WriteInColor(TextWriter output, string text, ConsoleColor color)
+    internal static void WriteInColor(TextWriter output, string text, ConsoleColor color)
     {
         output.Flush();
         ConsoleColor previous = Console.ForegroundColor;
@@ -176,7 +87,7 @@ public static class Program
 
     // Read-OtterSecretLine: a "*" for each character typed, Backspace takes
     // one back, Enter ends the line.
-    static string ReadSecretLine(TextWriter output)
+    internal static string ReadSecretLine(TextWriter output)
     {
         var typed = new StringBuilder();
         while (true)
@@ -204,20 +115,7 @@ public static class Program
         }
     }
 
-    // A program that does not lex, parse or pass the check stage: nothing
-    // runs, and the errors are shown the way otter.ps1's Show-OtterFailure
-    // shows them, with the check exit code (D57).
-    static int ReportCheckError(OtterError error)
-    {
-        var output = new StreamWriter(Console.OpenStandardOutput(), new UTF8Encoding(false)) { NewLine = "\n" };
-        output.WriteLine("");
-        output.WriteLine(error.FormatDetailed());
-        output.WriteLine("");
-        output.Flush();
-        return ExitCheckError;
-    }
-
-    static void Trace(string text)
+    internal static void Trace(string text)
     {
         if (Environment.GetEnvironmentVariable("OTTER_NET_TRACE") == "1") Console.Error.WriteLine($"otter-net {text}");
     }

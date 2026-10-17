@@ -10,6 +10,9 @@ public sealed class Scope(Scope? parent = null)
 
     public Scope? Parent { get; } = parent;
 
+    // The names this scope holds itself, not its parents' (the debugger's locals).
+    public IEnumerable<KeyValuePair<string, object?>> OwnVariables => variables;
+
     public bool Has(string name) => variables.ContainsKey(name) || (Parent?.Has(name) ?? false);
 
     public object? Get(string name)
@@ -30,3 +33,6 @@ public sealed class Scope(Scope? parent = null)
         variables[name] = value;
     }
 }
+
+// One Otter call: which function, the line that called it, and its scope.
+public sealed record CallFrame(string FunctionName, int CallLine, Scope Scope);
