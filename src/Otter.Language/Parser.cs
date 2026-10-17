@@ -286,8 +286,9 @@ public sealed partial class Parser
     // main statement switch. otter-net does not run those yet.
     static readonly string[] SpecialStatementWords =
     {
-        "the", "close", "stop", "cancel", "store", "generate", "open", "listen", "send",
-        "route", "go", "watch", "primary", "secondary", "danger",
+        // close, cancel, open, listen, send and watch are read by Parser.Network.cs.
+        "the", "stop", "store", "generate",
+        "route", "go", "primary", "secondary", "danger",
         "window", "page", "card", "heading", "text", "button", "panel", "section", "sidebar", "main",
         "link", "image", "input", "grid",
     };
@@ -2188,7 +2189,8 @@ public sealed partial class Parser
             Read();
             return new SecurelyEqualsExpr(left, ReadValue(), securely.Line);
         }
-        if (StatePredicateAhead() || (Is(TokenKind.Is) && At(1)?.Kind == TokenKind.Open)) throw Unsupported("state checks");
+        // x is watching / open / secure / listening / completed ... (Parser.Network.cs)
+        if (ReadNetworkStatePredicate(left) is { } statePredicate) return statePredicate;
         // book has attribute "id" (D105)
         if (Is(TokenKind.Has) && At(1) is { Kind: TokenKind.Identifier } attribute && Same(attribute.Text, "attribute"))
         {
