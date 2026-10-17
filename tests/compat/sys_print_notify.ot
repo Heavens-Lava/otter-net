@@ -1,0 +1,35 @@
+# Notifications (D67) and printing (D83), run natively on every platform.
+# Nothing is ever sent to a real printer: the printer named here does not
+# exist. File dialogs wait for a person, so they are only tried where they
+# cannot open.
+get environment variable "OS" into os
+write "line one\nline two" to "page.txt"
+steps are
+    "notify"
+    "print to a missing printer"
+    "print a missing file"
+.
+for each step in steps
+    try
+        if step is "notify"
+            notify "Otter compatibility test" with "This test shows a notification."
+            say step "sent"
+        otherwise if step is "print to a missing printer"
+            print "page.txt" to "No Such Otter Printer"
+            say step "wrong"
+        otherwise
+            print "missing.txt" to "No Such Otter Printer"
+            say step "wrong"
+        .
+    otherwise into reason
+        say step "->" reason
+    .
+.
+if os is not "Windows_NT"
+    try
+        choose folder into picked
+    otherwise into reason
+        say reason
+    .
+.
+delete file "page.txt"

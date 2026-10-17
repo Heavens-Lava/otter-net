@@ -61,7 +61,6 @@ public sealed partial class Parser
                 Expect(TokenKind.To, "I expected \"to\" and a printer name.");
                 Expr printer = ReadValue();
                 Expect(TokenKind.Newline, "I expected the print statement to end here.");
-                if (OperatingSystem.IsWindows()) throw Unsupported("printing");
                 return new PrintFileStmt(path, printer, start.Line);
             }
             case TokenKind.Notify:
@@ -71,7 +70,6 @@ public sealed partial class Parser
                 Expect(TokenKind.With, "I expected \"with\" and a message.");
                 Expr message = ReadValue();
                 Expect(TokenKind.Newline, "I expected the notify statement to end here.");
-                if (OperatingSystem.IsWindows()) throw Unsupported("notifications");
                 return new NotifyStmt(title, message, start.Line);
             }
             case TokenKind.Choose when nextKind != TokenKind.From:
@@ -486,7 +484,6 @@ public sealed partial class Parser
         Expect(TokenKind.Into, "I expected \"into\" and a result name.");
         Token target = ReadVariableName("I expected a result name after \"into\".");
         Expect(TokenKind.Newline, "I expected the choose statement to end here.");
-        if (OperatingSystem.IsWindows()) throw Unsupported("file dialogs");
         return new ChooseFileStmt(dialog, target.Text, start.Line);
     }
 

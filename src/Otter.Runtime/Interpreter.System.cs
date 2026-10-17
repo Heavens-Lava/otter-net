@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -106,9 +107,15 @@ public sealed partial class Interpreter
                 return true;
             }
             case NotifyStmt notify:
-                // Windows runs these through the PowerShell Otter (the parser decides).
+            {
                 if (!OperatingSystem.IsWindows()) throw NotOnWindows("Notifications (notify)", notify.Line);
+                string title = Values.Format(Evaluate(notify.Title, scope));
+                string message = Values.Format(Evaluate(notify.Message, scope));
+                // A desktop that cannot show a notification shows nothing.
+                try { OtterDesktop.Notify(title, message); }
+                catch (Exception e) when (e is ExternalException or Win32Exception or InvalidOperationException) { }
                 return true;
+            }
             case ChooseFileStmt choose:
                 if (!OperatingSystem.IsWindows())
                 {
@@ -119,6 +126,7 @@ public sealed partial class Interpreter
                         _ => "File dialogs (choose file)",
                     }, choose.Line);
                 }
+                scope.Set(choose.Target, OtterDesktop.ChooseFile(choose.Dialog == FileDialogKind.Folder, choose.Dialog == FileDialogKind.SaveFile));
                 return true;
             // ---- links, owners, read-only files (D73, D74) ----
             case CreateSymbolicLinkStmt createLink:
@@ -231,9 +239,15 @@ public sealed partial class Interpreter
                 RunPowerAction(power.Action, power.Line);
                 return true;
             case PrintFileStmt print:
-                // Windows runs these through the PowerShell Otter (the parser decides).
+            {
                 if (!OperatingSystem.IsWindows()) throw NotOnWindows("Printing", print.Line);
+                string path = PathArgument(print.Path, scope);
+                string printerName = Values.Format(Evaluate(print.PrinterName, scope));
+                string content = Library(() => OtterFiles.Read(path), print.Line);
+                try { OtterDesktop.Print(path, content, printerName); }
+                catch (PrintProblem problem) { throw RuntimeError(problem.Message, print.Line, problem.Suggestion); }
                 return true;
+            }
             default:
                 return false;
         }
