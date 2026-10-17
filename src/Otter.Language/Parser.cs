@@ -286,7 +286,7 @@ public sealed partial class Parser
     // main statement switch. otter-net does not run those yet.
     static readonly string[] SpecialStatementWords =
     {
-        "the", "close", "stop", "cancel", "store", "generate", "open", "listen", "send",
+        "close", "stop", "cancel", "store", "generate", "open", "listen", "send",
         "route", "go", "watch", "primary", "secondary", "danger",
         "window", "page", "card", "heading", "text", "button", "panel", "section", "sidebar", "main",
         "link", "image", "input", "grid",
@@ -347,8 +347,7 @@ public sealed partial class Parser
         // Each of these words takes over its line in otterPS unless the next
         // word makes the line an ordinary assignment or list (`text is "hi"`).
         // otter-net leaves all those forms to the PowerShell Otter for now.
-        if (Same(start.Text, "the") ||
-            (Same(start.Text, "stop") && nextKind != TokenKind.Newline) ||
+        if ((Same(start.Text, "stop") && nextKind != TokenKind.Newline) ||
             (SameAny(start.Text, SpecialStatementWords) && !Same(start.Text, "stop") &&
              nextKind is not (TokenKind.Is or TokenKind.Are or TokenKind.Of or TokenKind.IsNot or TokenKind.Has or TokenKind.Make or TokenKind.Into)))
         {
@@ -750,7 +749,7 @@ public sealed partial class Parser
         if (Current.Kind == TokenKind.Identifier && Same(Current.Text, "xml"))
         {
             Read();
-            Expr xml = ReadValue();
+            Expr xml = ReadValue(propertyTarget: true);
             Expect(TokenKind.To, "I expected \"to\" and a file path.");
             Expect(TokenKind.File, "I expected \"file\" and a path.", "Write: write xml document to file \"books.xml\"");
             Expr xmlPath = ReadValue();
@@ -761,7 +760,7 @@ public sealed partial class Parser
         if (Current.Kind == TokenKind.Identifier && Same(Current.Text, "bytes"))
         {
             Read();
-            Expr data = ReadValue();
+            Expr data = ReadValue(propertyTarget: true);
             Expect(TokenKind.To, "I expected \"to\" and a file path.", "Write: write bytes data to file \"copy.png\"");
             Expect(TokenKind.File, "I expected \"file\" and a path.", "Write: write bytes data to file \"copy.png\"");
             Expr bytesPath = ReadValue();
@@ -1125,13 +1124,13 @@ public sealed partial class Parser
         if (Current.Kind == TokenKind.Identifier && Same(Current.Text, "text") && IsAt(1, TokenKind.Of))
         {
             Read(); Read();
-            Expr? element = ReadValue();
+            Expr? element = ReadValue(propertyTarget: true);
             Expr? nameIn = null, xmlIn = null;
             if (Is(TokenKind.In))
             {
                 Read();
                 nameIn = element;
-                xmlIn = ReadValue();
+                xmlIn = ReadValue(propertyTarget: true);
                 element = null;
             }
             Expect(TokenKind.To, "I expected \"to\" and a value.");
@@ -1145,7 +1144,7 @@ public sealed partial class Parser
             Read();
             Expr attributeName = ReadValue();
             Expect(TokenKind.Of, "I expected \"of\" and an element after the attribute name.", "Write: set attribute \"id\" of book to \"42\"");
-            Expr element = ReadValue();
+            Expr element = ReadValue(propertyTarget: true);
             Expect(TokenKind.To, "I expected \"to\" and a value.");
             Expr attributeValue = ReadMathExpression();
             Expect(TokenKind.Newline, "I expected the set attribute statement to end here.");
@@ -1227,7 +1226,7 @@ public sealed partial class Parser
                 }
                 if (!Is(TokenKind.To)) throw new NotThisForm();
                 Read();
-                Expr xml = ReadValue();
+                Expr xml = ReadValue(propertyTarget: true);
                 string? target = null;
                 if (Is(TokenKind.And))
                 {
@@ -1286,7 +1285,7 @@ public sealed partial class Parser
             try
             {
                 Read();
-                Expr element = ReadValue();
+                Expr element = ReadValue(propertyTarget: true);
                 if (!Is(TokenKind.Newline)) throw new NotThisForm();
                 Read();
                 removedElement = new XmlRemoveElementStmt(element, start.Line);
@@ -1305,7 +1304,7 @@ public sealed partial class Parser
                 Expr name = ReadValue();
                 if (!Is(TokenKind.From)) throw new NotThisForm();
                 Read();
-                Expr element = ReadValue();
+                Expr element = ReadValue(propertyTarget: true);
                 if (!Is(TokenKind.Newline)) throw new NotThisForm();
                 Read();
                 removedAttribute = new XmlRemoveAttributeStmt(name, element, start.Line);
@@ -1720,7 +1719,7 @@ public sealed partial class Parser
     // Words that begin one of Read-OtterValue's special forms in otterPS.
     static readonly HashSet<string> SpecialValueWords = new(StringComparer.OrdinalIgnoreCase)
     {
-        "today", "now", "pi", "the", "date", "text", "current", "route",
+        "today", "now", "pi", "date", "text", "current", "route",
         "changed", "change", "old", "received", "close", "websocket", "secret", "xml", "pretty",
         "element", "elements", "child", "children", "attribute", "drag", "dragged", "drop", "dropped",
         "incoming", "local", "network", "remote", "sender", "tls",
@@ -1774,8 +1773,11 @@ public sealed partial class Parser
         return false;
     }
 
-    Expr ReadValue()
+    // propertyTarget: otterPS's -PropertyTarget, a value read where a
+    // property's target belongs, which may start with `the`.
+    Expr ReadValue(bool propertyTarget = false)
     {
+        SkipReadabilityArticle(propertyTarget);
         Token token = Current;
         if ((TryReadSystemValue(token) ?? TryReadNetworkValue(token) ?? TryReadDataValue(token) ?? TryReadUiValue(token)) is { } areaValue)
             return areaValue;
@@ -1959,11 +1961,11 @@ public sealed partial class Parser
             if (IsAt(1, TokenKind.Of))
             {
                 Read(); Read();
-                Expr owner = ReadValue();
+                Expr owner = ReadValue(propertyTarget: true);
                 if (Is(TokenKind.In))
                 {
                     Read();
-                    return new XmlTextOfNameInExpr(owner, ReadValue(), token.Line);
+                    return new XmlTextOfNameInExpr(owner, ReadValue(propertyTarget: true), token.Line);
                 }
                 return new PropertyAccessExpr("text", owner, token.Line);
             }
@@ -1980,7 +1982,7 @@ public sealed partial class Parser
             if (selector != null && Is(attribute ? TokenKind.Of : TokenKind.In))
             {
                 Read();
-                Expr owner = ReadValue();
+                Expr owner = ReadValue(propertyTarget: true);
                 if (attribute) return new XmlAttributeExpr(selector, owner, token.Line);
                 XmlSelectKind kind = token.Text.ToLowerInvariant() switch
                 {
@@ -2011,7 +2013,7 @@ public sealed partial class Parser
                 propertyName += " " + Read().Text;
             }
             Expect(TokenKind.Of, "I expected \"of\" after this command result property.");
-            return new PropertyAccessExpr(propertyName, ReadValue(), first.Line);
+            return new PropertyAccessExpr(propertyName, ReadValue(propertyTarget: true), first.Line);
         }
         if (IsIdentifier(token))
         {
@@ -2020,7 +2022,7 @@ public sealed partial class Parser
             if (Is(TokenKind.Of))
             {
                 Read();
-                return new PropertyAccessExpr(token.Text, ReadValue(), token.Line);
+                return new PropertyAccessExpr(token.Text, ReadValue(propertyTarget: true), token.Line);
             }
             return new VariableExpr(token.Text, token.Line);
         }
@@ -2043,9 +2045,8 @@ public sealed partial class Parser
     {
         Read();
         Expect(TokenKind.Of, "I expected \"of\" after this operation.");
-        // otterPS reads the subject with -PropertyTarget (which only matters
-        // for "the"); "the" is a special form here anyway.
-        return new OfOperationExpr(operation, ReadValue(), token.Line);
+        // otterPS reads the subject with -PropertyTarget: `length of the name`.
+        return new OfOperationExpr(operation, ReadValue(propertyTarget: true), token.Line);
     }
 
     static MathOp ToMathOp(TokenKind kind) => kind switch
@@ -2137,7 +2138,7 @@ public sealed partial class Parser
             {
                 Read();
                 Expect(TokenKind.In, "I expected \"in\" after \"exists\".");
-                return new XmlElementExistsExpr(selector, ReadValue(), head.Line);
+                return new XmlElementExistsExpr(selector, ReadValue(propertyTarget: true), head.Line);
             }
             position = saved;
         }

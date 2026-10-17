@@ -1,0 +1,58 @@
+# The readability article: `the name of person` reads `name of person`.
+address has city "Oslo"
+person has name "Ada", age 36, address address
+say the name of person
+say The name of person
+the age of person is 37
+say the age of person
+say the city of the address of person
+say the city of address of the person
+say length of the name of person
+say uppercase of the name of person
+nameText is the name of person
+say length of the nameText
+older is the age of person plus 1
+say older
+if the age of person is at least 18
+    say "adult"
+if the name of person contains "A" and the age of person is 37
+    say "both"
+items are
+    "x"
+    "y"
+say first of the items
+say last of the items
+
+# Elsewhere `the` is an ordinary name.
+the is "article"
+say the
+say the "and" the
+holder has the "property called the"
+say the of holder
+the of holder is "changed"
+say the of holder
+
+# Two-word properties take the article too.
+result has name "r"
+try
+    say the exit code of result
+otherwise into reason
+    say reason
+
+doc is xml from text "<library><book id=\"1\">Dune</book></library>"
+book is element "book" in the doc
+say text of the book
+say attribute "id" of the book
+set attribute "id" of the book to "2"
+say attribute "id" of book
+set text of the book to "Emma"
+say text of book
+if element "book" exists in the doc
+    say "found"
+
+the city of the address of person is "Bergen"
+say city of address of person
+try
+    the name of nobody is "x"
+otherwise into reason
+    say reason
