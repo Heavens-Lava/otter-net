@@ -30,7 +30,13 @@ public static class OtterSystemFiles
         OtterFiles.EnsureParentFolder(fullLink);
         try
         {
-            if (new FileInfo(fullLink).LinkTarget != null || File.Exists(fullLink))
+            if (new FileInfo(fullLink).LinkTarget != null)
+            {
+                // Only the link goes, never what it points at.
+                if (OperatingSystem.IsWindows() && Directory.Exists(fullLink)) Directory.Delete(fullLink);
+                else File.Delete(fullLink);
+            }
+            else if (File.Exists(fullLink))
             {
                 File.Delete(fullLink);
             }

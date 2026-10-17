@@ -50,16 +50,31 @@ public static class OtterProcesses
             // directly, sharing this console.
             start.FileName = OtterCommands.FindApplication(program) ?? program;
         }
-        Process started;
+        Process? started;
         try
         {
-            started = Process.Start(start) ?? throw new Win32Exception(2);
+            started = Process.Start(start);
         }
         catch (Win32Exception e)
         {
             throw new CommandProblem($"I could not start \"{program}\". This command cannot be run due to the error: {OtterCommands.FrameworkMessage(e)}.");
         }
-        return ProcessObject(started);
+        return started != null ? ProcessObject(started) : NoProcessObject();
+    }
+
+    // The shell may hand the work to a process that is already running (a
+    // document opened in an open editor): Start-Process -PassThru then gives
+    // nothing, and New-OtterProcessObject reads every detail of nothing - a
+    // number as 0, the rest as gone.
+    static OtterThing NoProcessObject()
+    {
+        var info = new OtterThing("process");
+        info.WriteProperty("id", 0.0);
+        info.WriteProperty("name", null);
+        info.WriteProperty("memoryBytes", 0.0);
+        info.WriteProperty("cpuSeconds", 0.0);
+        info.WriteProperty("startTime", null);
+        return info;
     }
 
     // New-OtterProcessObject: each detail read on its own, so a process this

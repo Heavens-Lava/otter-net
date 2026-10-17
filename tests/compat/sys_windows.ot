@@ -1,0 +1,139 @@
+# Windows-only features (D74, D78, D81, D82, D111). On Windows the registry,
+# stored credentials, the credential vault and file owners are used for real,
+# under names that belong to this test and are removed again. Elsewhere each
+# gives otterPS's message for that platform. Power actions are never run.
+get environment variable "OS" into os
+onWindows is false
+if os is "Windows_NT"
+    onWindows is true
+.
+key is "HKCU:\Software\OtterNetCompatTests\System"
+write "owned" to "owned.txt"
+steps are
+    "set registry"
+    "get registry"
+    "registry key"
+    "delete registry"
+    "registry after delete"
+    "registry bad path"
+    "registry other drive"
+    "set credential"
+    "get credential"
+    "delete credential"
+    "credential after delete"
+    "bad credential name"
+    "owner"
+    "store secret"
+    "read secret"
+    "secret exists"
+    "delete secret"
+    "secret after delete"
+    "delete missing secret"
+    "empty secret"
+    "secret of numbers"
+    "secret with no name"
+.
+for each step in steps
+    try
+        if step is "set registry"
+            set registry value "greeting" to "hello" in key
+            say step "done"
+        otherwise if step is "get registry"
+            get registry value "greeting" from key into greeting
+            say step greeting
+        otherwise if step is "registry key"
+            if registry key key exists
+                say step "exists"
+            otherwise
+                say step "missing"
+            .
+        otherwise if step is "delete registry"
+            delete registry value "greeting" from key
+            delete registry value "greeting" from key
+            say step "done twice"
+        otherwise if step is "registry after delete"
+            get registry value "greeting" from key into greeting
+            say step greeting
+        otherwise if step is "registry bad path"
+            get registry value "x" from "Software\Nope" into nothing
+            say step nothing
+        otherwise if step is "registry other drive"
+            get registry value "x" from "HKCR:\NoSuchKeyForOtter" into nothing
+            say step nothing
+        otherwise if step is "set credential"
+            set credential "otter-net-compat-test" to "s3cret"
+            say step "done"
+        otherwise if step is "get credential"
+            get credential "otter-net-compat-test" into secretText
+            say step secretText
+        otherwise if step is "delete credential"
+            delete credential "otter-net-compat-test"
+            delete credential "otter-net-compat-test"
+            say step "done twice"
+        otherwise if step is "credential after delete"
+            get credential "otter-net-compat-test" into secretText
+            say step secretText
+        otherwise if step is "bad credential name"
+            set credential "../escape" to "x"
+            say step "wrong"
+        otherwise if step is "owner"
+            get owner of "owned.txt" into owner
+            if length of owner is greater than 0
+                say step "has an owner"
+            .
+        otherwise if step is "store secret"
+            store secret "compat-token" with value "abc123"
+            say step "done"
+        otherwise if step is "read secret"
+            say step secret "compat-token"
+        otherwise if step is "secret exists"
+            if secret "compat-token" exists
+                say step "yes"
+            .
+        otherwise if step is "delete secret"
+            delete secret "compat-token"
+            say step "done"
+        otherwise if step is "secret after delete"
+            if secret "compat-token" exists
+                say step "still there"
+            otherwise
+                say step "gone"
+            .
+            say secret "compat-token"
+        otherwise if step is "delete missing secret"
+            delete secret "compat-token"
+        otherwise if step is "empty secret"
+            store secret "compat-empty" with value ""
+        otherwise if step is "secret of numbers"
+            store secret "compat-number" with value 42
+        otherwise
+            store secret "  " with value "x"
+        .
+    otherwise into reason
+        say step "->" reason
+    .
+.
+if not onWindows
+    actions are
+        "lock"
+        "sign out"
+        "restart"
+        "shut down"
+    .
+    for each action in actions
+        try
+            if action is "lock"
+                lock the computer
+            otherwise if action is "sign out"
+                sign out
+            otherwise if action is "restart"
+                restart computer
+            otherwise
+                shut down the computer
+            .
+        otherwise into reason
+            say action "->" reason
+        .
+    .
+.
+delete file "owned.txt"

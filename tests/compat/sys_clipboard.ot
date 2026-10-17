@@ -1,0 +1,21 @@
+# The clipboard (D67). Whatever text was on the clipboard is put back at the
+# end; where there is no clipboard to use, the test says so.
+get clipboard into saved
+copy "otter-net clipboard test" to clipboard
+get clipboard into copied
+if copied is "otter-net clipboard test"
+    say "text went to the clipboard and back"
+otherwise
+    say "no clipboard to use here"
+.
+copy 42 to clipboard
+get clipboard into number
+if number is "42"
+    say "a number is copied as its text"
+.
+if saved is gone
+    copy "" to clipboard
+otherwise
+    copy saved to clipboard
+.
+say "clipboard restored"
