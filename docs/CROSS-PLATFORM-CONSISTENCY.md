@@ -56,6 +56,7 @@ programs would see different output, and on which platforms.
 | 5 | Environment variables | Bug (macOS/Linux) and spec gap (Windows) | Empty is not missing; `gone` removes | macOS/Linux; Windows for empty values | Medium |
 | 6 | Folder listing order | Spec gap | Sorted by name, defined order | macOS/Linux | Low |
 | 7 | File name rules | Platform-specific by nature | Each platform's own rules, Otter's wording | otter-net on macOS/Linux | Low |
+| 8 | Dates in JSON depend on the time zone | Spec gap | Dates written the same on every machine | Every platform | Medium |
 
 ## 1. JSON text layout
 
@@ -246,6 +247,37 @@ them on macOS/Linux applies a Windows rule where it does not belong.
 **Breaking-change risk: low.** It changes otter-net on macOS/Linux (it would
 accept these names, like otterPS there), and changes the refusal wording on
 Windows.
+
+## 8. Dates in JSON depend on the machine's time zone
+
+Found by otter-net's CI on 2026-10-17, not by the macOS run: the same
+program, on the same Windows, wrote different JSON on two machines.
+
+    day is date from "2024-01-15"
+    convert day to json into dayText
+
+| Machine time zone | `dayText` contains |
+|---|---|
+| UTC | `"\/Date(1705276800000)\/"` |
+| US Pacific | `"\/Date(1705305600000)\/"` - 8 hours later |
+
+A date (D32) has no time zone of its own. PowerShell's JSON conversion treats
+it as local time and writes the instant in UTC, so the number depends on
+where the program runs. The `\/Date(...)\/` form itself is a .NET
+convention, not one other JSON readers understand.
+
+**Classification:** spec gap. D29 decides how JSON becomes Otter values, but
+not how an Otter date becomes JSON. It affects Windows and macOS/Linux alike,
+and it is not a platform difference but a *machine* difference.
+
+**Proposal:** a date becomes JSON text in ISO 8601, independent of the time
+zone: `"2024-01-15"` for a date without a time of day, and
+`"2024-01-15T09:30:00"` for one with (no zone, matching how D32 treats
+dates). This could be decided together with 1.
+
+**Breaking-change risk: medium.** Every program that writes dates to JSON
+writes different text. Programs reading that JSON back with Otter today get
+text either way, since D29 has no date type in JSON.
 
 ## Towards a cross-platform conformance specification
 
