@@ -49,6 +49,87 @@ public static class OtterCrypto
         return Convert.ToHexString(digest).ToLowerInvariant();
     }
 
+    // ---- over bytes (D109) ----
+
+    public const int KeyLength = 32;
+    const int PasswordIterations = 600000;
+
+    public static byte[] Digest(string algorithm, byte[] data) => algorithm.ToLowerInvariant() switch
+    {
+        "sha384" => SHA384.HashData(data),
+        "sha512" => SHA512.HashData(data),
+        _ => SHA256.HashData(data),
+    };
+
+    public static byte[] Hmac(string algorithm, byte[] key, byte[] data) => algorithm.ToLowerInvariant() switch
+    {
+        "sha384" => HMACSHA384.HashData(key, data),
+        "sha512" => HMACSHA512.HashData(key, data),
+        _ => HMACSHA256.HashData(key, data),
+    };
+
+    static readonly byte[] EncryptionLabel = Encoding.ASCII.GetBytes("otter-aead-v1-enc");
+    static readonly byte[] MacLabel = Encoding.ASCII.GetBytes("otter-aead-v1-mac");
+
+    // 0x01 | iv(16) | AES-256-CBC ciphertext | HMAC-SHA256 tag(32), with the
+    // two subkeys derived from the one 32-byte key - otterPS's Protect-OtterBytes.
+    public static byte[] SealBytes(byte[] data, byte[] key)
+    {
+        byte[] encryptionKey = HMACSHA256.HashData(key, EncryptionLabel);
+        byte[] macKey = HMACSHA256.HashData(key, MacLabel);
+        byte[] iv = RandomNumberGenerator.GetBytes(16);
+        using Aes aes = Aes.Create();
+        aes.Key = encryptionKey;
+        byte[] cipher = aes.EncryptCbc(data, iv, PaddingMode.PKCS7);
+        byte[] body = [1, .. iv, .. cipher];
+        byte[] tag = HMACSHA256.HashData(macKey, body);
+        return [.. body, .. tag];
+    }
+
+    // The plaintext, or null when the payload is malformed, altered or made
+    // with another key - one answer for all three, on purpose.
+    public static byte[]? OpenBytes(byte[] payload, byte[] key)
+    {
+        if (payload.Length < 65 || payload[0] != 1) return null;
+        byte[] encryptionKey = HMACSHA256.HashData(key, EncryptionLabel);
+        byte[] macKey = HMACSHA256.HashData(key, MacLabel);
+        byte[] body = payload[..^32];
+        byte[] expected = HMACSHA256.HashData(macKey, body);
+        if (!CryptographicOperations.FixedTimeEquals(expected, payload[^32..])) return null;
+        int cipherLength = body.Length - 17;
+        if (cipherLength % 16 != 0) return null;
+        using Aes aes = Aes.Create();
+        aes.Key = encryptionKey;
+        try { return aes.DecryptCbc(body[17..], body[1..17], PaddingMode.PKCS7); }
+        catch (CryptographicException) { return null; }
+    }
+
+    // otter-pbkdf2-sha256$<iterations>$<salt base64>$<hash base64>
+    public static string HashPassword(string password)
+    {
+        byte[] salt = RandomNumberGenerator.GetBytes(16);
+        byte[] derived = Rfc2898DeriveBytes.Pbkdf2(Encoding.UTF8.GetBytes(password), salt, PasswordIterations, HashAlgorithmName.SHA256, 32);
+        return $"otter-pbkdf2-sha256${PasswordIterations}${Convert.ToBase64String(salt)}${Convert.ToBase64String(derived)}";
+    }
+
+    // true/false, or null when the text is not such a hash.
+    public static bool? PasswordMatches(string password, string storedHash)
+    {
+        string[] parts = storedHash.Split('$');
+        if (parts.Length != 4 || !string.Equals(parts[0], "otter-pbkdf2-sha256", StringComparison.OrdinalIgnoreCase)) return null;
+        if (!int.TryParse(parts[1], System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.CurrentCulture, out int iterations) || iterations < 1000) return null;
+        byte[] salt, expected;
+        try
+        {
+            salt = Convert.FromBase64String(parts[2]);
+            expected = Convert.FromBase64String(parts[3]);
+        }
+        catch (FormatException) { return null; }
+        if (salt.Length < 8 || expected.Length != 32) return null;
+        byte[] derived = Rfc2898DeriveBytes.Pbkdf2(Encoding.UTF8.GetBytes(password), salt, iterations, HashAlgorithmName.SHA256, 32);
+        return CryptographicOperations.FixedTimeEquals(derived, expected);
+    }
+
     const int SaltSize = 16, IvSize = 16, TagSize = 32, Iterations = 100000;
 
     // PBKDF2-HMACSHA256 gives 64 bytes: the AES key, then a separate HMAC key.

@@ -328,6 +328,18 @@ public sealed class Parser
             throw Error($"'{start.Text}' is a built-in value, not a variable name.", start,
                 "Choose a different variable name, such as \"currentDate\", \"currentTime\", or \"circleRatio\".");
         }
+        // generate encryption key and call it key (D109)
+        if (Same(start.Text, "generate") && At(1) is { } encryptionWord && Same(encryptionWord.Text, "encryption") &&
+            At(2) is { } keyWord && Same(keyWord.Text, "key"))
+        {
+            Read(); Read(); Read();
+            Expect(TokenKind.And, "I expected \"and call it\" and a name.", "generate encryption key and call it key");
+            Expect(TokenKind.Call, "I expected \"call\" after \"and\".");
+            Expect(TokenKind.It, "I expected \"it\" after \"call\".");
+            Token keyName = ReadVariableName("I expected a name after \"call it\".");
+            Expect(TokenKind.Newline, "I expected the generate statement to end here.");
+            return new GenerateKeyStmt(keyName.Text, start.Line);
+        }
         // Each of these words takes over its line in otterPS unless the next
         // word makes the line an ordinary assignment or list (`text is "hi"`).
         // otter-net leaves all those forms to the PowerShell Otter for now.
@@ -937,7 +949,18 @@ public sealed class Parser
     Stmt ReadHash(Token start)
     {
         Read();
-        if (Current.Kind == TokenKind.Identifier && Same(Current.Text, "password") && !IsAt(1, TokenKind.As)) throw Unsupported("hash password");
+        // hash password X and call it storedHash (D109)
+        if (Current.Kind == TokenKind.Identifier && Same(Current.Text, "password") && !IsAt(1, TokenKind.As))
+        {
+            Read();
+            Expr password = ReadValue();
+            Expect(TokenKind.And, "I expected \"and call it\" and a name.", "hash password password and call it storedHash");
+            Expect(TokenKind.Call, "I expected \"call\" after \"and\".");
+            Expect(TokenKind.It, "I expected \"it\" after \"call\".");
+            Token hashTarget = ReadVariableName("I expected a name after \"call it\".");
+            Expect(TokenKind.Newline, "I expected the hash password statement to end here.");
+            return new HashPasswordStmt(password, hashTarget.Text, start.Line);
+        }
         Expr text = ReadValue();
         Expect(TokenKind.As, "I expected \"as\" and an algorithm name.");
         Expr algorithm = ReadValue();
@@ -962,7 +985,18 @@ public sealed class Parser
         bool decrypt = start.Kind == TokenKind.Decrypt;
         string verb = decrypt ? "decrypt" : "encrypt";
         Expr text = ReadValue();
-        if (Current.Kind == TokenKind.Identifier && Same(Current.Text, "using")) throw Unsupported($"{verb} using");
+        // encrypt data using key and call it result (D109)
+        if (Current.Kind == TokenKind.Identifier && Same(Current.Text, "using"))
+        {
+            Read();
+            Expr cipherKey = ReadValue();
+            Expect(TokenKind.And, "I expected \"and call it\" and a name after the key.", $"{verb} data using key and call it result");
+            Expect(TokenKind.Call, "I expected \"call\" after \"and\".");
+            Expect(TokenKind.It, "I expected \"it\" after \"call\".");
+            Token cipherTarget = ReadVariableName("I expected a name after \"call it\".");
+            Expect(TokenKind.Newline, $"I expected the {verb} statement to end here.");
+            return new CryptoCipherStmt(decrypt, text, cipherKey, cipherTarget.Text, start.Line);
+        }
         Expect(TokenKind.With, "I expected \"with key\" and a key.");
         ExpectWord("key", "I expected \"key\" after \"with\".", decrypt ? "decrypt \"cipher\" with key \"secret\" into text" : "encrypt \"text\" with key \"secret\" into cipher");
         Expr key = ReadValue();
@@ -1685,7 +1719,7 @@ public sealed class Parser
         "today", "now", "pi", "the", "date", "text", "current", "route",
         "changed", "change", "old", "received", "close", "websocket", "secret", "xml", "pretty",
         "element", "elements", "child", "children", "attribute", "drag", "dragged", "drop", "dropped",
-        "hmac", "incoming", "local", "network", "remote", "sender", "secure", "tls", "sha256", "sha384", "sha512",
+        "incoming", "local", "network", "remote", "sender", "tls",
     };
 
     // For these words otterPS's special form needs one of these next words
@@ -1701,8 +1735,6 @@ public sealed class Parser
         ["received"] = new[] { "message", "response", "output", "error", "data" },   // D106, D116B, D113
         ["close"] = new[] { "was", "code", "reason" },           // D106
         ["websocket"] = new[] { "error" },                       // D106
-        ["secure"] = new[] { "random" },                         // secure random bytes (D109)
-        ["hmac"] = new[] { "sha256", "sha384", "sha512" },       // D109
         ["drag"] = new[] { "data" },                             // D110
         ["dragged"] = new[] { "item" },
         ["drop"] = new[] { "x", "y" },
@@ -1818,6 +1850,33 @@ public sealed class Parser
         // element/elements/child/children SELECTOR in X and attribute NAME of X
         // (D105) are tried and abandoned, as otterPS does: when no selector and
         // "in" (or "of") follow, the word is an ordinary name.
+        // D109: secure random bytes N / sha256 of X / hmac sha256 of X using K
+        if (token.Kind == TokenKind.Identifier && At(1) is { } cryptoNext)
+        {
+            if (Same(token.Text, "secure") && Same(cryptoNext.Text, "random") && At(2) is { } bytesNext && Same(bytesNext.Text, "bytes"))
+            {
+                Read(); Read(); Read();
+                return new SecureRandomBytesExpr(ReadValue(), token.Line);
+            }
+            if (SameAny(token.Text, "sha256", "sha384", "sha512") && cryptoNext.Kind == TokenKind.Of)
+            {
+                Read(); Read();
+                return new CryptoHashExpr(token.Text, ReadValue(), token.Line);
+            }
+            if (Same(token.Text, "hmac") && SameAny(cryptoNext.Text, "sha256", "sha384", "sha512") && IsAt(2, TokenKind.Of))
+            {
+                Read();
+                string algorithm = Read().Text;
+                Read();
+                Expr data = ReadValue();
+                if (!(Current.Kind == TokenKind.Identifier && Same(Current.Text, "using")))
+                {
+                    throw Error("I expected \"using\" and a key after the data to sign.", Current, "signature is hmac sha256 of data using key");
+                }
+                Read();
+                return new CryptoHmacExpr(algorithm, data, ReadValue(), token.Line);
+            }
+        }
         // D102: bytes from file|text|hex|base64 X / empty bytes /
         // text|hex|base64 from bytes X - otherwise these are ordinary names.
         if (token.Kind == TokenKind.Identifier && Same(token.Text, "bytes") && IsAt(1, TokenKind.From))
@@ -2090,9 +2149,23 @@ public sealed class Parser
             Read(); Read();
             return new FileLockedExpr(path, head.Line);
         }
+        // password attempt matches hash storedHash (D109), abandoned unless
+        // "matches" follows the password.
         if (head.Kind == TokenKind.Identifier && Same(head.Text, "password") && !IsAt(1, TokenKind.Is) && !IsAt(1, TokenKind.Of))
         {
-            throw Unsupported("password conditions");
+            int saved = position;
+            Token passwordWord = Read();
+            Expr? password = null;
+            try { password = ReadValue(); }
+            catch (OtterError) { }
+            if (password != null && Current.Kind == TokenKind.Identifier && Same(Current.Text, "matches"))
+            {
+                Read();
+                if (!Same(Current.Text, "hash")) throw Error("I expected \"hash\" after \"matches\".", Current, "password attempt matches hash storedHash");
+                Read();
+                return new PasswordMatchesExpr(password, ReadValue(), passwordWord.Line);
+            }
+            position = saved;
         }
         Expr left = ReadConditionOperand();
         if (left is MathExpr && (!OrdinaryComparisonAhead() || StatePredicateAhead()))
@@ -2100,7 +2173,13 @@ public sealed class Parser
             throw Error("Arithmetic in a condition must be followed by an ordinary comparison.", Current,
                 "Compare the arithmetic result using is, is not, is at least, is at most, is greater than, or is less than.");
         }
-        if (Current.Kind == TokenKind.Identifier && Same(Current.Text, "securely")) throw Unsupported("securely equals");
+        // expected securely equals actual (D109)
+        if (Current.Kind == TokenKind.Identifier && Same(Current.Text, "securely") && At(1) is { } equalsWord && Same(equalsWord.Text, "equals"))
+        {
+            Token securely = Read();
+            Read();
+            return new SecurelyEqualsExpr(left, ReadValue(), securely.Line);
+        }
         if (StatePredicateAhead() || (Is(TokenKind.Is) && At(1)?.Kind == TokenKind.Open)) throw Unsupported("state checks");
         // book has attribute "id" (D105)
         if (Is(TokenKind.Has) && At(1) is { Kind: TokenKind.Identifier } attribute && Same(attribute.Text, "attribute"))

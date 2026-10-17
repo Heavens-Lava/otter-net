@@ -1,0 +1,6 @@
+x is hmac sha256 of data with key
+generate encryption key into key
+encrypt data using key into y
+if password "p" matches "h"
+    say "x"
+.

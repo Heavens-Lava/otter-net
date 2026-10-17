@@ -568,6 +568,59 @@ public sealed class CipherTextStmt(bool decrypt, Expr text, Expr key, string res
     public string ResultTarget { get; } = resultTarget;
 }
 
+// ---- cryptography over bytes (D109) ----------------------------------------
+
+// secure random bytes 32
+public sealed class SecureRandomBytesExpr(Expr count, int line) : Expr(line) { public Expr Count { get; } = count; }
+
+// sha256 of data
+public sealed class CryptoHashExpr(string algorithm, Expr data, int line) : Expr(line)
+{
+    public string Algorithm { get; } = algorithm;
+    public Expr Data { get; } = data;
+}
+
+// hmac sha256 of data using key
+public sealed class CryptoHmacExpr(string algorithm, Expr data, Expr key, int line) : Expr(line)
+{
+    public string Algorithm { get; } = algorithm;
+    public Expr Data { get; } = data;
+    public Expr Key { get; } = key;
+}
+
+// password attempt matches hash storedHash
+public sealed class PasswordMatchesExpr(Expr password, Expr hash, int line) : Expr(line)
+{
+    public Expr Password { get; } = password;
+    public Expr Hash { get; } = hash;
+}
+
+// expected securely equals actual
+public sealed class SecurelyEqualsExpr(Expr left, Expr right, int line) : Expr(line)
+{
+    public Expr Left { get; } = left;
+    public Expr Right { get; } = right;
+}
+
+// generate encryption key and call it key
+public sealed class GenerateKeyStmt(string target, int line) : Stmt(line) { public string Target { get; } = target; }
+
+// encrypt data using key and call it sealed / decrypt ...
+public sealed class CryptoCipherStmt(bool decrypt, Expr data, Expr key, string target, int line) : Stmt(line)
+{
+    public bool Decrypt { get; } = decrypt;
+    public Expr Data { get; } = data;
+    public Expr Key { get; } = key;
+    public string Target { get; } = target;
+}
+
+// hash password password and call it storedHash
+public sealed class HashPasswordStmt(Expr password, string target, int line) : Stmt(line)
+{
+    public Expr Password { get; } = password;
+    public string Target { get; } = target;
+}
+
 // ---- console (D100) --------------------------------------------------------
 
 // show progress 50 percent

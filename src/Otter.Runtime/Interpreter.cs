@@ -543,6 +543,39 @@ public sealed class Interpreter
                 return;
             }
             // ---- hashing and encryption (D91, D92) ----
+            case GenerateKeyStmt generateKey:
+                scope.Set(generateKey.Target, new OtterBytes(System.Security.Cryptography.RandomNumberGenerator.GetBytes(OtterCrypto.KeyLength)));
+                return;
+            case CryptoCipherStmt cryptoCipher:
+            {
+                object? dataValue = Evaluate(cryptoCipher.Data, scope);
+                object? keyValue = Evaluate(cryptoCipher.Key, scope);
+                string verb = cryptoCipher.Decrypt ? "decrypt" : "encrypt";
+                OtterBytes data = RequireCryptoBytes(dataValue, $"The data to {verb}", cryptoCipher.Line);
+                OtterBytes key = RequireCryptoBytes(keyValue, "An encryption key", cryptoCipher.Line);
+                if (key.Value.Length != OtterCrypto.KeyLength)
+                {
+                    throw RuntimeError($"An encryption key must be exactly {OtterCrypto.KeyLength} bytes, but this one is {key.Value.Length}.", cryptoCipher.Line, "generate encryption key and call it key");
+                }
+                if (cryptoCipher.Decrypt)
+                {
+                    byte[] plain = OtterCrypto.OpenBytes(data.Value, key.Value)
+                        ?? throw RuntimeError("I could not decrypt this data: it was changed, it is not encrypted data, or the key is wrong.", cryptoCipher.Line);
+                    scope.Set(cryptoCipher.Target, new OtterBytes(plain));
+                }
+                else scope.Set(cryptoCipher.Target, new OtterBytes(OtterCrypto.SealBytes(data.Value, key.Value)));
+                return;
+            }
+            case HashPasswordStmt hashPassword:
+            {
+                object? password = Evaluate(hashPassword.Password, scope);
+                if (password is not string passwordText || passwordText.Length == 0)
+                {
+                    throw RuntimeError($"I need a password as non-empty text, but this is {Values.TypeName(password)}.", hashPassword.Line);
+                }
+                scope.Set(hashPassword.Target, OtterCrypto.HashPassword(passwordText));
+                return;
+            }
             case HashTextStmt hash:
             {
                 string text = Values.Format(Evaluate(hash.Text, scope));
@@ -872,6 +905,10 @@ public sealed class Interpreter
         if (WriteColoredLine != null) WriteColoredLine(text, color);
         else output.WriteLine(text);
     }
+
+    // Assert-OtterCryptoBytes: cryptography never turns text into bytes by itself.
+    OtterBytes RequireCryptoBytes(object? value, string what, int line) =>
+        value as OtterBytes ?? throw RuntimeError($"{what} must be bytes, but this is {Values.TypeName(value)}. Otter never converts text to bytes silently.", line, "data is bytes from text \"Hello\"");
 
     // ---- xml (D105) ----
 
@@ -1206,6 +1243,50 @@ public sealed class Interpreter
                 return Call(call, scope);
             case BytesExpr bytes:
                 return EvaluateBytes(bytes, scope);
+            // ---- cryptography over bytes (D109) ----
+            case SecureRandomBytesExpr secureRandom:
+            {
+                object? count = Evaluate(secureRandom.Count, scope);
+                if (count is not double n || n != Math.Floor(n) || n < 1 || n > 1048576)
+                {
+                    throw RuntimeError($"I need a whole number of random bytes between 1 and 1048576, but this is {Values.Format(count)}.", secureRandom.Line, "data is secure random bytes 32");
+                }
+                return new OtterBytes(System.Security.Cryptography.RandomNumberGenerator.GetBytes((int)n));
+            }
+            case CryptoHashExpr cryptoHash:
+            {
+                OtterBytes data = RequireCryptoBytes(Evaluate(cryptoHash.Data, scope), $"The data to hash with {cryptoHash.Algorithm}", cryptoHash.Line);
+                return new OtterBytes(OtterCrypto.Digest(cryptoHash.Algorithm, data.Value));
+            }
+            case CryptoHmacExpr hmac:
+            {
+                object? dataValue = Evaluate(hmac.Data, scope);
+                object? keyValue = Evaluate(hmac.Key, scope);
+                OtterBytes data = RequireCryptoBytes(dataValue, "The data to sign", hmac.Line);
+                OtterBytes key = RequireCryptoBytes(keyValue, "A signing key", hmac.Line);
+                if (key.Value.Length == 0) throw RuntimeError("A signing key cannot be empty.", hmac.Line);
+                return new OtterBytes(OtterCrypto.Hmac(hmac.Algorithm, key.Value, data.Value));
+            }
+            case PasswordMatchesExpr matches:
+            {
+                object? password = Evaluate(matches.Password, scope);
+                object? stored = Evaluate(matches.Hash, scope);
+                if (password is not string passwordText) throw RuntimeError($"I need a password as text, but this is {Values.TypeName(password)}.", matches.Line);
+                if (stored is not string storedText)
+                {
+                    throw RuntimeError($"I need a stored password hash as text, but this is {Values.TypeName(stored)}.", matches.Line, "hash password password and call it storedHash");
+                }
+                return OtterCrypto.PasswordMatches(passwordText, storedText)
+                    ?? throw RuntimeError("That text is not a password hash made by \"hash password\".", matches.Line, "hash password password and call it storedHash");
+            }
+            case SecurelyEqualsExpr securely:
+            {
+                object? left = Evaluate(securely.Left, scope);
+                object? right = Evaluate(securely.Right, scope);
+                OtterBytes leftBytes = RequireCryptoBytes(left, "A secret compared with \"securely equals\"", securely.Line);
+                OtterBytes rightBytes = RequireCryptoBytes(right, "A secret compared with \"securely equals\"", securely.Line);
+                return System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(leftBytes.Value, rightBytes.Value);
+            }
             case XmlFromExpr xmlFrom:
                 return XmlFrom(xmlFrom, scope);
             case XmlSelectExpr select:

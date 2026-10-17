@@ -115,6 +115,9 @@ public static class ReservedWords
                 case GetEnvironmentVariableStmt getVariable: Variable(getVariable.Target, line); break;
                 case GetSystemFolderStmt systemFolder: Variable(systemFolder.Target, line); break;
                 case XmlAddElementStmt addElement: Variable(addElement.Target, line); break;
+                case GenerateKeyStmt generateKey: Variable(generateKey.Target, line); break;
+                case CryptoCipherStmt cryptoCipher: Variable(cryptoCipher.Target, line); break;
+                case HashPasswordStmt hashPassword: Variable(hashPassword.Target, line); break;
                 case HashTextStmt hash: Variable(hash.ResultTarget, line); break;
                 case CipherTextStmt cipher: Variable(cipher.ResultTarget, line); break;
                 case StartTimerStmt startTimer: Variable(startTimer.Target, line); break;

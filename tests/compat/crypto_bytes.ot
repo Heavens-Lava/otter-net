@@ -1,0 +1,101 @@
+# Cryptography over bytes (D109). The sealed data and the password hash
+# below were made by otterPS; both implementations must open them.
+key is bytes from hex "000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F"
+fromOtterPs is bytes from base64 "AcwtHk4vfZKoGofXxF8xG9jeHgXhW34OiJFQ2HAxMNDjB5hwjLzeqD0+E6Pfr/g+MWlD67TmJlHbDNpCq706oHxPFaEKrTAaUxNH23hDGEm7"
+decrypt fromOtterPs using key and call it opened
+say text from bytes opened
+storedByOtterPs is "otter-pbkdf2-sha256$600000$crmwxbM7qhtill0NUZ6Z+g==$XlKalIYebgl7PL/5G1xk4h85qHTqhtYEPQ8SMD9HAB0="
+if password "correct horse" matches hash storedByOtterPs
+    say "otterPS password hash verified"
+.
+if password "wrong horse" matches hash storedByOtterPs
+    say "wrong"
+otherwise
+    say "wrong password refused"
+.
+data is bytes from text "abc"
+say hex from bytes sha256 of data
+say hex from bytes sha384 of data
+say hex from bytes sha512 of data
+signingKey is bytes from text "key"
+say hex from bytes hmac sha256 of data using signingKey
+say hex from bytes hmac SHA512 of data using signingKey
+random is secure random bytes 32
+say length of random
+generate encryption key and call it newKey
+say length of newKey
+encrypt data using newKey and call it sealedAgain
+decrypt sealedAgain using newKey and call it back
+say text from bytes back
+if data securely equals back
+    say "round trip"
+.
+same is bytes from text "abd"
+if data securely equals same
+    say "wrong"
+otherwise
+    say "different secrets"
+.
+hash password "pw" and call it fresh
+if password "pw" matches hash fresh
+    say "fresh hash verified"
+.
+sha256 is "an ordinary name"
+hmac is 3
+securely is true
+say sha256 hmac securely
+attempts are
+    0
+.
+for each attempt in attempts
+    try
+        x is secure random bytes 0
+    otherwise into reason
+        say reason
+    .
+    try
+        x is secure random bytes 2.5
+    otherwise into reason
+        say reason
+    .
+    try
+        x is sha256 of "text"
+    otherwise into reason
+        say reason
+    .
+    try
+        empty is empty bytes
+        x is hmac sha256 of data using empty
+    otherwise into reason
+        say reason
+    .
+    try
+        encrypt data using signingKey and call it nope
+    otherwise into reason
+        say reason
+    .
+    try
+        decrypt data using key and call it nope
+    otherwise into reason
+        say reason
+    .
+    try
+        hash password "" and call it nope
+    otherwise into reason
+        say reason
+    .
+    try
+        if password "pw" matches hash "not a hash"
+            say "wrong"
+        .
+    otherwise into reason
+        say reason
+    .
+    try
+        if "a" securely equals "a"
+            say "wrong"
+        .
+    otherwise into reason
+        say reason
+    .
+.
