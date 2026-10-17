@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- otterPS's web compiler (otter web): Otter programs as HTML, CSS and
+       JavaScript. -->
+  <ItemGroup>
+    <ProjectReference Include="..\Otter.Language\Otter.Language.csproj" />
+  </ItemGroup>
+</Project>
