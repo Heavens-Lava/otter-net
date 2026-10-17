@@ -39,9 +39,14 @@ Programs that use any of these run through otterPS, unchanged (the decision
 is made before anything runs):
 
 - CSV, XML, random numbers, `say in color`, `ask secretly`, `larger of` and
-  other `of` operations not yet ported, command results (`run`), clipboard,
-  environment variables, `get current ...`, system folders, processes,
-  registry, credentials, secrets, hashing and encryption, zip.
+  other `of` operations not yet ported, hashing and encryption.
+- Operating system integration (docs/port/system.md): `start command` jobs,
+  remote commands (`run command ... on remote`), and on Windows the event
+  log and the "tasks" and "printers" kinds of system information. The rest
+  (`run`, `run command`, processes, system information, clipboard,
+  notifications, dialogs, links, owners, read-only files, registry,
+  credentials, secrets, power, printing, ssh, environment variables, system
+  folders, zip) runs natively.
 - HTTP, downloads, servers, websockets, TCP/UDP, file watching.
 - Databases and queries.
 - UI: windows, pages, state, events, animation, routing.

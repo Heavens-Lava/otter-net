@@ -6,15 +6,14 @@ using System.Text;
 
 namespace Otter.Runtime;
 
-public sealed class ClipboardProblem(string message) : Exception(message);
-
 // The clipboard (D67): what Set-Clipboard and Get-Clipboard -Raw do for
 // otterPS. On Windows that is the system clipboard's Unicode text; on macOS
 // PowerShell 7 runs pbcopy and pbpaste, and on Linux xclip, keeping the text
-// inside the program when xclip is not there.
+// inside the program when the clipboard program is not there.
 public static partial class OtterClipboard
 {
     static string? internalClipboard;
+    static bool toolMissing;
 
     public static void SetText(string text)
     {
@@ -29,13 +28,18 @@ public static partial class OtterClipboard
             }
             return;
         }
-        if (OperatingSystem.IsMacOS())
+        // Without the clipboard program, PowerShell 7 keeps the text itself.
+        if (!toolMissing)
         {
-            RunTool("pbcopy", "", text);
-            return;
+            try
+            {
+                if (OperatingSystem.IsMacOS()) RunTool("pbcopy", "", text);
+                else RunTool("xclip", "-selection clipboard -in", text);
+                return;
+            }
+            catch (Win32Exception) { toolMissing = true; }
         }
-        try { RunTool("xclip", "-selection clipboard -in", text); }
-        catch (Win32Exception) { internalClipboard = text; }
+        internalClipboard = text;
     }
 
     // gone when the clipboard holds no text.
@@ -50,12 +54,7 @@ public static partial class OtterClipboard
             }
             else
             {
-                try { value = OperatingSystem.IsMacOS() ? RunTool("pbpaste", "", null) : ReadLinux(); }
-                catch (Exception e) when (e is Win32Exception or InvalidOperationException)
-                {
-                    if (attempt >= 4) throw new ClipboardProblem($"I could not read the clipboard: {e.Message}");
-                    value = null;
-                }
+                value = ReadUnix();
             }
             if (!string.IsNullOrEmpty(value)) break;
             if (attempt < 4) Thread.Sleep(40);
@@ -63,10 +62,14 @@ public static partial class OtterClipboard
         return value;
     }
 
-    static string? ReadLinux()
+    static string ReadUnix()
     {
-        try { return RunTool("xclip", "-selection clipboard -out", null); }
-        catch (Win32Exception) { return internalClipboard; }
+        if (!toolMissing)
+        {
+            try { return OperatingSystem.IsMacOS() ? RunTool("pbpaste", "", null) : RunTool("xclip", "-selection clipboard -out", null); }
+            catch (Win32Exception) { toolMissing = true; }
+        }
+        return internalClipboard ?? "";
     }
 
     static string RunTool(string tool, string arguments, string? input)

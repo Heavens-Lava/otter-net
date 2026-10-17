@@ -102,7 +102,10 @@ public sealed partial class Interpreter
             {
                 string? text;
                 try { text = OtterClipboard.GetText(); }
-                catch (ClipboardProblem problem) { throw RuntimeError(problem.Message, getClipboard.Line); }
+                catch (Exception e) when (e is Win32Exception or InvalidOperationException or IOException)
+                {
+                    throw RuntimeError($"I could not read the clipboard: {e.Message}", getClipboard.Line);
+                }
                 scope.Set(getClipboard.Target, text);
                 return true;
             }
