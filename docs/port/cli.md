@@ -3,74 +3,91 @@
 Inventory of every command, flag, mode and project feature of otterPS
 1.0.1's `otter.ps1` (and the modules it calls), with where it lives in
 otter-net and how far it is ported. Status: **native** (runs in C#, no
-PowerShell), **partial** (native for the common forms, the rest falls back
-before anything runs), **fallback** (always handed to the PowerShell Otter),
-**n/a**.
+PowerShell), **partial** (native for the common forms, the rest is handed
+to the PowerShell Otter before anything runs), **fallback** (always handed
+over), **n/a**.
 
 otterPS sources are relative to the otterPS 1.0.1 checkout; otter-net
-sources to `src/Otter.Cli/`. "cli test" names a case file in `tests/cli/`
-run by `tools/compare-cli.ps1`.
+sources to `src/Otter.Cli/`. Tests are case files in `tests/cli/`, run by
+`tools/compare-cli.ps1` (the CLI) and `tools/compare.ps1` (programs).
 
 ## Argument binding
 
 | Feature | otterPS | otter-net | Status | Falls back | Tests | Remaining |
 |---|---|---|---|---|---|---|
-| Positional `Path` (0), `Target` (1), rest to `Arguments` | `otter.ps1` param block | `CommandLine.cs` `Bind` | native | - | `args.txt` | - |
-| Own switches `-DebugTokens -DebugAst -ParseOnly -DebugErrors -Open -NoOpen`, exact name, any capitals, anywhere | param block | `CommandLine.cs` | native | - | `args.txt` | - |
-| Own value flags `-Port N`, `-Breakpoints "5,12"` | param block | `CommandLine.cs` | native | a missing or non-integer `-Port` value (PowerShell's binder error) | `args.txt` | - |
-| `-version`, `--version`, `-VersionFlag`; `-help`, `--help`, `-HelpFlag` anywhere on the line | `VersionFlag`/`HelpFlag` aliases (D57) | `CommandLine.cs` | native | - | `version.txt` | - |
-| Program arguments recovered from the raw command line, own flags removed (D94) | `Get-OtterRawTrailingArguments` | `CommandLine.RawTrailing` | native, quirks included (the skip count counts flags written before the command) | - | `args.txt` | - |
-| Any other token starting with `-` (`-x`, `--name`, `-5`, `-Verbose`, `-Debug`, `-OutVariable`, prefixes such as `-v`, `-Port:5`, `-Path x`) | PowerShell's parameter binder: common parameters, prefix matching, ambiguity errors | `CommandLine.cs` | fallback | yes, the whole command | `args.txt` (`-x`) | needs PowerShell's binder rules verified on 5.1 before porting |
+| Positional `Path` (0), `Target` (1), the rest to `Arguments` | `otter.ps1` param block | `CommandLine.Bind` | native | - | `run.psd1` | - |
+| Own switches `-DebugTokens -DebugAst -ParseOnly -DebugErrors -Open -NoOpen`, exact name, any capitals, anywhere | param block | `CommandLine.Bind` | native | - | `run.psd1` | - |
+| Own value flags `-Port N`, `-Breakpoints "5,12"` | param block | `CommandLine.Bind` | native | a missing or non-integer `-Port` value, a `-Breakpoints` value starting with `-` (binder errors) | `run.psd1` | - |
+| `-version`, `--version`, `-VersionFlag`; `-help`, `--help`, `-HelpFlag`, anywhere on the line | `VersionFlag`/`HelpFlag` aliases (D57) | `CommandLine.Bind` | native | - | `basics.psd1` | - |
+| Program arguments from the raw command line without otter.ps1's flags (D94) | `Get-OtterRawTrailingArguments` | `CommandLine.RawTrailing` | native, quirk included: the skip count also counts flags written before the command (`otter -DebugErrors run a.ot k` gives the program `a.ot, k`) | - | `run.psd1` | - |
+| Every other token starting with `-` (`-x`, `--name`, `-5`, `--`, `-Verbose`, `-Debug`, `-OutVariable`, prefixes such as `-v` or `-Deb`, `-Port:5`, `-Path x`, `-?`) | PowerShell's binder: common parameters, unique-prefix matching, ambiguity errors, `-Name:value` | `CommandLine.Bind` | fallback | yes, the whole command | - | needs PowerShell 5.1's binder rules verified (they decide whether such a token is a parameter, an error, or a program argument) |
 
 ## Commands
 
 | Command / form | otterPS | otter-net | Status | Falls back | Tests | Remaining |
 |---|---|---|---|---|---|---|
-| `otter --version` | `otter.ps1` MAIN, `$OtterVersion` from `VERSION` | `Cli.Run` | native | - | `version.txt` | - |
-| `otter version`, `otter -v` | not commands: "I do not recognize the command" / binder ambiguity | `Cli.Run` | native (`version`); `-v` falls back | `-v` | `version.txt` | (otter-net printed the version for both before: fixed) |
-| `otter help`, `--help`, `-help` | `Show-OtterHelp` | `Cli.ShowHelp` | native | - | `version.txt` | - |
-| `otter` (no arguments) | `Start-OtterRepl` | `Repl.cs` | native | - | `repl.txt` | - |
-| `otter <file.ot> [args]` | MAIN, `Invoke-OtterFile` | `FileCommand.cs` | native | programs using unported features | `run.txt` | - |
-| `otter <project folder or otter.json/project.json> [args]` (D118B) | MAIN, `Get-OtterProject` | `FileCommand.cs`, `Project.cs` | native | - | `project.txt` | - |
-| `otter <anything else>` | "I do not recognize the command" / "cannot find an otter.json manifest" | `Cli.Run` | native | - | `usage.txt` | - |
-| `otter run <file.ot> [args]` | `Invoke-OtterFile` | `FileCommand.cs` | native | unported features | `run.txt` | - |
-| `otter run <project>` / `otter run .` | `Find-OtterProjectManifest`, `Get-OtterProject` | `FileCommand.cs` | native | - | `project.txt` | - |
-| `otter run` (no target) | usage error | `Cli.Run` | native | - | `usage.txt` | - |
-| `otter check <file.ot>` | `Invoke-OtterFile -CheckOnly` | `FileCommand.cs` | native | unported features | `check.txt` | - |
-| `otter check <project>` (DisplayTarget in "is valid.") | `Invoke-OtterFile -DisplayTarget` | `FileCommand.cs` | native | - | `project.txt` | - |
-| `otter check a.ot b.ot` (several files) | not supported: `b.ot` is a program argument, only `a.ot` is checked | same | native | - | `check.txt` | - |
-| `-ParseOnly` ("ok: <path>") | `Invoke-OtterFile` | `FileCommand.cs` | native | - | `run.txt` | - |
-| `-DebugTokens` (token dump) | `Invoke-OtterSource` | `FileCommand.cs` | native | - | `run.txt` | - |
-| `-DebugAst` (AST dump) | `Show-OtterAst` (walks PowerShell node objects) | - | fallback | yes | - | needs otterPS's 226 node classes' property layout |
-| `-DebugErrors` (stack trace of an internal error) | `Show-OtterFailure` | `FileCommand.cs` | partial: shows .NET's stack trace where otterPS shows PowerShell's | - | - | the trace text cannot match |
-| Compiled engine (`OTTER_ENGINE=compiled/interpreter`, `OTTER_COMPILED_CACHE`, `OTTER_ENGINE_TRACE`) | `Invoke-OtterCompiledProgram`, `Otter.Compiler.Native.psm1` | n/a | n/a | - | - | otterPS compiles to C# at run time for speed only; output is the interpreter's, which otter-net reproduces. Not portable under Native AOT (no run-time code generation); see ARCHITECTURE.md section 6 |
-| File errors: missing, folder, unreadable, not `.ot` (RC3 B12) | `Assert-OtterSourceFileReadable`, `Invoke-OtterFile` | `FileCommand.cs` | native | - | `files.txt` | - |
-| `use` errors: missing, wrong capitals, circular, folder, unreadable, absolute paths (D60, D122, M1) | `Otter.Module.psm1` | `Modules.cs` | native | - | `modules.txt` | - |
-| `otter profile <file.ot>` | `Otter.Profiler.psm1` | `Profiler.cs` | native (timings differ by nature) | unported features | `profile.txt` (structure only) | - |
-| `otter debug <file.ot> -Breakpoints "5,12"` | `Otter.Debugger.psm1` | `Debugger.cs` | native | unported features | `debug.txt` | locals order (otterPS: hash order) |
-| `otter new <archetype> <name>` | `New-OtterProject` | `Project.cs` | native | - | `new.txt` | - |
-| `otter test [target]` | `Get-OtterProjectTestFiles`, `Invoke-OtterProjectTests` | `ProjectTests.cs` | native (each test runs in a child `otter run`, as otterPS) | per test file | `test.txt` | - |
-| `otter build [target]` console/automation | `Invoke-OtterProjectBuild` | `ProjectBuild.cs` | native | - | `build.txt` | - |
-| `otter build` web/desktop/game | `Export-OtterWebApplication` | - | fallback (UI compiler) | yes | - | UI agent's web compiler |
-| `otter publish [target] [--output dir]` console/automation | `Invoke-OtterProjectPublish` | `ProjectBuild.cs` | partial: native without `--output`/`-Output` (binder-dependent forms fall back) | `--output`, web targets | `publish.txt` | zip bytes depend on the deflate library: the printed SHA-256 differs from otterPS's |
-| `otter web`, `browse`, `serve`, `desktop` | `otter.ps1` + `Otter.Web/Server/Desktop.psm1` | `Cli.Run` | partial: usage line, project and file errors native; the command itself falls back | yes | `usage.txt` | UI / network agents |
+| `otter --version` | MAIN, `$OtterVersion` from `VERSION` | `Cli.Run` | native | - | `basics.psd1` | - |
+| `otter version` | not a command: "I do not recognize the command" | `Cli.RunPath` | native (otter-net printed the version before: fixed) | - | `basics.psd1` | - |
+| `otter -v` | ambiguous parameter (`-version`, `-Verbose`): PowerShell's error | - | fallback (otter-net printed the version before) | yes | - | binder |
+| `otter help`, `--help`, `-help` (any capitals) | `Show-OtterHelp` | `Cli.ShowHelp` | native | - | `basics.psd1` | - |
+| `otter` (no arguments): the REPL | `Start-OtterRepl` | `Repl.cs` | native; a line using an unported feature is refused on its own and the session goes on (a session cannot be handed over halfway) | `-DebugAst` | `interactive.psd1` | - |
+| `otter <file.ot> [args]` | MAIN, `Invoke-OtterFile` | `FileMode.Invoke` | native | programs using unported features | `run.psd1`, `tools/compare.ps1` | - |
+| `otter <project folder, otter.json or project.json> [args]` (D118B) | MAIN, `Get-OtterProject` | `Cli.RunPath`, `Project.cs` | native | - | `projects.psd1` | - |
+| `otter <anything else>` | "I do not recognize the command" / "cannot find an otter.json manifest" | `Cli.RunPath` | native | - | `basics.psd1` | - |
+| `otter run <file.ot or project> [args]` | `Invoke-OtterFile` | `Cli.RunOrCheck` | native | unported features | `run.psd1`, `projects.psd1` | - |
+| `otter check <file.ot or project>` ("is valid", the project's name as typed) | `Invoke-OtterFile -CheckOnly -DisplayTarget` | `Cli.RunOrCheck` | native | unported features | `run.psd1`, `projects.psd1` | - |
+| `otter check a.ot b.ot` | only `a.ot` is checked: `b.ot` is a program argument | same | native | - | `run.psd1` | spec question Q6 |
+| Usage errors (`otter run`, `check`, `profile`, `debug`, `new`, `web`, ... without a target) | MAIN | `Cli.cs`, `ProjectCommands.cs` | native | - | `basics.psd1` | - |
+| `-ParseOnly` ("ok: <path>") | `Invoke-OtterFile` | `FileMode.Invoke` | native | - | `run.psd1` | - |
+| `-DebugTokens` (token list before the run, also in the REPL) | `Invoke-OtterSource` | `FileMode.Compiled.WriteTokens` | native | - | `run.psd1`, `interactive.psd1` | - |
+| `-DebugAst` | `Show-OtterAst` (walks otterPS's PowerShell node objects) | - | fallback when the program would run (with `check` or `-ParseOnly` it has no effect and stays native) | yes | - | needs otterPS's 226 node classes' property layout |
+| `-DebugErrors` | `Show-OtterFailure` | `FileMode.ShowFailure` | partial: an internal error shows .NET's stack trace where otterPS shows PowerShell's script stack | - | `run.psd1` | the trace text cannot match |
+| Compiled engine (`OTTER_ENGINE=compiled/interpreter`, `OTTER_COMPILED_CACHE`, `OTTER_ENGINE_TRACE`) | `Invoke-OtterCompiledProgram`, `Otter.Compiler.Native.psm1` | n/a | n/a | - | - | otterPS compiles programs to C# at run time (Add-Type) purely for speed; its output is the interpreter's, which otter-net reproduces. Not portable under Native AOT (no run-time code generation) and not needed: otter-net's interpreter is already faster. `OTTER_ENGINE` means something else to otter-net (native/powershell). |
+| File errors: missing, a folder, unreadable, not `.ot` (RC3 B12) | `Assert-OtterSourceFileReadable`, `Invoke-OtterFile` | `FileMode.AssertReadable` | native | a path starting with `~` (PowerShell expands it) | `basics.psd1` | - |
+| `use` errors: missing, wrong capitals (file or folder), circular, a folder, unreadable; absolute paths (D60, D122, M1) | `Otter.Module.psm1` | `Modules.cs` | native (all fell back before) | - | `modules.psd1` | - |
+| `otter profile <file.ot> [args]` | `Otter.Profiler.psm1` | `Debugging.cs` `Profiler` | native; timings and memory differ by nature, the layout is otterPS's | unported features | `interactive.psd1` (numbers masked) | - |
+| `otter debug <file.ot> -Breakpoints "5,12" [args]` (`@@OTTER_DEBUG@@` protocol) | `Otter.Debugger.psm1` | `Debugging.cs` `Debugger` | native | a breakpoint that is not a whole number | `interactive.psd1` | locals are listed in the order they were set; otterPS lists them in hash-table order (spec question Q4) |
+| `otter new <archetype> <name>` | `New-OtterProject` | `ProjectCommands.New` | native, files as Windows PowerShell 5.1 writes them | a name with a control character | `new.psd1` | spec question Q2 (line endings) |
+| `otter test [target]` | `Get-OtterProjectTestFiles`, `Invoke-OtterProjectTests` | `ProjectCommands.Test` | native: each test runs in a child `otter run` of the same otter-net, as otterPS runs each in a child PowerShell | per test file (in the child) | `test.psd1` | file order: Sort-Object's culture order, approximated without culture data |
+| `otter build [target]`, console and automation projects | `Invoke-OtterProjectBuild` | `ProjectBuild.cs` | native | - | `build.psd1` | - |
+| `otter build`, web / desktop / game projects | `Export-OtterWebApplication` | - | fallback (after the manifest is read, before anything is printed) | yes | - | the web compiler (UI area) |
+| `otter publish [target]`, console and automation projects | `Invoke-OtterProjectPublish` | `ProjectBuild.cs` | native | `--output` / `-Output` (dash arguments, see binding); web targets | `build.psd1` | the zip's bytes depend on the deflate implementation, so the SHA-256 differs from otterPS's (spec question Q5) |
+| `otter web`, `browse`, `serve` | `otter.ps1`, `Otter.Web.psm1`, `Otter.Server.psm1` | `Cli.UiCommand` | partial: usage line, project and file errors native; the command itself falls back | yes | `basics.psd1` | UI and network areas |
+| `otter desktop` | `Start-OtterDesktopApplication` | `Cli.UiCommand` | partial: usage, file errors and the "only on Windows" message native; on Windows it falls back | on Windows | `basics.psd1` | WPF host (ARCHITECTURE.md section 3) |
 | `otter studio` | `Start-OtterStudio` | - | fallback | yes | - | not part of the 1.0 release |
 
 ## Project files
 
 | Feature | otterPS | otter-net | Status | Notes |
 |---|---|---|---|---|
-| `otter.json`, `project.json` fallback, manifest named directly | `Find-OtterProjectManifest` | `Project.Find` | native | |
-| Manifest validation (types, required fields, targets, B4/B5) | `Get-OtterProject`, `Assert-OtterManifestFieldType` | `Project.Load` | native | invalid JSON falls back (its message is JavaScriptSerializer's) |
-| Symbolic links / junctions containment (B4) | `Get-OtterRealPath`, `Resolve-OtterProjectInputPath` | `Project.RealPath` | native | |
-| Output folder safety (marker files, .git, entry point) | `Assert-OtterReplaceableOutputDir` | `ProjectBuild.cs` | native | |
-| Safe file name, version check (publish) | `Get-OtterSafeFileName` | `ProjectBuild.cs` | native | |
+| `otter.json`, `project.json` fallback (`main`), a manifest named directly | `Find-OtterProjectManifest` | `Project.Find` | native | |
+| Manifest validation: types, required fields, targets, output folders (B4/B5) | `Get-OtterProject`, `Assert-OtterManifestFieldType` | `Project.Load` | native | property names ignore capitals, as PSObject properties do. A manifest that is not valid JSON, or cannot be read, falls back: otterPS quotes the JSON reader's / .NET's message |
+| Symbolic links and junctions (B4) | `Get-OtterRealPath`, `Resolve-OtterProjectInputPath` | `Project.RealPath`, `Project.ResolveInputPath` | native | |
+| Output folder safety: marker files, `.git`, the entry point | `Assert-OtterReplaceableOutputDir` | `ProjectBuild.cs` | native | |
+| Safe artifact name, plain version (publish) | `Get-OtterSafeFileName` | `ProjectBuild.cs` | native | |
+| Deterministic zip (sorted entries, fixed date, `run` mode 755) | `New-OtterDeterministicZip` | `ProjectBuild.cs` | native | |
+| `Expand-OtterDeterministicArchive` | `Otter.Project.psm1` | - | n/a | exported but not used by any command |
 
 ## Output conventions
 
 - Everything otterPS writes with `Write-Host` goes to standard output, in
   colour only when standard output is a console (`Host.cs`).
 - Files written with `Set-Content -Encoding UTF8` are written as Windows
-  PowerShell 5.1 writes them (UTF-8 with a byte order mark, `\r\n` after the
-  last line); PowerShell 7 writes no byte order mark and `\n` on macOS and
-  Linux. JSON files use 5.1's `ConvertTo-Json` layout (`OtterJson`).
+  PowerShell 5.1 writes them: UTF-8 with a byte order mark and `\r\n` after
+  the last line; here-strings with `\r\n` line breaks (a Windows checkout).
+  PowerShell 7 writes no byte order mark, and `\n` on macOS and Linux.
+  JSON files have 5.1's `ConvertTo-Json` layout (`OtterJson.Write`). On a
+  PowerShell 7 reference these are the `KnownOnPwsh7` cases of
+  `tests/cli`.
+- `otter-net native: exit N` (with `OTTER_NET_TRACE=1`) ends every command
+  otter-net ran itself.
+
+## Tests and results
+
+`tools/compare-cli.ps1` runs the 148 cases of `tests/cli/*.psd1` through
+both implementations. It could not be run against otterPS while porting
+(PowerShell was not available to the porting session); every case was run
+through otter-net and its output checked by hand against otterPS 1.0.1's
+code. `tools/compare.ps1` on `tests/compat` plus otterPS's conformance
+fixtures and examples gives byte-identical results to otter-net before
+this work (149 programs, 0 differences).

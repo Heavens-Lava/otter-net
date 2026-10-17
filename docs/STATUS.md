@@ -45,10 +45,20 @@ is made before anything runs):
 - HTTP, downloads, servers, websockets, TCP/UDP, file watching.
 - Databases and queries.
 - UI: windows, pages, state, events, animation, routing.
-- Every `otter` command other than `run`, `check` and `--version` (`new`,
-  `test`, `build`, `web`, `serve`, `studio`, the REPL, projects).
-- A `use` path that is missing, absolute, circular or differs in capital
-  letters from the disk (otterPS reports these).
+- `otter web`, `browse`, `serve`, `studio`, `desktop` on Windows, and
+  `build`/`publish` of web, desktop and game projects (their usage and file
+  errors are native).
+- `-DebugAst`, `publish --output`, and any other argument starting with `-`
+  that is not one of otter.ps1's own flags (PowerShell's parameter binder
+  decides what those mean).
+
+Natively since 2026-10-17 (see `docs/port/cli.md`): every other `otter`
+command - `run`, `check` and the shortest form for files and projects,
+`new`, `test`, `build` and `publish` of console and automation projects,
+`profile`, `debug`, the REPL, help, usage errors, `-ParseOnly`,
+`-DebugTokens` - and every `use` problem (missing, absolute, circular,
+differing in capital letters). `tools/compare-cli.ps1` compares the
+command line itself, with the cases in `tests/cli`.
 
 ## Startup and speed (native, median of 7 runs; ms)
 

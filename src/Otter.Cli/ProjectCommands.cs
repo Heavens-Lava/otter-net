@@ -66,6 +66,13 @@ internal static partial class ProjectCommands
             Host.Line($"Usage: otter new {archetype} <name>", ConsoleColor.Red);
             throw new CliExit(Cli.ExitUsageError);
         }
+        // A control character in the name makes the otter.json written below
+        // invalid JSON, whose message is the JSON reader's: decided before
+        // anything is created.
+        if (projectName.Trim().Any(c => c < ' '))
+        {
+            throw new NeedsPowerShell("a project name with a control character makes an otter.json only otterPS's JSON reader describes");
+        }
         Program.Trace("native: new");
         Project created;
         try
