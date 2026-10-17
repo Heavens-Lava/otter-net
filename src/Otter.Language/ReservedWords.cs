@@ -126,6 +126,15 @@ public static class ReservedWords
                 case ConvertCsvStmt convertCsv: Variable(convertCsv.Target, line); break;
                 case RandomNumberStmt randomNumber: Variable(randomNumber.Target, line); break;
                 case RandomItemStmt randomItem: Variable(randomItem.Target, line); break;
+                // databases and queries (D97-D99)
+                case ConnectDbStmt connect: Variable(connect.Target, line); break;
+                case DbQueryStmt dbQuery: Variable(dbQuery.Target, line); break;
+                case DbExecuteStmt dbExecute: Variable(dbExecute.Target, line); break;
+                case BeginTransactionStmt begin: Variable(begin.Target, line); break;
+                case GetTablesStmt tables: Variable(tables.Target, line); break;
+                case GetColumnsStmt columns: Variable(columns.Target, line); break;
+                case QueryStmt query: Variable(query.Target, line); break;
+                case QueryAggregateStmt aggregate: Variable(aggregate.Target, line); break;
                 case TryStmt attempt:
                     Variable(attempt.ErrorTarget, line);
                     Statements(attempt.Body);

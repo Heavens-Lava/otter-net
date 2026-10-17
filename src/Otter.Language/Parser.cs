@@ -313,7 +313,7 @@ public sealed partial class Parser
             Expect(TokenKind.Newline, "I expected the difference statement to end here.");
             return new DateDifferenceStmt(ToTimeUnit(unit.Kind), from, to, target.Text, start.Line);
         }
-        if (IsAggregateQueryAhead()) throw Unsupported("queries");
+        if (IsAggregateQueryAhead()) return ReadQueryAggregateStatement();
 
         TokenKind statementKind = start.Kind;
         TokenKind nextKind = At(1)?.Kind ?? TokenKind.EndOfFile;
@@ -404,7 +404,7 @@ public sealed partial class Parser
             }
             case TokenKind.Count:
             {
-                if (!IsAt(1, TokenKind.From)) throw Unsupported("queries");
+                if (!IsAt(1, TokenKind.From)) return ReadQueryAggregateStatement();
                 Read();
                 Expect(TokenKind.From, "I expected \"from\" after count.");
                 Expr from = ReadMathExpression();
@@ -414,6 +414,9 @@ public sealed partial class Parser
                 Token name = ReadVariableName("I expected a counter name.");
                 return new CountStmt(name.Text, from, to, ReadBlock(), start.Line);
             }
+            // sum/average/minimum/maximum ... from TABLE in DB into x (D99)
+            case TokenKind.Sum or TokenKind.Average or TokenKind.Minimum or TokenKind.Maximum:
+                return ReadQueryAggregateStatement();
             case TokenKind.ForEach:
             {
                 Read();
@@ -858,12 +861,13 @@ public sealed partial class Parser
     // databases ...). Only the D41 form `get KEY from THING into NAME` runs here.
     static readonly string[] SpecialGetWords =
     {
-        "arguments", "clipboard", "columns", "credential", "current", "environment", "event", "owner",
-        "processes", "registry", "symbolic", "system", "tables", "all",
+        "arguments", "clipboard", "credential", "current", "environment", "event", "owner",
+        "processes", "registry", "symbolic", "system", "all",
     };
 
     Stmt ReadGet(Token start)
     {
+        if (IsQueryStatementAhead()) return ReadQueryStatement();
         Read();
         Token kind = Current;
         if (kind.Kind == TokenKind.Identifier && Same(kind.Text, "environment"))
@@ -904,12 +908,11 @@ public sealed partial class Parser
             Expect(TokenKind.Newline, "I expected the discovery statement to end here.");
             return new GetEntriesStmt(kind.Kind == TokenKind.Folders, folder, includeSubfolders, entries.Text, start.Line);
         }
-        if (kind.Kind is TokenKind.Distinct or TokenKind.Json ||
-            (kind.Kind is TokenKind.Identifier or TokenKind.Newline or TokenKind.Indent && SameAny(kind.Text, SpecialGetWords)))
+        if (TryReadSchemaGet(start) is { } schemaGet) return schemaGet;
+        if (kind.Kind is TokenKind.Json || (kind.Kind is TokenKind.Identifier && SameAny(kind.Text, SpecialGetWords)))
         {
             throw Unsupported($"get {kind.Text}");
         }
-        if (kind.Kind is TokenKind.Newline or TokenKind.Indent) throw Unsupported("queries");
         Expr key = ReadValue();
         // Without `from` it is an HTTP request (`get "https://..." into page`).
         if (!Is(TokenKind.From)) throw Unsupported("HTTP get");
@@ -2221,7 +2224,6 @@ public sealed partial class Parser
         };
         if (comparison is null)
         {
-            if (Current.Kind is TokenKind.IsIn or TokenKind.IsNotIn or TokenKind.IsBetween) throw Unsupported($"'{Current.Text}'");
             return left;
         }
         Read();
