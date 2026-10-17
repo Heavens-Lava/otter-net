@@ -1,0 +1,16 @@
+# Syntax errors in queries (D99).
+get all from items in db
+say "after"
+get all from items db into rows
+get all from items in db as into rows
+get all from items in db where age is between 1 2 into rows
+get all from items in db first 3 into rows
+get all from items in db with
+    where age is 1
+    order by name
+count all from items in db
+sum of from items in db into total
+count all items in db into total
+get distinct from items in db into rows
+get name from in db into rows
+maximum price from items in db extra into top

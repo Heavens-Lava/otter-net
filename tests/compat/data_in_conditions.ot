@@ -1,0 +1,12 @@
+# `is in`, `is not in` and `is between` belong to queries (D99); in an
+# ordinary condition they are syntax errors.
+numbers are
+    1
+    2
+if 2 is in numbers
+    say "in"
+while 3 is not in numbers
+    say "not in"
+if 5 is between 1 and 10
+    say "between"
+find n in numbers where n is in numbers into found
