@@ -62,6 +62,16 @@ for each app in software
     .
 .
 say "software is a list"
+get system information "services" into services
+for each service in services
+    if name of service is gone
+        say "a service with no name"
+    .
+    if status of service is gone
+        say "a service with no status"
+    .
+.
+say "services is a list"
 try
     get system information "user" into user
     say user

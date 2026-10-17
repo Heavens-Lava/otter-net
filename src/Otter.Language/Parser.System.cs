@@ -11,10 +11,10 @@ namespace Otter.Language;
 // this file takes the ones that sent the program to the PowerShell Otter.
 public sealed partial class Parser
 {
-    // Kinds of `get system information` otter-net runs on Windows. The others
-    // (scheduled tasks, printers, services) come from Windows management
-    // interfaces that are left to the PowerShell Otter for now.
-    static readonly string[] NativeWindowsSystemInfoKinds = { "os", "cpu", "memory", "disk", "network", "user", "groups", "software" };
+    // Kinds of `get system information` otter-net runs on Windows. The other
+    // two (scheduled tasks and printers) come from COM and WMI, which a
+    // native program cannot use; the PowerShell Otter answers those.
+    static readonly string[] NativeWindowsSystemInfoKinds = { "os", "cpu", "memory", "disk", "network", "user", "groups", "software", "services" };
 
     // A statement this area starts at `start`, or null (the token is left unread).
     Stmt? TryReadSystemStatement(Token start)
