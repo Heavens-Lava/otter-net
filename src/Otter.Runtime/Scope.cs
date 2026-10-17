@@ -23,6 +23,11 @@ public sealed class Scope(Scope? parent = null)
 
     public void SetLocal(string name, object? value) => variables[name] = value;
 
+    // D130 loop passes (EventLoop.cs) look at one scope without its parents.
+    public bool HasLocal(string name) => variables.ContainsKey(name);
+    public bool TryGetLocal(string name, out object? value) => variables.TryGetValue(name, out value);
+    public IEnumerable<KeyValuePair<string, object?>> Locals => variables;
+
     public void Set(string name, object? value)
     {
         if (variables.ContainsKey(name)) { variables[name] = value; return; }

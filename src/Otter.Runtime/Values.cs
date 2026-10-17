@@ -120,6 +120,7 @@ public static class Values
         OtterList => "a list",
         double => "a number",
         string => "some text",
+        IOtterTypeNamed named => named.OtterTypeName,   // sockets, watchers, requests (NetValues.cs)
         _ => "a value Otter does not recognise",
     };
 

@@ -71,14 +71,23 @@ public sealed partial class Interpreter
 
     public void Run(ProgramNode program)
     {
+        // D130/D133: the names each loop pass and handler run owns (EventLoop.cs).
+        loopPassNames = LoopPasses.Compute(program.Statements);
         try
         {
             Execute(program.Statements, globals);
+            // Handlers run after the last statement (EventLoop.cs, D121).
+            RunEventLoop();
         }
         catch (ReturnSignal signal)
         {
             // D37: stop outside anything callable.
             throw RuntimeError("stop only works inside something Otter can call, like a function. There is nothing here to stop.", signal.Line);
+        }
+        finally
+        {
+            // Watchers, sockets, servers and requests never outlive the program.
+            CloseEventSources();
         }
     }
 
@@ -193,12 +202,14 @@ public sealed partial class Interpreter
                 return;
             }
             case WhileStmt whileStmt:
+                if (LoopHasPasses(whileStmt)) { RunWhileWithPasses(whileStmt, scope); return; }   // D130
                 while (Values.IsTruthy(Evaluate(whileStmt.Condition, scope))) Execute(whileStmt.Body, scope);
                 return;
             case RepeatStmt repeat:
             {
                 double count = RequireNumber(Evaluate(repeat.Count, scope), repeat.Line, "the number of repeats");
                 int whole = (int)Math.Floor(count);
+                if (LoopHasPasses(repeat)) { RunRepeatWithPasses(repeat, whole, scope); return; }   // D130
                 for (int i = 0; i < whole; i++) Execute(repeat.Body, scope);
                 return;
             }
@@ -208,6 +219,7 @@ public sealed partial class Interpreter
                 double from = RequireNumber(Evaluate(count.From, scope), count.Line, "the value to count from");
                 double to = RequireNumber(Evaluate(count.To, scope), count.Line, "the value to count to");
                 int step = from <= to ? 1 : -1;
+                if (LoopHasPasses(count)) { RunCountWithPasses(count, from, to, scope); return; }   // D130
                 for (double n = from; (step > 0 && n <= to) || (step < 0 && n >= to); n += step)
                 {
                     scope.SetLocal(count.VariableName, n);
@@ -223,6 +235,7 @@ public sealed partial class Interpreter
                     throw RuntimeError($"I can only go through a list, but this is {Values.TypeName(collection)}.", forEach.Line);
                 }
                 // Copy first: the body may add to the list while we walk it.
+                if (LoopHasPasses(forEach)) { RunForEachWithPasses(forEach, list.ToArray(), scope); return; }   // D130
                 foreach (var item in list.ToArray())
                 {
                     scope.SetLocal(forEach.VariableName, item);
@@ -662,15 +675,17 @@ public sealed partial class Interpreter
                     TimeUnit.Year => amount * 31556952000,
                     _ => amount * 1000,
                 };
-                // [Math]::Round: halves to even. Nothing else can happen while a
-                // console program waits, so this is a plain sleep.
+                // [Math]::Round: halves to even. Every event source is serviced
+                // between short sleeps (EV3, EventLoop.cs).
                 double target = Math.Round(milliseconds);
                 var clock = System.Diagnostics.Stopwatch.StartNew();
                 while (clock.ElapsedMilliseconds < target)
                 {
+                    ServiceEventsDuringWait();
                     double remaining = target - clock.ElapsedMilliseconds;
-                    if (remaining > 0) Thread.Sleep((int)Math.Min(remaining, int.MaxValue));
+                    if (remaining > 0) Thread.Sleep((int)Math.Min(remaining, 20));
                 }
+                ServiceEventsDuringWait();
                 return;
             }
             case StartTimerStmt startTimer:
@@ -1429,6 +1444,7 @@ public sealed partial class Interpreter
                 // D32.2: a date answers its own parts.
                 if (target is OtterDate date) return DatePart(date, property.Property, property.Line);
                 if (target is OtterXml xml) return XmlProperty(xml, property.Property, property.Line);
+                if (TryNetworkProperty(target, property, out object? networkValue)) return networkValue;   // Interpreter.Network.cs
                 if (target is not OtterThing thing)
                 {
                     throw RuntimeError($"I can only read properties of a thing, but this is {Values.TypeName(target)}.", property.Line);

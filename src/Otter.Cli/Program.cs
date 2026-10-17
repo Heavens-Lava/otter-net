@@ -103,6 +103,9 @@ public static class Program
         // PowerShell: $Source -split "`r?`n"
         string[] sourceLines = source.Replace("\r\n", "\n").Split('\n');
         List<OtterError> reserved = ReservedWords.Diagnostics(program, sourceLines);
+        // A handler inside another handler's run that uses its run's names (LoopPasses.cs).
+        List<OtterError> handlerRuns = LoopPasses.Diagnostics(program, sourceLines);
+        if (handlerRuns.Count > 0) reserved = reserved.Concat(handlerRuns).OrderBy(e => e.Line).ThenBy(e => e.Column).ToList();
         if (reserved.Count > 0)
         {
             Trace("native: reserved names");
