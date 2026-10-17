@@ -10,7 +10,7 @@ namespace Otter.Runtime;
 // The prototype walks the syntax tree with dictionary scopes, exactly as
 // otterPS does, so behaviour can be compared first; the binder and its
 // slot-numbered bound tree (docs/ARCHITECTURE.md) replace this walk in phase 2.
-public sealed class Interpreter
+public sealed partial class Interpreter
 {
     readonly TextWriter output;
     readonly TextReader input;
@@ -819,6 +819,10 @@ public sealed class Interpreter
             case ReturnStmt returnStmt:
                 throw new ReturnSignal(returnStmt.Value == null ? null : Evaluate(returnStmt.Value, scope), returnStmt.Line);
             default:
+                // Each area of the language runs its own statements in its
+                // own file (Interpreter.<Area>.cs).
+                if (TryExecuteSystem(statement, scope) || TryExecuteNetwork(statement, scope) || TryExecuteData(statement, scope) || TryExecuteUi(statement, scope))
+                    return;
                 throw new InvalidOperationException($"No runtime for {statement.GetType().Name}.");
         }
     }
@@ -1437,7 +1441,12 @@ public sealed class Interpreter
                 return thing.ReadProperty(property.Property);
             }
             default:
+            {
+                if (TryEvaluateSystem(expression, scope, out object? value) || TryEvaluateNetwork(expression, scope, out value) ||
+                    TryEvaluateData(expression, scope, out value) || TryEvaluateUi(expression, scope, out value))
+                    return value;
                 throw new InvalidOperationException($"No runtime for {expression.GetType().Name}.");
+            }
         }
     }
 

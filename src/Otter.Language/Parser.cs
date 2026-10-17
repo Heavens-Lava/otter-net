@@ -22,7 +22,7 @@ public sealed class NotSupportedYet(string feature, int line) : Exception($"line
 // Otter reports that program. Syntax errors are collected exactly as otterPS
 // collects them (D117): each damaged statement is recorded, the parser skips
 // to the next line or statement and goes on, up to 100 errors.
-public sealed class Parser
+public sealed partial class Parser
 {
     readonly IReadOnlyList<Token> tokens;
     int position;
@@ -295,6 +295,10 @@ public sealed class Parser
     Stmt ReadStatement()
     {
         Token start = Current;
+        // Each area of the language parses its own statements in its own file
+        // (Parser.<Area>.cs); null means "not mine".
+        if ((TryReadSystemStatement(start) ?? TryReadNetworkStatement(start) ?? TryReadDataStatement(start) ?? TryReadUiStatement(start)) is { } areaStatement)
+            return areaStatement;
 
         // days between startDate and endDate make days (D32)
         if (TimeUnitKinds.Contains(start.Kind) && IsAt(1, TokenKind.Between))
@@ -1773,6 +1777,8 @@ public sealed class Parser
     Expr ReadValue()
     {
         Token token = Current;
+        if ((TryReadSystemValue(token) ?? TryReadNetworkValue(token) ?? TryReadDataValue(token) ?? TryReadUiValue(token)) is { } areaValue)
+            return areaValue;
         if (token.Kind == TokenKind.Await) throw Unsupported("await");
         if (token.Kind == TokenKind.Not)
         {
@@ -2118,6 +2124,8 @@ public sealed class Parser
             return new NotExpr(ReadConditionPrimary(), not.Line);
         }
         Token head = Current;
+        if ((TryReadSystemCondition(head) ?? TryReadNetworkCondition(head) ?? TryReadDataCondition(head) ?? TryReadUiCondition(head)) is { } areaCondition)
+            return areaCondition;
         // element "book" exists in doc (D105). Only "exists" makes it this
         // form; otherwise the line is read again from "element".
         if (head.Kind == TokenKind.Identifier && Same(head.Text, "element"))
