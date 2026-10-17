@@ -47,10 +47,13 @@ public static class Program
         try
         {
             CommandLine line = CommandLine.Bind(args);
-            return Cli.Run(line);
+            int code = Cli.Run(line);
+            Trace($"native: exit {code}");
+            return code;
         }
         catch (CliExit exit)
         {
+            Trace($"native: exit {exit.Code}");
             return exit.Code;
         }
         catch (NeedsPowerShell unsupported)
