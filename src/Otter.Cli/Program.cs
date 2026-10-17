@@ -250,18 +250,43 @@ public static class Program
         start.ArgumentList.Add("-File");
         start.ArgumentList.Add(otterPs1);
         foreach (string arg in args) start.ArgumentList.Add(arg);
-        using var process = Process.Start(start)!;
-        process.WaitForExit();
-        return process.ExitCode;
+        Process process;
+        try { process = Process.Start(start)!; }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            // Linux, macOS and a Chromebook's Linux need PowerShell 7 for the
+            // PowerShell Otter, and it may not be installed.
+            Console.Error.WriteLine(windows
+                ? "Otter: this program needs the PowerShell Otter, but Windows PowerShell (powershell.exe) could not be started."
+                : "Otter: this program needs the PowerShell Otter, which runs on PowerShell 7 (pwsh). Install it from https://aka.ms/install-powershell.");
+            return ExitUsageError;
+        }
+        using (process)
+        {
+            process.WaitForExit();
+            return process.ExitCode;
+        }
     }
 
     static string? FindPowerShellOtter()
     {
         string? configured = Environment.GetEnvironmentVariable("OTTER_POWERSHELL");
         if (!string.IsNullOrEmpty(configured) && File.Exists(configured)) return configured;
-        // Where Install-Otter.ps1 puts it: %LOCALAPPDATA%\Otter\<version>\otter.ps1
-        string installRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Otter");
-        string versioned = Path.Combine(installRoot, Version, "otter.ps1");
+        string versioned = Path.Combine(PowerShellOtterInstallRoot(), Version, "otter.ps1");
         return File.Exists(versioned) ? versioned : null;
+    }
+
+    // Where Install-Otter.ps1 puts the PowerShell Otter: %LOCALAPPDATA%\Otter
+    // on Windows; on Linux and macOS the XDG data folder's otter, which is
+    // ~/.local/share/otter unless XDG_DATA_HOME says otherwise (on macOS too,
+    // not .NET's ~/Library/Application Support).
+    internal static string PowerShellOtterInstallRoot()
+    {
+        if (OperatingSystem.IsWindows())
+            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Otter");
+        string? dataHome = Environment.GetEnvironmentVariable("XDG_DATA_HOME");
+        if (string.IsNullOrWhiteSpace(dataHome))
+            dataHome = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "share");
+        return Path.Combine(dataHome, "otter");
     }
 }
