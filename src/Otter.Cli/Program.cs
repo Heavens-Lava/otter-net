@@ -54,6 +54,12 @@ public static class Program
             return ExitSuccess;
         }
 
+        // otter web file.ot [-NoOpen] (WebCommand.cs)
+        if (args.Length >= 1 && (string.Equals(args[0], "web", StringComparison.OrdinalIgnoreCase) || string.Equals(args[0], "browse", StringComparison.OrdinalIgnoreCase)))
+        {
+            return WebCommand.Run(args, Trace, out string webReason) ?? FallbackOrRefuse(args, engine, webReason);
+        }
+
         // otter file.ot [args]  |  otter run file.ot [args]  |  otter check file.ot
         string? mode = null;
         string? path = null;
