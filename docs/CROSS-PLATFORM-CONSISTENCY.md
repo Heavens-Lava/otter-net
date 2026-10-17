@@ -276,8 +276,8 @@ zone: `"2024-01-15"` for a date without a time of day, and
 dates). This could be decided together with 1.
 
 **Breaking-change risk: medium.** Every program that writes dates to JSON
-writes different text. Programs reading that JSON back with Otter today get
-text either way, since D29 has no date type in JSON.
+writes different text. What reading the old form back gives (text, or a
+date - PowerShell versions differ) is to be measured before deciding.
 
 ## Towards a cross-platform conformance specification
 
