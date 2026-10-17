@@ -45,9 +45,11 @@ public sealed partial class Parser
     // Every syntax error in the program, or the program. Throws
     // OtterMultipleErrors (one or more errors) as otterPS's ConvertTo-OtterAst
     // does, and NotSupportedYet for anything not ported.
-    public static ProgramNode Parse(IReadOnlyList<Token> tokens)
+    // webTarget: compiling for the web (`otter web`), where the UI forms are
+    // read too (Parser.Ui.cs); otherwise they are left to the PowerShell Otter.
+    public static ProgramNode Parse(IReadOnlyList<Token> tokens, bool webTarget = false)
     {
-        var parser = new Parser(tokens);
+        var parser = new Parser(tokens) { webTarget = webTarget };
         var statements = parser.ReadStatements();
         if (parser.Is(TokenKind.BlockEnd))
         {
@@ -239,7 +241,10 @@ public sealed partial class Parser
             try
             {
                 inRecoveryMode = false;
-                statements.Add(ReadStatement());
+                Stmt statement = ReadStatement();
+                // `put a, b in app` is one statement per item (otterPS returns an array).
+                if (statement is StatementGroup group) statements.AddRange(group.Statements);
+                else statements.Add(statement);
             }
             catch (OtterError error)
             {
@@ -1365,13 +1370,16 @@ public sealed partial class Parser
         if (Is(TokenKind.Is))
         {
             Read();
-            if (Current.Kind == TokenKind.Identifier && Same(Current.Text, "panel") && IsAt(1, TokenKind.With)) throw Unsupported("UI elements");
-            if (Is(TokenKind.A))
+            // D110: `card is panel with draggable is true` - the article is
+            // optional, but only for "panel ... with".
+            bool isBarePanel = Current.Kind == TokenKind.Identifier && Same(Current.Text, "panel") && IsAt(1, TokenKind.With);
+            if (isBarePanel && !webTarget) throw Unsupported("UI elements");
+            if (Is(TokenKind.A) || isBarePanel)
             {
                 Read();
-                string typeName = ReadObjectTypeName();
+                string typeName = isBarePanel ? "panel" : ReadObjectTypeName();
                 // otterPS may treat other type names (button, window ...) as UI.
-                if (!Same(typeName, "thing") && !knownTypes.Contains(typeName)) throw Unsupported($"'{typeName}' things");
+                if (!webTarget && !Same(typeName, "thing") && !knownTypes.Contains(typeName)) throw Unsupported($"'{typeName}' things");
                 List<AssignStmt> properties;
                 if (Is(TokenKind.With))
                 {
@@ -1605,7 +1613,7 @@ public sealed partial class Parser
     // drops) are left to the PowerShell Otter.
     void RefuseUiProperty(Token property)
     {
-        if (SameAny(property.Text, "accepts", "align", "width", "height", "round", "spread")) throw Unsupported($"the '{property.Text}' property");
+        if (!webTarget && SameAny(property.Text, "accepts", "align", "width", "height", "round", "spread")) throw Unsupported($"the '{property.Text}' property");
     }
 
     List<AssignStmt> ReadObjectBlockProperties(bool allowEmpty)
@@ -1633,6 +1641,7 @@ public sealed partial class Parser
             }
             Token property = ReadVariableName("I expected a property name.", allowReservedLiteral: true);
             RefuseUiProperty(property);
+            string propertyName = ReadAcceptsDrops(property);
             // `is` is optional: "age 36" and "age is 36" mean the same.
             bool hadIs = false;
             if (Is(TokenKind.Is)) { Read(); hadIs = true; }
@@ -1641,6 +1650,10 @@ public sealed partial class Parser
             {
                 // D54: a bare property is true.
                 value = new LiteralExpr(true, property.Line);
+            }
+            else if (ReadUiPropertyValue(property, hadIs) is { } uiValue)
+            {
+                value = uiValue;
             }
             else
             {
@@ -1651,7 +1664,7 @@ public sealed partial class Parser
                 }
                 value = ReadMathExpression();
             }
-            properties.Add(new AssignStmt(new VariableExpr(property.Text, property.Line), value, property.Line));
+            properties.Add(new AssignStmt(new VariableExpr(propertyName, property.Line), value, property.Line));
             Token end = Current;
             if (end.Kind != TokenKind.Newline)
             {
@@ -1679,12 +1692,17 @@ public sealed partial class Parser
         {
             Token property = ReadVariableName("I expected a property name after \"has\", \"with\", or a comma.", allowReservedLiteral: true);
             RefuseUiProperty(property);
+            string propertyName = ReadAcceptsDrops(property);
             bool hadIs = false;
             if (Is(TokenKind.Is)) { Read(); hadIs = true; }
             Expr value;
             if (!hadIs && (Current.Text == "," || Current.Kind is TokenKind.Newline or TokenKind.EndOfFile))
             {
                 value = new LiteralExpr(true, property.Line);   // D54
+            }
+            else if (ReadUiPropertyValue(property, hadIs) is { } uiValue)
+            {
+                value = uiValue;
             }
             else
             {
@@ -1695,7 +1713,7 @@ public sealed partial class Parser
                 }
                 value = ReadMathExpression();
             }
-            properties.Add(new AssignStmt(new VariableExpr(property.Text, property.Line), value, property.Line));
+            properties.Add(new AssignStmt(new VariableExpr(propertyName, property.Line), value, property.Line));
             if (Current.Text != ",") break;
             Read();
             if (Is(TokenKind.Newline)) throw Error("I expected a property after the comma.", Current, "Add another property assignment after the comma.");
