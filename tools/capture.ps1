@@ -32,7 +32,9 @@ $Corpus = (Resolve-Path $Corpus).Path
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 $OutDir = (Resolve-Path $OutDir).Path
 
-if ($Otter.EndsWith('.ps1')) { $file = 'powershell.exe'; $prefix = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $Otter) }
+$onWindows = [System.IO.Path]::DirectorySeparatorChar -eq '\'
+if ($Otter.EndsWith('.ps1') -and $onWindows) { $file = 'powershell.exe'; $prefix = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $Otter) }
+elseif ($Otter.EndsWith('.ps1')) { $file = 'pwsh'; $prefix = @('-NoProfile', '-File', $Otter) }
 elseif ($Otter.EndsWith('.dll')) { $file = 'dotnet'; $prefix = @($Otter) }
 else { $file = $Otter; $prefix = @() }
 

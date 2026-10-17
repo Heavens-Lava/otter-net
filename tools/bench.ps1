@@ -68,8 +68,11 @@ function Measure-OtterRun {
 
 function Get-Median { param([double[]]$Values) $sorted = @($Values | Sort-Object); return $sorted[[int][Math]::Floor($sorted.Count / 2)] }
 
+# otterPS on Windows PowerShell 5.1 on Windows, PowerShell 7 elsewhere.
+$onWindows = [System.IO.Path]::DirectorySeparatorChar -eq '\'
 $sides = [ordered]@{
-    'otterPS 1.0.1' = @{ File = 'powershell.exe'; Arguments = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $referenceScript, 'run') }
+    'otterPS 1.0.1' = if ($onWindows) { @{ File = 'powershell.exe'; Arguments = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $referenceScript, 'run') } }
+                      else { @{ File = 'pwsh'; Arguments = @('-NoProfile', '-File', $referenceScript, 'run') } }
     'otter-net' = if ($OtterNet.EndsWith('.dll')) { @{ File = 'dotnet'; Arguments = @($OtterNet, 'run') } } else { @{ File = $OtterNet; Arguments = @('run') } }
 }
 
