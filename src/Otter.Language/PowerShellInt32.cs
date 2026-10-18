@@ -138,10 +138,14 @@ public static class PowerShellInt32
     // The [int] cast of a token's value: a number rounds half to even, true
     // and false are 1 and 0, nothing is 0, text converts as above. On failure
     // `message` is PowerShell's whole PSInvalidCastException message.
-    public static bool TryCast(object? value, out int result, out string message)
+    public static bool TryCast(object? value, out int result, out string message) => TryCast(value, out result, out message, out _);
+
+    // The same, with the PSInvalidCastException's ErrorId.
+    public static bool TryCast(object? value, out int result, out string message, out string errorId)
     {
         result = 0;
         message = "";
+        errorId = "";
         string error;
         switch (value)
         {
@@ -154,13 +158,16 @@ public static class PowerShellInt32
                 if (TryRoundToInt32(number, out result)) return true;
                 // .NET Framework's Double.ToString(): 15 significant digits.
                 message = Cast(number.ToString("G15", CultureInfo.CurrentCulture), "Value was either too large or too small for an Int32.");
+                errorId = "InvalidCastIConvertible";
                 return false;
             case string text:
                 if (TryParse(text, out result, out error)) return true;
                 message = Cast(text, error);
+                errorId = "InvalidCastFromStringToInteger";
                 return false;
             default:
                 message = Cast(Convert.ToString(value, CultureInfo.CurrentCulture) ?? "", "Specified cast is not valid.");
+                errorId = "InvalidCastIConvertible";
                 return false;
         }
     }

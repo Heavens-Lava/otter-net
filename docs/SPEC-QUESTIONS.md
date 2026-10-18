@@ -504,3 +504,22 @@ a folder's tasks before its subfolders'. A time the Task Scheduler reports as
 its zero date is gone (the provider's empty datetime). The order and the
 never-run case are to be confirmed against Windows PowerShell 5.1
 (`tests/compat/t3_system_tasks_printers.ot` prints every task name).
+
+### T3-3. `otter serve` with a port [int] cannot read
+
+Get-OtterServerDefinition (src/Otter.Server.psm1) reads a `web server`'s
+`port is X` and the first `listen on port X` with `[int]`. When the cast
+fails (`port is "abc"`, `port is 30000000000`) the error is
+statement-terminating inside a script module, whose $ErrorActionPreference
+is the global `Continue` (modules do not see otter.ps1's `Stop`): PowerShell
+reports it on the error stream and the function goes on, the port keeping
+its value (8080 unless an earlier `port is` set another), and the server
+starts. otter-net (`ServeCommand.CastPort`) writes Windows PowerShell 5.1's
+report of it - the message, `At <otter.ps1's folder>\src\Otter.Server.psm1:24
+char:29` with the whole assignment underlined, `InvalidArgument: (:) [],
+RuntimeException` and `InvalidCastFromStringToInteger` (text) or
+`InvalidCastIConvertible` (a number) - then starts the server. Reasoned from
+PowerShell's error view and scoping rules; it cannot be compared
+automatically (the server never ends) and should be confirmed by hand on
+Windows. The path assumes otterPS's layout next to otter.exe, as in C2-1.
+Needs a decision whether an unreadable port should rather be an Otter error.
