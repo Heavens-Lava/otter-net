@@ -356,9 +356,14 @@ public sealed partial class Parser
                 : new VariableExpr(next.Text, next.Line);
         }
         else expression = ReadValue();
-        // otterPS builds an AssignStmt with a plain name as its target here,
-        // which its contract refuses: `await x make y` never parses there.
-        if (Is(TokenKind.Make) || Is(TokenKind.Into)) throw Unsupported("await ... make/into");
+        // await x make y / await x into y: an assignment of the await value.
+        if (Is(TokenKind.Make) || Is(TokenKind.Into))
+        {
+            bool make = Read().Kind == TokenKind.Make;
+            Token target = ReadVariableName(make ? "I expected a variable name after \"make\"." : "I expected a variable name after \"into\".");
+            Expect(TokenKind.Newline, "I expected the await statement to end here.");
+            return new AssignStmt(new VariableExpr(target.Text, target.Line), new AwaitExpr(expression, start.Line), start.Line);
+        }
         Expect(TokenKind.Newline, "I expected the await statement to end here.");
         return new AwaitStmt(new AwaitExpr(expression, start.Line), start.Line);
     }
