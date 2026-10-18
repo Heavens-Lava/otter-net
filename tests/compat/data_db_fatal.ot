@@ -1,0 +1,9 @@
+# A database error nobody catches stops the program (D97).
+memory has provider "sqlite", connection ":memory:"
+connect memory into db
+say "before"
+query db with
+    "select nothing from nowhere"
+    parameter "unused" is 1
+into rows
+say "never"

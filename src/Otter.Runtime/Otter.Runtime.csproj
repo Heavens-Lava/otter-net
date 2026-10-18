@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <!-- LibraryImport (Windows registry, credentials, clipboard) generates unsafe code. -->
+    <!-- LibraryImport (Windows registry, credentials, clipboard; the operating system's SQLite, D97) generates unsafe code. -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>

@@ -1,0 +1,108 @@
+# Database errors (D97, D98), each caught with try.
+notADatabase is a thing
+memory has provider "sqlite", connection ":memory:"
+connect memory into db
+execute db with "create table t (x integer)"
+
+to probe n
+    try
+        if n is 2
+            query db with "" into x
+        if n is 16
+            c has provider "sqlite", connection "absent.db;Password=hunter2", readonly true
+            connect c into other
+        if n is 17
+            c has provider "sqlite", connection "no such folder/x.db"
+            connect c into other
+        if n is 18
+            query db with "select from nowhere" into x
+        if n is 19
+            execute db with "insert into nowhere values (1)"
+        if n is 20
+            execute db with "   "
+        if n is 21
+            query db with "select x from t where x = abs(-9223372036854775807 - 1)" into x
+        if n is 22
+            execute db with "insert into t values (abs(-9223372036854775807 - 1))"
+        if n is 23
+            get columns from "nowhere" in db into c
+        if n is 24
+            get columns from 5 in db into c
+        if n is 25
+            get columns from "  " in db into c
+        if n is 26
+            get columns from notADatabase in db into c
+        say "ok" n
+    otherwise into reason
+        if reason starts with "The folder \"" and reason ends with "for the SQLite database does not exist."
+            say n "The folder ... for the SQLite database does not exist."
+        otherwise
+            say n reason
+
+count from 16 to 26 as n
+    probe n
+execute db with "insert into t values (1)"
+try
+    query db with "select x from t where x = abs(-9223372036854775807 - 1)" into x
+otherwise into reason
+    say reason
+begin transaction on db into tx
+try
+    begin transaction on db into tx2
+otherwise into reason
+    say reason
+try
+    execute db with "begin"
+otherwise into reason
+    say reason
+commit tx
+try
+    commit tx
+otherwise into reason
+    say reason
+try
+    rollback tx
+otherwise into reason
+    say reason
+try
+    execute tx with "select 1"
+otherwise into reason
+    say reason
+begin transaction on db into tx
+rollback tx
+try
+    rollback tx
+otherwise into reason
+    say reason
+
+begin transaction on db into last
+disconnect db
+say "closed with an open transaction"
+try
+    commit last
+otherwise into reason
+    say reason
+try
+    query db with "select 1" into x
+otherwise into reason
+    say reason
+try
+    execute db with "select 1"
+otherwise into reason
+    say reason
+try
+    disconnect db
+otherwise into reason
+    say reason
+try
+    begin transaction on db into tx
+otherwise into reason
+    say reason
+try
+    get tables from db into t
+otherwise into reason
+    say reason
+try
+    get columns from "t" in db into c
+otherwise into reason
+    say reason

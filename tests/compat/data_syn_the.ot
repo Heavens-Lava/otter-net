@@ -1,0 +1,8 @@
+# Syntax errors around the readability article.
+person has name "Ada"
+the name of person
+the name of person is
+the name of person is "Bea" extra
+the age of
+say the name of
+x is the

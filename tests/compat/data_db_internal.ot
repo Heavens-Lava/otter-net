@@ -1,0 +1,5 @@
+# A database statement given gone fails inside otterPS (PowerShell's
+# parameter binding), before SQLite is used.
+say "before"
+query gone with "select 1" into rows
+say "never"
