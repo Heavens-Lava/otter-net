@@ -239,7 +239,7 @@ try {
             # otter-net names otter.ps1 next to its own executable where otterPS's
             # errors name the real script (SPEC-QUESTIONS C2-1): both become <otter.ps1>.
             $referenceStderr = $referenceStderr.Replace($referenceScript, '<otter.ps1>')
-            $candidateStderr = $candidateStderr.Replace((Join-Path (Split-Path -Parent $OtterNet) 'otter.ps1'), '<otter.ps1>')
+            $candidateStderr = $candidateStderr.Replace($referenceScript, '<otter.ps1>').Replace((Join-Path (Split-Path -Parent $OtterNet) 'otter.ps1'), '<otter.ps1>')
             if ($referenceStderr.Trim() -ne $candidateStderr.Trim()) {
                 $refErr = $referenceStderr.Trim(); $candErr = $candidateStderr.Trim()
                 $at = Get-FirstDifference $refErr $candErr
