@@ -15,15 +15,46 @@ otter-net is complete only when all of these hold:
 | # | Gate | Now |
 |---|---|---|
 | 1 | Every Otter 1.0.1 language feature implemented in C# | no - see below |
-| 2 | Every conformance fixture passes | 15 of 19 run natively |
-| 3 | No supported program needs the PowerShell Otter | 141 programs still do |
-| 4 | Syntax and runtime diagnostics independent of PowerShell | for native programs |
-| 5 | All six platform configurations pass | yes (PR #1) |
+| 2 | Every conformance fixture passes | 18 of 19 run natively |
+| 3 | No supported program needs the PowerShell Otter | 132 of otterPS's 237 programs still do (almost all UI) |
+| 4 | Syntax and runtime diagnostics independent of PowerShell | for native programs; strict mode: `tools/compare.ps1 -NativeOnly` |
+| 5 | All six platform configurations pass | PR #1 yes; the port (PR #3) is being checked |
 | 6 | No unexplained compatibility differences | yes, for native programs |
 | 7 | Differential fuzzing passes, coverage documented | 300 programs, 0 differences (CI) |
 | 8 | Native AOT executables run without PowerShell | for native programs |
 | 9 | Packaging and clean-machine installation tests | not started |
 | 10 | Release candidate reviewed and approved | not started |
+
+## After wave 1 - 2026-10-17 (`port/native`: System, Network, Data, CLI and UI areas merged)
+
+| Corpus (otterPS 1.0.1 unless noted) | Programs | Native | Need PowerShell |
+|---|---:|---:|---:|
+| benchmarks | 17 | 15 | 2 |
+| conformance | 19 | 18 | 1 |
+| examples | 43 | 25 | 18 |
+| experiments | 32 | 31 | 1 |
+| otter-docs (the website) | 103 | 0 | 103 |
+| OtterWorkspace | 14 | 12 | 2 |
+| projects | 8 | 3 | 5 |
+| selfhost | 1 | 1 | 0 |
+| **otterPS 1.0.1 total** | **237** | **105 (44%)** | **132** |
+| otter-net's own tests | 200 | 157 | 43 |
+
+Measured with `otter check` (the run path). UI programs (the website,
+`tests/web`) compile natively with `otter web` but still need PowerShell for
+`check`/`run`; that is the ui-run batch. Almost all of the 132 are UI.
+
+Compatibility (macOS, against otterPS 1.0.1 on PowerShell 7):
+
+| Comparison | Result |
+|---|---|
+| Programs (conformance, examples, tests/compat; CLI+System build) | 178 programs, 146 identical, 12 different: the 12 known baseline differences, nothing else |
+| Network programs (servers, HTTP, TCP, TLS, UDP, WebSockets, watching, jobs, D130) | 16 of 16 identical, all native |
+| Data programs | match except 6 that otterPS cannot run on macOS (it loads Windows' winsqlite3.dll; compared against a SQLite-patched scratch copy instead: identical) and 1 .NET 5.1/7 wording difference |
+| CLI cases (`tools/compare-cli.ps1`) | 145: 125 identical, 11 known PowerShell 7 differences, 9 different, all explained and being fixed (REPL echo, usage exit code) |
+
+Fallback sites left in the source: 22 in the parser, 22 in the CLI - all
+listed with their batch in `docs/FULL_PORT_MATRIX.md`.
 
 ## Baseline - 2026-10-17, before the porting campaign (`port/native` at b24d0aa)
 
