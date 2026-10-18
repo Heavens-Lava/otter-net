@@ -56,33 +56,9 @@ public sealed partial class Interpreter
     // otterPS's $script:CallStack: the Otter functions running, innermost last.
     public List<CallFrame> CallStack { get; } = new();
 
-    // Read-Host. With redirected input PowerShell's console host
-    // (ReadLineFromFile) reads one character at a time and, when echoInput is
-    // set, writes each one back as it reads it - the line break too, but only
-    // if the input has one: a last line without "\n" is echoed without it.
-    // CR LF is one line break. null at the end of the input.
-    string? ReadInputLine()
-    {
-        var line = new System.Text.StringBuilder();
-        while (true)
-        {
-            int read = input.Read();
-            if (read == -1) return line.Length == 0 ? null : line.ToString();
-            char c = (char)read;
-            if (echoInput) output.Write(c);
-            if (c == '\r')
-            {
-                if (input.Peek() == '\n')
-                {
-                    input.Read();
-                    if (echoInput) output.Write('\n');
-                }
-                return line.ToString();
-            }
-            if (c == '\n') return line.ToString();
-            line.Append(c);
-        }
-    }
+    // Read-Host (ConsoleInput.ReadLine): with redirected input each
+    // character is echoed as read when echoInput is set.
+    string? ReadInputLine() => ConsoleInput.ReadLine(input, echoInput ? output : null);
 
     void CompleteProgressBarLine()
     {

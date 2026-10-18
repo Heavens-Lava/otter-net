@@ -25,13 +25,12 @@ internal static class Repl
         return System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"\bare$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
     }
 
-    // Read-Host: with input redirected, the line read is written back.
-    static string? ReadHost()
-    {
-        string? line = Host.In.ReadLine();
-        if (line != null && Console.IsInputRedirected) Host.Out.Write(line + "\n");
-        return line;
-    }
+    // Read-Host: with input redirected, each character read is written
+    // back as it is read (a last line without a line break is echoed
+    // without one).
+    static string? ReadHost() => Console.IsInputRedirected
+        ? ConsoleInput.ReadLine(Host.In, Host.Out)
+        : Host.In.ReadLine();
 
     static Interpreter NewSession() =>
         new(Host.Out, Host.In, "", Array.Empty<string>(), echoInput: Console.IsInputRedirected)
