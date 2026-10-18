@@ -84,6 +84,7 @@ public sealed partial class Interpreter
     {
         // D130/D133: the names each loop pass and handler run owns (EventLoop.cs).
         loopPassNames = LoopPassAnalysis.Compute(program.Statements);
+        ResetEventSources();
         try
         {
             Execute(program.Statements, globals);
