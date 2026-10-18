@@ -199,8 +199,10 @@ public static class Lexer
                         index++;
                         switch (text[index])
                         {
-                            case 'n': value.Append('\n'); break;
-                            case 't': value.Append('\t'); break;
+                            // PowerShell's switch compares characters ignoring
+                            // case, so \N and \T are escapes in otterPS too.
+                            case 'n' or 'N': value.Append('\n'); break;
+                            case 't' or 'T': value.Append('\t'); break;
                             case '"': value.Append('"'); break;
                             case '\\': value.Append('\\'); break;
                             default: value.Append('\\').Append(text[index]); break;
