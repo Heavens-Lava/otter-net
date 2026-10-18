@@ -14,16 +14,31 @@ otter-net is complete only when all of these hold:
 
 | # | Gate | Now |
 |---|---|---|
-| 1 | Every Otter 1.0.1 language feature implemented in C# | no - see below |
+| 1 | Every Otter 1.0.1 language feature implemented in C# | yes, except desktop windows (WPF) and remote commands on Windows - decisions pending |
 | 2 | Every conformance fixture passes | 19 of 19 checked natively; all identical on Windows |
-| 3 | No supported program needs the PowerShell Otter | 0 of 237 for `check`; at run time: desktop windows and remote commands on Windows (decisions pending) |
+| 3 | No supported program needs the PowerShell Otter | 0 of 512 for `check`; at run time only desktop windows and remote commands on Windows (decisions pending) |
 | 4 | Syntax and runtime diagnostics independent of PowerShell | for native programs; strict mode: `tools/compare.ps1 -NativeOnly` |
 | 5 | All six platform configurations pass | yes (PR #3 CI) |
-| 6 | No unexplained compatibility differences | yes, for native programs |
+| 6 | No unexplained compatibility differences | yes: Windows 0; elsewhere every difference declared with its reason |
 | 7 | Differential fuzzing passes, coverage documented | 300 programs, 0 differences, all native (CI); `docs/port/fuzz.md` |
 | 8 | Native AOT executables run without PowerShell | for native programs |
 | 9 | Packaging and clean-machine installation tests | not started |
 | 10 | Release candidate reviewed and approved | not started |
+
+## After wave 3 - 2026-10-18 (Windows tasks and printers, the last UI fallbacks, the web compiler for system/network/data programs, JSON reader fixes, PowerShell's own error layout)
+
+| Comparison (Windows, against otterPS 1.0.1 on Windows PowerShell 5.1, CI run 39158442548) | Result |
+|---|---|
+| Programs | 257: **0 different**; 218 native, 4 handed over (desktop windows, remote commands) |
+| `otter web` pages, byte for byte | 337: **0 different**; 335 native |
+| Differential fuzz | 300: **0 different**, all native |
+| Network programs, native only | 16: 0 different |
+| Six platforms and the cross-platform check | all pass |
+| `otter check`, native only, every program in otterPS's repository and tests/ | **512 of 512** |
+
+Speed (Windows, median): `say "Hello"` 16 ms against otterPS's 2,332 ms;
+22x-146x faster across the benchmarks (2,990x on lists); peak memory 10-27 MB
+against 233-327 MB.
 
 ## After wave 2 - 2026-10-18 (`port/native`: UI in run/check, serve, desktop, project builds; remaining parser forms; the CLI's PowerShell binding, -DebugAst, manifests)
 
