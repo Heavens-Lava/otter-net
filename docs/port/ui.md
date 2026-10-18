@@ -111,8 +111,12 @@ word that the UI form does not take over (`go home`, `primary "x"`,
 ## The JavaScript compiler (JS)
 
 `JsCompiler.Expressions.cs`, `JsCompiler.Statements.cs`, `Analysis.cs`,
-`LoopPasses.cs`. Every node otter-net parses today is compiled; a node it
-does not know (another area's, not ported yet) makes the command fall back.
+`LoopPasses.cs`. Every node otter-net parses is compiled, the system,
+network and data areas' included (their runtime hooks, HTTP and WebSocket
+code, and otterPS's "not supported on the web target" errors); the default
+cases that hand a node to the PowerShell Otter only guard a node class added
+later without a case (tests: `tests/web/t3_system_hooks.ot`,
+`t3_http_websocket.ot`, `t3_err_*.ot`).
 
 | Capability | otterPS | otter-net | Status |
 |---|---|---|---|

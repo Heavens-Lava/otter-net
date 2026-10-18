@@ -74,6 +74,182 @@ sealed partial class JsCompiler
 
     static bool IsLoop(Node node) => node is ForEachStmt or CountStmt or RepeatStmt or WhileStmt;
 
+    // `run ...`, `run command ... over ssh ...`: the hook's result into the
+    // target when there is one.
+    static string HookResult(string pad, HashSet<string>? localNames, string? target, string valueJs) =>
+        string.IsNullOrEmpty(target) ? $"{pad}{valueJs};" : Write(pad, localNames, target, valueJs);
+
+    // A hook's array of plain objects as a list of things (D70, D79).
+    static string ThingList(string pad, string inner, HashSet<string>? localNames, string target, string callJs, string typeName) =>
+        Lines(
+            $"{pad}{{",
+            $"{inner}const _raw = {callJs};",
+            $"{inner}const _value = (Array.isArray(_raw) ? _raw : []).map((v) => {{ const props = {{}}; const order = []; if (v) {{ for (const k of Object.keys(v)) {{ props[k] = v[k]; order.push(k); }} }} return {{ __otterThing: true, typeName: '{typeName}', props: props, order: order }}; }});",
+            Write(inner, localNames, target, "_value"),
+            $"{pad}}}");
+
+    // PowerActionStmt.Action as otterPS's parser writes it.
+    static string PowerActionWord(PowerAction action) => action switch
+    {
+        PowerAction.Lock => "lock",
+        PowerAction.SignOut => "signOut",
+        PowerAction.Restart => "restart",
+        _ => "shutDown",
+    };
+
+    // Get-OtterJsHttpOptionsSetup
+    (List<string> Setup, string OptsVar, string? Teardown) HttpOptionsSetup(HttpOptions? options, string baseOptsJs, string inner)
+    {
+        var setup = new List<string>();
+        if (options == null) return (setup, baseOptsJs, null);
+        bool needsOptsVar = options.Headers.Count > 0 || options.WithCookies != null || options.FollowRedirects != null || options.TimeoutSeconds != null;
+        if (!needsOptsVar) return (setup, baseOptsJs, null);
+        string init = baseOptsJs.Length > 0 ? baseOptsJs : "{}";
+        setup.Add($"{inner}const _opts = Object.assign({{}}, {init});");
+        if (options.Headers.Count > 0)
+        {
+            var entries = options.Headers.Select(h => $"[String({Expression(h.Name)})]: String({Expression(h.Value)})");
+            setup.Add($"{inner}_opts.headers = Object.assign({{}}, _opts.headers, {{ {string.Join(", ", entries)} }});");
+        }
+        if (options.WithCookies == true) setup.Add($"{inner}_opts.credentials = 'include';");
+        else if (options.WithCookies == false) setup.Add($"{inner}_opts.credentials = 'omit';");
+        if (options.FollowRedirects == false) setup.Add($"{inner}_opts.redirect = 'manual';");
+        string? teardown = null;
+        if (options.TimeoutSeconds != null)
+        {
+            string timeoutJs = Expression(options.TimeoutSeconds);
+            setup.Add($"{inner}const _ac = new AbortController(); _opts.signal = _ac.signal;");
+            setup.Add($"{inner}const _timer = setTimeout(() => _ac.abort(), Number({timeoutJs}) * 1000);");
+            teardown = "clearTimeout(_timer);";
+        }
+        return (setup, "_opts", teardown);
+    }
+
+    // HttpGet / HttpPost / HttpPut / HttpDelete: a block of its own, the
+    // response read into the target. Only `get` may have no options at all
+    // (then `fetch(url)`).
+    string HttpRequest(string pad, string inner, HttpOptions? options, string baseOptsJs, string urlJs, string? target, string readBody, bool allowNoOptions)
+    {
+        var (setup, optsVar, teardown) = HttpOptionsSetup(options, baseOptsJs, inner);
+        var lines = new List<string> { $"{pad}{{" };
+        lines.AddRange(setup);
+        string fetchCall = optsVar.Length > 0 ? $"fetch({urlJs}, {optsVar})" : $"fetch({urlJs})";
+        if (teardown != null)
+        {
+            lines.Add($"{inner}let res;");
+            lines.Add($"{inner}try {{");
+            lines.Add($"{inner}  res = await {fetchCall};");
+            lines.Add($"{inner}}} catch (_err) {{");
+            lines.Add($"{inner}  if (_err && _err.name === 'AbortError') {{ throw new Error('The HTTP request timed out.'); }}");
+            lines.Add($"{inner}  throw _err;");
+            lines.Add($"{inner}}} finally {{");
+            lines.Add($"{inner}  {teardown}");
+            lines.Add($"{inner}}}");
+        }
+        else
+        {
+            lines.Add($"{inner}const res = await {fetchCall};");
+        }
+        if (allowNoOptions || !string.IsNullOrEmpty(target))
+        {
+            lines.Add($"{inner}const {target} = await {readBody}; window.{target} = {target};");
+        }
+        lines.Add($"{pad}}}");
+        return string.Join("\n", lines);
+    }
+
+    // HttpStart (D116B): the request object the page's handlers listen on.
+    string HttpStart(HttpStartStmt start, string pad, string inner)
+    {
+        string url = Expression(start.Url);
+        string dataJs = start.Data != null ? Expression(start.Data) : "null";
+        string asJsonJs = start.AsJson ? "true" : "false";
+        string method = start.Method;
+        string target = start.TargetName;
+        var (setup, optsVar, _) = HttpOptionsSetup(start.Options, $"{{ method: '{method}' }}", inner);
+        var lines = new List<string> { $"{pad}{{" };
+        lines.AddRange(setup);
+        string optsArg = optsVar.Length > 0 ? optsVar : $"{{ method: '{method}' }}";
+        lines.Add($"{inner}const {target} = ((_m, _u, _d, _j, _o) => {{");
+        lines.Add($"{inner}  const _ctrl = new AbortController();");
+        lines.Add($"{inner}  const _req = {{");
+        lines.Add($"{inner}    __otterHttpRequest: true, method: _m, url: _u, state: 'pending', response: null, error: null, status: 0,");
+        lines.Add($"{inner}    ctrl: _ctrl, handlers: [], retainedEvent: null, isTimeout: false,");
+        lines.Add($"{inner}    cancel() {{");
+        lines.Add($"{inner}      if (this.state !== 'pending') return;");
+        lines.Add($"{inner}      this.state = 'cancelled';");
+        lines.Add($"{inner}      try {{ this.ctrl.abort(); }} catch (_) {{}}");
+        lines.Add($"{inner}      this._emit('cancel', {{}});");
+        lines.Add($"{inner}    }},");
+        lines.Add($"{inner}    _emit(kind, ctx) {{");
+        lines.Add($"{inner}      this.retainedEvent = {{ kind, ctx }};");
+        lines.Add($"{inner}      for (const h of this.handlers) {{ if (h.kind === kind && !h.fired) {{ h.fired = true; h.fn(ctx); }} }}");
+        lines.Add($"{inner}    }},");
+        lines.Add($"{inner}    on(kind, fn) {{");
+        lines.Add($"{inner}      const h = {{ kind, fn, fired: false }};");
+        lines.Add($"{inner}      this.handlers.push(h);");
+        lines.Add($"{inner}      if (this.retainedEvent && this.retainedEvent.kind === kind) {{ h.fired = true; fn(this.retainedEvent.ctx); }}");
+        lines.Add($"{inner}    }}");
+        lines.Add($"{inner}  }};");
+        lines.Add($"{inner}  const _fetchOpts = Object.assign({{}}, _o, {{ signal: _ctrl.signal }});");
+        lines.Add($"{inner}  if (_m === 'POST' || _m === 'PUT') {{");
+        lines.Add($"{inner}    if (_j || (_d && typeof _d === 'object')) {{");
+        lines.Add($"{inner}      _fetchOpts.body = JSON.stringify(_d);");
+        lines.Add($"{inner}      if (!_fetchOpts.headers) _fetchOpts.headers = {{}};");
+        lines.Add($"{inner}      _fetchOpts.headers['Content-Type'] = 'application/json';");
+        lines.Add($"{inner}    }} else {{");
+        lines.Add($"{inner}      _fetchOpts.body = (_d != null ? String(_d) : '');");
+        lines.Add($"{inner}    }}");
+        lines.Add($"{inner}  }}");
+        lines.Add($"{inner}  fetch(_u, _fetchOpts).then(async (res) => {{");
+        lines.Add($"{inner}    if (_req.state === 'cancelled') return;");
+        lines.Add($"{inner}    _req.status = res.status;");
+        lines.Add($"{inner}    let body = _j ? await res.json() : await res.text();");
+        lines.Add($"{inner}    _req.response = body;");
+        lines.Add($"{inner}    _req.state = 'completed';");
+        lines.Add($"{inner}    _req._emit('complete', {{ response: body }});");
+        lines.Add($"{inner}  }}).catch((err) => {{");
+        lines.Add($"{inner}    if (_req.state === 'cancelled') return;");
+        lines.Add($"{inner}    _req.state = 'failed';");
+        lines.Add($"{inner}    const msg = (err && err.name === 'AbortError') ? 'The HTTP request timed out.' : ((err && err.message) ? err.message : String(err));");
+        lines.Add($"{inner}    _req.error = msg;");
+        lines.Add($"{inner}    _req._emit('error', {{ error: msg, netError: msg }});");
+        lines.Add($"{inner}  }});");
+        lines.Add($"{inner}  return _req;");
+        lines.Add($"{inner}}})('{method}', {url}, {dataJs}, {asJsonJs}, {optsArg}); window.{target} = {target};");
+        lines.Add($"{pad}}}");
+        return string.Join("\n", lines);
+    }
+
+    // WebSocketEvent (D106, D116B): a handler on a websocket or a started
+    // request. TCP and UDP events have no web compilation.
+    string NetworkEvent(NetworkEventStmt networkEvent, int indent, string pad, HashSet<string>? localNames)
+    {
+        if (networkEvent.EventKind is NetworkEventKind.Connect or NetworkEventKind.Data or NetworkEventKind.Connection)
+        {
+            throw WebError("TCP/UDP events (\"on connect of\", \"on data from\", \"on connection to\") are not supported on the web target. Use a websocket (\"on open of\", \"on message from\").", networkEvent.Line);
+        }
+        string socketJs = Expression(networkEvent.Socket);
+        var bodyLines = new List<string>();
+        foreach (Stmt s in networkEvent.Body)
+        {
+            string line = Statement(s, indent + 2, localNames);
+            if (line.Length > 0) bodyLines.Add(line);
+        }
+        string bodyJs = string.Join("\n", bodyLines);
+        const string Prev = "const _prev = (typeof _otterCurrentWsContext !== 'undefined' ? _otterCurrentWsContext : null);";
+        return networkEvent.EventKind switch
+        {
+            NetworkEventKind.Open => $"{pad}((_s) => {{ if (!_s || typeof _s !== 'object' || !_s.__otterWebSocket) {{ throw new Error('I can only listen for a websocket event on a websocket, but this is something else.'); }} _s.ws.addEventListener('open', async () => {{\n{bodyJs}\n{pad}  }}); }})({socketJs});",
+            NetworkEventKind.Message => $"{pad}((_s) => {{ if (!_s || typeof _s !== 'object' || !_s.__otterWebSocket) {{ throw new Error('I can only listen for a websocket event on a websocket, but this is something else.'); }} _s.ws.addEventListener('message', async (_evt) => {{ {Prev} const _msg = (_evt.data instanceof ArrayBuffer) ? {{ __otterBytes: true, value: new Uint8Array(_evt.data), toString() {{ return '<' + this.value.length + ' bytes>'; }} }} : _evt.data; _otterCurrentWsContext = {{ message: _msg }}; try {{\n{bodyJs}\n{pad}  }} finally {{ _otterCurrentWsContext = _prev; }} }}); }})({socketJs});",
+            NetworkEventKind.Close => $"{pad}((_s) => {{ if (!_s || typeof _s !== 'object' || !_s.__otterWebSocket) {{ throw new Error('I can only listen for a websocket event on a websocket, but this is something else.'); }} _s.ws.addEventListener('close', async (_evt) => {{ {Prev} _otterCurrentWsContext = {{ closeCode: _evt.code, closeReason: _evt.reason || '', closeWasClean: _evt.wasClean }}; try {{\n{bodyJs}\n{pad}  }} finally {{ _otterCurrentWsContext = _prev; }} }}); }})({socketJs});",
+            NetworkEventKind.Complete => $"{pad}((_s) => {{ if (!_s || typeof _s !== 'object' || !_s.__otterHttpRequest) {{ throw new Error('I can only listen for complete on an HTTP request, but this is something else.'); }} _s.on('complete', async (_ctx) => {{ {Prev} _otterCurrentWsContext = _ctx; try {{\n{bodyJs}\n{pad}  }} finally {{ _otterCurrentWsContext = _prev; }} }}); }})({socketJs});",
+            NetworkEventKind.Cancel => $"{pad}((_s) => {{ if (!_s || typeof _s !== 'object' || !_s.__otterHttpRequest) {{ throw new Error('I can only listen for cancel on an HTTP request, but this is something else.'); }} _s.on('cancel', async (_ctx) => {{ {Prev} _otterCurrentWsContext = _ctx; try {{\n{bodyJs}\n{pad}  }} finally {{ _otterCurrentWsContext = _prev; }} }}); }})({socketJs});",
+            _ => $"{pad}((_s) => {{ if (!_s || typeof _s !== 'object' || (!_s.__otterWebSocket && !_s.__otterHttpRequest)) {{ throw new Error('I can only listen for an error event on a websocket or http request, but this is something else.'); }} if (_s.__otterHttpRequest) {{ _s.on('error', async (_ctx) => {{ {Prev} _otterCurrentWsContext = _ctx; try {{\n{bodyJs}\n{pad}  }} finally {{ _otterCurrentWsContext = _prev; }} }}); return; }} _s.ws.addEventListener('error', async (_evt) => {{ {Prev} _otterCurrentWsContext = {{ error: 'WebSocket error' }}; try {{\n{bodyJs}\n{pad}  }} finally {{ _otterCurrentWsContext = _prev; }} }}); }})({socketJs});",
+        };
+    }
+
+
     // ConvertTo-OtterJsStatement
     public string Statement(Stmt stmt, int indent = 2, HashSet<string>? localNames = null, HashSet<string>? knownGlobals = null, bool skipRuntimeUi = false)
     {
@@ -718,6 +894,189 @@ sealed partial class JsCompiler
             case UiAnimationBlock:
                 // NodeKind UiAnimation reaches the default case in otterPS.
                 throw WebError("This statement (UiAnimation) is not supported on the web target yet.", stmt.Line);
+            // ---- system (D67, D69-D85), downloads (D96) ----
+            case DownloadFileStmt download:
+                return $"{pad}await otterDownloadFile({Expression(download.Url)}, {Expression(download.Path)});";
+            case RunProgramStmt runProgram:
+                return HookResult(pad, localNames, runProgram.ResultTarget, $"await otterRunCommand({Expression(runProgram.Target)})");
+            case RunRemoteCommandStmt remote:
+                return HookResult(pad, localNames, remote.ResultTarget, $"await otterRunRemoteCommand({Expression(remote.Command)}, {Expression(remote.HostName)}, {Expression(remote.CredentialName)})");
+            case RunSshCommandStmt ssh:
+                return HookResult(pad, localNames, ssh.ResultTarget, $"await otterRunSshCommand({Expression(ssh.Command)}, {Expression(ssh.HostName)})");
+            case GetProcessesStmt processes:
+                return ThingList(pad, inner, localNames, processes.Target, "await otterGetProcesses()", "process");
+            case KillProcessStmt kill:
+                return Lines(
+                    $"{pad}{{",
+                    $"{inner}const _p = {Expression(kill.Process)};",
+                    $"{inner}if (!_p || typeof _p !== 'object' || !_p.__otterThing || !('id' in _p.props)) {{ throw new Error('I can only kill a real process handle, such as the one \"run ... into p\" or \"get processes into list\" gives you.'); }}",
+                    $"{inner}await otterKillProcess(_p.props.id, {(kill.IncludeChildren ? "true" : "false")});",
+                    $"{pad}}}");
+            case SetProcessPriorityStmt priority:
+            {
+                string processJs = Expression(priority.Process);
+                string priorityJs = Expression(priority.Priority);
+                return Lines(
+                    $"{pad}{{",
+                    $"{inner}const _p = {processJs};",
+                    $"{inner}if (!_p || typeof _p !== 'object' || !_p.__otterThing || !('id' in _p.props)) {{ throw new Error('I can only set the priority of a real process handle, such as the one \"run ... into p\" or \"get processes into list\" gives you.'); }}",
+                    $"{inner}await otterSetProcessPriority(_p.props.id, String({priorityJs}));",
+                    $"{pad}}}");
+            }
+            case WaitForProcessStmt waitFor:
+            {
+                string processJs = Expression(waitFor.Process);
+                string secondsJs = Expression(waitFor.TimeoutSeconds);
+                var lines = new List<string>
+                {
+                    $"{pad}{{",
+                    $"{inner}const _p = {processJs};",
+                    $"{inner}if (!_p || typeof _p !== 'object' || !_p.__otterThing || !('id' in _p.props)) {{ throw new Error('I can only wait for a real process handle, such as the one \"run ... into p\" or \"get processes into list\" gives you.'); }}",
+                    $"{inner}const _finished = await otterWaitForProcess(_p.props.id, Number({secondsJs}));",
+                };
+                if (!string.IsNullOrEmpty(waitFor.Target)) lines.Add(Write(inner, localNames, waitFor.Target, "_finished"));
+                lines.Add($"{pad}}}");
+                return string.Join("\n", lines);
+            }
+            case CreateSymbolicLinkStmt createLink:
+                return $"{pad}await otterCreateSymbolicLink({Expression(createLink.LinkPath)}, {Expression(createLink.TargetPath)});";
+            case GetSymbolicLinkTargetStmt linkTarget:
+                return Write(pad, localNames, linkTarget.Target, $"await otterGetSymbolicLinkTarget({Expression(linkTarget.LinkPath)})");
+            case GetFileOwnerStmt owner:
+                return Write(pad, localNames, owner.Target, $"await otterGetFileOwner({Expression(owner.Path)})");
+            case SetFileReadOnlyStmt setReadOnly:
+                return $"{pad}await otterSetFileReadOnly({Expression(setReadOnly.Path)}, {(setReadOnly.ReadOnly ? "true" : "false")});";
+            case GetRegistryValueStmt getRegistry:
+                return Write(pad, localNames, getRegistry.Target, $"await otterGetRegistryValue({Expression(getRegistry.ValueName)}, {Expression(getRegistry.KeyPath)})");
+            case GetEventLogEntriesStmt eventLog:
+                return ThingList(pad, inner, localNames, eventLog.Target,
+                    $"await otterGetEventLogEntries({Expression(eventLog.LogName)}, Number({Expression(eventLog.MaxEntries)}))", "event log entry");
+            case SetRegistryValueStmt setRegistry:
+                return $"{pad}await otterSetRegistryValue({Expression(setRegistry.ValueName)}, {Expression(setRegistry.Value)}, {Expression(setRegistry.KeyPath)});";
+            case DeleteRegistryValueStmt deleteRegistry:
+                return $"{pad}await otterDeleteRegistryValue({Expression(deleteRegistry.ValueName)}, {Expression(deleteRegistry.KeyPath)});";
+            case SetCredentialStmt setCredential:
+                return $"{pad}await otterSetCredential({Expression(setCredential.Name)}, {Expression(setCredential.Secret)});";
+            case GetCredentialStmt getCredential:
+                return Write(pad, localNames, getCredential.Target, $"await otterGetCredential({Expression(getCredential.Name)})");
+            case DeleteCredentialStmt deleteCredential:
+                return $"{pad}await otterDeleteCredential({Expression(deleteCredential.Name)});";
+            case PowerActionStmt power:
+                return $"{pad}await otterPowerAction({Expression(new LiteralExpr(PowerActionWord(power.Action), power.Line))});";
+            case PrintFileStmt print:
+                return $"{pad}await otterPrintFile({Expression(print.Path)}, {Expression(print.PrinterName)});";
+            case CopyToClipboardStmt copy:
+                return $"{pad}await otterClipboard.copy(String({Expression(copy.Text)}));";
+            case GetClipboardStmt getClipboard:
+                return Lines(
+                    $"{pad}{{",
+                    $"{inner}const _raw = await otterClipboard.paste();",
+                    $"{inner}const _val = (_raw === '' || _raw === null || _raw === undefined) ? null : _raw;",
+                    Write(inner, localNames, getClipboard.Target, "_val"),
+                    $"{pad}}}");
+            case NotifyStmt notify:
+                return $"{pad}await otterNotify(String({Expression(notify.Title)}), String({Expression(notify.Message)}));";
+            case GetSystemInfoStmt systemInfo:
+                return Lines(
+                    $"{pad}{{",
+                    $"{inner}const _kindOriginal = String({Expression(systemInfo.InfoKind)});",
+                    $"{inner}const _kind = _kindOriginal.toLowerCase();",
+                    $"{inner}const _typeNames = {{ os: 'operating system', cpu: 'cpu', memory: 'memory', disk: 'disk', network: 'network interface', user: 'user', software: 'software', tasks: 'scheduled task', printers: 'printer', services: 'service' }};",
+                    $"{inner}const _listKinds = {{ network: true, groups: true, software: true, tasks: true, printers: true, services: true }};",
+                    $"{inner}const _plainListKinds = {{ groups: true }};",
+                    $"{inner}if (!(_kind in _typeNames) && !(_kind in _listKinds)) {{ throw new Error('I do not know a kind of system information called \"' + _kindOriginal + '\".'); }}",
+                    $"{inner}const _raw = await otterGetSystemInfo(_kind);",
+                    $"{inner}const _wrapOne = (v, tn) => {{ const props = {{}}; const order = []; if (v) {{ for (const k of Object.keys(v)) {{ props[k] = v[k]; order.push(k); }} }} return {{ __otterThing: true, typeName: tn, props: props, order: order }}; }};",
+                    $"{inner}let _value;",
+                    $"{inner}if (_kind in _listKinds) {{ const _arr = Array.isArray(_raw) ? _raw : []; _value = (_kind in _plainListKinds) ? _arr : _arr.map((x) => _wrapOne(x, _typeNames[_kind])); }} else {{ _value = _wrapOne(_raw, _typeNames[_kind]); }}",
+                    Write(inner, localNames, systemInfo.Target, "_value"),
+                    $"{pad}}}");
+            case ChooseFileStmt choose:
+            {
+                string hook = choose.Dialog switch
+                {
+                    FileDialogKind.Folder => "otterChooseFolder()",
+                    FileDialogKind.SaveFile => "otterSaveFileDialog()",
+                    _ => "otterChooseFile()",
+                };
+                // Get-OtterJsDialogSnippet
+                return Lines(
+                    $"{pad}{{",
+                    $"{inner}const _raw = await {hook};",
+                    $"{inner}const _path = (_raw === '' || _raw === null || _raw === undefined) ? null : _raw;",
+                    Write(inner, localNames, choose.Target, "_path"),
+                    $"{pad}}}");
+            }
+            case StoreSecretStmt:
+                throw WebError("The credential vault (store secret) is not supported on the web target. Browser storage is not a secure credential store.", stmt.Line);
+            case DeleteSecretStmt:
+                throw WebError("The credential vault (delete secret) is not supported on the web target. Browser storage is not a secure credential store.", stmt.Line);
+
+            // ---- HTTP (D49, D60, D101, D116B) ----
+            case HttpGetStmt get:
+                return HttpRequest(pad, inner, get.Options, "", Expression(get.Url), get.Target, get.AsJson ? "res.json()" : "res.text()", allowNoOptions: true);
+            case HttpSendStmt send:
+            {
+                string dataJs = Expression(send.Data);
+                string urlJs = Expression(send.Url);
+                string body = send.AsJson ? $"JSON.stringify({dataJs})" : $"(typeof {dataJs} === 'object' ? JSON.stringify({dataJs}) : String({dataJs}))";
+                return HttpRequest(pad, inner, send.Options, $"{{ method: '{send.Method}', body: {body} }}", urlJs, send.Target, "res.text()", allowNoOptions: false);
+            }
+            case HttpDeleteStmt delete:
+                return HttpRequest(pad, inner, delete.Options, "{ method: 'DELETE' }", Expression(delete.Url), delete.Target, "res.text()", allowNoOptions: false);
+            case HttpStartStmt start:
+                return HttpStart(start, pad, inner);
+            case HttpCancelStmt cancel:
+                return $"{pad}((_r) => {{ if (!_r || typeof _r !== 'object' || !_r.__otterHttpRequest) {{ throw new Error('cancel requires an HTTP request.'); }} _r.cancel(); }})({Expression(cancel.Request)});";
+
+            // ---- file watching (D104): console and desktop only ----
+            case FileWatchStmt or StopWatchingStmt or WatchEventStmt:
+                throw WebError("File/folder watching is not supported on the web target.", stmt.Line);
+
+            // ---- WebSockets (D106), TCP and UDP (D107, D108, D112, D113) ----
+            case WebSocketConnectStmt connect:
+            {
+                string urlJs = Expression(connect.Url);
+                string protocolJs = connect.Protocol != null ? Expression(connect.Protocol) : "null";
+                string ctorJs = $"((_u, _p) => {{ const _url = String(_u).trim(); if (!_url.toLowerCase().startsWith('ws://') && !_url.toLowerCase().startsWith('wss://')) {{ throw new Error('I need a websocket URL starting with \\'ws://\\' or \\'wss://\\', but this was \\'' + _url + '\\'.'); }} const _ws = _p ? new WebSocket(_url, [_p]) : new WebSocket(_url); _ws.binaryType = 'arraybuffer'; return {{ __otterWebSocket: true, ws: _ws, url: _url, protocol: _p || '', toString() {{ return 'a websocket'; }} }}; }})({urlJs}, {protocolJs})";
+                return Write(pad, localNames, connect.Target, ctorJs);
+            }
+            case WebSocketSendStmt wsSend:
+            {
+                string socketJs = Expression(wsSend.Socket);
+                string msgJs = Expression(wsSend.Message);
+                return $"{pad}((_s, _m) => {{ if (!_s || typeof _s !== 'object' || !_s.__otterWebSocket) {{ throw new Error('I can only send through a websocket, but this is something else.'); }} if (_s.ws.readyState !== 1) {{ throw new Error('I cannot send through a websocket that is not open (its state is \\'' + (_s.ws.readyState === 0 ? 'connecting' : _s.ws.readyState === 2 ? 'closing' : 'closed') + '\\').'); }} if (typeof _m === 'string') {{ _s.ws.send(_m); }} else if (_m && typeof _m === 'object' && _m.__otterBytes) {{ _s.ws.send(_m.value.buffer); }} else {{ throw new Error('I can only send text or bytes through a websocket, but this is something else.'); }} }})({socketJs}, {msgJs});";
+            }
+            case WebSocketCloseStmt wsClose:
+            {
+                string socketJs = Expression(wsClose.Socket);
+                string codeJs = wsClose.Code != null ? Expression(wsClose.Code) : "1000";
+                string reasonJs = wsClose.Reason != null ? Expression(wsClose.Reason) : "\"\"";
+                return $"{pad}((_s, _c, _r) => {{ if (!_s || typeof _s !== 'object' || !_s.__otterWebSocket) {{ throw new Error('I can only close a websocket, but this is something else.'); }} if (_s.ws.readyState <= 1) {{ _s.ws.close(_c, _r); }} }})({socketJs}, {codeJs}, {reasonJs});";
+            }
+            case TcpConnectStmt:
+                throw WebError("TCP is not supported on the web target. Browsers cannot open raw TCP sockets (use a websocket instead).", stmt.Line);
+            case TcpListenStmt:
+                throw WebError("TCP servers are not supported on the web target. Browsers cannot listen on TCP ports.", stmt.Line);
+            case TcpStopStmt:
+                throw WebError("TCP servers are not supported on the web target.", stmt.Line);
+            case UdpOpenStmt or UdpSendStmt:
+                throw WebError("UDP is not supported on the web target. Browsers cannot open raw UDP sockets.", stmt.Line);
+            case NetCloseStmt netClose:
+                throw WebError($"{netClose.Protocol.ToUpperInvariant()} is not supported on the web target. Browsers cannot open raw sockets.", stmt.Line);
+            case NetworkEventStmt networkEvent:
+                return NetworkEvent(networkEvent, indent, pad, localNames);
+
+            // ---- databases and queries (D97-D99) ----
+            case ConnectDbStmt or DisconnectDbStmt or DbQueryStmt or DbExecuteStmt or BeginTransactionStmt or CommitTransactionStmt
+                or RollbackTransactionStmt or GetTablesStmt or GetColumnsStmt or QueryStmt or QueryAggregateStmt:
+                throw WebError("Database providers are not supported on the web target. Browsers cannot connect directly to databases.", stmt.Line);
+
+            // ---- console and server only ----
+            case StartCommandStmt:
+                throw WebError("Starting a command (\"start command ...\") is not supported on the web target. Browsers cannot run programs.", stmt.Line);
+            case WebRouteStmt or RespondStmt or StartServerStmt or ListenServerStmt:
+                throw WebError("Web server statements run with \"otter serve\", not inside a web page.", stmt.Line);
             default:
                 throw new NotSupportedYet($"compiling {stmt.GetType().Name} for the web", stmt.Line);
         }

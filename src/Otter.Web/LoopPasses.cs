@@ -70,7 +70,7 @@ public static class LoopPasses
     // $script:OtterDeferredKinds: When, WebRoute, UiEvent, MemoDef, Watch,
     // Lifecycle and WatchEvent. (The list also names RouteChange and
     // NetworkEvent, which are not node kinds, so those never count.)
-    static bool IsDeferred(Node statement) => statement is WhenStmt or UiEventStmt or MemoDefStmt or WatchStmt or LifecycleStmt;
+    static bool IsDeferred(Node statement) => statement is WhenStmt or WebRouteStmt or UiEventStmt or MemoDefStmt or WatchStmt or LifecycleStmt or WatchEventStmt;
 
     static bool ContainsDeferredBody(IEnumerable<Node> statements)
     {

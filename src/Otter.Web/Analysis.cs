@@ -87,6 +87,25 @@ static class Bindings
                 case GenerateKeyStmt generateKey: Add(setStyle, generateKey.Target); break;
                 case CryptoCipherStmt cryptoCipher: Add(setStyle, cryptoCipher.Target); break;
                 case HashPasswordStmt hashPassword: Add(setStyle, hashPassword.Target); break;
+                case HttpGetStmt httpGet: Add(setStyle, httpGet.Target); break;
+                case HttpSendStmt httpSend: Add(setStyle, httpSend.Target); break;
+                case HttpDeleteStmt httpDelete: Add(setStyle, httpDelete.Target); break;
+                case HttpStartStmt httpStart: Add(setStyle, httpStart.TargetName); break;
+                case RunProgramStmt runProgram: Add(setStyle, runProgram.ResultTarget); break;
+                case RunSshCommandStmt ssh: Add(setStyle, ssh.ResultTarget); break;
+                case RunRemoteCommandStmt remote: Add(setStyle, remote.ResultTarget); break;
+                case GetClipboardStmt clipboard: Add(setStyle, clipboard.Target); break;
+                case ChooseFileStmt choose: Add(setStyle, choose.Target); break;
+                case GetSystemInfoStmt systemInfo: Add(setStyle, systemInfo.Target); break;
+                case GetProcessesStmt processes: Add(setStyle, processes.Target); break;
+                case WaitForProcessStmt waitFor: Add(setStyle, waitFor.Target); break;
+                case GetSymbolicLinkTargetStmt linkTarget: Add(setStyle, linkTarget.Target); break;
+                case GetFileOwnerStmt owner: Add(setStyle, owner.Target); break;
+                case GetRegistryValueStmt registry: Add(setStyle, registry.Target); break;
+                case GetEventLogEntriesStmt eventLog: Add(setStyle, eventLog.Target); break;
+                case GetCredentialStmt credential: Add(setStyle, credential.Target); break;
+                case WebSocketConnectStmt webSocket: Add(setStyle, webSocket.Target); break;
+                case NetworkEventStmt networkEvent: Walk(networkEvent.Body, result); break;
             }
         }
     }
@@ -104,7 +123,8 @@ static class AsyncAnalysis
         switch (expression)
         {
             case null: return false;
-            case AwaitExpr or FileExistsExpr or FileLockedExpr or CryptoHashExpr or CryptoHmacExpr or PasswordMatchesExpr: return true;
+            case AwaitExpr or FileExistsExpr or FileLockedExpr or FileIsSymbolicLinkExpr or FileIsReadOnlyExpr or RegistryKeyExistsExpr
+                or CryptoHashExpr or CryptoHmacExpr or PasswordMatchesExpr: return true;
             case SecureRandomBytesExpr random: return ExpressionNeedsAsync(random.Count);
             case SecurelyEqualsExpr securely: return ExpressionNeedsAsync(securely.Left) || ExpressionNeedsAsync(securely.Right);
             case BytesExpr bytes: return ExpressionNeedsAsync(bytes.Source);
@@ -141,6 +161,12 @@ static class AsyncAnalysis
                     or GetEntriesStmt or RunCommandStmt or GetEnvironmentVariableStmt or GetSystemFolderStmt or HashTextStmt or CipherTextStmt:
                     return true;
                 case CryptoCipherStmt or HashPasswordStmt:
+                    return true;
+                case RunProgramStmt or HttpGetStmt or HttpSendStmt or HttpDeleteStmt or CopyToClipboardStmt or GetClipboardStmt or NotifyStmt
+                    or ChooseFileStmt or GetSystemInfoStmt or GetProcessesStmt or KillProcessStmt or SetProcessPriorityStmt or WaitForProcessStmt
+                    or CreateSymbolicLinkStmt or GetSymbolicLinkTargetStmt or GetFileOwnerStmt or SetFileReadOnlyStmt or GetRegistryValueStmt
+                    or SetRegistryValueStmt or DeleteRegistryValueStmt or GetEventLogEntriesStmt or SetCredentialStmt or GetCredentialStmt
+                    or DeleteCredentialStmt or PowerActionStmt or PrintFileStmt or RunRemoteCommandStmt or RunSshCommandStmt or DownloadFileStmt:
                     return true;
                 case ReadJsonStmt or ReadCsvStmt or WriteCsvStmt or XmlWriteFileStmt:
                     return true;
