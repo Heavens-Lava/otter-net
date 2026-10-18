@@ -60,7 +60,8 @@ internal static partial class ProjectCommands
         }
         string archetype = target.ToLowerInvariant();
         string[] raw = line.RawTrailing(2);
-        string? projectName = raw.Length > 0 ? raw[0] : line.Arguments.Count > 0 ? line.Arguments[0] : null;
+        // if ($rawArgs -and $rawArgs.Count -gt 0) { $rawArgs[0] } elseif ($Arguments -and ...) { $Arguments[0] }
+        string? projectName = CommandLine.IsTrue(raw) ? raw[0] : CommandLine.IsTrue(line.Arguments) ? line.Arguments![0] : null;
         if (string.IsNullOrEmpty(projectName))
         {
             Host.Line($"Usage: otter new {archetype} <name>", ConsoleColor.Red);

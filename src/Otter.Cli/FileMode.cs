@@ -75,6 +75,13 @@ internal static class FileMode
             ShowFailure(compiled.Failure is OtterError otterError ? resolved.Remap(otterError) : compiled.Failure, line.DebugErrors);
             throw new CliExit(Cli.ExitCheckError);
         }
+        // A run tries otterPS's compiled engine first, whose Import-Module
+        // shows PowerShell's VERBOSE messages under -Verbose.
+        if (line.Verbose && !line.ParseOnly && !checkOnly && !line.DebugAst && debugger == null && profiler == null
+            && !string.Equals(Environment.GetEnvironmentVariable("OTTER_ENGINE"), "interpreter", StringComparison.Ordinal))
+        {
+            throw Cli.VerboseModules();
+        }
         compiled.WriteTokens();
 
         if (!line.ParseOnly && !checkOnly)
