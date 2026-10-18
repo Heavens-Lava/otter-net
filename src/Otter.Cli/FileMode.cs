@@ -75,7 +75,17 @@ internal static class FileMode
             ShowFailure(compiled.Failure is OtterError otterError ? resolved.Remap(otterError) : compiled.Failure, line.DebugErrors);
             throw new CliExit(Cli.ExitCheckError);
         }
+        // A run tries otterPS's compiled engine first, whose Import-Module
+        // shows PowerShell's VERBOSE messages under -Verbose.
+        if (line.Verbose && !line.ParseOnly && !checkOnly && !line.DebugAst && debugger == null && profiler == null
+            && !string.Equals(Environment.GetEnvironmentVariable("OTTER_ENGINE"), "interpreter", StringComparison.Ordinal))
+        {
+            throw Cli.VerboseModules();
+        }
+        // -DebugAst: the tree, after the tokens, when the program will run.
+        List<string>? ast = line.DebugAst && !line.ParseOnly && !checkOnly ? AstDump.Lines(compiled.Program!) : null;
         compiled.WriteTokens();
+        if (ast != null) WriteAst(ast);
 
         if (!line.ParseOnly && !checkOnly)
         {
@@ -120,6 +130,14 @@ internal static class FileMode
             Host.Line($"ok: {scriptPath}");
         }
         return Cli.ExitSuccess;
+    }
+
+    // Invoke-OtterSource's -DebugAst block.
+    public static void WriteAst(List<string> lines)
+    {
+        Host.Line("--- ast ---", ConsoleColor.DarkCyan);
+        foreach (string text in lines) Host.Line(text, ConsoleColor.DarkGray);
+        Host.Line("");
     }
 
     public sealed class Compiled

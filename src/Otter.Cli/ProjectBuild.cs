@@ -287,12 +287,27 @@ internal static partial class ProjectCommands
 
     public static int Publish(CommandLine line)
     {
-        // `--output`/`-Output` start with "-", so they have already been
-        // handed to the PowerShell Otter by the binder.
-        string target = line.HasTarget ? line.Target! : ".";
+        // otter.ps1: the target unless it starts with "-"; the output folder
+        // after --output / -Output in the raw trailing arguments, else
+        // $Arguments[0] when the target itself was --output / -Output.
+        string target = line.HasTarget && !line.Target!.StartsWith('-') ? line.Target : ".";
+        string[] raw = line.RawTrailing(2);
+        string? outputDir = null;
+        for (int i = 0; i < raw.Length; i++)
+        {
+            if ((raw[i].Equals("--output", StringComparison.OrdinalIgnoreCase) || raw[i].Equals("-Output", StringComparison.OrdinalIgnoreCase)) && i + 1 < raw.Length)
+            {
+                outputDir = raw[i + 1];
+                break;
+            }
+        }
+        if (string.IsNullOrEmpty(outputDir) && (string.Equals(line.Target, "--output", StringComparison.OrdinalIgnoreCase) || string.Equals(line.Target, "-Output", StringComparison.OrdinalIgnoreCase)))
+        {
+            outputDir = CommandLine.IsTrue(line.Arguments) ? line.Arguments![0] : null;
+        }
         try
         {
-            return PublishProject(target);
+            return PublishProject(target, outputDir);
         }
         catch (Exception failure) when (failure is not OutOfMemoryException and not CliExit and not NeedsPowerShell)
         {
@@ -309,7 +324,7 @@ internal static partial class ProjectCommands
         return 1;
     }
 
-    static int PublishProject(string target)
+    static int PublishProject(string target, string? outputDir)
     {
         if (string.IsNullOrWhiteSpace(target)) target = ".";
         Project project = Project.Load(target);
@@ -334,14 +349,15 @@ internal static partial class ProjectCommands
         if (string.IsNullOrWhiteSpace(RawText("version"))) throw CheckProblem("otter.json: property \"version\" is required for publish.");
 
         // 2. The publish folder.
-        string outDirName = string.IsNullOrWhiteSpace(project.PublishOutputDir) ? "publish" : project.PublishOutputDir.Trim();
+        string outDirName = !string.IsNullOrWhiteSpace(outputDir) ? outputDir.Trim()
+            : string.IsNullOrWhiteSpace(project.PublishOutputDir) ? "publish" : project.PublishOutputDir.Trim();
         if (outDirName.StartsWith('/') || outDirName.StartsWith('\\') || DriveLetter().IsMatch(outDirName))
         {
             throw CheckProblem($"publish.outputDir cannot be an absolute path: {outDirName}");
         }
         string resolvedPublishDir = Path.GetFullPath(Path.Combine(rootDirectory, outDirName));
         string rootWithSeparator = rootDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
-        if (resolvedPublishDir == rootDirectory || !resolvedPublishDir.StartsWith(rootWithSeparator, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(resolvedPublishDir, rootDirectory, StringComparison.OrdinalIgnoreCase) || !resolvedPublishDir.StartsWith(rootWithSeparator, StringComparison.OrdinalIgnoreCase))
         {
             throw CheckProblem("publish.outputDir must stay inside the project directory and cannot be the project root itself.");
         }

@@ -283,3 +283,107 @@ otter-net gives the Windows PowerShell 5.1 behaviour in each case:
 - A URL that is an absolute Unix path ("/x") is "not a valid URL" on Windows;
   .NET on macOS and Linux reads it as a `file:` URL, so otterPS there says the
   URL uses "file".
+
+## CLI questions (found 2026-10-17, porting the rest of the command line)
+
+### C2-1. PowerShell's own errors name otter.ps1's path and depend on the console
+
+When PowerShell itself rejects otter.ps1's command line (a parameter binding
+failure such as `otter -Deb`, `otter a.ot -Port abc`) or fails inside
+otter.ps1 (`otter debug a.ot -Breakpoints 1,x`), powershell.exe -File writes
+its error record in the default view on the error stream and exits with 1:
+
+    C:\Users\me\AppData\Local\Otter\1.0.1\otter.ps1 : Parameter cannot be processed because ...
+        + CategoryInfo          : InvalidArgument: (:) [otter.ps1], ParentContainsErrorRecordException
+        + FullyQualifiedErrorId : AmbiguousParameter,otter.ps1
+
+The first part is otter.ps1's full path, which otter-net, having no
+otter.ps1, takes as `otter.ps1` next to its own executable (where the
+installer puts otterPS's). The two `+` lines are cut into pieces of the
+console width less 6; otter-net assumes the standard 120 columns, and does
+not wrap the message line itself (PowerShell's formatter may, at the
+console's width). Standard output and the exit code are not affected. Needs
+a decision: are these texts part of the behaviour to keep (they are
+PowerShell's, not Otter's)? PowerShell 7 shows them differently again
+("otter.ps1: Parameter cannot be processed ..."), so every such case in
+`tests/cli/binding.psd1` is a known PowerShell 7 difference.
+
+### C2-2. `otter -v` prints the version (Q3 is mistaken)
+
+Q3 says `otter -v` is PowerShell's "ambiguous parameter" error. PowerShell's
+binder (MergedCommandParameterMetadata.GetMatchingParameter, the same in 5.1
+and 7) prefers a script's own parameter over common parameters when a prefix
+matches several, so `-v` binds `-VersionFlag` and prints the version; `-o`
+is `-Open`, `-he` is `-HelpFlag`. Ambiguity errors remain where several of
+otter.ps1's own parameters match (`-Deb`, `-p`) or only common ones do (`-i`,
+`-e`). otter-net follows the binder.
+
+### C2-3. A lone "-" argument
+
+Windows PowerShell 5.1's `-File` treats every argument starting with a dash
+as a parameter name, so `otter a.ot -` passes a parameter with an empty name,
+which PowerShell's binder refuses with an argument error ("Cannot process
+argument because the value of argument "name" is not valid ...", exit 1).
+PowerShell 7 passes "-" as an ordinary argument (the program sees it).
+otter-net gives the 5.1 behaviour, read from PowerShell's source; it could
+not be run on Windows PowerShell 5.1 here. A program that wants "-" (for
+standard input, say) cannot get it on 5.1. Needs a decision.
+
+### C2-4. `otter web` without a file exits with 0
+
+otter.ps1 ends `otter web` / `browse` / `serve` / `desktop` without a file
+with `exit 1`, but under powershell.exe -File that `exit` reaches the
+process as 0 (otter.ps1 notes the same thing for `otter studio` and uses
+[Environment]::Exit there). otter-net exits with 0 as otterPS does. Needs a
+decision: the usage error most likely should be exit code 1, as for every
+other command.
+
+### C2-5. -Verbose and -InformationAction change otterPS's output
+
+otter.ps1 is an advanced script, so PowerShell's common parameters apply to
+it. Two of them change what otterPS shows:
+
+- `-Verbose` (or `-vb`): every Import-Module otterPS makes at that point
+  lists the modules and functions it loads ("VERBOSE: Loading module from
+  path '...src\Otter.Profiler.psm1'.", "VERBOSE: Importing function ..."),
+  with otterPS's install path: `otter profile`, `otter debug`, `otter build`,
+  `otter publish`, and `otter run` of a program (its compiled engine).
+- `-InformationAction Ignore` hides everything otterPS writes with
+  Write-Host (all of its output); `Stop` turns the first Write-Host into a
+  PowerShell error; `Inquire` asks before each one.
+
+otter-net hands these command lines to the PowerShell Otter (they are the
+only dash arguments it does not take on itself). They are accidents of
+PowerShell, not Otter features; needs a decision whether to keep them
+(then otter-net needs otterPS's module and function lists) or to drop them.
+The other common parameters (-Debug, -ErrorAction, -WarningAction,
+-ErrorVariable, -OutVariable, ...) are bound and validated as PowerShell
+does and change nothing visible.
+
+### C2-6. Texts read from PowerShell's and .NET Framework's sources
+
+These could not be checked against Windows PowerShell 5.1 here (the
+reference runs on PowerShell 7 on macOS); otter-net takes them from
+PowerShell's source (v6.0.0-alpha.9, the 5.1 code base) and .NET
+Framework's resources:
+
+- `otter -?` prints otter.ps1's syntax line (Get-Help); PowerShell 7's text
+  is reproduced; 5.1 may wrap it at the console width.
+- [int] conversion failures: "Input string was not in a correct format.",
+  "Index was outside the bounds of the array." (a blank number), and
+  ActionPreference without `Break`; `-ErrorAction Suspend`: "The error action
+  preference of "Suspend" is supported only on workflows."
+- A manifest that is not valid JSON: JavaScriptSerializer's messages ("Invalid
+  JSON primitive: x.", "Invalid object passed in, ':' or '}' expected. (12):
+  ...") and PowerShell 5.1's "Cannot convert the JSON string because a
+  dictionary that was converted from the string contains the duplicated keys
+  'a' and 'A'." PowerShell 7 uses Newtonsoft.Json, whose messages (and what
+  it accepts: a trailing comma) differ.
+
+### C2-7. PowerShell 7 differences on the command line
+
+Besides the error texts (C2-1, C2-6): PowerShell 7's `-File` turns
+`-Switch:true` / `-Switch:$false` into Booleans (5.1 passes the text, which a
+switch refuses), passes a lone "-" as an argument (C2-3), and has the extra
+common parameter `-ProgressAction` (so `-p` lists it among the matches).
+otter-net gives 5.1's behaviour.

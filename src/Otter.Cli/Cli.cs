@@ -17,6 +17,12 @@ internal static class Cli
 
     public static int Run(CommandLine line)
     {
+        // -InformationAction Stop, Inquire or Ignore changes what every
+        // Write-Host of otterPS does (an error, a prompt, nothing shown).
+        if (line.InformationAction is 1 or 3 or 4)
+        {
+            throw new NeedsPowerShell($"-InformationAction {PowerShellConvert.ActionPreferenceNames[line.InformationAction.Value]} acts on PowerShell's information stream, which carries everything otterPS shows");
+        }
         if (line.Version || Is(line.Path, "--version"))
         {
             Program.Trace("native: --version");
@@ -32,8 +38,11 @@ internal static class Cli
         string? command = line.Path;
         if (Is(command, "new")) return ProjectCommands.New(line);
         if (Is(command, "test")) return ProjectCommands.Test(line);
-        if (Is(command, "build")) return ProjectCommands.Build(line);
-        if (Is(command, "publish")) return ProjectCommands.Publish(line);
+        if (Is(command, "build") || Is(command, "publish"))
+        {
+            if (line.Verbose) throw VerboseModules();
+            return Is(command, "build") ? ProjectCommands.Build(line) : ProjectCommands.Publish(line);
+        }
         if (Is(command, "run") || Is(command, "check")) return RunOrCheck(line, Is(command, "check"));
         if (Is(command, "profile")) return Profile(line);
         if (Is(command, "debug")) return Debug(line);
@@ -69,6 +78,12 @@ internal static class Cli
         Host.Line("");
     }
 
+    // -Verbose: otterPS's Import-Module calls then list every module and
+    // function they load (PowerShell's VERBOSE messages, with otterPS's
+    // install path), which otter-net has no modules to reproduce.
+    public static NeedsPowerShell VerboseModules() =>
+        new("-Verbose makes otterPS show PowerShell's module-loading messages");
+
     static CliExit UsageError(string message)
     {
         Host.Line(message, ConsoleColor.Red);
@@ -82,7 +97,6 @@ internal static class Cli
         if (!line.HasTarget) throw UsageError($"Usage: otter {line.Path} <file.ot>");
         string target = line.Target!;
         string[] arguments = line.RawTrailing(2);
-        if (!check && line.DebugAst && !line.ParseOnly) throw new NeedsPowerShell("-DebugAst shows otterPS's own syntax tree");
 
         if (!target.ToLowerInvariant().EndsWith(".ot", StringComparison.Ordinal))
         {
@@ -122,7 +136,6 @@ internal static class Cli
         string path = line.Path!;
         if (Project.Find(path) != null)
         {
-            if (line.DebugAst && !line.ParseOnly) throw new NeedsPowerShell("-DebugAst shows otterPS's own syntax tree");
             string[] projectArguments = line.RawTrailing(1);
             Project project = LoadProjectOrExit(path, ExitCheckError);
             return FileMode.Invoke(line, project.ResolvedEntryPoint, FileMode.Kind.Run, projectArguments, displayTarget: path);
@@ -138,22 +151,23 @@ internal static class Cli
             Host.Line("Run 'otter help' to see the available commands.", ConsoleColor.Red);
             throw new CliExit(ExitUsageError);
         }
-        if (line.DebugAst && !line.ParseOnly) throw new NeedsPowerShell("-DebugAst shows otterPS's own syntax tree");
         return FileMode.Invoke(line, path, FileMode.Kind.Run, line.RawTrailing(1));
     }
 
     static int Profile(CommandLine line)
     {
         if (!line.HasTarget) throw UsageError("Usage: otter profile <file.ot>");
-        if (line.DebugAst && !line.ParseOnly) throw new NeedsPowerShell("-DebugAst shows otterPS's own syntax tree");
+        if (line.Verbose) throw VerboseModules();
         var profiler = new Profiler();
         return FileMode.Invoke(line, line.Target!, FileMode.Kind.Run, line.RawTrailing(2), profiler: profiler);
     }
 
+    // otter.ps1 line 890, quoted by PowerShell when a breakpoint is not a number.
+    const string BreakpointsLine = "        $breakpointLines = @($Breakpoints -split ',' | ForEach-Object { [int]($_.Trim()) })";
+
     static int Debug(CommandLine line)
     {
         if (!line.HasTarget) throw UsageError("Usage: otter debug <file.ot> -Breakpoints \"5,12\"");
-        if (line.DebugAst && !line.ParseOnly) throw new NeedsPowerShell("-DebugAst shows otterPS's own syntax tree");
         var breakpoints = new List<int>();
         if (!string.IsNullOrEmpty(line.Breakpoints))
         {
@@ -162,13 +176,22 @@ internal static class Cli
             {
                 string trimmed = part.Trim();
                 if (trimmed.Length == 0) { breakpoints.Add(0); continue; }
-                if (!int.TryParse(trimmed, System.Globalization.NumberStyles.AllowLeadingSign, System.Globalization.CultureInfo.InvariantCulture, out int number))
+                if (!PowerShellConvert.TryToInt32(trimmed, out int number, out string error))
                 {
-                    throw new NeedsPowerShell("a breakpoint that is not a whole number is PowerShell's own conversion error");
+                    // The cast fails inside ForEach-Object, a script-terminating
+                    // error ($ErrorActionPreference is Stop): PowerShell's own
+                    // report, exit code 1.
+                    Program.Trace("native: breakpoint conversion failed");
+                    new PowerShellError("ForEach-Object : ", $"Cannot convert value \"{trimmed}\" to type \"System.Int32\". Error: \"{error}\"",
+                        PowerShellError.PositionMessage(PowerShellError.ScriptPath, 890, BreakpointsLine, 56, 35),
+                        "InvalidArgument", "ForEach-Object", "RuntimeException",
+                        "InvalidCastFromStringToInteger,Microsoft.PowerShell.Commands.ForEachObjectCommand").Write();
+                    throw new CliExit(1);
                 }
                 breakpoints.Add(number);
             }
         }
+        if (line.Verbose) throw VerboseModules();
         string target = line.Target!;
         var debugger = new Debugger(Path.GetFileName(target.Replace('\\', '/').TrimEnd('/')), breakpoints);
         return FileMode.Invoke(line, target, FileMode.Kind.Run, line.RawTrailing(2), debugger: debugger);
@@ -183,8 +206,11 @@ internal static class Cli
         if (Is(command, "studio")) throw new NeedsPowerShell("otter studio is not native");
         if (!line.HasTarget)
         {
+            // otter.ps1 says `exit 1` here, but under powershell.exe -File
+            // that script's `exit` reaches the process as 0 (otter.ps1 itself
+            // notes it, using [Environment]::Exit elsewhere): exit code 0.
             Host.Line($"Usage: otter {command} <script.ot>");
-            throw new CliExit(ExitUsageError);
+            throw new CliExit(ExitSuccess);
         }
         string scriptFile = line.Target!;
         bool project = Project.Find(scriptFile) != null;

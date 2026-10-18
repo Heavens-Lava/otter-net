@@ -12,6 +12,8 @@
         @{ Name = 'a name with a slash'; Args = @('new', 'console', 'a/b') }
         @{ Name = 'a name with a colon'; Args = @('new', 'console', 'a:b') }
         @{ Name = 'a folder that is not empty'; Args = @('new', 'console', 'taken'); Files = @{ 'taken/keep.txt' = 'mine' } }
+        @{ Name = 'a name with a tab'; Args = @('new', 'console', "a`tb"); KnownOnPwsh7 = 'byte order mark and \r\n (5.1); on Windows .NET Framework refuses the tab ("Illegal characters in path.")' }
+        @{ Name = 'a name with a line break'; Args = @('new', 'console', "a`nb"); KnownOnPwsh7 = 'byte order mark and \r\n (5.1); on Windows .NET Framework refuses the line break' }
         @{ Name = 'an empty folder is used'; Args = @('new', 'console', 'empty'); Files = @{ 'empty/' = '' }; KnownOnPwsh7 = 'byte order mark and \r\n (5.1)' }
     )
 }

@@ -197,6 +197,7 @@ public static class Lexer
                     if (text[index] == '\\' && index + 1 < text.Length)
                     {
                         index++;
+                        // PowerShell's switch ignores capitals: "\N" and "\T" too.
                         switch (text[index])
                         {
                             // PowerShell's switch compares characters ignoring

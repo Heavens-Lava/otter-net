@@ -25,13 +25,12 @@ internal static class Repl
         return System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"\bare$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
     }
 
-    // Read-Host: with input redirected, the line read is written back.
-    static string? ReadHost()
-    {
-        string? line = Host.In.ReadLine();
-        if (line != null && Console.IsInputRedirected) Host.Out.Write(line + "\n");
-        return line;
-    }
+    // Read-Host: with input redirected, each character read is written
+    // back as it is read (a last line without a line break is echoed
+    // without one).
+    static string? ReadHost() => Console.IsInputRedirected
+        ? ConsoleInput.ReadLine(Host.In, Host.Out)
+        : Host.In.ReadLine();
 
     static Interpreter NewSession() =>
         new(Host.Out, Host.In, "", Array.Empty<string>(), echoInput: Console.IsInputRedirected)
@@ -43,7 +42,6 @@ internal static class Repl
 
     public static int Start(CommandLine line)
     {
-        if (line.DebugAst && !line.ParseOnly) throw new NeedsPowerShell("-DebugAst shows otterPS's own syntax tree");
         Program.Trace("native: repl");
         Host.Line(Cli.VersionText);
         Host.Line("Readable like English. Precise like code.");
@@ -97,8 +95,19 @@ internal static class Repl
             Host.Line($"Otter: otter-net cannot run this yet: {unsupported.Message}. Start the REPL with OTTER_ENGINE=powershell to use it.", ConsoleColor.Red);
             return;
         }
+        List<string>? ast = null;
+        if (compiled.Failure == null && line.DebugAst && !line.ParseOnly)
+        {
+            try { ast = AstDump.Lines(compiled.Program!); }
+            catch (NeedsPowerShell unsupported)
+            {
+                Host.Line($"Otter: otter-net cannot run this yet: {unsupported.Message}. Start the REPL with OTTER_ENGINE=powershell to use it.", ConsoleColor.Red);
+                return;
+            }
+        }
         compiled.WriteTokens();
         Exception? failure = compiled.Failure;
+        if (ast != null) FileMode.WriteAst(ast);
         if (failure == null && !line.ParseOnly)
         {
             try { session.Run(compiled.Program!); }

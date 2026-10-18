@@ -52,5 +52,19 @@
             'proj/otter.json' = '{ "EntryPoint": "main.ot", "NAME": "x" }'; 'proj/main.ot' = 'say "found"' } }
         @{ Name = 'a project whose program has a syntax error'; Args = @('proj'); Files = @{
             'proj/otter.json' = '{ "entryPoint": "main.ot" }'; 'proj/main.ot' = 'x is' } }
+        # A manifest that is not valid JSON: ConvertFrom-Json's message, which is
+        # JavaScriptSerializer's on Windows PowerShell 5.1 (Newtonsoft.Json's on 7).
+        @{ Name = 'manifest: an unquoted value'; Args = @('run', '.'); Files = @{ 'otter.json' = '{ "entryPoint": main.ot }'; 'main.ot' = 'say 1' }; KnownOnPwsh7 = 'ConvertFrom-Json is Newtonsoft.Json on PowerShell 7' }
+        @{ Name = 'manifest: a trailing comma'; Args = @('run', '.'); Files = @{ 'otter.json' = '{ "entryPoint": "main.ot", }'; 'main.ot' = 'say 1' }; KnownOnPwsh7 = 'Newtonsoft.Json accepts a trailing comma' }
+        @{ Name = 'manifest: not closed'; Args = @('check', '.'); Files = @{ 'otter.json' = '{ "entryPoint": "main.ot"'; 'main.ot' = 'say 1' }; KnownOnPwsh7 = 'ConvertFrom-Json is Newtonsoft.Json on PowerShell 7' }
+        @{ Name = 'manifest: text after the object'; Args = @('run', '.'); Files = @{ 'otter.json' = '{ "entryPoint": "main.ot" } }'; 'main.ot' = 'say 1' }; KnownOnPwsh7 = 'ConvertFrom-Json is Newtonsoft.Json on PowerShell 7' }
+        @{ Name = 'manifest: a bad escape'; Args = @('build'); Files = @{ 'otter.json' = '{ "entryPoint": "ma\qin.ot" }'; 'main.ot' = 'say 1' }; KnownOnPwsh7 = 'ConvertFrom-Json is Newtonsoft.Json on PowerShell 7' }
+        @{ Name = 'manifest: an array not closed'; Args = @('run', '.'); Files = @{ 'otter.json' = '{ "entryPoint": "main.ot", "assets": ["a" "b"] }'; 'main.ot' = 'say 1' }; KnownOnPwsh7 = 'ConvertFrom-Json is Newtonsoft.Json on PowerShell 7' }
+        @{ Name = 'manifest: names differing in capitals'; Args = @('run', '.'); Files = @{ 'otter.json' = '{ "entryPoint": "main.ot", "EntryPoint": "x.ot" }'; 'main.ot' = 'say 1' }; KnownOnPwsh7 = 'PowerShell 7 words the duplicated keys differently' }
+        @{ Name = 'manifest: single quotes are accepted'; Args = @('run', '.'); Files = @{ 'otter.json' = "{ 'entryPoint': 'main.ot' }"; 'main.ot' = 'say 1' } }
+        # "~" is the home folder, as PowerShell's Resolve-Path expands it.
+        @{ Name = '~ alone is a folder'; Args = @('~') }
+        @{ Name = 'run a missing file under ~'; Args = @('run', '~/otter-net-cli-test-missing.ot') }
+        @{ Name = 'check a missing project under ~'; Args = @('check', '~/otter-net-cli-test-missing') }
     )
 }

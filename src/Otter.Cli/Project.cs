@@ -32,11 +32,11 @@ internal sealed class Project
     public static bool WindowsHost => OperatingSystem.IsWindows();
 
     // Resolve-Path -LiteralPath: the full path of something that exists, or
-    // null. PowerShell's own path forms ("~", drives such as Env:) are left
-    // to the PowerShell Otter.
+    // null. "~" alone or followed by a slash is the file system's home
+    // folder, as PowerShell expands it.
     public static string? PsResolvePath(string path)
     {
-        if (path.StartsWith('~')) throw new NeedsPowerShell("a path starting with ~ is resolved by PowerShell");
+        path = ExpandHome(path);
         if (path.Length == 0) return null;
         try
         {
@@ -47,6 +47,26 @@ internal sealed class Project
         {
             return null;
         }
+    }
+
+    // PowerShell's "~": the FileSystem provider's home folder - on Windows
+    // HOMEDRIVE and HOMEPATH (USERPROFILE without them), elsewhere HOME.
+    public static string ExpandHome(string path)
+    {
+        if (path.Length == 0 || path[0] != '~' || (path.Length > 1 && path[1] != '/' && path[1] != '\\')) return path;
+        string? home;
+        if (OperatingSystem.IsWindows())
+        {
+            string? drive = Environment.GetEnvironmentVariable("HOMEDRIVE");
+            string? homePath = Environment.GetEnvironmentVariable("HOMEPATH");
+            home = !string.IsNullOrEmpty(drive) && !string.IsNullOrEmpty(homePath) ? drive + homePath : Environment.GetEnvironmentVariable("USERPROFILE");
+        }
+        else
+        {
+            home = Environment.GetEnvironmentVariable("HOME");
+        }
+        if (string.IsNullOrEmpty(home)) home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        return path.Length == 1 ? home : home + Path.DirectorySeparatorChar + path.Substring(2);
     }
 
     // Find-OtterProjectManifest.
@@ -135,8 +155,8 @@ internal sealed class Project
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
-            // The message is .NET's wording.
-            throw new NeedsPowerShell($"{manifestName} cannot be read ({e.GetType().Name}); otterPS quotes .NET's message");
+            // PowerShell's MethodInvocationException around .NET Framework's message.
+            throw Problem($"{manifestName}: cannot read manifest file: Exception calling \"ReadAllText\" with \"2\" argument(s): \"{FrameworkFileMessage(e, manifestPath)}\"");
         }
         if (raw.Length > 0 && raw[0] == '﻿') raw = raw.Substring(1);
         if (string.IsNullOrWhiteSpace(raw)) return null;
@@ -147,9 +167,23 @@ internal sealed class Project
         catch (JsonProblem)
         {
             // "invalid JSON syntax: " is followed by JavaScriptSerializer's own message.
-            throw new NeedsPowerShell($"{manifestName} is not valid JSON; otterPS quotes the JSON reader's message");
+            string message = JsonSyntaxError.Describe(raw)
+                ?? throw new NeedsPowerShell($"{manifestName} is refused by the JSON reader but no message was found");
+            throw Problem($"{manifestName}: invalid JSON syntax: {message}");
         }
     }
+
+    // .NET Framework's message for a file that cannot be read, which
+    // otterPS quotes (.NET 10's words differ in places).
+    internal static string FrameworkFileMessage(Exception e, string path) => e switch
+    {
+        UnauthorizedAccessException => $"Access to the path '{path}' is denied.",
+        FileNotFoundException => $"Could not find file '{path}'.",
+        DirectoryNotFoundException => $"Could not find a part of the path '{path}'.",
+        IOException when (e.HResult & 0xFFFF) == 32 =>
+            $"The process cannot access the file '{path}' because it is being used by another process.",
+        _ => e.Message,
+    };
 
     // Get-OtterProject.
     public static Project Load(string path)

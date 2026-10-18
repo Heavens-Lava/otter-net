@@ -52,6 +52,25 @@ public sealed partial class Interpreter
 
     sealed record WatchContext(string Path, string FileName, string Kind, string? OldPath);
 
+    // Invoke-OtterProgram starts every run with no event sources: a REPL
+    // session runs each entry as a program, and what an earlier entry
+    // started (and stopped at its end) is no longer serviced.
+    void ResetEventSources()
+    {
+        activeWatchers.Clear();
+        watcherHandlers.Clear();
+        currentWatchEvent = null;
+        watchLastEventAt.Clear();
+        activeWebSockets.Clear();
+        netHandlers.Clear();
+        currentNetContext = null;
+        activeNet.Clear();
+        activeTcpServers.Clear();
+        activeHttpRequests.Clear();
+        activeJobs.Clear();
+        currentJobContext = null;
+    }
+
     // Another area's event source (command jobs) joins the loop here.
     public void AddEventSource(IOtterEventSource source) => otherEventSources.Add(source);
 
