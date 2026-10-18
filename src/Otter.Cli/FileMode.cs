@@ -146,6 +146,14 @@ internal static class FileMode
     public static Compiled Compile(string source, string[] sourceLines, bool showTokens)
     {
         var result = new Compiled { ShowTokens = showTokens };
+        // otterPS's ConvertTo-OtterTokens has a mandatory -Source, so an empty
+        // program (no lines, or one empty line) stops PowerShell's parameter
+        // binding: Otter's own bug, reported as one (docs/SPEC-QUESTIONS.md Q12).
+        if (source.Length == 0)
+        {
+            result.Failure = new InvalidOperationException("Cannot bind argument to parameter 'Source' because it is an empty string.");
+            return result;
+        }
         try
         {
             result.Tokens = Lexer.Tokenize(source);

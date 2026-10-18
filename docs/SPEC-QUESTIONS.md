@@ -206,3 +206,13 @@ rest is silently ignored).
 **Status:** otter-net behaves as otterPS on Windows. Needs a decision on
 whether databases are part of Otter on macOS and Linux (and on SQLite's own
 error texts, which differ between versions).
+
+## Q12. An empty program is an internal error (found 2026-10-17)
+
+`otter run empty.ot` (and `check`), for a file with no text or only one
+empty line, stops with "Otter hit a problem inside itself ... Cannot bind
+argument to parameter 'Source' because it is an empty string." and exit
+code 2: `ConvertTo-OtterTokens` declares `-Source` mandatory, and PowerShell
+refuses an empty string for it. otter-net reproduces this. Needs a decision:
+an empty program most likely should run and do nothing (exit 0).
+Covered by `tests/cli/run.psd1` ("an empty program").

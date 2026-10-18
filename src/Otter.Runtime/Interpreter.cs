@@ -56,6 +56,34 @@ public sealed partial class Interpreter
     // otterPS's $script:CallStack: the Otter functions running, innermost last.
     public List<CallFrame> CallStack { get; } = new();
 
+    // Read-Host. With redirected input PowerShell's console host
+    // (ReadLineFromFile) reads one character at a time and, when echoInput is
+    // set, writes each one back as it reads it - the line break too, but only
+    // if the input has one: a last line without "\n" is echoed without it.
+    // CR LF is one line break. null at the end of the input.
+    string? ReadInputLine()
+    {
+        var line = new System.Text.StringBuilder();
+        while (true)
+        {
+            int read = input.Read();
+            if (read == -1) return line.Length == 0 ? null : line.ToString();
+            char c = (char)read;
+            if (echoInput) output.Write(c);
+            if (c == '\r')
+            {
+                if (input.Peek() == '\n')
+                {
+                    input.Read();
+                    if (echoInput) output.Write('\n');
+                }
+                return line.ToString();
+            }
+            if (c == '\n') return line.ToString();
+            line.Append(c);
+        }
+    }
+
     void CompleteProgressBarLine()
     {
         if (!progressBarActive) return;
@@ -175,9 +203,7 @@ public sealed partial class Interpreter
                 if (ask.Secret && ReadSecretLine != null) typed = ReadSecretLine();
                 else
                 {
-                    typed = input.ReadLine();
-                    // At the end of the input there is nothing to echo.
-                    if (echoInput && typed != null) output.WriteLine(typed);
+                    typed = ReadInputLine();
                 }
                 scope.Set(ask.Name, Values.FromInput(typed));
                 return;
@@ -626,8 +652,7 @@ public sealed partial class Interpreter
                 while (!chosen)
                 {
                     output.Write("Choose a number: ");
-                    string? typed = input.ReadLine();
-                    if (echoInput && typed != null) output.WriteLine(typed);
+                    string? typed = ReadInputLine();
                     if (typed != null && int.TryParse(typed, NumberStyles.Integer, CultureInfo.CurrentCulture, out int number) && number >= 1 && number <= options.Count)
                     {
                         selected = options[number - 1];

@@ -31,7 +31,8 @@
         @{ Name = 'entryPoint is not a .ot file'; Args = @('run', 'proj'); Files = @{
             'proj/otter.json' = '{ "entryPoint": "main.txt" }'; 'proj/main.txt' = 'say 1' } }
         @{ Name = 'an empty manifest'; Args = @('check', 'proj'); Files = @{ 'proj/otter.json' = '' } }
-        @{ Name = 'a manifest that is a list'; Args = @('check', 'proj'); Files = @{ 'proj/otter.json' = '["a"]' } }
+        @{ Name = 'a manifest that is a list'; Args = @('check', 'proj'); Files = @{ 'proj/otter.json' = '["a"]' }
+           KnownOnPwsh7 = 'ConvertFrom-Json in PowerShell 7 unwraps a one-item array to its item ("a": text); 5.1 keeps the array (a list)' }
         @{ Name = 'a manifest that is text'; Args = @('check', 'proj'); Files = @{ 'proj/otter.json' = '"hello"' } }
         @{ Name = 'an unsupported target'; Args = @('check', 'proj'); Files = @{
             'proj/otter.json' = '{ "entryPoint": "main.ot", "target": "phone" }'; 'proj/main.ot' = 'say 1' } }

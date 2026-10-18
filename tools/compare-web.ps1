@@ -134,7 +134,8 @@ function ConvertTo-Pwsh7Form {
     $text = Get-Text $Bytes
     if ($text.Length -gt 0 -and $text[0] -eq [char]0xFEFF) { $text = $text.Substring(1) }
     if ($text.EndsWith("`r`n")) { $text = $text.Substring(0, $text.Length - 2) + "`n" }
-    $text = $text.Replace('<', '<').Replace('>', '>').Replace('&', '&').Replace(''', "'")
+    # 5.1's ConvertTo-Json escapes these four characters; PowerShell 7's does not.
+    $text = $text.Replace('\u003c', '<').Replace('\u003e', '>').Replace('\u0026', '&').Replace('\u0027', "'")
     return $text
 }
 
