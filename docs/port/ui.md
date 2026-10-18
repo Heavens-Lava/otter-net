@@ -126,7 +126,7 @@ later without a case (tests: `tests/web/t3_system_hooks.ot`,
 | Runtime UI statements in handlers, functions and loops: create, put, show, when (with D130/D133 captures) | JS | same | native |
 | Function locals and async detection (with otterPS's quirks) | JS `Get-OtterJsBindingNames`, `Test-OtterJsBodyNeedsAsync` | `Bindings`, `AsyncAnalysis`, `PowerShellSort` | native |
 | Loop pass names (D130) and handler runs (D133) | LoopPasses `Get-OtterLoopPassNames` | `LoopPasses.Names` | native |
-| HTTP (get/post/put/delete/start/cancel, options), download, websockets, TCP/UDP, file watching, databases and queries, clipboard, notify, file dialogs, system information, processes, links, owners, registry, event log, credentials, secrets, power actions, printing, remote/ssh commands, `start command` jobs | JS | - | missing (those statements are not parsed by otter-net yet; they belong to the network, system and data areas - the web compiler falls back for them) |
+| HTTP (get/post/put/delete/start/cancel, options), download, websockets, TCP/UDP, file watching, databases and queries, clipboard, notify, file dialogs, system information, processes, links, owners, registry, event log, credentials, secrets, power actions, printing, remote/ssh commands, `start command` jobs | JS `ConvertTo-OtterJsStatementCore`, `ConvertTo-OtterJsExpression`, `Get-OtterJsHttpOptionsSetup` | `JsCompiler.Statements.cs` (`HttpRequest`, `HttpStart`, `NetworkEvent`), `JsCompiler.Expressions.cs`, `NodeFields`, `Bindings`, `AsyncAnalysis` | native (`tests/web/t3_system_hooks.ot`, `t3_http_websocket.ot`, `t3_err_*.ot`) |
 
 ## Run (`otter run` of UI forms, `Interpreter.Ui.cs`)
 
