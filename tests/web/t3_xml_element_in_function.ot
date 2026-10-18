@@ -1,0 +1,6 @@
+# Adding a named xml element inside a function: otterPS's web compiler
+# hands the name to a [Node] parameter and reports an internal problem.
+to build doc
+    add element "book" to doc and call it book
+    return book
+say "hi"

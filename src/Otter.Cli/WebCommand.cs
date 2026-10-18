@@ -45,6 +45,11 @@ static class WebCommand
             trace("native: web (errors)");
             return ReportError(resolved.Remap(error));
         }
+        catch (WebInternalProblem problem)
+        {
+            trace("native: web (internal problem)");
+            return ReportInternalProblem(problem);
+        }
         catch (Exception unexpected) when (unexpected is not OutOfMemoryException)
         {
             reason = $"the web compiler stopped unexpectedly ({unexpected.GetType().Name})";
@@ -97,6 +102,18 @@ static class WebCommand
 
         string html = WebCompiler.Compile(program, Path.GetFileNameWithoutExtension(primarySource));
         return WithSidecarStylesheet(html, primarySource);
+    }
+
+    // Export-OtterWebApplication's catch-all: a PowerShell error that is not
+    // an Otter error, then a plain `exit 1` inside a module function, which
+    // under -File leaves the process's exit code at 0 (as UI2-1).
+    internal static int ReportInternalProblem(WebInternalProblem problem)
+    {
+        Host.Line("");
+        Host.Line("Otter hit a problem inside itself, which means this is a bug in Otter.", ConsoleColor.Red);
+        Host.Line($"  {problem.Message}", ConsoleColor.DarkGray);
+        Host.Line("");
+        return Cli.ExitSuccess;
     }
 
     static int ReportError(OtterError error)

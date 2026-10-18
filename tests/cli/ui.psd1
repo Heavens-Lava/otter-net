@@ -45,6 +45,10 @@ show app
             'otter.json' = '{ "name": "game", "version": "1.0.0", "target": "game", "entryPoint": "game.ot" }'; 'game.ot' = 'say "play"' } }
         @{ Name = 'build: a web project whose page Otter refuses'; Args = @('build'); Files = @{
             'otter.json' = '{ "target": "web", "entryPoint": "app.ot" }'; 'app.ot' = 'say "x" in color "red"' } }
+        @{ Name = 'build: a web project whose compiler fails inside itself'; Args = @('build'); Files = @{
+            'otter.json' = '{ "target": "web", "entryPoint": "app.ot" }'; 'app.ot' = "to build doc`n    add element `"book`" to doc and call it book`n    return book`nsay 1" } }
+        @{ Name = 'web: the compiler fails inside itself'; Args = @('web', 'app.ot', '-NoOpen'); Files = @{
+            'app.ot' = "to build doc`n    add element `"book`" to doc and call it book`n    return book`nsay 1" } }
         @{ Name = 'build: a web project with a syntax error'; Args = @('build'); Files = @{
             'otter.json' = '{ "target": "web", "entryPoint": "app.ot" }'; 'app.ot' = 'x is' } }
         @{ Name = 'publish: a web project'; Args = @('publish'); KnownOnPwsh7 = 'packaged files (5.1 layout)'

@@ -161,10 +161,14 @@ static class AsyncAnalysis
                 case XmlSetTextStmt setText when ExpressionNeedsAsync(setText.Value): return true;
                 case XmlSetAttributeStmt setAttribute when ExpressionNeedsAsync(setAttribute.Value): return true;
                 case XmlAddElementStmt addElement:
-                    // otterPS hands the element's name (text) to a parameter
-                    // that only takes a node: PowerShell fails there, and
-                    // otterPS reports an internal problem. Left to otterPS.
-                    if (!string.IsNullOrEmpty(addElement.Target)) throw new NotSupportedYet("adding an xml element with a name inside a function on the web", addElement.Line);
+                    // otterPS hands the element's name (text) to
+                    // Test-OtterJsExpressionNeedsAsync's [Node] parameter:
+                    // PowerShell's argument transformation fails, and the web
+                    // compiler reports an internal problem.
+                    if (!string.IsNullOrEmpty(addElement.Target))
+                    {
+                        throw new WebInternalProblem($"Cannot process argument transformation on parameter 'Expression'. Cannot convert the \"{addElement.Target}\" value of type \"System.String\" to type \"Node\".");
+                    }
                     if (ExpressionNeedsAsync(addElement.Text)) return true;
                     break;
                 case SayStmt say when say.Parts.Any(ExpressionNeedsAsync): return true;

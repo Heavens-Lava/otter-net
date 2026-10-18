@@ -35,6 +35,7 @@ public sealed class WebCompiler
     readonly List<(string Id, string Js)> runnableSamples = new();
     string appTitle = "";
     int renderDepth;
+    readonly HashSet<string> rendering = new(StringComparer.Ordinal);
 
     WebCompiler() { }
 
@@ -377,13 +378,20 @@ public sealed class WebCompiler
     string RenderElementCore(string resName, bool hidden = false)
     {
         if (!resources.TryGetValue(resName, out Resource? r)) return "";
+        // A resource put inside itself (directly or through others): otterPS
+        // renders it again and again until PowerShell stops it, an error the
+        // web compiler's catch-all reports.
+        if (rendering.Contains(resName)) throw new WebInternalProblem("The script failed due to call depth overflow.");
         if (++renderDepth > 200)
         {
-            // A resource put inside itself: otterPS runs out of call depth.
-            throw new NotSupportedYet("UI resources put inside each other", 0);
+            // Nested more than 200 deep without a cycle: whether otterPS runs
+            // out of call depth depends on how many PowerShell calls each
+            // level takes.
+            throw new NotSupportedYet("UI resources nested more than 200 deep", 0);
         }
+        rendering.Add(resName);
         try { return RenderResource(resName, r, hidden); }
-        finally { renderDepth--; }
+        finally { renderDepth--; rendering.Remove(resName); }
     }
 
     string RenderResource(string resName, Resource r, bool hidden)
