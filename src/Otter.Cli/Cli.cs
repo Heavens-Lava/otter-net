@@ -183,8 +183,12 @@ internal static class Cli
         if (Is(command, "studio")) throw new NeedsPowerShell("otter studio is not native");
         if (!line.HasTarget)
         {
+            // otter.ps1 ends this with a plain `exit 1`, and a plain `exit`
+            // does not set the exit code of a script run with -File (otterPS's
+            // own comment on `otter studio`): the process exits with 0
+            // (docs/SPEC-QUESTIONS.md UI2-1).
             Host.Line($"Usage: otter {command} <script.ot>");
-            throw new CliExit(ExitUsageError);
+            throw new CliExit(ExitSuccess);
         }
         string scriptFile = line.Target!;
         bool project = Project.Find(scriptFile) != null;

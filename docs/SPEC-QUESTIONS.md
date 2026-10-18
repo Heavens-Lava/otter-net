@@ -283,3 +283,16 @@ otter-net gives the Windows PowerShell 5.1 behaviour in each case:
 - A URL that is an absolute Unix path ("/x") is "not a valid URL" on Windows;
   .NET on macOS and Linux reads it as a `file:` URL, so otterPS there says the
   URL uses "file".
+
+## UI2 questions (found 2026-10-17, porting UI in `run`, `check`, `serve`, `desktop`)
+
+### UI2-1. `otter web` without a file exits with 0
+
+`otter web`, `browse`, `serve` and `desktop` with no file print
+`Usage: otter <command> <script.ot>` and end with a plain `exit 1`
+(otter.ps1, the UI commands' branch). Under `powershell -File` a plain
+`exit` in the script does not set the process's exit code (otterPS's own
+comment on `otter studio` says so), so the process exits with 0, unlike every
+other usage error (`[Environment]::Exit(1)`). Measured on PowerShell 7:
+`pwsh -NoProfile -File otter.ps1 web` exits 0. otter-net exits 0 too. Was 1
+meant?
