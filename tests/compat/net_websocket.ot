@@ -1,0 +1,123 @@
+# WebSockets (D106) without a server: a connection that is refused, the
+# states and properties of a socket, and what the statements refuse.
+connect to websocket "ws://127.0.0.1:1/chat" using protocol "chat" and call it socket
+say "state:" state of socket
+say "url:" url of socket
+say "protocol:" protocol of socket
+say socket
+if socket is connecting
+    say "it is connecting"
+.
+if not socket is open
+    say "it is not open yet"
+.
+on open of socket
+    say "opened, which should not happen"
+.
+on error of socket
+    say "an error arrived"
+.
+on close of socket
+    say "closed with code" close code "clean:" close was clean
+    say "state now:" state of socket
+    if socket is closed
+        say "it is closed"
+    .
+.
+try
+    send "hello" through socket
+otherwise into reason
+    say reason
+.
+try
+    say received message
+otherwise into reason
+    say reason
+.
+try
+    say close code
+otherwise into reason
+    say reason
+.
+try
+    say close reason
+otherwise into reason
+    say reason
+.
+try
+    say close was clean
+otherwise into reason
+    say reason
+.
+try
+    say websocket error
+otherwise into reason
+    say reason
+.
+try
+    connect to websocket 42 and call it other
+otherwise into reason
+    say reason
+.
+try
+    connect to websocket "http://example.test" and call it other
+otherwise into reason
+    say reason
+.
+try
+    connect to websocket "ws://127.0.0.1:1" using protocol 7 and call it other
+otherwise into reason
+    say reason
+.
+try
+    send 42 through socket
+otherwise into reason
+    say reason
+.
+try
+    send "x" through 42
+otherwise into reason
+    say reason
+.
+try
+    close websocket 42
+otherwise into reason
+    say reason
+.
+try
+    close websocket socket with code "soon"
+otherwise into reason
+    say reason
+.
+try
+    close websocket socket with code 1000 and reason 5
+otherwise into reason
+    say reason
+.
+try
+    say colour of socket
+otherwise into reason
+    say reason
+.
+try
+    on data from 42
+        say "never"
+    .
+otherwise into reason
+    say reason
+.
+try
+    on connection to socket
+        say "never"
+    .
+otherwise into reason
+    say reason
+.
+try
+    if 42 is open
+        say "never"
+    .
+otherwise into reason
+    say reason
+.
+say "main program done"

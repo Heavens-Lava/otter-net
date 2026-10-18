@@ -111,7 +111,7 @@ public static class OtterCommands
 
     // ---- finding the program --------------------------------------------------
 
-    static (ProcessStartInfo Start, string Program) StartInfoFor(string commandLine)
+    internal static (ProcessStartInfo Start, string Program) StartInfoFor(string commandLine)   // also start command (Jobs.cs)
     {
         List<string> parts = Split(commandLine);
         string program = parts[0];

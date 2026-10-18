@@ -1,0 +1,32 @@
+# Two udp sockets on loopback (D108): datagrams, the sender's address and
+# port, closing, and the states of a socket.
+open udp on port 0 and call it receiver
+open udp and call it sender
+say "receiver:" state of receiver
+if receiver is open
+    say "the receiver is open"
+.
+if port of receiver is greater than 0
+    say "the receiver has a port"
+.
+received is 0
+on data from receiver
+    received is received plus 1
+    say "datagram" received ":" text from bytes received data
+    say "from" sender address
+    if sender port is port of sender
+        say "the sender port matches"
+    .
+    if received is 2
+        close udp receiver
+    .
+.
+on close of receiver
+    say "receiver closed, state" state of receiver
+    close udp sender
+.
+send bytes from text "first" through sender to "127.0.0.1" on port port of receiver
+send bytes from text "second" through sender
+    to "127.0.0.1"
+    on port port of receiver
+say "both sent"

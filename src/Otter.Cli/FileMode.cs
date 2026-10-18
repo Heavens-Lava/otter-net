@@ -191,6 +191,10 @@ internal static class FileMode
         }
         // D-2: names the grammar would misread are refused before anything runs.
         List<OtterError> reserved = ReservedWords.Diagnostics(result.Program, sourceLines);
+        // ... and a handler inside another handler's run that uses that run's
+        // names (D133; Assert-OtterLanguageContract, LoopPasses.cs).
+        List<OtterError> handlerRuns = LoopPassAnalysis.Diagnostics(result.Program, sourceLines);
+        if (handlerRuns.Count > 0) reserved = reserved.Concat(handlerRuns).OrderBy(e => e.Line).ThenBy(e => e.Column).ToList();
         if (reserved.Count > 0)
         {
             result.Failure = new OtterMultipleErrors(reserved);

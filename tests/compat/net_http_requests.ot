@@ -1,0 +1,141 @@
+# Request handles (D116B): states, properties, cancelling, a timeout, a
+# refused connection, a 404, options, and an outcome kept for a handler set
+# up afterwards. The server is a tcp listener in the same program.
+crlfBytes is bytes from hex "0D0A"
+crlf is text from bytes crlfBytes
+
+to reply status and body
+    sizeParts are
+        "Content-Length: "
+        length of body
+    .
+    join sizeParts with "" into sizeLine
+    lines are
+        status
+        "Content-Type: text/plain"
+        sizeLine
+        "Connection: close"
+        ""
+        body
+    .
+    join lines with crlf into answer
+    return answer
+.
+
+listen for tcp on port 0 and call it server
+baseParts are
+    "http://127.0.0.1:"
+    local port of server
+.
+join baseParts with "" into base
+held is gone
+on connection to server
+    conn is incoming connection
+    on data from conn
+        request is text from bytes received data
+        if request starts with "GET /slow"
+            # never answers
+            held is conn
+        otherwise if request starts with "GET /missing"
+            send bytes from text reply "HTTP/1.1 404 Not Found" and "nothing here" through conn
+            close tcp conn
+        otherwise
+            if request contains "X-Otter: yes"
+                send bytes from text reply "HTTP/1.1 200 OK" and "header seen" through conn
+            otherwise
+                send bytes from text reply "HTTP/1.1 200 OK" and "plain" through conn
+            .
+            close tcp conn
+        .
+    .
+.
+
+# 1. a cancelled request
+slowUrl is base plus "/slow"
+start get from slowUrl and call it slow
+on cancel of slow
+    say "cancel handler ran, state" state of slow
+.
+try
+    say response of slow
+otherwise into reason
+    say reason
+.
+try
+    say status of slow
+otherwise into reason
+    say reason
+.
+cancel slow
+say "after cancel:" state of slow
+if slow is cancelled
+    say "slow is cancelled"
+.
+try
+    say response of slow
+otherwise into reason
+    say reason
+.
+cancel slow
+say "cancelling again does nothing"
+
+# 2. a 404 with a header option, then a handler set up after it finished
+missingUrl is base plus "/missing"
+start get from missingUrl and call it missing
+    with header "X-Otter" is "no"
+    without cookies
+tries is 0
+while missing is pending and tries is less than 100
+    wait 50 milliseconds
+    tries is tries plus 1
+.
+say "missing:" state of missing "status" status of missing
+on complete of missing
+    say "set up afterwards, it still sees:" received response
+.
+on error of missing
+    say "never: the request completed"
+.
+
+# 3, 4 and 5 run one after the other, so their order never depends on timing.
+start get from "http://127.0.0.1:1/shown" and call it shown
+say shown
+headerUrl is base plus "/header"
+start put "data" to headerUrl and call it withHeader
+    with header "X-Otter" is "yes"
+on complete of withHeader
+    say "put:" received response
+    # 4. a refused connection
+    start get from "http://127.0.0.1:1/" and call it refused
+    on error of refused
+        say "refused: state" state of refused
+        if error of refused is network error and network error is websocket error
+            say "the error is the same three ways"
+        .
+        try
+            say response of refused
+        otherwise into reason
+            if reason starts with "The HTTP request failed: "
+                say "response of a failed request is an error"
+            .
+        .
+        # 5. a timeout
+        start get from slowUrl and call it late
+            with timeout 1 seconds
+        on error of late
+            say "late:" network error
+            if held is not gone
+                close tcp held
+            .
+            stop tcp server
+        .
+    .
+    try
+        on message from refused
+            say "never"
+        .
+    otherwise into reason
+        say reason
+    .
+.
+say "main program done"

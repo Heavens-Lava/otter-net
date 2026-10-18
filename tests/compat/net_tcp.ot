@@ -1,0 +1,38 @@
+# A tcp server and a client in one program, talking over loopback (D107, D113).
+listen for tcp on port 0 and call it server
+port is local port of server
+if port is greater than 0
+    say "the server has a port"
+.
+if server is listening
+    say "listening on" local address of server
+.
+on connection to server
+    say "server: a connection arrived"
+    conn is incoming connection
+    on data from conn
+        say "server: received" text from bytes received data
+        send bytes from text "pong" through conn
+    .
+    on close of conn
+        say "server: the client went away"
+    .
+.
+connect to tcp "127.0.0.1" on port port and call it client
+say "client state:" state of client
+on connect of client
+    say "client: connected, state" state of client
+    send bytes from text "ping" through client
+.
+on data from client
+    say "client: received" text from bytes received data "(" count of received data "bytes)"
+    close tcp client
+    stop tcp server
+.
+on close of client
+    say "client: closed"
+    if server is stopped
+        say "the server has stopped"
+    .
+.
+say "main program done"

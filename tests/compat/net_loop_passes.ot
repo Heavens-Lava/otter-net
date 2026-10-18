@@ -1,0 +1,59 @@
+# D130: a handler set up in a loop pass keeps that pass. Watcher handlers
+# (a deferred body) each remember their own pass's names; names set before
+# the loop stay shared and are read live.
+create folder "one"
+create folder "two"
+names are
+    "one"
+    "two"
+.
+seen is 0
+for each name in names
+    label is "the watcher of " plus name
+    watch folder name and call it w
+    on create in w
+        say label "saw" changed file name
+        seen is seen plus 1
+        stop watching w
+    .
+.
+say "after the loop:" label "and" name
+write "a" to "one/a.txt"
+tries is 0
+while seen is less than 1 and tries is less than 100
+    wait 100 milliseconds
+    tries is tries plus 1
+.
+write "b" to "two/b.txt"
+tries is 0
+while seen is less than 2 and tries is less than 100
+    wait 100 milliseconds
+    tries is tries plus 1
+.
+say "seen" seen
+
+# otterPS counts only `when`, routes, watchers and the UI's deferred bodies:
+# an "on data from" handler (a network event) in a loop does not get the
+# loop's passes, so every one of these handlers reads the last i.
+open udp and call it sender
+sockets are empty
+received is 0
+count from 1 to 2 as i
+    open udp and call it socket
+    add socket to sockets
+    on data from socket
+        say "socket" i "got" text from bytes received data
+        received is received plus 1
+        if received is 2
+            for each s in sockets
+                close udp s
+            .
+            close udp sender
+        .
+    .
+.
+first is first of sockets
+second is last of sockets
+send bytes from text "first" through sender to "127.0.0.1" on port port of first
+send bytes from text "second" through sender to "127.0.0.1" on port port of second
+say "i after the loop:" i
