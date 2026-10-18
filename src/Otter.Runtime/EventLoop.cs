@@ -447,7 +447,15 @@ public sealed partial class Interpreter
         if (server.State != "listening") return;
         try
         {
-            server.AcceptTask ??= server.Listener.AcceptTcpClientAsync();
+            // otterPS's AcceptTcpClientAsync on .NET Framework completes at
+            // once when a connection is already waiting, so the server's
+            // `on connection` runs in the same step - before a client's `on
+            // connect` checked after it. .NET 10 on Windows completes it a
+            // moment later (I/O completion ports), which reversed the two
+            // events; accepting a waiting connection directly keeps the order.
+            server.AcceptTask ??= server.Listener.Pending()
+                ? Task.FromResult(server.Listener.AcceptTcpClient())
+                : server.Listener.AcceptTcpClientAsync();
             if (!server.AcceptTask.IsCompleted) return;
             var task = server.AcceptTask;
             server.AcceptTask = null;
