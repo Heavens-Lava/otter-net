@@ -201,7 +201,7 @@ internal static class Cli
             throw UsageError($"Otter: I cannot find an otter.json manifest in \"{scriptFile}\".");
         }
         scriptFile = FileMode.AssertReadable(scriptFile);
-        if (Is(command, "desktop") && !OperatingSystem.IsWindows())
+        if (Is(command, "desktop") && !OperatingSystem.IsWindows() && !DesktopCommand.TestMode)
         {
             Program.Trace("native: desktop off Windows");
             throw UsageError("Otter: desktop windows are only available on Windows. Build this program as a web application instead: otter web <file.ot>");
@@ -213,6 +213,7 @@ internal static class Cli
             return WebCommand.Run(scriptFile, line.Target!, line.NoOpen, Program.Trace, out string webReason) ?? throw new NeedsPowerShell(webReason);
         }
         if (Is(command, "serve")) return ServeCommand.Run(line, scriptFile);
+        if (Is(command, "desktop")) return DesktopCommand.Run(scriptFile);
         throw new NeedsPowerShell($"otter {command.ToLowerInvariant()} is not native yet");
     }
 }
