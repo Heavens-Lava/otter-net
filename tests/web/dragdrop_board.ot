@@ -1,0 +1,30 @@
+app is a page
+    title is "Drag Test"
+.
+
+card is panel with draggable is true, width 100, height 60
+board is panel with accepts drops is true, width 300, height 200
+canvas is a panel
+    accepts drops is true
+.
+
+put card, board, canvas in app
+
+on drag of card
+    set drag data to "task-42"
+.
+
+on drop on board
+    say drag data
+    say drop x
+    say drop y
+    say dragged item
+.
+
+on files dropped on canvas
+    for each file in dropped files
+        say name of file
+    .
+.
+
+show app

@@ -1,0 +1,21 @@
+homePage is a page
+    title is "Home"
+.
+aboutPage is a page
+    title is "About"
+.
+notFoundPage is a page
+    title is "Not Found"
+.
+route "/" shows homePage
+route "/about" shows aboutPage
+route "/users/:id" shows userPage
+route otherwise shows notFoundPage
+go to "/about"
+go to destination
+go back
+go forward
+replace route with "/login"
+on route change
+    say current route
+.

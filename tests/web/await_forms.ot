@@ -1,0 +1,9 @@
+to fetchLater
+    await delay 250
+    value is await delay 10
+    await get "x"
+    say "done"
+.
+later is await fetchLater
+await wait 1 and 2 make result
+await later into other

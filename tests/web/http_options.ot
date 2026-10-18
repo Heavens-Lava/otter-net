@@ -1,0 +1,12 @@
+get "https://api.example.com/data" into result
+    with header "Authorization" is "Bearer abc123"
+    with header "Accept" is "application/json"
+    with cookies
+    following redirects
+    with timeout 30 seconds
+say result
+
+post "payload" to "https://api.example.com/submit" into postResult
+    without cookies
+    without redirects
+say postResult

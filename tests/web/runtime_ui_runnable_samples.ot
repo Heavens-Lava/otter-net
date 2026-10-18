@@ -1,0 +1,8 @@
+create page into app
+create text into person
+person has text "the page's own element"
+put person in app
+uiSample is a text with value "create button into saveButton\nwhen saveButton is clicked\n    say \"Saved\"\n.", runnable true
+thingSample is a text with value "person has name \"Ada\"\nsay \"ok\"", runnable true
+put uiSample, thingSample in app
+show app

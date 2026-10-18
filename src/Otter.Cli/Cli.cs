@@ -187,7 +187,8 @@ internal static class Cli
             throw new CliExit(ExitUsageError);
         }
         string scriptFile = line.Target!;
-        if (Project.Find(scriptFile) != null)
+        bool project = Project.Find(scriptFile) != null;
+        if (project)
         {
             scriptFile = LoadProjectOrExit(scriptFile, ExitCheckError).ResolvedEntryPoint;
         }
@@ -200,6 +201,12 @@ internal static class Cli
         {
             Program.Trace("native: desktop off Windows");
             throw UsageError("Otter: desktop windows are only available on Windows. Build this program as a web application instead: otter web <file.ot>");
+        }
+        // otter web / browse of a single file: the web compiler (WebCommand.cs).
+        if ((Is(command, "web") || Is(command, "browse")) && !project)
+        {
+            string[] webArgs = line.NoOpen ? new[] { command, scriptFile, "-NoOpen" } : new[] { command, scriptFile };
+            return WebCommand.Run(webArgs, Program.Trace, out string webReason) ?? throw new NeedsPowerShell(webReason);
         }
         throw new NeedsPowerShell($"otter {command.ToLowerInvariant()} is not native yet");
     }

@@ -1,0 +1,5 @@
+to buildCryptoList
+    items are empty
+    add sha256 of "abc" to items
+    return items
+.

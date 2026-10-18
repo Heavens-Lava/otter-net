@@ -1,0 +1,7 @@
+when addButton is clicked
+    create button into deleteButton
+    put deleteButton in taskList
+    when deleteButton is clicked
+        say "clicked"
+    .
+.

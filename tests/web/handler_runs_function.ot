@@ -1,0 +1,12 @@
+to addRow
+    create row into line
+    create button into deleteButton
+    put deleteButton in line
+    put line in taskList
+    when deleteButton is clicked
+        customstyle of line is "display: none;"
+    .
+.
+when addButton is clicked
+    addRow
+.

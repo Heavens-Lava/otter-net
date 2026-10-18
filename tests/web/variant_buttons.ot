@@ -1,0 +1,14 @@
+app is a page
+    title is "Variant Check"
+.
+aboutButton is a primary button
+    text is "Primary"
+.
+dangerButton is a danger button
+    text is "Danger"
+.
+plainButton is a button
+    text is "Plain"
+.
+put aboutButton, dangerButton, plainButton in app
+show app

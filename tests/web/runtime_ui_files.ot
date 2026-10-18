@@ -1,0 +1,31 @@
+create page into app
+create text into results
+results has text ""
+put results in app
+report is ""
+try
+    read "notes.txt" into content
+    report is report plus "read gave [" plus content plus "] "
+otherwise
+    report is report plus "read failed "
+.
+try
+    write "hello" to "notes.txt"
+    report is report plus "write done "
+otherwise
+    report is report plus "write failed "
+.
+try
+    get files in "." into names
+    report is report plus "files gave " plus length of names plus " "
+otherwise
+    report is report plus "files failed "
+.
+try
+    get folders in "." into names
+    report is report plus "folders gave " plus length of names
+otherwise
+    report is report plus "folders failed"
+.
+results has text report
+show app
