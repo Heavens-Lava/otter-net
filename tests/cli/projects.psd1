@@ -57,6 +57,8 @@
         @{ Name = 'manifest: an unquoted value'; Args = @('run', '.'); Files = @{ 'otter.json' = '{ "entryPoint": main.ot }'; 'main.ot' = 'say 1' }; KnownOnPwsh7 = 'ConvertFrom-Json is Newtonsoft.Json on PowerShell 7' }
         @{ Name = 'manifest: a trailing comma'; Args = @('run', '.'); Files = @{ 'otter.json' = '{ "entryPoint": "main.ot", }'; 'main.ot' = 'say 1' }; KnownOnPwsh7 = 'Newtonsoft.Json accepts a trailing comma' }
         @{ Name = 'manifest: not closed'; Args = @('check', '.'); Files = @{ 'otter.json' = '{ "entryPoint": "main.ot"'; 'main.ot' = 'say 1' }; KnownOnPwsh7 = 'ConvertFrom-Json is Newtonsoft.Json on PowerShell 7' }
+        @{ Name = 'manifest: -NaN'; Args = @('run', '.'); Files = @{ 'otter.json' = '{ "entryPoint": "main.ot", "version": -NaN }'; 'main.ot' = 'say 1' }; KnownOnPwsh7 = 'ConvertFrom-Json is Newtonsoft.Json on PowerShell 7' }
+        @{ Name = 'manifest: a date too big for a long'; Args = @('run', '.'); Files = @{ 'otter.json' = '{ "entryPoint": "main.ot", "description": "\/Date(99999999999999999999)\/" }'; 'main.ot' = 'say 1' } }
         @{ Name = 'manifest: text after the object'; Args = @('run', '.'); Files = @{ 'otter.json' = '{ "entryPoint": "main.ot" } }'; 'main.ot' = 'say 1' }; KnownOnPwsh7 = 'ConvertFrom-Json is Newtonsoft.Json on PowerShell 7' }
         @{ Name = 'manifest: a bad escape'; Args = @('build'); Files = @{ 'otter.json' = '{ "entryPoint": "ma\qin.ot" }'; 'main.ot' = 'say 1' }; KnownOnPwsh7 = 'ConvertFrom-Json is Newtonsoft.Json on PowerShell 7' }
         @{ Name = 'manifest: an array not closed'; Args = @('run', '.'); Files = @{ 'otter.json' = '{ "entryPoint": "main.ot", "assets": ["a" "b"] }'; 'main.ot' = 'say 1' }; KnownOnPwsh7 = 'ConvertFrom-Json is Newtonsoft.Json on PowerShell 7' }
