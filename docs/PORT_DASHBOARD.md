@@ -48,7 +48,9 @@ Compatibility (macOS, against otterPS 1.0.1 on PowerShell 7):
 
 | Comparison | Result |
 |---|---|
-| Programs (conformance, examples, tests/compat; CLI+System build) | 178 programs, 146 identical, 12 different: the 12 known baseline differences, nothing else |
+| Programs, native only (`-NativeOnly`: a fallback counts as a failure), all five areas | 207 programs: 150 identical (all native), 35 skipped (windows/servers/events), 22 different: the 12 known baseline differences, 6 database programs otterPS cannot run on macOS, 1 .NET 5.1/7 wording difference, and 3 UI programs (`state`, `show`, `column` things) that are the ui-run batch |
+| Programs on Windows against otterPS 1.0.1 on Windows PowerShell 5.1 (CI) | 207 programs: 171 identical, 35 skipped, 1 different - a real bug (`\N`/`\T` escapes), fixed in d01fe93 |
+| `otter web` pages, byte for byte (`tools/compare-web.ps1`) | 262 programs: 0 different; 221 compiled natively (91 identical as written, 171 identical in 5.1 form), 41 handed to PowerShell |
 | Network programs (servers, HTTP, TCP, TLS, UDP, WebSockets, watching, jobs, D130) | 16 of 16 identical, all native |
 | Data programs | match except 6 that otterPS cannot run on macOS (it loads Windows' winsqlite3.dll; compared against a SQLite-patched scratch copy instead: identical) and 1 .NET 5.1/7 wording difference |
 | CLI cases (`tools/compare-cli.ps1`) | 145: 125 identical, 11 known PowerShell 7 differences, 9 different, all explained and being fixed (REPL echo, usage exit code) |
