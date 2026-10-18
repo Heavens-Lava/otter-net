@@ -1,0 +1,2 @@
+get "https://api.example.com/data" into plainResult
+say plainResult

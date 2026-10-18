@@ -1,0 +1,11 @@
+when addButton is clicked
+    count from 1 to 3 as n
+        create row into line
+        create button into deleteButton
+        put deleteButton in line
+        put line in taskList
+        when deleteButton is clicked
+            customstyle of line is "display: none;"
+        .
+    .
+.

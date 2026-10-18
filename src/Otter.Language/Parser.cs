@@ -2012,7 +2012,8 @@ public sealed partial class Parser
             position = saved;
             plainXmlWord = true;
         }
-        if (!plainXmlWord && (token.Kind == TokenKind.Identifier && exactPhrase ? phraseFollows : SpecialValueWords.Contains(token.Text) && !ordinaryName))
+        if (!plainXmlWord && (token.Kind == TokenKind.Identifier && exactPhrase ? phraseFollows : SpecialValueWords.Contains(token.Text) && !ordinaryName) &&
+            !(webTarget && IsUiValueWord(token.Text)))
         {
             throw Unsupported($"'{token.Text}'");
         }

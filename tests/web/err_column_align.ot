@@ -1,0 +1,3 @@
+app is a page with title "Columns"
+col is a column with spread true, align bottom
+put col in app

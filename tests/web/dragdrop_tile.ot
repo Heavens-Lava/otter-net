@@ -1,0 +1,12 @@
+app is a page
+    title is "T"
+.
+tile is panel with draggable is true, accepts drops is true
+put tile in app
+on drag of tile
+    set drag data to 1
+.
+on drop on tile
+    say drag data
+.
+show app

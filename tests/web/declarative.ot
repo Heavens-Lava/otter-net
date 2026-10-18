@@ -1,0 +1,64 @@
+# D56 declarative UI: layouts, properties, animations, events, conditionals.
+state count is 0
+state name is "Otter"
+derive doubled is count times 2
+derive greeting is "Hello " plus name
+
+page "Dashboard"
+    layout centered
+    gap 16
+    align center
+    columns 2 on medium
+    stack on small
+    card "Welcome"
+        layout stack
+        spread
+        round 12
+        background "#123456"
+        padding 20
+        width full
+        height 300
+        heading "Hello"
+        text greeting
+        primary button "Go"
+            hover
+                grow 1.1
+                animate 200ms ease-out
+            press
+                shrink 0.9
+            click
+                count is count plus 1
+                say "clicked" count
+        secondary button "Back"
+            enter
+                fade in
+                move up 30
+                animate 0.5 s spring
+            leave
+                fade out
+        danger button "Stop"
+            enter
+                slide from left
+        input nameField
+        if count is at least 1
+            text "Counted"
+            heading "More"
+        .
+    .
+    grid 3
+        layout grid 3
+        gap 8
+        panel
+            text "a"
+        panel
+            text "b"
+    section "Footer"
+        layout navbar
+        link "Docs"
+        image "logo.png"
+    layout row
+.
+
+when count changes
+    say "count is now" count
+.

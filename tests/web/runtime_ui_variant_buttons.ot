@@ -1,0 +1,8 @@
+app is a page with title "Buttons"
+plainPrimary is a primary button with text "Plain"
+greenPrimary is a primary button with text "Green", background "#16a34a", foreground "#000000"
+styledPrimary is a primary button with text "Styled"
+plainDanger is a danger button with text "Danger"
+customstyle of styledPrimary is "background: #7c3aed;"
+put plainPrimary, greenPrimary, styledPrimary, plainDanger in app
+show app

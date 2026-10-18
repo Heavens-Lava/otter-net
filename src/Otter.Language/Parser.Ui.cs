@@ -573,6 +573,10 @@ public sealed partial class Parser
         return null;
     }
 
+    // Words whose special value forms TryReadUiValue reads on the web; any
+    // other use of them is an ordinary name there.
+    static bool IsUiValueWord(string word) => SameAny(word, "current", "route", "drag", "dragged", "drop", "dropped");
+
     // A value this area starts at `token`, or null.
     Expr? TryReadUiValue(Token token)
     {

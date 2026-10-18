@@ -1,0 +1,9 @@
+clicks is 0
+when addButton is clicked
+    clicks is clicks plus 1
+    create button into resetButton
+    put resetButton in taskList
+    when resetButton is clicked
+        clicks is 0
+    .
+.

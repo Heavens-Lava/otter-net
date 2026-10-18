@@ -1,0 +1,11 @@
+create page into app
+create column into holder
+put holder in app
+create button into goButton
+goButton has text "Go"
+put goButton in app
+when goButton clicked
+    n is 5
+    put n in holder
+.
+show app
