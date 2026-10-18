@@ -69,7 +69,7 @@ otterPS files below: `Web` = `src/Otter.Web.psm1`, `JS` =
 | `route P shows page`, `route otherwise shows page`, `go to P`, `go back/forward`, `replace route with P`, `on route change` (D103) | Parser | same | native | routing* |
 | `current route`, `route parameter X`, `query parameter X` | Parser `Read-OtterValue` | `TryReadUiValue` | native | routing |
 | `the X of Y` readability form | Parser `Read-OtterValue -PropertyTarget`, Statement `the` | - | missing (core grammar, used across the parser) | examples/hello-app.ot falls back |
-| `await ...` | Parser Await | - | missing (also used by HTTP) | await_delay falls back |
+| `await X [make\|into y]`, `await` as a value (D56) | Parser Await, `Read-OtterValue` | `ReadAwaitStatement`, `ReadAwaitValue` | native | await_delay, await_forms |
 | Reserved names in UI statements (D-2) | Validation walk | `ReservedWords.cs` (UI cases) | native | err_reserved_name |
 | Handler set up in another deferred body using its run names (HandlerRunName) | LoopPasses `Get-OtterHandlerRunCaptures`, Validation | `LoopPasses.HandlerRunDiagnostics` | native | handler_runs_watch_refused |
 
@@ -104,7 +104,7 @@ does not know (another area's, not ported yet) makes the command fall back.
 
 | Capability | otterPS | otter-net | Status |
 |---|---|---|---|
-| Expressions: literal, variable, property access (UI / thing / date / xml / http / websocket), arithmetic, comparison (dates, bytes), and/or/not, contains, starts/ends with, of-operations, larger/smaller, today/now, date from text, days between, call, file exists/locked, xml (from, select, attribute, text of, exists, has attribute, to text), bytes, secure random, sha/hmac, password matches, securely equals, current route, route/query parameter, drag context | JS `ConvertTo-OtterJsExpression` | `JsCompiler.Expression` | native |
+| Expressions: literal, variable, property access (UI / thing / date / xml / http / websocket), arithmetic, comparison (dates, bytes), and/or/not, contains, starts/ends with, of-operations, larger/smaller, today/now, date from text, days between, call, await, file exists/locked, xml (from, select, attribute, text of, exists, has attribute, to text), bytes, secure random, sha/hmac, password matches, securely equals, current route, route/query parameter, drag context | JS `ConvertTo-OtterJsExpression` | `JsCompiler.Expression` | native |
 | Statements: assign (variable / UI property / thing property), make, say, ask, if, while, count, repeat, for each, list, type, thing (and runtime UI `has`), sort, reverse, join, split, find, replace, add/remove (numbers and lists), try/fail, return, files and folders, run command, environment, system folder, current directory, get/set key, dates (adjust, difference, format), log/warn/error, random, json, csv, xml, crypto, functions and calls, timers, routing, set drag data | JS `ConvertTo-OtterJsStatementCore` | `JsCompiler.Statement` | native |
 | Web-target errors: say in color, ask secretly, console primitives, wait, random seed, bytes files, memo/on start/shared/use/focus/hide, nested state/derive/watch/UI element/UI event, nested drag handlers | JS | same | native |
 | Runtime UI statements in handlers, functions and loops: create, put, show, when (with D130/D133 captures) | JS | same | native |
