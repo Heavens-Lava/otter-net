@@ -166,7 +166,7 @@ public static class Program
         }
     }
 
-    static string? FindPowerShellOtter()
+    internal static string? FindPowerShellOtter()
     {
         string? configured = Environment.GetEnvironmentVariable("OTTER_POWERSHELL");
         if (!string.IsNullOrEmpty(configured) && File.Exists(configured)) return configured;

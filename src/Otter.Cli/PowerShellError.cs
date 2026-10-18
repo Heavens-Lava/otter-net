@@ -38,8 +38,10 @@ internal sealed class PowerShellError : Exception
     public string Reason { get; }
     public string ErrorId { get; }
 
-    // $MyInvocation.MyCommand.Path of otter.ps1.
-    public static string ScriptPath => Path.Combine(AppContext.BaseDirectory, "otter.ps1");
+    // $MyInvocation.MyCommand.Path of otter.ps1: the PowerShell Otter's
+    // otter.ps1 where otter-net knows it (OTTER_POWERSHELL, the install
+    // folder), otherwise one next to this program.
+    public static string ScriptPath => Program.FindPowerShellOtter() ?? Path.Combine(AppContext.BaseDirectory, "otter.ps1");
 
     // A ParameterBindingException from binding otter.ps1's command line.
     public static PowerShellError Binding(string message, string errorId, string category = "InvalidArgument") =>
@@ -50,12 +52,43 @@ internal sealed class PowerShellError : Exception
         string newLine = Environment.NewLine;
         int width = ConsoleWidth - 4 - 2;
         var text = new StringBuilder();
-        text.Append(Prefix).Append(Message);
+        text.Append(Wrapped(Prefix + Message, ConsoleWidth - 1));
         if (Position != null) text.Append(newLine).Append(Position);
         text.Append(newLine).Append(Indented($"+ CategoryInfo          : {Category}: (:) [{Activity}], {Reason}", width));
         text.Append(newLine).Append(Indented($"+ FullyQualifiedErrorId : {ErrorId}", width));
         text.Append(newLine).Append(' ');
         return text.ToString();
+    }
+
+    // The error view's first line as the console host writes it: wrapped at
+    // the console width less one, word by word, each word keeping the space
+    // after it (a word and its space that do not fit start the next line); a
+    // word longer than a whole line is cut. Measured against Windows
+    // PowerShell 5.1 in CI (otter -Deb, -OutBuffer -1, -ErrorAction 9, ...).
+    static string Wrapped(string text, int width)
+    {
+        var lines = new List<string>();
+        var line = new StringBuilder();
+        int i = 0;
+        while (i < text.Length)
+        {
+            int end = text.IndexOf(' ', i);
+            string word = end < 0 ? text[i..] : text[i..(end + 1)];
+            i += word.Length;
+            if (line.Length > 0 && line.Length + word.Length > width)
+            {
+                lines.Add(line.ToString());
+                line.Clear();
+            }
+            while (word.Length > width)
+            {
+                lines.Add(word[..width]);
+                word = word[width..];
+            }
+            line.Append(word);
+        }
+        if (line.Length > 0) lines.Add(line.ToString());
+        return string.Join(Environment.NewLine, lines);
     }
 
     // foreach ($line in @($s -split "(.{$width})")) { if ($line) { "    " + $line } }

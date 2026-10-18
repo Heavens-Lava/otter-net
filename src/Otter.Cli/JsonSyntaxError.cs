@@ -78,7 +78,9 @@ internal static class JsonSyntaxError
 
         public string Rest => s.Length > index ? s.Substring(index) : "";
 
-        string Debug(string message) => $"{message} ({index}): {Rest}";
+        // Measured on Windows PowerShell 5.1 (CI): the text after the
+        // position is the whole JSON text, not what follows the position.
+        string Debug(string message) => $"{message} ({index}): {s}";
 
         public char? NextNonEmpty()
         {

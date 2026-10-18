@@ -65,8 +65,10 @@
         @{ Name = '-Arguments and another argument'; Args = @('-Arguments', 'x', 'a.ot', 'b', 'c'); KnownOnPwsh7 = 'error view (5.1 NormalView)' }
         @{ Name = 'a lone dash'; Args = @('a.ot', '-'); Files = @{ 'a.ot' = 'say arguments' }; KnownOnPwsh7 = 'PowerShell 7 -File passes "-" as an argument; 5.1 makes it a parameter with no name and fails' }
         # -? shows otter.ps1's syntax.
-        @{ Name = '-?'; Args = @('-?') }
-        @{ Name = '-? after a command'; Args = @('run', 'a.ot', '-?') }
+        @{ Name = '-?'; Args = @('-?')
+           KnownOnPwsh7 = 'powershell.exe -File writes nothing for -? (measured on 5.1); PowerShell 7 shows the syntax' }
+        @{ Name = '-? after a command'; Args = @('run', 'a.ot', '-?')
+           KnownOnPwsh7 = 'powershell.exe -File writes nothing for -? (measured on 5.1); PowerShell 7 shows the syntax' }
         # otter debug: each breakpoint is [int]($_.Trim()).
         @{ Name = 'debug: a breakpoint 1.5 is 2'; Args = @('debug', 'a.ot', '-Breakpoints', '1.5'); Files = @{ 'a.ot' = "say 1`nsay 2" } }
         @{ Name = 'debug: a breakpoint that is not a number'; Args = @('debug', 'a.ot', '-Breakpoints', '1,x'); Files = @{ 'a.ot' = 'say 1' }; KnownOnPwsh7 = 'error view (5.1 NormalView); .NET Framework wording' }

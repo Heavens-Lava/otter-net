@@ -110,10 +110,11 @@ internal sealed class CommandLine
     {
         if (name.Length == 0)
         {
-            // PSTraceSource.NewArgumentException("name"): PowerShell's own
-            // failure for a parameter token with no name (a lone "-").
-            throw new PowerShellError("", "Cannot process argument because the value of argument \"name\" is not valid. Change the value of the \"name\" argument and run the operation again.",
-                null, "InvalidArgument", "", "ParentContainsErrorRecordException", "Argument");
+            // A lone "-": powershell.exe -File writes nothing and exits with 5
+            // (measured on Windows PowerShell 5.1 in CI; PowerShell 7 reports
+            // PSTraceSource.NewArgumentException("name") instead).
+            Program.Trace("native: a lone - (nothing, exit 5, as powershell.exe -File)");
+            throw new CliExit(5);
         }
         if (IsDash(name[0])) name = name.Substring(1);
         var matches = new List<Parameter>();
@@ -231,9 +232,10 @@ internal sealed class CommandLine
         // "-?": Get-Help otter.ps1, before any binding.
         if (arguments.Any(a => a.Name == "?"))
         {
-            Program.Trace("native: -? (otter.ps1's syntax)");
-            Host.Line("otter.ps1 [[-Path] <string>] [[-Target] <string>] [-Open] [-NoOpen] [-Port <int>] [-DebugTokens] [-DebugAst] [-ParseOnly] [-DebugErrors] [-Breakpoints <string>] [-VersionFlag] [-HelpFlag] [-Arguments <string[]>] [<CommonParameters>]");
-            Host.Line("");
+            // powershell.exe -File otter.ps1 -? writes nothing at all and
+            // exits with 0 (measured on Windows PowerShell 5.1 in CI;
+            // PowerShell 7 shows the syntax instead).
+            Program.Trace("native: -? (nothing, as powershell.exe -File)");
             throw new CliExit(0);
         }
 
