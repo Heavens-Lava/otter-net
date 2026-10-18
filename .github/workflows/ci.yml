@@ -30,7 +30,27 @@ jobs:
         run: dotnet publish src/Otter.Cli/Otter.Cli.csproj -c Release -r win-x64 -p:UseAppHost=true -o artifacts/win-x64 --nologo
       - name: Compatibility - otterPS conformance, examples and tests/compat
         shell: powershell
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File tools/compare.ps1 -OtterPs otterps -OtterNet artifacts/win-x64/otter.exe -ReportPath results/compat-windows.md
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File tools/compare.ps1 -OtterPs otterps -OtterNet artifacts/win-x64/otter.exe -ReportPath results/compat-windows.md
+          powershell -NoProfile -ExecutionPolicy Bypass -Command "& tools/compare.ps1 -OtterPs otterps -OtterNet artifacts/win-x64/otter.exe -Corpus @(Get-ChildItem tests/compat -Filter 'net_*.ot' | ForEach-Object FullName) -IncludeEventPrograms -NativeOnly -ReportPath results/network-windows.md; exit `$LASTEXITCODE"
+
+      - name: Native only - no program may need the PowerShell fallback
+        # Not blocking yet: new on Windows PowerShell 5.1; made blocking once green.
+        continue-on-error: true
+        shell: powershell
+        run: |
+          # Report only (does not fail the job yet): which programs still need PowerShell.
+          powershell -NoProfile -ExecutionPolicy Bypass -File tools/port-progress.ps1 -OtterPs otterps -OtterNet artifacts/win-x64/otter.exe -ReportPath results/port-progress-windows.md
+      - name: Command line - otter commands against otterPS 1.0.1
+        # Not blocking yet: new on Windows PowerShell 5.1; made blocking once green.
+        continue-on-error: true
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tools/compare-cli.ps1 -OtterPs otterps -OtterNet artifacts/win-x64/otter.exe -ReportPath results/cli-windows.md
+      - name: Web - otter web pages byte for byte against otterPS 1.0.1
+        # Not blocking yet: new on Windows PowerShell 5.1; made blocking once green.
+        continue-on-error: true
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tools/compare-web.ps1 -OtterPs otterps -OtterNet artifacts/win-x64/otter.exe -ReportPath results/web-windows.md
       - name: Differential fuzz - otterPS's generators, 150 programs and 150 mutated
         shell: powershell
         run: |
