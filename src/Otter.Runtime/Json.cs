@@ -357,12 +357,15 @@ public static class OtterJson
             if (string.CompareOrdinal(text, position, "\"\\/Date(", 0, 8) == 0 && position + 8 <= text.Length)
             {
                 Match date = DatePattern.Match(text.Substring(position));
-                if (date.Success)
+                // JavaScriptObjectDeserializer: milliseconds that do not fit a
+                // long make the value an ordinary string; the ticks are worked
+                // out without an overflow check.
+                if (date.Success && long.TryParse(date.Groups["ticks"].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out long ms))
                 {
-                    if (!long.TryParse(date.Groups["ticks"].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out long ms)) throw new JsonProblem();
                     position += date.Length;
-                    try { return new DateTime(checked(ms * 10000 + UnixEpochTicks), DateTimeKind.Utc); }
-                    catch (Exception e) when (e is ArgumentOutOfRangeException or OverflowException) { throw new JsonProblem(); }
+                    long ticks = unchecked(ms * 10000 + UnixEpochTicks);
+                    if (ticks < DateTime.MinValue.Ticks || ticks > DateTime.MaxValue.Ticks) throw new JsonProblem();
+                    return new DateTime(ticks, DateTimeKind.Utc);
                 }
             }
             if (c == '{') return ReadObject(depth);

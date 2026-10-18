@@ -1,0 +1,70 @@
+# HTTP requests (D49, D101, D116B) and WebSockets (D106) on the web: option
+# blocks, started requests and their handlers, websocket handlers and
+# states, at the top level and inside a function.
+base is "https://example.com"
+get base into page
+    with header "X-One" is "1"
+    with header "X-Two" is "2"
+    with cookies
+    following redirects
+get json from base into data
+    with timeout 5 seconds
+get base as json into other
+post "hello" to base into answer
+    without cookies
+    without redirects
+post data as json to base
+put "x" to base into putAnswer
+    with timeout 2 seconds
+put data as json to base
+delete from base into gone1
+delete from base into gone2
+    with header "Authorization" is "token"
+start get from base and call it first
+start post "x" as json to base and call it second
+    with header "X" is "y"
+on complete of first
+    say "done:" received response
+.
+on error of first
+    say "failed"
+.
+on cancel of second
+    say "cancelled"
+.
+if first is pending or second is completed
+    say "states"
+.
+if first is failed or first is cancelled
+    say "more states"
+.
+cancel second
+connect to websocket "wss://example.com/chat" using protocol "chat" and call it socket
+connect to websocket "wss://example.com/plain" and call it plain
+on open of socket
+    send "hi" through socket
+.
+on message from socket
+    say received message
+.
+on close of socket
+    say close code close reason close was clean
+.
+on error of socket
+    say websocket error
+.
+if socket is open or socket is connecting or plain is closed or plain is closing
+    say "socket states"
+.
+close websocket socket
+close websocket plain with code 1001 and reason "bye"
+to fetchIt url
+    get url into body
+    post body to url into reply
+    start get from url and call it later
+    connect to websocket "wss://example.com/x" and call it inner
+    on message from inner
+        say received message
+    .
+    return reply
+say fetchIt base

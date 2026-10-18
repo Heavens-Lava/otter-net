@@ -42,7 +42,7 @@ otterPS files below: `Web` = `src/Otter.Web.psm1`, `JS` =
 | `<entry>.css` sidecar, link containment (RC3 B4) | Web `Export-OtterWebApplication`, `Resolve-OtterRealPath`, `Test-OtterPathInside` | `WebCommand.WithSidecarStylesheet`, `RealPath`, `PathInside` | native | a `.css` that is a folder or unreadable | `tests/web/sidecar` | - |
 | Opening the browser | `otter.ps1` (`Start-Process` / `open` / `xdg-open`, 15 s) | `WebCommand.OpenInBrowser` | native | - | not run in tests (`-NoOpen`) | - |
 | Compile errors (exit 2, `FormatDetailed`, remapped into `use`d files) | Web `Export-OtterWebApplication` catch, Module `ConvertTo-OtterRemappedDiagnostics` | `WebCommand.ReportError`, `ResolvedProgram.Remap` | native | - | `tests/web/err_*.ot`, `tests/compat/syn_*.ot` | - |
-| Internal error (exit 1, "Otter hit a problem inside itself") | Web `Export-OtterWebApplication` catch-all | - | missing | any unexpected exception falls back | - | by design (.NET's message text differs) |
+| Internal error ("Otter hit a problem inside itself", then `exit 1` inside a module, which leaves the exit code at 0) | Web `Export-OtterWebApplication` catch-all | `WebInternalProblem`, `WebCommand.ReportInternalProblem` (web, desktop; build/publish print the message) | native for the PowerShell errors otterPS's compiler meets: a named xml element added inside a function (argument transformation), UI resources put inside each other (call depth overflow) | a bug in otter-net's compiler; resources nested more than 200 deep without a cycle | `tests/web/t3_xml_element_in_function.ot`, `tests/cli/ui.psd1` | - |
 | `otter serve <file.ot> [-Port N]` (also a project) | `otter.ps1`, `src/Otter.Server.psm1` | `Otter.Cli/ServeCommand.cs` | native: the program is checked, never run; top-level `when S receives METHOD at PATH` routes answered from their first `respond with` (a literal, or otterPS's node text `Kind@Lline`), 404 JSON, 413 over 10 MB, 500 and the console line for a failed request | a server that cannot start (PowerShell's error text); a `port` PowerShell cannot convert | `tests/cli/ui.psd1` (errors); serving tested by hand with curl (below) | - |
 | `otter desktop <file.ot>` | `otter.ps1`, `src/Otter.Desktop.psm1` `Start-OtterDesktopApplication` | `Otter.Cli/DesktopCommand.cs` | native on Windows (off Windows otterPS's refusal, native) | an import problem (PowerShell's error), a page the web compiler cannot make, a bridge that cannot start | test hook `OTTER_NET_DESKTOP_NO_BROWSER=1` (no window, any system), tested by hand with curl | bridge JSON key order is otter-net's (otterPS's comes from hash tables); file dialogs answer "cancelled" (no native page reaches them: `choose file` is not compiled natively) |
 | `otter studio` | `otter.ps1`, Desktop `Start-OtterStudio` | - | out of scope | whole command | - | developed separately |
@@ -68,7 +68,7 @@ word that the UI form does not take over (`go home`, `primary "x"`,
 | `put data to url` / `as json` (HTTP) | Parser Put | - | missing (network area) | - |
 | `show app` (D47) | Parser Show | `TryReadUiStatement` Show | native | many |
 | UI elements: window page card heading text button panel section sidebar main link image input grid, `primary/secondary/danger` (D56) | Parser `Read-OtterUiElementStatement` | `ReadUiElementStatement` | native | declarative* |
-| Element body: layout, align, gap, spread, `columns N on BP`, `stack on BP`, round/background/placeholder/padding/margin/width/height | same | same | native | declarative |
+| Element body: layout, align, gap, spread, `columns N on BP` (N cast with PowerShell's [int]: a value it refuses is its conversion error as a syntax error), `stack on BP`, round/background/placeholder/padding/margin/width/height | same | same; `PowerShellInt32.TryCast` | native | declarative, responsive_text_columns, t3_columns_cast, t3_ui_columns_* |
 | Animation blocks hover/press/enter/leave; fade/move/slide/grow/shrink/scale/rotate; `animate N[ms\|s] [easing]` | Parser `Read-OtterAnimationBlock` | `ReadAnimationBlock` | native | declarative |
 | Event blocks click/change/input/submit/hover/press/focus/blur | Parser UI element | same | native | declarative |
 | `layout MODE [cols]` statement | Parser Layout | `TryReadUiStatement` Layout | native | declarative |
@@ -111,8 +111,12 @@ word that the UI form does not take over (`go home`, `primary "x"`,
 ## The JavaScript compiler (JS)
 
 `JsCompiler.Expressions.cs`, `JsCompiler.Statements.cs`, `Analysis.cs`,
-`LoopPasses.cs`. Every node otter-net parses today is compiled; a node it
-does not know (another area's, not ported yet) makes the command fall back.
+`LoopPasses.cs`. Every node otter-net parses is compiled, the system,
+network and data areas' included (their runtime hooks, HTTP and WebSocket
+code, and otterPS's "not supported on the web target" errors); the default
+cases that hand a node to the PowerShell Otter only guard a node class added
+later without a case (tests: `tests/web/t3_system_hooks.ot`,
+`t3_http_websocket.ot`, `t3_err_*.ot`).
 
 | Capability | otterPS | otter-net | Status |
 |---|---|---|---|
@@ -122,7 +126,7 @@ does not know (another area's, not ported yet) makes the command fall back.
 | Runtime UI statements in handlers, functions and loops: create, put, show, when (with D130/D133 captures) | JS | same | native |
 | Function locals and async detection (with otterPS's quirks) | JS `Get-OtterJsBindingNames`, `Test-OtterJsBodyNeedsAsync` | `Bindings`, `AsyncAnalysis`, `PowerShellSort` | native |
 | Loop pass names (D130) and handler runs (D133) | LoopPasses `Get-OtterLoopPassNames` | `LoopPasses.Names` | native |
-| HTTP (get/post/put/delete/start/cancel, options), download, websockets, TCP/UDP, file watching, databases and queries, clipboard, notify, file dialogs, system information, processes, links, owners, registry, event log, credentials, secrets, power actions, printing, remote/ssh commands, `start command` jobs | JS | - | missing (those statements are not parsed by otter-net yet; they belong to the network, system and data areas - the web compiler falls back for them) |
+| HTTP (get/post/put/delete/start/cancel, options), download, websockets, TCP/UDP, file watching, databases and queries, clipboard, notify, file dialogs, system information, processes, links, owners, registry, event log, credentials, secrets, power actions, printing, remote/ssh commands, `start command` jobs | JS `ConvertTo-OtterJsStatementCore`, `ConvertTo-OtterJsExpression`, `Get-OtterJsHttpOptionsSetup` | `JsCompiler.Statements.cs` (`HttpRequest`, `HttpStart`, `NetworkEvent`), `JsCompiler.Expressions.cs`, `NodeFields`, `Bindings`, `AsyncAnalysis` | native (`tests/web/t3_system_hooks.ot`, `t3_http_websocket.ot`, `t3_err_*.ot`) |
 
 ## Run (`otter run` of UI forms, `Interpreter.Ui.cs`)
 

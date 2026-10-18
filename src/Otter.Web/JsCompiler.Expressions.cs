@@ -37,6 +37,14 @@ sealed partial class JsCompiler
 
     static OtterError WebError(string message, int line) => new(message, line, "runtime");
 
+    // A value the page's network runtime sets while a websocket or request
+    // handler runs (_otterCurrentWsContext); `message` is the JavaScript
+    // error text, already escaped for a double-quoted string.
+    static string WsContextJs(string field, string message) =>
+        $"((typeof _otterCurrentWsContext !== \"undefined\" && _otterCurrentWsContext && \"{field}\" in _otterCurrentWsContext) ? _otterCurrentWsContext.{field} : (() => {{ throw new Error(\"{message}\"); }})())";
+
+    static readonly string ReceivedResponseJs = WsContextJs("response", "\\\"received response\\\" is only available inside \\\"on complete of ...\\\".");
+
     static readonly Regex ScriptClose = new("(?i)</script", RegexOptions.CultureInvariant);
 
     // ConvertTo-OtterJsExpression
@@ -304,6 +312,65 @@ sealed partial class JsCompiler
                 return $"(await otterFileExists({Expression(fileExists.Path)}))";
             case FileLockedExpr fileLocked:
                 return $"(await otterFileLocked({Expression(fileLocked.Path)}))";
+            // D104: file watching is console and desktop only.
+            case IsWatchingExpr or ChangedPathExpr or ChangedFileNameExpr or ChangeKindExpr or OldPathExpr:
+                throw WebError("File/folder watching is not supported on the web target.", expr.Line);
+            // D111: the credential vault is OS-backed and console-only.
+            case SecretReadExpr:
+                throw WebError("The credential vault (secret) is not supported on the web target. Browser storage is not a secure credential store.", expr.Line);
+            case SecretExistsExpr:
+                throw WebError("The credential vault (secret exists) is not supported on the web target. Browser storage is not a secure credential store.", expr.Line);
+            // D106-D108, D112, D113, D116B: network contexts and states.
+            case NetContextExpr netContext:
+                if (string.Equals(netContext.Field, "response", StringComparison.OrdinalIgnoreCase)) return ReceivedResponseJs;
+                throw WebError("TCP/UDP is not supported on the web target.", expr.Line);
+            case ConnectionIsSecureExpr:
+                throw WebError("TCP/TLS is not supported on the web target. Browsers cannot open raw TCP or TLS sockets.", expr.Line);
+            case TcpServerIsStateExpr:
+                throw WebError("TCP servers are not supported on the web target.", expr.Line);
+            case WebSocketIsStateExpr wsState:
+            {
+                string targetJs = Expression(wsState.Socket);
+                string stateStr = wsState.State.ToString().ToLowerInvariant();
+                return $"((_s) => {{ if (!_s || typeof _s !== 'object' || !_s.__otterWebSocket) {{ throw new Error('I can only check the state of a websocket, but this is something else.'); }} const _st = (_s.ws.readyState === 0 ? 'connecting' : _s.ws.readyState === 1 ? 'open' : _s.ws.readyState === 2 ? 'closing' : 'closed'); return _st === '{stateStr}'; }})({targetJs})";
+            }
+            case HttpRequestIsStateExpr requestState:
+            {
+                string targetJs = Expression(requestState.Request);
+                string stateStr = requestState.State switch
+                {
+                    HttpRequestState.Pending => "pending",
+                    HttpRequestState.Completed => "completed",
+                    HttpRequestState.Failed => "failed",
+                    _ => "cancelled",
+                };
+                return $"((_s) => {{ if (!_s || typeof _s !== 'object' || !_s.__otterHttpRequest) {{ throw new Error('I can only check the state of an HTTP request, but got ' + (typeof _s)); }} return _s.state === '{stateStr}'; }})({targetJs})";
+            }
+            case ReceivedResponseExpr:
+                return ReceivedResponseJs;
+            case ReceivedMessageExpr:
+                return WsContextJs("message", "\\\"received message\\\" is only available inside \\\"on message from ...\\\".");
+            case CloseCodeExpr:
+                return WsContextJs("closeCode", "\\\"close code\\\" is only available inside \\\"on close of ...\\\".");
+            case CloseReasonExpr:
+                return WsContextJs("closeReason", "\\\"close reason\\\" is only available inside \\\"on close of ...\\\".");
+            case CloseWasCleanExpr:
+                return WsContextJs("closeWasClean", "\\\"close was clean\\\" is only available inside \\\"on close of ...\\\".");
+            case WebSocketErrorExpr:
+                return WsContextJs("error", "\\\"websocket error\\\" is only available inside \\\"on error of ...\\\".");
+            // D119-R2: a command job's context has no web compilation.
+            case JobContextExpr:
+                return "null";
+            // D73, D74, D78: runtime hooks a host provides.
+            case FileIsSymbolicLinkExpr symbolicLink:
+                return $"(await otterFileIsSymbolicLink({Expression(symbolicLink.Path)}))";
+            case FileIsReadOnlyExpr readOnly:
+                return $"(await otterFileIsReadOnly({Expression(readOnly.Path)}))";
+            case RegistryKeyExistsExpr keyExists:
+                return $"(await otterRegistryKeyExists({Expression(keyExists.KeyPath)}))";
+            // D99: queries run against a database.
+            case QueryBetweenExpr or QueryInExpr:
+                throw WebError("Database queries are not supported on the web target.", expr.Line);
             case BytesFromFileExpr:
                 throw WebError("Binary file access is not supported on the web target.", expr.Line);
             default:

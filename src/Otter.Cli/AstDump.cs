@@ -21,8 +21,12 @@ namespace Otter.Cli;
 //       an array: each item at the same depth; anything else: nothing.
 //   }
 //
-// The lines are built before anything is printed: a node class the table
-// does not know sends the whole command to the PowerShell Otter.
+// The lines are built before anything is printed. Every node class otter-net
+// parses has a table entry (through PsClass) and every property the entry
+// names (through Read); the dumps of all of tests/compat, tests/web and
+// otterPS 1.0.1's programs, and tests/cli/run.psd1's -DebugAst cases, match
+// otterPS's line for line. The NeedsPowerShell throws below only guard a
+// node class added later without an entry.
 internal static partial class AstDump
 {
     // Show-OtterAst -Node $program -Depth 1.

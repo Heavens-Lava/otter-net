@@ -1,0 +1,54 @@
+# The system statements a web page hands to its host's runtime hooks
+# (D67, D69-D85, D96), at the top level and inside a function, which then
+# becomes async.
+to doAll path
+    download file from "https://example.com/a.txt" to path
+    run "notepad.exe" into proc
+    run "calc.exe"
+    run command "dir" over ssh to "me@host" into out
+    run command "dir" on remote "host" using credential "c" into out2
+    get processes into list
+    for each p in list
+        kill process p and its children
+        set priority of process p to "high"
+        wait for process p up to 5 seconds into done
+        wait for process p up to 1 seconds
+    .
+    create symbolic link "l" pointing to "t"
+    get symbolic link target of "l" into t
+    get owner of "x" into owner
+    set file "x" to read only
+    set file "x" to writable
+    get registry value "n" from "HKCU:\Software" into rv
+    set registry value "n" to "d" in "HKCU:\Software"
+    delete registry value "n" from "HKCU:\Software"
+    get event log entries from "System" up to 5 into entries
+    set credential "c" to "s"
+    get credential "c" into secret
+    delete credential "c"
+    lock the computer
+    sign out
+    restart the computer
+    shut down the computer
+    print "f.txt" to "P"
+    copy "x" to clipboard
+    get clipboard into clip
+    notify "T" with "M"
+    get system information "os" into info
+    choose file into f1
+    choose folder into f2
+    choose file to save into f3
+    if file "l" is a symbolic link
+        say "link"
+    .
+    if file "x" is read only and registry key "HKCU:\Software" exists
+        say "ro"
+    .
+    return info
+to plain
+    say "nothing async here"
+get system information "cpu" into cpu
+get processes into all
+get clipboard into clip
+choose folder into place
+say doAll "x.txt"

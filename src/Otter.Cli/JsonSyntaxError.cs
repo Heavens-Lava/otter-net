@@ -223,8 +223,11 @@ internal static class JsonSyntaxError
             bool hasDecimalPoint = input.Contains('.') || input.Contains('e', StringComparison.OrdinalIgnoreCase);
             if (!hasDecimalPoint && long.TryParse(input, NumberStyles.Integer, CultureInfo.InvariantCulture, out _)) return input;
             if (decimal.TryParse(input, NumberStyles.Number, CultureInfo.InvariantCulture, out _)) return input;
+            // .NET Framework reads only these spellings of the special values
+            // (.NET 10 also reads "-NaN", "nan", ...), and refuses a number
+            // too large for a double.
             if (input is "NaN" or "Infinity" or "+Infinity" or "-Infinity") return input;
-            if (double.TryParse(input, NumberStyles.Float, CultureInfo.InvariantCulture, out double d) && !double.IsInfinity(d)) return input;
+            if (double.TryParse(input, NumberStyles.Float, CultureInfo.InvariantCulture, out double d) && !double.IsNaN(d) && !double.IsInfinity(d)) return input;
             throw new Problem($"Invalid JSON primitive: {input}.");
         }
 

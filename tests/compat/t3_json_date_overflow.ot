@@ -1,0 +1,17 @@
+# ConvertFrom-Json on Windows PowerShell 5.1 (JavaScriptSerializer): a
+# \/Date(...)\/ whose milliseconds do not fit a long is ordinary text; one
+# that fits but is out of the calendar's range is an error.
+convert "\"\/Date(99999999999999999999)\/\"" from json into stamp
+say stamp
+try
+    convert "\"\/Date(300000000000000)\/\"" from json into stamp
+    say stamp
+otherwise into reason
+    say reason
+.
+try
+    convert "-NaN" from json into value
+    say value
+otherwise into reason
+    say reason
+.

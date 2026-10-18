@@ -24,11 +24,11 @@ public sealed class SystemInfoProblem(string message, string? suggestion = null)
 // does not exist, and its fallbacks (the .NET OS version, gone for the CPU
 // name and memory) are what it shows; otter-net shows the same.
 //
-// "tasks" (the Task Scheduler's COM interface) and "printers" (WMI's
-// Win32_Printer, whose status codes WMI works out itself) are left to the
-// PowerShell Otter on Windows (the parser decides). Off Windows PowerShell 7
-// has none of Get-ScheduledTask, Get-CimInstance or Get-Service, so tasks,
-// printers and services are empty lists there.
+// "tasks" (D80) come from the Task Scheduler (ScheduledTasks.cs), "printers"
+// (D83) from the print spooler (Printers.cs) and "services" (D86) from the
+// service control manager (Services.cs). Off Windows PowerShell 7 has none of
+// Get-ScheduledTask, Get-CimInstance or Get-Service, so tasks, printers and
+// services are empty lists there.
 public static partial class OtterSystemInfo
 {
     public static object? Get(string kind)
@@ -63,9 +63,8 @@ public static partial class OtterSystemInfo
             case "groups": return Groups();
             case "software": return Software();
             case "services": return OperatingSystem.IsWindows() ? OtterServices.List() : new OtterList();
-            case "tasks":
-            case "printers":
-                return new OtterList();
+            case "tasks": return OperatingSystem.IsWindows() ? OtterScheduledTasks.List() : new OtterList();
+            case "printers": return OperatingSystem.IsWindows() ? OtterPrinters.List() : new OtterList();
             default:
                 throw new SystemInfoProblem($"I do not know a kind of system information called \"{kind}\".",
                     "get system information \"os\" into info (also: \"cpu\", \"memory\", \"disk\", \"network\", \"user\", \"groups\", \"software\", \"tasks\", \"printers\", \"services\")");

@@ -198,8 +198,8 @@ internal static class Cli
     }
 
     // web, browse, serve, desktop, studio: the checks otter.ps1 makes before
-    // the command itself are native; the command (a compiler, a server, a
-    // window) is handed to the PowerShell Otter.
+    // the command, then the command (WebCommand.cs, ServeCommand.cs,
+    // DesktopCommand.cs). `otter studio` is out of scope.
     static int UiCommand(CommandLine line)
     {
         string command = line.Path!;
@@ -236,7 +236,6 @@ internal static class Cli
             return WebCommand.Run(scriptFile, line.Target!, line.NoOpen, Program.Trace, out string webReason) ?? throw new NeedsPowerShell(webReason);
         }
         if (Is(command, "serve")) return ServeCommand.Run(line, scriptFile);
-        if (Is(command, "desktop")) return DesktopCommand.Run(scriptFile);
-        throw new NeedsPowerShell($"otter {command.ToLowerInvariant()} is not native yet");
+        return DesktopCommand.Run(scriptFile);
     }
 }

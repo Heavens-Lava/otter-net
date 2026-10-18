@@ -43,6 +43,11 @@ static partial class DesktopCommand
         {
             throw new NeedsPowerShell($"{unsupported.Feature} (line {unsupported.Line}) is not native yet");
         }
+        catch (WebInternalProblem problem)
+        {
+            Program.Trace("native: desktop (internal problem)");
+            return WebCommand.ReportInternalProblem(problem);
+        }
         catch (OtterError error)
         {
             Program.Trace("native: desktop (errors)");

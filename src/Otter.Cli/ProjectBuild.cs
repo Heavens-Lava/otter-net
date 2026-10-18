@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using Otter.Language;
 using Otter.Runtime;
+using Otter.Web;
 
 namespace Otter.Cli;
 
@@ -57,7 +58,7 @@ internal static partial class ProjectCommands
     // web, desktop or game project: compiled ahead, or the OtterError the
     // build reports when it gets there.
     static string? preparedPage;
-    static OtterError? preparedPageFailure;
+    static Exception? preparedPageFailure;
 
     static void PrepareWebPage(Project project)
     {
@@ -73,8 +74,9 @@ internal static partial class ProjectCommands
         {
             throw new NeedsPowerShell($"{unsupported.Feature} (line {unsupported.Line}) is not native yet");
         }
-        catch (OtterError error)
+        catch (Exception error) when (error is OtterError or WebInternalProblem)
         {
+            // Rethrown by -PassThruExceptions when the build gets there.
             preparedPageFailure = error;
         }
         catch (Exception unexpected) when (unexpected is not OutOfMemoryException)

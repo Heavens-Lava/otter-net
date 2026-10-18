@@ -16,7 +16,7 @@ otter-net is complete only when all of these hold:
 |---|---|---|
 | 1 | Every Otter 1.0.1 language feature implemented in C# | no - see below |
 | 2 | Every conformance fixture passes | 19 of 19 checked natively; all identical on Windows |
-| 3 | No supported program needs the PowerShell Otter | 0 of 237 for `check`; at run time: desktop windows and remote commands on Windows (decisions pending), tasks/printers |
+| 3 | No supported program needs the PowerShell Otter | 0 of 237 for `check`; at run time: desktop windows and remote commands on Windows (decisions pending) |
 | 4 | Syntax and runtime diagnostics independent of PowerShell | for native programs; strict mode: `tools/compare.ps1 -NativeOnly` |
 | 5 | All six platform configurations pass | yes (PR #3 CI) |
 | 6 | No unexplained compatibility differences | yes, for native programs |
@@ -46,10 +46,23 @@ Still needing the PowerShell Otter, decided before anything runs:
 
 - **Desktop windows (WPF) in `otter run` on Windows** - needs a decision (`docs/port/desktop-options.md`).
 - **Remote commands on Windows** - PowerShell remoting; needs a decision.
-- System information `tasks` and `printers` on Windows.
-- Narrow cases: `replace route`, `set drag data`, a responsive column count that is not a number, PowerShell's own parameter-binding texts, `-DebugAst` of some node kinds, a few `otter serve`/`desktop` failure paths that otterPS reports with PowerShell's errors.
+- PowerShell's own parameter-binding texts (C2-1), `-InformationAction Stop/Inquire/Ignore` (C2-5), and a few `otter serve`/`desktop` failure paths that otterPS reports with PowerShell's own rendering of an escaping error (see `docs/FULL_PORT_MATRIX.md`).
 
-Source sites left: 9 parser (`Unsupported`), 24 CLI (`NeedsPowerShell`) - see `docs/FULL_PORT_MATRIX.md`.
+## Tail batch - 2026-10-18 (`port/tail`)
+
+System information `tasks` and `printers` on Windows (Task Scheduler COM,
+print spooler), the last UI parser corners, every `otter web` page of the
+corpus (the system, network and data nodes now compile: 44 programs that
+went to PowerShell before), `-DebugAst` of every node kind, `otter serve`'s
+port casts and the web compiler's internal problems natively. Source sites
+left: 1 parser, 4 web compiler (bug guards), 21 CLI (of which 12 are bug
+guards or only reached by remote commands) - see `docs/FULL_PORT_MATRIX.md`.
+
+| Comparison (macOS, otterPS 1.0.1 on PowerShell 7) | Result |
+|---|---|
+| `tests/compat`, native only | 195 programs: 162 identical (all native), 15 skipped, 18 different - the 11 baseline programs of this corpus, 4 database programs otterPS cannot run on macOS, `data_query_internal.ot`, `p2_case_json.ot`, and `t3_ui_columns_text.ot` (.NET's "The input string 'abc' was not in a correct format." on PowerShell 7 where 5.1, and otter-net, say "Input string was not in a correct format.") |
+| `otter web` pages | 337 programs: 336 identical, **all native**; 1 different (`t3_ui_columns_text.ot`, the same wording) |
+| CLI cases | 249: 0 different (59 known PowerShell 7 differences) |
 
 ## After wave 1 - 2026-10-17 (`port/native`: System, Network, Data, CLI and UI areas merged)
 

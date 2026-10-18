@@ -61,7 +61,7 @@ static class ServeCommand
                     string propertyName = property.Target is VariableExpr variable ? variable.Name : NodeText(property.Target);
                     if (string.Equals(propertyName, "port", StringComparison.OrdinalIgnoreCase) && property.Value is LiteralExpr portLiteral)
                     {
-                        port = ToInt(portLiteral.Value) ?? throw new NeedsPowerShell("a web server port PowerShell cannot convert to a whole number");
+                        port = CastPort(portLiteral.Value, port, 24, "                            $port = [int]$prop.Value.Value");
                     }
                     else if (string.Equals(propertyName, "host", StringComparison.OrdinalIgnoreCase) && property.Value is LiteralExpr hostLiteral)
                     {
@@ -83,7 +83,7 @@ static class ServeCommand
             int defaultPort = 8080;
             if (listens.Count > 0 && listens[0].Port is LiteralExpr listenPort)
             {
-                defaultPort = ToInt(listenPort.Value) ?? throw new NeedsPowerShell("a listen port PowerShell cannot convert to a whole number");
+                defaultPort = CastPort(listenPort.Value, defaultPort, 49, "            $defaultPort = [int]$listenServers[0].Port.Value");
             }
             servers.Add(new ServerDefinition("server", defaultPort, "localhost"));
         }
@@ -195,7 +195,7 @@ static class ServeCommand
             object? value = null;
             if (respond.Value != null) value = respond.Value is LiteralExpr literal ? literal.Value : NodeText(respond.Value);
             status = respond.Status is LiteralExpr statusLiteral
-                ? ToInt(statusLiteral.Value) ?? throw new InvalidCastException("not a whole number")
+                ? (PowerShellInt32.TryCast(statusLiteral.Value, out int code, out _) ? code : throw new InvalidCastException("not a whole number"))
                 : 200;
             if (respond.AsJson)
             {
@@ -241,32 +241,21 @@ static class ServeCommand
         return $"{kind}@L{node.Line.ToString(CultureInfo.InvariantCulture)}";
     }
 
-    // PowerShell's [int] of a literal value; null when it cannot convert.
-    static int? ToInt(object? value)
+    // Get-OtterServerDefinition's `$port = [int]...` (Otter.Server.psm1 line
+    // 24) and `$defaultPort = [int]...` (line 49). A value [int] refuses is a
+    // statement-terminating error inside a script module, where
+    // $ErrorActionPreference is the global Continue (a module does not see
+    // otter.ps1's Stop): PowerShell reports it and goes on, and the port
+    // keeps the value it had. Windows PowerShell 5.1's report: the message,
+    // the statement's position, and the RuntimeException's category
+    // (docs/SPEC-QUESTIONS.md T3-3).
+    static int CastPort(object? value, int current, int moduleLine, string moduleText)
     {
-        switch (value)
-        {
-            case null: return 0;
-            case bool flag: return flag ? 1 : 0;
-            case double number: return FromDouble(number);
-            case string text:
-            {
-                string trimmed = text.Trim();
-                if (trimmed.Length == 0) return 0;
-                if (trimmed.StartsWith("0x", StringComparison.OrdinalIgnoreCase) &&
-                    int.TryParse(trimmed[2..], NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out int hex)) return hex;
-                if (double.TryParse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture, out double parsed)) return FromDouble(parsed);
-                return null;
-            }
-            default: return null;
-        }
-
-        static int? FromDouble(double number)
-        {
-            if (double.IsNaN(number) || double.IsInfinity(number)) return null;
-            double rounded = Math.Round(number, MidpointRounding.ToEven);
-            if (rounded < int.MinValue || rounded > int.MaxValue) return null;
-            return (int)rounded;
-        }
+        if (PowerShellInt32.TryCast(value, out int port, out string message, out string errorId)) return port;
+        int start = moduleText.Length - moduleText.TrimStart().Length + 1;
+        string file = Path.Combine(AppContext.BaseDirectory, "src", "Otter.Server.psm1");
+        new PowerShellError("", message, PowerShellError.PositionMessage(file, moduleLine, moduleText, start, moduleText.Length - start + 1),
+            "InvalidArgument", "", "RuntimeException", errorId).Write();
+        return current;
     }
 }

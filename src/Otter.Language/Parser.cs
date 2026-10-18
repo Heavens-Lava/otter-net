@@ -512,8 +512,14 @@ public sealed partial class Parser
                 Expr find = ReadValue();
                 Expect(TokenKind.With, "I expected \"with\" and replacement text.");
                 Expr replacement = ReadMathExpression();
-                // D103: `replace route with "/path"` (no `in`) is SPA routing.
-                if (find is VariableExpr { Name: "route" } && !Is(TokenKind.In)) throw Unsupported("replace route");
+                // D103: `replace route with "/path"` (no `in`) is SPA routing,
+                // read by Parser.Ui.cs; it comes here only when the line goes
+                // on after the path, which is otterPS's error below.
+                if (find is VariableExpr { Name: var findName } && Same(findName, "route") && !Is(TokenKind.In))
+                {
+                    Expect(TokenKind.Newline, "I expected the replace route statement to end here.");
+                    return new ReplaceRouteStmt(replacement, start.Line);
+                }
                 Expect(TokenKind.In, "I expected \"in\" and the text variable to change.");
                 Token target = ReadVariableName("I expected a text variable after \"in\".");
                 string? resultTarget = null;
@@ -600,8 +606,9 @@ public sealed partial class Parser
                 return ReadDelete(start);
             case TokenKind.Create:
             {
+                // Parser.System.cs reads `create symbolic link` and Parser.Ui.cs
+                // every other `create` but `create folder`.
                 Read();
-                if (!Is(TokenKind.Folder)) throw Unsupported("create");
                 Read();
                 Expr path = ReadValue();
                 Expect(TokenKind.Newline, "I expected the create statement to end here.");
@@ -687,14 +694,15 @@ public sealed partial class Parser
             case TokenKind.Dedent:
                 throw Error("Unexpected unindent.", start, "Make sure block indentation lines up.");
             default:
-                // A word no statement starts with is a syntax error in otterPS;
-                // a statement otterPS has that otter-net does not run yet goes
-                // to the PowerShell Otter.
-                if (!OtterPsStatementKinds.Contains(statementKind))
+                // A word no statement starts with is a syntax error in otterPS.
+                // Every statement otterPS's switch has is read above or by an
+                // area (Parser.<Area>.cs), so arriving here with one of them
+                // is a bug in otter-net, never shown as a wrong message.
+                if (OtterPsStatementKinds.Contains(statementKind))
                 {
-                    throw Error($"I don't understand '{start.Text}'.", start, "Start a statement with a word such as say, if, or a variable name.");
+                    throw new System.Diagnostics.UnreachableException($"no reader for the '{start.Text}' statement");
                 }
-                throw Unsupported($"the '{start.Text}' statement");
+                throw Error($"I don't understand '{start.Text}'.", start, "Start a statement with a word such as say, if, or a variable name.");
         }
     }
 
@@ -1136,8 +1144,6 @@ public sealed partial class Parser
             Expect(TokenKind.Newline, "I expected the set statement to end here.");
             return new SetEnvironmentVariableStmt(name, variableValue, start.Line);
         }
-        // D110: set drag data to X (UI; read by Parser.Ui.cs for the web target).
-        if (Same(Current.Text, "drag") && At(1) is { } dragData && Same(dragData.Text, "data")) throw Unsupported("set drag");
         Expr key = ReadValue();
         Expect(TokenKind.To, "I expected \"to\" and a value.");
         Expr value = ReadValue();
@@ -1695,7 +1701,6 @@ public sealed partial class Parser
         Token token = Current;
         if ((TryReadSystemValue(token) ?? TryReadNetworkValue(token) ?? TryReadDataValue(token) ?? TryReadUiValue(token)) is { } areaValue)
             return areaValue;
-        if (token.Kind == TokenKind.Await) throw Unsupported("await");
         if (token.Kind == TokenKind.Not)
         {
             Read();
@@ -1822,8 +1827,6 @@ public sealed partial class Parser
             Read(); Read(); Read();
             return new BytesExpr(toOp, ReadValue(), token.Line);
         }
-        // query parameter X (D103 routing) is not ported yet.
-        if (token.Kind == TokenKind.Query && IsAt(1, TokenKind.Parameter)) throw Unsupported("query parameter");
         // xml from text|file X / xml with root X (D105)
         if (token.Kind == TokenKind.Identifier && Same(token.Text, "xml") && (IsAt(1, TokenKind.From) || IsAt(1, TokenKind.With)))
         {
