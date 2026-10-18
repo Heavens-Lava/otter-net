@@ -137,6 +137,19 @@ public static class ReservedWords
                     break;
                 case WhileStmt loop: Statements(loop.Body); break;
                 case RepeatStmt repeat: Statements(repeat.Body); break;
+                // Networking and file watching (Syntax.Network.cs).
+                case HttpGetStmt httpGet: Variable(httpGet.Target, line); break;
+                case HttpSendStmt httpSend: Variable(httpSend.Target, line); break;
+                case HttpDeleteStmt httpDelete: Variable(httpDelete.Target, line); break;
+                case HttpStartStmt httpStart: Variable(httpStart.TargetName, line); break;
+                case WebSocketConnectStmt webSocket: Variable(webSocket.Target, line); break;
+                case TcpConnectStmt tcpConnect: Variable(tcpConnect.Target, line); break;
+                case UdpOpenStmt udpOpen: Variable(udpOpen.Target, line); break;
+                case TcpListenStmt tcpListen: Variable(tcpListen.Target, line); break;
+                case FileWatchStmt fileWatch: Variable(fileWatch.Target, line); break;
+                case WebRouteStmt route: Statements(route.Body); break;
+                case NetworkEventStmt networkEvent: Statements(networkEvent.Body); break;
+                case WatchEventStmt watchEvent: Statements(watchEvent.Body); break;
             }
         }
 
