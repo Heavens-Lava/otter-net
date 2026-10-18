@@ -58,6 +58,12 @@ port casts and the web compiler's internal problems natively. Source sites
 left: 1 parser, 4 web compiler (bug guards), 21 CLI (of which 12 are bug
 guards or only reached by remote commands) - see `docs/FULL_PORT_MATRIX.md`.
 
+| Comparison (macOS, otterPS 1.0.1 on PowerShell 7) | Result |
+|---|---|
+| `tests/compat`, native only | 195 programs: 162 identical (all native), 15 skipped, 18 different - the 11 baseline programs of this corpus, 4 database programs otterPS cannot run on macOS, `data_query_internal.ot`, `p2_case_json.ot`, and `t3_ui_columns_text.ot` (.NET's "The input string 'abc' was not in a correct format." on PowerShell 7 where 5.1, and otter-net, say "Input string was not in a correct format.") |
+| `otter web` pages | 337 programs: 336 identical, **all native**; 1 different (`t3_ui_columns_text.ot`, the same wording) |
+| CLI cases | 249: 0 different (59 known PowerShell 7 differences) |
+
 ## After wave 1 - 2026-10-17 (`port/native`: System, Network, Data, CLI and UI areas merged)
 
 | Corpus (otterPS 1.0.1 unless noted) | Programs | Native | Need PowerShell |
