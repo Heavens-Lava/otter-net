@@ -86,6 +86,8 @@ internal static class FileMode
                 ReadSecretLine = Console.IsInputRedirected ? null : () => Program.ReadSecretLine(Host.Out),
                 MoveCursor = Console.IsOutputRedirected ? null : (column, row) => { Host.Out.Flush(); Console.SetCursorPosition(column, row); },
                 StatementHook = debugger?.Hook ?? profiler?.Hook,
+                // Set-OtterApplicationId: secrets are named after the program (D111).
+                ApplicationPath = resolvedPath,
             };
             debugger?.Attach(interpreter);
             profiler?.Attach(interpreter);

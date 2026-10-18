@@ -1,0 +1,91 @@
+# System information (D69, D76, D77). The values belong to the machine, so
+# only their shape is shown.
+get environment variable "OS" into os
+get system information "os" into system
+say system
+if length of name of system is greater than 0
+    say "the system has a name"
+.
+if length of version of system is greater than 0
+    say "and a version"
+.
+say architecture of system
+if machineName of system is gone
+    say "no machine name"
+otherwise
+    say "a machine name"
+.
+get system information "CPU" into cpu
+say cpu
+if cores of cpu is at least 1
+    say "at least one core"
+.
+if os is "Windows_NT"
+    if length of name of cpu is greater than 0
+        say "the processor has a name"
+    .
+otherwise
+    say "processor name:" name of cpu
+.
+get system information "memory" into memory
+say memory
+if totalBytes of memory is gone
+    say "no memory figures"
+otherwise if totalBytes of memory is at least freeBytes of memory
+    say "free memory fits in total memory"
+.
+get system information "disk" into disk
+say disk
+if drive of disk is gone
+    say "no drive"
+otherwise if totalBytes of disk is at least freeBytes of disk
+    say "free space fits on the disk"
+.
+get system information "network" into network
+for each face in network
+    if name of face is gone
+        say "an interface with no name"
+    .
+.
+say "network is a list"
+get system information "groups" into groups
+for each group in groups
+    if length of group is 0
+        say "a group with no name"
+    .
+.
+say "groups is a list"
+get system information "software" into software
+for each app in software
+    if name of app is gone
+        say "an application with no name"
+    .
+.
+say "software is a list"
+get system information "services" into services
+for each service in services
+    if name of service is gone
+        say "a service with no name"
+    .
+    if status of service is gone
+        say "a service with no status"
+    .
+.
+say "services is a list"
+try
+    get system information "user" into user
+    say user
+    if length of name of user is greater than 0
+        say "the user has a name"
+    .
+    if isAdmin of user is true or isAdmin of user is false
+        say "admin or not"
+    .
+otherwise into reason
+    say reason
+.
+try
+    get system information "weather" into nothing
+otherwise into reason
+    say reason
+.

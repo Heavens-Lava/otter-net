@@ -1,0 +1,48 @@
+# Syntax errors in the system statements: each line has one, and every one
+# is reported.
+kill foo
+kill process p and children
+wait for proc p
+wait for process p soon
+wait for process p up to 5 minutes
+set priority of p
+set file "x" to readable
+set file "x" to read
+set registry "n"
+set credential "n" as "s"
+delete registry value "n" in "k"
+get system info "os" into x
+get symbolic target of "l" into t
+get owner "x" into o
+get event entries from "System"
+get credential "n"
+get registry value "n" into t
+lock computer now
+sign in
+restart the machine
+shut the computer
+choose thing into x
+choose file to keep
+run command "x" over sh
+run command "x" on remote "h" with credential "n"
+create symbolic link "a" at "b"
+store secret "x" value "y"
+store secret "x" with "y"
+if registry "k" exists
+    say "registry"
+.
+if file "x" is writable
+    say "writable"
+.
+if file "x" is a shortcut
+    say "link"
+.
+if file "x" is read
+    say "read"
+.
+if file "x" big
+    say "big"
+.
+print "a.txt" on "P"
+notify "T" "M"
+copy "a" to clipboard now

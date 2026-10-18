@@ -1,0 +1,96 @@
+# Symbolic links (D73) and read-only files (D74).
+write "hello through a link" to "target.txt"
+create symbolic link "link.txt" pointing to "target.txt"
+if file "link.txt" is a symbolic link
+    say "link.txt is a symbolic link"
+.
+if file "target.txt" is a symbolic link
+    say "wrong: the target is a link"
+otherwise
+    say "target.txt is not a link"
+.
+read "link.txt" into content
+say content
+get symbolic link target of "link.txt" into pointsAt
+if pointsAt ends with "target.txt"
+    say "the link points at target.txt"
+.
+# Making the same link again replaces it.
+write "second target" to "other.txt"
+create symbolic link "link.txt" pointing to "other.txt"
+read "link.txt" into content
+say content
+# A link in a folder that does not exist yet makes the folder.
+create symbolic link "links/nested.txt" pointing to "target.txt"
+if file "links/nested.txt" is a symbolic link
+    say "nested link made"
+.
+# A link to a folder.
+create folder "real folder"
+write "inside" to "real folder/inside.txt"
+create symbolic link "folder link" pointing to "real folder"
+if file "folder link" is a symbolic link
+    say "folder link is a symbolic link"
+.
+read "folder link/inside.txt" into inside
+say inside
+if file "nothing-here.txt" is a symbolic link
+    say "wrong"
+otherwise
+    say "a missing file is not a link"
+.
+problems are
+    "missing target"
+    "not a link"
+    "missing link"
+.
+for each problem in problems
+    try
+        if problem is "missing target"
+            create symbolic link "broken.txt" pointing to "missing.txt"
+        otherwise if problem is "not a link"
+            get symbolic link target of "target.txt" into t
+        otherwise
+            get symbolic link target of "nope.txt" into t
+        .
+    otherwise into reason
+        say reason
+    .
+.
+delete file "link.txt"
+delete file "links/nested.txt"
+if file "target.txt" exists
+    say "deleting a link keeps its target"
+.
+
+# Read-only files.
+write "keep me" to "ro.txt"
+if file "ro.txt" is read only
+    say "wrong: new files are writable"
+otherwise
+    say "ro.txt starts writable"
+.
+set file "ro.txt" to read only
+if file "ro.txt" is read only
+    say "ro.txt is read only"
+.
+set file "ro.txt" to writable
+if not file "ro.txt" is read only
+    say "ro.txt is writable again"
+.
+if file "real folder" is read only
+    say "wrong"
+otherwise
+    say "a folder is never read only here"
+.
+if file "absent.txt" is read only
+    say "wrong"
+otherwise
+    say "a missing file is not read only"
+.
+try
+    set file "absent.txt" to read only
+otherwise into reason
+    say reason
+.
+delete file "ro.txt"
