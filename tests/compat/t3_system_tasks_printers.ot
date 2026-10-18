@@ -1,0 +1,52 @@
+# System information "tasks" (D80) and "printers" (D83), and kinds that are
+# not literal text. Task times change from one run to the next, so only
+# their shape is shown; names and printers belong to the machine and are
+# the same for both Otters on it.
+get system information "tasks" into tasks
+odd is 0
+for each task in tasks
+    say name of task
+    if lastRunTime of task is not gone
+        if length of lastRunTime of task is not 19
+            increase odd
+        .
+    .
+    if nextRunTime of task is not gone
+        if length of nextRunTime of task is not 19
+            increase odd
+        .
+    .
+    if state of task is gone
+        increase odd
+    .
+.
+say "tasks with odd times or no state:" odd
+get system information "printers" into printers
+for each printer in printers
+    say printer
+.
+say "printers is a list"
+kind is "TASKS"
+get system information kind into again
+if length of again is at least 0
+    say "tasks again"
+.
+kind is "print" + "ers"
+get system information kind into again
+if length of again is length of printers
+    say "printers again"
+.
+kinds are
+    "os"
+    "Cpu"
+.
+for each k in kinds
+    get system information k into info
+    say info
+.
+try
+    kind is 42
+    get system information kind into nothing
+otherwise into reason
+    say reason
+.

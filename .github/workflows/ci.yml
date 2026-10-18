@@ -193,11 +193,11 @@ jobs:
           $declared = @(
               @{ Platforms = 'osx-*', 'linux-*'; Programs = 'commands.ot'; Reason = 'runs cmd.exe and .cmd files: a Windows-only test' }
               @{ Platforms = 'osx-*', 'linux-*'; Programs = 'files_errors.ot', 'zip.ot', 'net_http_errors.ot'; Reason = 'paths in messages use the platform separator, / (docs/CROSS-PLATFORM-CONSISTENCY.md, 7)' }
-              @{ Platforms = 'osx-*', 'linux-*'; Programs = 'sys_windows.ot', 'sys_print_notify.ot', 'sys_desktop.ot', 'sys_system_info.ot'; Reason = 'Windows-only features (registry, credentials, notifications, printing, event log, tasks) give otterPS''s "only available on Windows" message' }
+              @{ Platforms = 'osx-*', 'linux-*'; Programs = 'sys_windows.ot', 'sys_print_notify.ot', 'sys_desktop.ot', 'sys_system_info.ot', 't3_system_tasks_printers.ot'; Reason = 'Windows-only features (registry, credentials, notifications, printing, event log, tasks) give otterPS''s "only available on Windows" message' }
               @{ Platforms = 'osx-*', 'linux-*'; Programs = 'sys_processes.ot', 'sys_ssh_arguments.ot'; Reason = 'the operating system''s own words for a missing program; otterPS looks for ssh.exe (SPEC-QUESTIONS Q8)' }
               @{ Platforms = '*'; Programs = 'ui_run_create.ot', 'ui_run_create_try.ot', 'ui_run_create_unknown.ot'; Reason = 'desktop windows (WPF): on Windows they need the PowerShell Otter (a decision pending, docs/port/desktop-options.md); elsewhere otterPS''s "could not start its UI provider"' }
+              @{ Platforms = 'win-arm64'; Programs = 't3_system_tasks_printers.ot'; Reason = 'lists the names of the machine''s scheduled tasks and printers, and win-arm64 is another machine than the reference''s' }
               @{ Platforms = '*'; Programs = 'p2_remote_command.ot'; Reason = 'remote commands: on Windows they need the PowerShell Otter (a decision pending); elsewhere otterPS''s internal error (SPEC-QUESTIONS P2-1)' }
-              @{ Platforms = 'windows-native', 'win-arm64'; Programs = 'sys_desktop.ot', 'sys_system_info.ot'; Reason = 'system information "tasks" and "printers" still need the PowerShell Otter on Windows (docs/FULL_PORT_MATRIX.md), and capture runs without it' }
           )
           $failed = $false
           foreach ($platform in $captured.Keys) {

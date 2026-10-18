@@ -474,3 +474,33 @@ have `message` gone (and `level` gone when the provider is unknown), not the
 "The description for Event ID ... cannot be found" text Event Viewer shows.
 otter-net follows the code. To be confirmed on Windows PowerShell 5.1, whose
 Get-WinEvent may differ from the PowerShell 7 source this was read from.
+
+## T3 questions (found 2026-10-18, porting the remaining tail)
+
+### T3-1. How Win32_Printer turns the spooler's status into PrinterStatus
+
+`get system information "printers"` (D83) reads `Win32_Printer.PrinterStatus`
+and words it with otterPS's table (1 other, 3 idle, 4 printing, 5 warming up,
+6 stopped printing, 7 offline, else unknown). WMI's provider works the code
+out from the spooler's `PRINTER_INFO_2.Status` flags, and that mapping is not
+documented. otter-net (`src/Otter.Runtime/Printers.cs`) reads the spooler
+directly and maps: no flag is idle (3, the well-known value for a ready
+printer); `PRINTER_STATUS_OFFLINE` is offline (7); any flag other than
+printing and warming up is a CIM `ExtendedPrinterStatus` beyond
+PrinterStatus's range (paused 8, error 9, busy 10, ...), reported as other
+(1); otherwise printing (4), else warming up (5). The usual case (idle) and
+the empty list without a spooler are certain; the paused, error and
+combined-flag cases are a reasoned reading, to be confirmed on Windows with
+a paused printer. `Default` is compared with `GetDefaultPrinter`, ignoring
+case.
+
+### T3-2. Which scheduled tasks Get-ScheduledTask lists, and in what order
+
+`get system information "tasks"` (D80) uses `Get-ScheduledTask` and
+`Get-ScheduledTaskInfo` (the ScheduledTasks CIM provider). otter-net
+(`src/Otter.Runtime/ScheduledTasks.cs`) reads the Task Scheduler 2.0 COM API
+the provider is built on: every folder from `\` down, hidden tasks included,
+a folder's tasks before its subfolders'. A time the Task Scheduler reports as
+its zero date is gone (the provider's empty datetime). The order and the
+never-run case are to be confirmed against Windows PowerShell 5.1
+(`tests/compat/t3_system_tasks_printers.ot` prints every task name).

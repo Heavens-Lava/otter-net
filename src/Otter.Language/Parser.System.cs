@@ -11,11 +11,6 @@ namespace Otter.Language;
 // this file takes the ones that sent the program to the PowerShell Otter.
 public sealed partial class Parser
 {
-    // Kinds of `get system information` otter-net runs on Windows. The other
-    // two (scheduled tasks and printers) come from COM and WMI, which a
-    // native program cannot use; the PowerShell Otter answers those.
-    static readonly string[] NativeWindowsSystemInfoKinds = { "os", "cpu", "memory", "disk", "network", "user", "groups", "software", "services" };
-
     // A statement this area starts at `start`, or null (the token is left unread).
     Stmt? TryReadSystemStatement(Token start)
     {
@@ -190,11 +185,6 @@ public sealed partial class Parser
                 ExpectWord("information", "I expected \"folder\" or \"information\" after \"system\".", "get system information \"os\" into info");
                 Expr infoKind = ReadValue();
                 string target = ReadGetResult();
-                if (OperatingSystem.IsWindows() &&
-                    !(infoKind is LiteralExpr { Value: string kindText } && SameAny(kindText.ToLowerInvariant(), NativeWindowsSystemInfoKinds)))
-                {
-                    throw Unsupported("this kind of system information");
-                }
                 return new GetSystemInfoStmt(infoKind, target, start.Line);
             }
             // get processes into list (D70)

@@ -23,7 +23,7 @@ Parser: `src/Otter.Language/Parser.System.cs` unless noted. Nodes:
 | `start command C and call it J` | StartCommand | `Start`; Start-OtterCommandJob | Parser.cs (Unsupported) | missing | yes | - | needs the event loop (`on output from`, `on exit of`, `cancel`, `is running`) of the Network area |
 | `received output` / `received error output` | JobContext | Read-OtterValue; `JobContext` | Parser.cs (Unsupported) | missing | yes | - | as above |
 | `get system information K into x`: os, cpu, memory, disk, network, user, groups, software, services | GetSystemInfo | `Get`; Get-OtterSystemInfoValue | GetSystemInfoStmt; SystemInfo.cs, Services.cs | native | no | sys_system_info.ot | - |
-| `get system information K into x`: tasks, printers, or a kind that is not written as text | GetSystemInfo | same (Get-ScheduledTask, Win32_Printer) | same | partial | on Windows | sys_desktop.ot | the Task Scheduler is COM-only and Win32_Printer's status codes are WMI's own; off Windows these are empty lists, natively |
+| `get system information K into x`: tasks, printers, or a kind that is not written as text | GetSystemInfo | same (Get-ScheduledTask, Win32_Printer) | same; ScheduledTasks.cs (Task Scheduler 2.0 COM through its vtable), Printers.cs (EnumPrinters, GetDefaultPrinter) | native | no | t3_system_tasks_printers.ot, sys_desktop.ot | the order of tasks and the status of paused or failed printers are to be confirmed on Windows (SPEC-QUESTIONS T3-1, T3-2); off Windows empty lists, as otterPS on PowerShell 7 |
 | `get processes into x` | GetProcesses | `Get`; Get-OtterProcessList | Processes.cs `List` | native | no | sys_processes.ot | - |
 | `kill process p [and its children]` | KillProcess | `Kill`; Stop-OtterProcess | Processes.cs `Kill` | native | no | sys_processes.ot | tree kill everywhere (SPEC-QUESTIONS Q9) |
 | `set priority of process p to L` | SetProcessPriority | `Set`; Set-OtterProcessPriority | Processes.cs `SetPriority` | native | no | sys_processes.ot | - |
@@ -79,8 +79,7 @@ position; `tests/compat/sys_syntax_errors.ot` has one of each kind.
   directly. The printed page is laid out like PrintDocument's: 10-point
   Consolas, one-inch margins, as many lines on each page as fit.
 - A program that uses a form still handed to the PowerShell Otter (on
-  Windows: remote commands, "tasks", "printers", or a system-information kind
-  that is not written as text) runs entirely in the PowerShell Otter,
+  Windows: remote commands) runs entirely in the PowerShell Otter,
   decided before anything runs. Everywhere else every form here is native.
 - The event log is read as Get-WinEvent reads it, through the Windows Event
   Log API (`EvtOpenChannelEnum`, `EvtQuery` newest first, `EvtRender`,
@@ -95,18 +94,6 @@ position; `tests/compat/sys_syntax_errors.ot` has one of each kind.
 
 ## Remaining on Windows, and why
 
-- **"tasks" and "printers"** (`Parser.System.cs` ReadSystemGet, `Unsupported("this kind of system information")`).
-  Get-ScheduledTask/Get-ScheduledTaskInfo read the Task Scheduler through its
-  COM interface (ITaskService; Native AOT can call it only through
-  source-generated COM wrappers), and Win32_Printer's PrinterStatus is WMI's
-  own translation of the spooler's status bits, which is not documented.
-  Both can be written natively (EnumPrinters level 2 and GetDefaultPrinter;
-  ITaskService through `[GeneratedComInterface]`), but neither the WMI
-  status mapping, Get-ScheduledTask's order and "never run" times, nor the
-  result can be checked without a Windows machine: they stay with the
-  PowerShell Otter until they can be compared there. A kind that is not
-  written as text is refused on Windows for the same reason (it may be one
-  of these two).
 - **Remote commands** (`Parser.System.cs` ReadSystemRun, `Unsupported("remote commands")`).
   Invoke-OtterRemoteCommand runs `Invoke-Command -ComputerName H -Credential
   C -ScriptBlock { ... & $exe $args 2>&1 | Out-String }`: PowerShell
