@@ -13,13 +13,19 @@ release certification uses (default seed 20261001).
   <out>\program-<seed>.ot   generated programs (the differential fuzz)
   <out>\mutated-<seed>.ot   the same programs after a grammar-aware mutation
                             (the malformed-input fuzz: odd and broken programs)
+
+With -MutateFrom, existing programs (files or folders of .ot files) are
+mutated instead, -Count times each with different seeds:
+
+  <out>\<name>-m<seed>.ot
 #>
 param(
     [Parameter(Mandatory)][string]$OtterPs,
     [Parameter(Mandatory)][string]$OutputDirectory,
     [int]$Count = 200,
     [int]$Seed = 20261001,
-    [switch]$Mutated
+    [switch]$Mutated,
+    [string[]]$MutateFrom = @()
 )
 $ErrorActionPreference = 'Stop'
 $fuzzer = Join-Path (Resolve-Path $OtterPs).Path 'tools\Invoke-OtterDifferentialFuzzer.ps1'
@@ -33,6 +39,24 @@ foreach ($definition in $definitions) { . ([scriptblock]::Create($definition.Ext
 
 New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null
 $utf8 = [System.Text.UTF8Encoding]::new($false)
+if ($MutateFrom.Count -gt 0) {
+    $sources = foreach ($item in $MutateFrom) {
+        if (Test-Path -LiteralPath $item -PathType Leaf) { Get-Item -LiteralPath $item }
+        else { Get-ChildItem -LiteralPath $item -Filter '*.ot' -File }
+    }
+    $written = 0
+    foreach ($file in @($sources | Sort-Object FullName -Unique)) {
+        $source = [System.IO.File]::ReadAllText($file.FullName)
+        for ($i = 1; $i -le $Count; $i++) {
+            $mutationSeed = $Seed + $i
+            $mutatedSource = Mutate-OtterGrammarAware -Source $source -MutationSeed $mutationSeed
+            [System.IO.File]::WriteAllText((Join-Path $OutputDirectory "$($file.BaseName)-m$mutationSeed.ot"), $mutatedSource, $utf8)
+            $written++
+        }
+    }
+    "Wrote $written mutations of $(@($sources).Count) programs to $OutputDirectory (seed $Seed)."
+    return
+}
 for ($i = 1; $i -le $Count; $i++) {
     $programSeed = $Seed + $i
     $source = New-RandomInteractiveOtterProgram -ProgramSeed $programSeed
