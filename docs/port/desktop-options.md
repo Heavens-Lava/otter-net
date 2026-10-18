@@ -1,9 +1,29 @@
 # Desktop UI in otter-net: what it needs, and the options
 
 **Decision needed from the project owner.** Until it is made, every program
-that opens a desktop window keeps running on the PowerShell Otter, and that
-decision is taken before anything runs (`otter run` and `otter check` refuse
-every UI statement natively and hand the whole program over, as today).
+that opens a desktop window keeps running on the PowerShell Otter on
+Windows, and that decision is taken before anything runs.
+
+What that means precisely (2026-10-17): in otterPS only `create KIND into x`
+reaches WPF when a program runs (`New-OtterUiResourceValue`; `put`, `show`,
+`when`, property access and the `x is a ...` object forms all need a
+resource that only `create` makes, and the declarative `page`/`card` blocks
+only run their inner statements in `otter run`). So:
+
+- `otter check` of any UI program is native everywhere.
+- `otter run` of a program without `create` is native everywhere (state,
+  derived values, watchers and every refusal included).
+- `otter run` of a program with `create`: on Windows it is handed to the
+  PowerShell Otter before it starts (decided from the parse, `FileMode.cs`;
+  the REPL refuses such a line); on macOS and Linux it runs natively and
+  fails at the first `create` exactly as otterPS does there ("Otter could not
+  start its UI provider. WPF may not be available on this system.").
+- `otter desktop` (the browser window, not WPF) is native.
+
+In otterPS 1.0.1's corpus 11 programs contain `create` (examples greeter,
+hello-app, calculator, ui-counter, ui-input, v1/contacts, v1/tasks,
+v1/file-browser, benchmarks/ui/build_window, projects/my-cli-tool,
+OtterWorkspace/src/ui/shell.ot).
 
 The web target (`otter web`) is native: see `docs/port/ui.md`.
 
@@ -98,8 +118,8 @@ Keep **A** as the default now (nothing to do). If desktop speed matters,
 choose **B**: it is the only option that keeps the WPF behaviour exactly.
 Options in **C** each change what users see and need a SPEC decision first.
 
-`otter desktop` (the browser-window form) is separate from this choice:
-everything in it except the WinForms file dialogs can be ported into the AOT
-`otter` (HttpListener, process start, the web compiler), and the dialogs can
-use the Win32 `IFileDialog` COM interface through `LibraryImport`. That is a
-later, smaller piece of work.
+`otter desktop` (the browser-window form) is separate from this choice and
+is now native (`src/Otter.Cli/DesktopCommand.cs`). Its WinForms file dialogs
+are not needed natively: no page otter-net compiles calls them (`choose
+file` and friends are not compiled by the web compiler here, so such a
+program falls back whole).
