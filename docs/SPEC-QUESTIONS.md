@@ -331,6 +331,8 @@ standard input, say) cannot get it on 5.1. Needs a decision.
 
 ### C2-4. `otter web` without a file exits with 0
 
+(The same finding as UI2-1.)
+
 otter.ps1 ends `otter web` / `browse` / `serve` / `desktop` without a file
 with `exit 1`, but under powershell.exe -File that `exit` reaches the
 process as 0 (otter.ps1 notes the same thing for `otter studio` and uses
@@ -387,3 +389,54 @@ Besides the error texts (C2-1, C2-6): PowerShell 7's `-File` turns
 switch refuses), passes a lone "-" as an argument (C2-3), and has the extra
 common parameter `-ProgressAction` (so `-p` lists it among the matches).
 otter-net gives 5.1's behaviour.
+
+## UI2 questions (found 2026-10-17, porting UI in `run`, `check`, `serve`, `desktop`)
+
+### UI2-1. `otter web` without a file exits with 0
+
+`otter web`, `browse`, `serve` and `desktop` with no file print
+`Usage: otter <command> <script.ot>` and end with a plain `exit 1`
+(otter.ps1, the UI commands' branch). Under `powershell -File` a plain
+`exit` in the script does not set the process's exit code (otterPS's own
+comment on `otter studio` says so), so the process exits with 0, unlike every
+other usage error (`[Environment]::Exit(1)`). Measured on PowerShell 7:
+`pwsh -NoProfile -File otter.ps1 web` exits 0. otter-net exits 0 too. Was 1
+meant?
+
+### UI2-2. `otter serve` answers with the statement's node text, not a value
+
+`Invoke-OtterServerRoute` (src/Otter.Server.psm1) never runs the program: a
+route's first `respond with` gives its value only when it is a literal.
+Anything else (`respond with name`, `respond with 1 + 2`) is cast with
+`[string]`, which is otterPS's `Node.ToString()`: the client receives
+`Variable@L3` or `Math@L5`. Status codes that are not literals are 200.
+`say` and every other statement in a route never run. otter-net does the
+same. Was a running route body intended (D51)?
+
+### UI2-3. `otter serve`'s JSON differs between Windows PowerShell 5.1 and 7
+
+`respond with V as json` is `ConvertTo-Json -Compress`: on 5.1 a number is
+written as `42` and `< > & '` in text as `<` ...; on PowerShell 7 `42.0`
+and the characters as they are. otter-net writes the 5.1 form (measured
+against PowerShell 7 on macOS: these two are the only differences).
+
+### UI2-4. A derived value is worked out in the scope that reads it
+
+`OtterEnvironment.Get` passes its own environment (`$this`) to the derived
+evaluator, so `derive doubled is count times 2` read inside a function that
+has a local `count` uses the function's `count`, and the value is then
+cached for every reader until something it read changes. A derived value
+also subscribes to what it read only once it has been read: a watcher set
+up before the first read runs before the derived value is marked dirty, and
+sees the old value. otter-net copies both (tests/compat/ui_run_state.ot).
+Were they meant?
+
+### UI2-5. `otter run` of a declarative page shows nothing
+
+In `otter run`, a `page`/`card`/... block only runs the statements nested
+in it (`UiElement` case); its properties, events and animations are ignored,
+and no window opens (`Show-OtterDeclarativeAppWpf` is never called). A
+program written for `otter web` therefore runs silently with exit 0, while
+`put`/`show` fail and `route`/`go to` statements and `current route` fail
+with "I do not know how to run a Route statement yet." otter-net copies
+this. Should `otter run` say that the program is a web application?

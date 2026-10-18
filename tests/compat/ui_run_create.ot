@@ -1,0 +1,3 @@
+say "before"
+create heading into b
+say "after"

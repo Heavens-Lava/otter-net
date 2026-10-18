@@ -17,8 +17,13 @@ the same script.
 **The rule for `otter web`:** the page is compiled natively when every
 statement in the program is one otter-net parses and the web compiler here
 knows; otherwise the command falls back. **The rule for `otter run` /
-`otter check`:** any UI statement falls back (desktop windows need WPF, see
-`desktop-options.md`).
+`otter check`:** otterPS has one grammar, so every UI form is parsed (and
+checked) natively for every command. When run, only `create KIND into x`
+opens WPF in otterPS: on Windows a program containing one goes to the
+PowerShell Otter before it starts (`FileMode.cs`, decided from the parse);
+off Windows otterPS cannot start WPF either, and otter-net gives the same
+runtime error at the same statement. Everything else runs natively (see
+"Run" below).
 
 otterPS files below: `Web` = `src/Otter.Web.psm1`, `JS` =
 `src/Otter.Compiler.JavaScript.psm1`, `Parser` = `src/Otter.Parser.psm1`,
@@ -30,20 +35,27 @@ otterPS files below: `Web` = `src/Otter.Web.psm1`, `JS` =
 
 | Capability | otterPS | otter-net | Status | Fallback | Tests | Remaining |
 |---|---|---|---|---|---|---|
-| `otter web <file.ot> [-NoOpen\|-Open]` (and `otter browse`) | `otter.ps1` (web branch), Web `Export-OtterWebApplication` | `Otter.Cli/WebCommand.cs`, `Otter.Web/WebCompiler.cs` | native | project folders, missing/unreadable files, other options, `use` problems, unported statements | all of `tests/web` | - |
+| `otter web <file.ot> [-NoOpen\|-Open]` (and `otter browse`), a project folder or manifest, a file of any extension | `otter.ps1` (web branch), Web `Export-OtterWebApplication` | `Otter.Cli/WebCommand.cs`, `Otter.Web/WebCompiler.cs` | native | unported statements, Otter failing inside itself | all of `tests/web`, `tests/cli/ui.psd1` | - |
+| `use` problems in `otter web` (exit 2, the error as `FormatDetailed`, not remapped) | `otter.ps1` `catch [OtterError]` | `WebCommand.Run` | native | - | `tests/cli/ui.psd1` | - |
+| An unwritable page ("I could not write the web page for ...", exit 1) | `otter.ps1` | `WebCommand.Run` | native | - | - (needs a read-only folder) | - |
 | Writing the page | Web `Export-OtterWebApplication` (`Set-Content -Encoding UTF8`) | `WebCommand.Run` | native | an unwritable page | every test | writes the 5.1 form: BOM + page + CRLF (PowerShell 7 writes no BOM and LF) |
 | `<entry>.css` sidecar, link containment (RC3 B4) | Web `Export-OtterWebApplication`, `Resolve-OtterRealPath`, `Test-OtterPathInside` | `WebCommand.WithSidecarStylesheet`, `RealPath`, `PathInside` | native | a `.css` that is a folder or unreadable | `tests/web/sidecar` | - |
 | Opening the browser | `otter.ps1` (`Start-Process` / `open` / `xdg-open`, 15 s) | `WebCommand.OpenInBrowser` | native | - | not run in tests (`-NoOpen`) | - |
 | Compile errors (exit 2, `FormatDetailed`, remapped into `use`d files) | Web `Export-OtterWebApplication` catch, Module `ConvertTo-OtterRemappedDiagnostics` | `WebCommand.ReportError`, `ResolvedProgram.Remap` | native | - | `tests/web/err_*.ot`, `tests/compat/syn_*.ot` | - |
-| Internal error (exit 1, "Otter hit a problem inside itself") | Web `Export-OtterWebApplication` catch-all | - | missing | any unexpected exception falls back | - | by design |
-| `otter serve <file.ot> [-Port N]` | `otter.ps1`, `src/Otter.Server.psm1` | - | missing | whole command | - | needs the network area's `WebRoute`/`Respond`/`StartServer`/`ListenServer` and an HttpListener host |
-| `otter desktop <file.ot>` | `otter.ps1`, `src/Otter.Desktop.psm1` `Start-OtterDesktopApplication` | - | missing | whole command | - | see `desktop-options.md` (browser window + bridge; not WPF) |
+| Internal error (exit 1, "Otter hit a problem inside itself") | Web `Export-OtterWebApplication` catch-all | - | missing | any unexpected exception falls back | - | by design (.NET's message text differs) |
+| `otter serve <file.ot> [-Port N]` (also a project) | `otter.ps1`, `src/Otter.Server.psm1` | `Otter.Cli/ServeCommand.cs` | native: the program is checked, never run; top-level `when S receives METHOD at PATH` routes answered from their first `respond with` (a literal, or otterPS's node text `Kind@Lline`), 404 JSON, 413 over 10 MB, 500 and the console line for a failed request | a server that cannot start (PowerShell's error text); a `port` PowerShell cannot convert | `tests/cli/ui.psd1` (errors); serving tested by hand with curl (below) | - |
+| `otter desktop <file.ot>` | `otter.ps1`, `src/Otter.Desktop.psm1` `Start-OtterDesktopApplication` | `Otter.Cli/DesktopCommand.cs` | native on Windows (off Windows otterPS's refusal, native) | an import problem (PowerShell's error), a page the web compiler cannot make, a bridge that cannot start | test hook `OTTER_NET_DESKTOP_NO_BROWSER=1` (no window, any system), tested by hand with curl | bridge JSON key order is otter-net's (otterPS's comes from hash tables); file dialogs answer "cancelled" (no native page reaches them: `choose file` is not compiled natively) |
 | `otter studio` | `otter.ps1`, Desktop `Start-OtterStudio` | - | out of scope | whole command | - | developed separately |
-| `otter run` / `otter check` of a UI program (WPF windows) | Interp UI cases, UI | - | missing | any UI statement | - | see `desktop-options.md` |
+| `otter run` of a program with `create` (WPF windows) | Interp UI cases, UI | - | missing on Windows; native elsewhere (WPF cannot start) | on Windows, any `create KIND into x` | `tests/compat/ui_run_create*.ot` | see `desktop-options.md` |
+| `otter run` / `otter check` of every other UI form | Interp, Validation | `Parser.Ui.cs`, `Interpreter.Ui.cs`, `Reactivity.cs` | native | - | `tests/compat/ui_run_*.ot`, `tests/cli/ui.psd1` | - |
+| `otter build` / `publish` of web, desktop and game projects | Project `Invoke-OtterProjectBuild` (`Export-OtterWebApplication -PassThruExceptions`) | `ProjectBuild.cs` | native: the page is compiled before anything is printed | a page the web compiler cannot make | `tests/cli/ui.psd1` | - |
 
-## Parsing (web target only)
+## Parsing (every command)
 
-`Parser.Parse(tokens, webTarget: true)` (`Parser.Ui.cs`); in `run`/`check` every form below still falls back.
+`Parser.Ui.cs`, for `otter web`, `run`, `check`, `serve`, `desktop` and the
+project commands alike (otterPS has one grammar). A line starting with a UI
+word that the UI form does not take over (`go home`, `primary "x"`,
+`secondary`) is an ordinary line, as in otterPS.
 
 | Form | otterPS | otter-net | Status | Tests |
 |---|---|---|---|---|
@@ -68,7 +80,7 @@ otterPS files below: `Web` = `src/Otter.Web.psm1`, `JS` =
 | `set drag data to v`; `dragged item`, `dropped files`, `drag data`, `drop x`, `drop y` | Parser Statement / `Read-OtterValue` | `TryReadUiStatement`, `TryReadUiValue` | native | dragdrop_board |
 | `route P shows page`, `route otherwise shows page`, `go to P`, `go back/forward`, `replace route with P`, `on route change` (D103) | Parser | same | native | routing* |
 | `current route`, `route parameter X`, `query parameter X` | Parser `Read-OtterValue` | `TryReadUiValue` | native | routing |
-| `the X of Y` readability form | Parser `Read-OtterValue -PropertyTarget`, Statement `the` | - | missing (core grammar, used across the parser) | examples/hello-app.ot falls back |
+| `the X of Y` readability form | Parser `Read-OtterValue -PropertyTarget`, Statement `the` | `Parser.cs` (core) | native | examples/hello-app.ot |
 | `await X [make\|into y]`, `await` as a value (D56) | Parser Await, `Read-OtterValue` | `ReadAwaitStatement`, `ReadAwaitValue` | native | await_delay, await_forms |
 | Reserved names in UI statements (D-2) | Validation walk | `ReservedWords.cs` (UI cases) | native | err_reserved_name |
 | Handler set up in another deferred body using its run names (HandlerRunName) | LoopPasses `Get-OtterHandlerRunCaptures`, Validation | `LoopPasses.HandlerRunDiagnostics` | native | handler_runs_watch_refused |
@@ -112,10 +124,22 @@ does not know (another area's, not ported yet) makes the command fall back.
 | Loop pass names (D130) and handler runs (D133) | LoopPasses `Get-OtterLoopPassNames` | `LoopPasses.Names` | native |
 | HTTP (get/post/put/delete/start/cancel, options), download, websockets, TCP/UDP, file watching, databases and queries, clipboard, notify, file dialogs, system information, processes, links, owners, registry, event log, credentials, secrets, power actions, printing, remote/ssh commands, `start command` jobs | JS | - | missing (those statements are not parsed by otter-net yet; they belong to the network, system and data areas - the web compiler falls back for them) |
 
+## Run (`otter run` of UI forms, `Interpreter.Ui.cs`)
+
+| Form | otterPS | Status | Tests |
+|---|---|---|---|
+| `create KIND into x` (D44) | Interp `CreateUiResource`, UI `New-OtterUiResourceValue` (WPF first, then the kind) | Windows: the program goes to the PowerShell Otter before it runs; elsewhere native: "Otter could not start its UI provider. WPF may not be available on this system." (line 0, catchable) | ui_run_create, ui_run_create_try, ui_run_create_unknown |
+| `put x in y`, `show x` (D47) | Interp `PutIn`, `Show` | native (no UI resource can exist without WPF: otterPS's "I can only put/show a UI resource" errors) | ui_run_put*, ui_run_show* |
+| `when x is EVENT` (D46), `on drag/drop/files dropped` (D110) | Interp `When` | native (command jobs, drag and drop refusal, non-resource error) | ui_run_when_clicked, ui_run_on_drag |
+| `state`, `derive`, `when x changes` (D56) | Interp `StateDef`, `DeriveDef`, `Watch`; Runtime `OtterSignal`, `OtterDerived`, `OtterEnvironment.Get/Set` | native, quirks included: a derived value is worked out in the scope that reads it; it subscribes to what it read only once read; a watcher runs only on a real change (Otter equality); dependency names ignore capitals | ui_run_state, ui_run_derive_cycle, ui_run_watch_* |
+| Declarative elements (page, card, ...; `layout`) | Interp `UiElement` (runs `Children` only) | native | ui_run_page, ui_run_layout |
+| `memo`, `on start/close`, `shared`, `use word`, `focus`, `hide`, UI event and animation blocks, `set drag data`, drag context values, `await` as a value | Interp (D56 refusals) | native | ui_run_* |
+| `await X` statement, routing statements and values | no interpreter case: "I do not know how to run a Await/Route/GoToRoute/GoNavigate/ReplaceRoute/RouteChangeEvent statement yet.", "... work out a CurrentRoute/RouteParameter/QueryParameter value yet." | native | ui_run_await_*, ui_run_route*, ui_run_go*, ui_run_*_param |
+| Debugger locals of state/derived values | Debugger `Get-OtterDebugLocals` (`$Environment.Get`) | native | - |
+
 ## Desktop
 
 | Capability | otterPS | otter-net | Status | Fallback | Remaining |
 |---|---|---|---|---|---|
-| WPF resources, properties, events, containment, show, declarative windows, animations | UI, Interp | - | missing | whole program (`otter run`) | decision in `desktop-options.md` |
-| `state` / `derive` / `when ... changes` in `otter run` | Interp `OtterSignal`, `OtterDerived` | - | missing | whole program | would come with the desktop decision |
-| `otter desktop` (browser window + bridge) | Desktop | - | missing | whole command | portable later (see `desktop-options.md`) |
+| WPF resources, properties, events, containment, show, animations | UI, Interp | - | missing on Windows | whole program (`otter run`), decided from the parse | decision in `desktop-options.md` |
+| `otter desktop` (browser window + bridge) | Desktop | `DesktopCommand.cs` | native | see Commands | - |

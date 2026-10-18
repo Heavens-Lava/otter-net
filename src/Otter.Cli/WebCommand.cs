@@ -10,60 +10,30 @@ namespace Otter.Cli;
 // Export-OtterWebApplication (src/Otter.Web.psm1) make it.
 //
 // Run returns the exit code, or null with a reason when the PowerShell Otter
-// should do it instead: a project folder, a missing or unreadable file, an
-// import otterPS reports, a statement the web compiler here does not know
-// yet. That decision is made before anything is written.
+// should do it instead: a statement the web compiler here does not know yet,
+// or Otter failing inside itself. That decision is made before anything is
+// written. otter.ps1 has already checked the file (Cli.UiCommand).
 static class WebCommand
 {
     const int ExitSuccess = 0, ExitUsageError = 1, ExitCheckError = 2;
 
-    public static int? Run(string[] args, Action<string> trace, out string reason)
+    // primarySource: the program's full path (a project's entry point);
+    // target: what the user typed, for the "could not write" message.
+    public static int? Run(string primarySource, string target, bool noOpen, Action<string> trace, out string reason)
     {
         reason = "";
-        string? target = null;
-        bool noOpen = false;
-        foreach (string arg in args.Skip(1))
-        {
-            if (string.Equals(arg, "-NoOpen", StringComparison.OrdinalIgnoreCase)) noOpen = true;
-            else if (string.Equals(arg, "-Open", StringComparison.OrdinalIgnoreCase)) { }
-            else if (target == null && !arg.StartsWith('-')) target = arg;
-            else { reason = "these web options are not native yet"; return null; }
-        }
-        // A project folder, a missing file and the usage message are the
-        // PowerShell Otter's.
-        if (target == null || !target.Trim().EndsWith(".ot", StringComparison.OrdinalIgnoreCase) || !File.Exists(target))
-        {
-            reason = "otter web without a readable .ot file (reported by the PowerShell Otter)";
-            return null;
-        }
-        string primarySource = Path.GetFullPath(target);
-        try { using (File.OpenRead(primarySource)) { } }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-            reason = "the file cannot be read (reported by the PowerShell Otter)";
-            return null;
-        }
-
         ResolvedProgram resolved;
         try { resolved = Modules.Resolve(primarySource); }
-        // An import problem: how otter web words it is not verified yet.
-        catch (OtterError problem) { reason = $"{problem.Message} (reported by the PowerShell Otter)"; return null; }
-        string sourceText = resolved.CombinedSource;
-
+        // An import problem (otter.ps1's catch [OtterError]): the error as is.
+        catch (OtterError problem)
+        {
+            trace("native: web (import error)");
+            return ReportError(problem);
+        }
         string html;
         try
         {
-            ProgramNode program = Parser.Parse(Lexer.Tokenize(sourceText), webTarget: true);
-            // D-2: names the grammar would misread, and handlers that would
-            // see the wrong run's names (Assert-OtterLanguageContract).
-            string[] sourceLines = sourceText.Replace("\r\n", "\n").Split('\n');
-            var contract = ReservedWords.Diagnostics(program, sourceLines)
-                .Concat(LoopPasses.HandlerRunDiagnostics(program.Statements, sourceLines))
-                .OrderBy(e => e.Line).ThenBy(e => e.Column).ToList();
-            if (contract.Count > 0) throw new OtterMultipleErrors(contract);
-
-            html = WebCompiler.Compile(program, Path.GetFileNameWithoutExtension(primarySource));
-            html = WithSidecarStylesheet(html, primarySource);
+            html = CompilePage(resolved, primarySource);
         }
         catch (NotSupportedYet unsupported)
         {
@@ -90,29 +60,50 @@ static class WebCommand
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
-            reason = "the web page cannot be written (reported by the PowerShell Otter)";
-            return null;
+            trace("native: web (page not written)");
+            Host.Line($"Otter: I could not write the web page for \"{target}\": {Modules.FileAccessReason(e)}.", ConsoleColor.Red);
+            return ExitUsageError;
         }
         trace("native: web");
-        var output = new StreamWriter(Console.OpenStandardOutput(), new UTF8Encoding(false)) { NewLine = "\n", AutoFlush = true };
-        output.WriteLine($"Otter Web application compiled to: {htmlPath}");
+        Host.Line($"Otter Web application compiled to: {htmlPath}");
         if (noOpen) return ExitSuccess;
         if (OpenInBrowser(htmlPath))
         {
-            output.WriteLine("Opened in your default browser.");
+            Host.Line("Opened in your default browser.");
             return ExitSuccess;
         }
-        output.WriteLine($"Otter: I could not open a browser. The page is at {htmlPath} - open it yourself, or use -NoOpen to skip this step.");
+        Host.Line($"Otter: I could not open a browser. The page is at {htmlPath} - open it yourself, or use -NoOpen to skip this step.", ConsoleColor.Red);
         return ExitUsageError;
+    }
+
+    // Export-OtterWebApplication's compile step: the page with its sidecar
+    // stylesheet. Throws an OtterError (not remapped), NotSupportedYet for
+    // a statement the web compiler here does not know yet, or anything else
+    // Otter would report as its own failure.
+    public static string CompilePage(ResolvedProgram resolved, string primarySource)
+    {
+        string sourceText = resolved.CombinedSource;
+        // ConvertTo-OtterTokens refuses an empty source with PowerShell's
+        // parameter binding error, which Export reports as Otter's own bug.
+        if (sourceText.Length == 0) throw new InvalidOperationException("Cannot bind argument to parameter 'Source' because it is an empty string.");
+        ProgramNode program = Parser.Parse(Lexer.Tokenize(sourceText));
+        // D-2: names the grammar would misread, and handlers that would
+        // see the wrong run's names (Assert-OtterLanguageContract).
+        string[] sourceLines = sourceText.Replace("\r\n", "\n").Split('\n');
+        var contract = ReservedWords.Diagnostics(program, sourceLines)
+            .Concat(LoopPasses.HandlerRunDiagnostics(program.Statements, sourceLines))
+            .OrderBy(e => e.Line).ThenBy(e => e.Column).ToList();
+        if (contract.Count > 0) throw new OtterMultipleErrors(contract);
+
+        string html = WebCompiler.Compile(program, Path.GetFileNameWithoutExtension(primarySource));
+        return WithSidecarStylesheet(html, primarySource);
     }
 
     static int ReportError(OtterError error)
     {
-        var output = new StreamWriter(Console.OpenStandardOutput(), new UTF8Encoding(false)) { NewLine = "\n" };
-        output.WriteLine("");
-        output.WriteLine(error.FormatDetailed());
-        output.WriteLine("");
-        output.Flush();
+        Host.Line("");
+        Host.Line(error.FormatDetailed(), ConsoleColor.Red);
+        Host.Line("");
         return ExitCheckError;
     }
 

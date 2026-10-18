@@ -206,9 +206,10 @@ internal static class Cli
         if (Is(command, "studio")) throw new NeedsPowerShell("otter studio is not native");
         if (!line.HasTarget)
         {
-            // otter.ps1 says `exit 1` here, but under powershell.exe -File
-            // that script's `exit` reaches the process as 0 (otter.ps1 itself
-            // notes it, using [Environment]::Exit elsewhere): exit code 0.
+            // otter.ps1 ends this with a plain `exit 1`, and a plain `exit`
+            // does not set the exit code of a script run with -File (otterPS's
+            // own comment on `otter studio`): the process exits with 0
+            // (docs/SPEC-QUESTIONS.md UI2-1).
             Host.Line($"Usage: otter {command} <script.ot>");
             throw new CliExit(ExitSuccess);
         }
@@ -222,18 +223,20 @@ internal static class Cli
         {
             throw UsageError($"Otter: I cannot find an otter.json manifest in \"{scriptFile}\".");
         }
-        FileMode.AssertReadable(scriptFile);
-        if (Is(command, "desktop") && !OperatingSystem.IsWindows())
+        scriptFile = FileMode.AssertReadable(scriptFile);
+        if (Is(command, "desktop") && !OperatingSystem.IsWindows() && !DesktopCommand.TestMode)
         {
             Program.Trace("native: desktop off Windows");
             throw UsageError("Otter: desktop windows are only available on Windows. Build this program as a web application instead: otter web <file.ot>");
         }
-        // otter web / browse of a single file: the web compiler (WebCommand.cs).
-        if ((Is(command, "web") || Is(command, "browse")) && !project)
+        // otter web / browse: the web compiler (WebCommand.cs), for a file or
+        // a project's entry point, whatever its extension.
+        if (Is(command, "web") || Is(command, "browse"))
         {
-            string[] webArgs = line.NoOpen ? new[] { command, scriptFile, "-NoOpen" } : new[] { command, scriptFile };
-            return WebCommand.Run(webArgs, Program.Trace, out string webReason) ?? throw new NeedsPowerShell(webReason);
+            return WebCommand.Run(scriptFile, line.Target!, line.NoOpen, Program.Trace, out string webReason) ?? throw new NeedsPowerShell(webReason);
         }
+        if (Is(command, "serve")) return ServeCommand.Run(line, scriptFile);
+        if (Is(command, "desktop")) return DesktopCommand.Run(scriptFile);
         throw new NeedsPowerShell($"otter {command.ToLowerInvariant()} is not native yet");
     }
 }

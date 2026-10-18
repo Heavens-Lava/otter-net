@@ -7,10 +7,11 @@ using Otter.Runtime;
 
 namespace Otter.Cli;
 
-// `otter build` and `otter publish` for console and automation projects
-// (otterPS's Invoke-OtterProjectBuild and Invoke-OtterProjectPublish). Web,
-// desktop and game projects are built by the web compiler, which is not
-// native yet: those go to the PowerShell Otter before anything is written.
+// `otter build` and `otter publish` (otterPS's Invoke-OtterProjectBuild and
+// Invoke-OtterProjectPublish). Web, desktop and game projects are built by
+// the web compiler (WebCommand.CompilePage): their page is compiled before
+// anything is printed, so a page it cannot make yet goes to the PowerShell
+// Otter whole.
 internal static partial class ProjectCommands
 {
     static readonly string[] WebTargets = { "web", "desktop", "game" };
@@ -50,11 +51,35 @@ internal static partial class ProjectCommands
         return compiled.Failure;
     }
 
-    static void RequireNativeTarget(Project project)
+    static bool IsWebTarget(Project project) => WebTargets.Contains(project.Target.ToLowerInvariant());
+
+    // The page Export-OtterWebApplication -PassThruExceptions writes for a
+    // web, desktop or game project: compiled ahead, or the OtterError the
+    // build reports when it gets there.
+    static string? preparedPage;
+    static OtterError? preparedPageFailure;
+
+    static void PrepareWebPage(Project project)
     {
-        if (WebTargets.Contains(project.Target.ToLowerInvariant()))
+        preparedPage = null;
+        preparedPageFailure = null;
+        if (!IsWebTarget(project)) return;
+        try
         {
-            throw new NeedsPowerShell($"building a {project.Target} project needs the web compiler, which is not native yet");
+            ResolvedProgram resolved = Modules.Resolve(project.ResolvedEntryPoint);
+            preparedPage = WebCommand.CompilePage(resolved, project.ResolvedEntryPoint);
+        }
+        catch (NotSupportedYet unsupported)
+        {
+            throw new NeedsPowerShell($"{unsupported.Feature} (line {unsupported.Line}) is not native yet");
+        }
+        catch (OtterError error)
+        {
+            preparedPageFailure = error;
+        }
+        catch (Exception unexpected) when (unexpected is not OutOfMemoryException)
+        {
+            throw new NeedsPowerShell($"the web compiler stopped unexpectedly ({unexpected.GetType().Name})");
         }
     }
 
@@ -71,9 +96,12 @@ internal static partial class ProjectCommands
     {
         if (string.IsNullOrWhiteSpace(target)) target = ".";
         Project project = Project.Load(target);
-        RequireNativeTarget(project);
         Exception? checkFailure = CheckProgram(project, out ResolvedProgram? resolved);
-        if (!alreadyChecked) Program.Trace("native: build");
+        if (!alreadyChecked)
+        {
+            if (checkFailure == null) PrepareWebPage(project);
+            Program.Trace("native: build");
+        }
 
         string rootDirectory = project.RootDirectory;
         bool cleanOutput = project.BuildClean || forceClean;
@@ -127,6 +155,24 @@ internal static partial class ProjectCommands
             }
         }
 
+        // B4: the page inlines <entry>.css, so it must stay inside the project too.
+        if (IsWebTarget(project))
+        {
+            string sidecarCss = Path.ChangeExtension(project.ResolvedEntryPoint, ".css");
+            if (File.Exists(sidecarCss) || Directory.Exists(sidecarCss))
+            {
+                try
+                {
+                    Project.ResolveInputPath(rootDirectory, sidecarCss,
+                        $"otter.json: stylesheet \"{Path.GetFileName(sidecarCss)}\" (beside entryPoint \"{project.EntryPoint}\")");
+                }
+                catch (OtterError error)
+                {
+                    return BuildFailed(error.Message, 1);
+                }
+            }
+        }
+
         // 4. A staging folder, promoted at the end.
         string stagingDirectory = Path.Combine(rootDirectory, ".otter_build_staging_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(stagingDirectory);
@@ -134,29 +180,43 @@ internal static partial class ProjectCommands
         {
             if (!quiet) Host.Line("Building application...");
             string targetLower = project.Target.ToLowerInvariant();
-            if (targetLower is not ("console" or "automation"))
+            string entryLeaf = Path.GetFileName(project.ResolvedEntryPoint);
+            if (IsWebTarget(project))
+            {
+                // Export-OtterWebApplication -OutputPath index.html -PassThruExceptions.
+                if (preparedPageFailure != null) throw preparedPageFailure;
+                SetContentUtf8(Path.Combine(stagingDirectory, "index.html"), preparedPage!);
+                if (targetLower == "desktop")
+                {
+                    SetContentAscii(Path.Combine(stagingDirectory, "run-desktop.cmd"), "@echo off\r\notter desktop \"%~dp0index.html\" %*\r\n");
+                }
+                entryLeaf = "index.html";
+            }
+            else if (targetLower is not ("console" or "automation"))
             {
                 return BuildFailed($"Otter: target \"{project.Target}\" is not supported for build.", 1);
             }
-            string entryLeaf = Path.GetFileName(project.ResolvedEntryPoint);
-            SetContentUtf8(Path.Combine(stagingDirectory, entryLeaf), resolved!.CombinedSource);
-
-            var builtManifest = new OtterThing("thing");
-            builtManifest.WriteProperty("$schema", "https://otter-lang.org/schema/project-v1.json");
-            builtManifest.WriteProperty("name", project.Name);
-            builtManifest.WriteProperty("version", project.Version);
-            builtManifest.WriteProperty("archetype", project.Archetype);
-            builtManifest.WriteProperty("target", project.Target);
-            builtManifest.WriteProperty("entryPoint", entryLeaf);
-            SetContentUtf8(Path.Combine(stagingDirectory, "otter.json"), OtterJson.Write(builtManifest)!);
-
-            // run.cmd for Windows, run for macOS and Linux (D129).
-            SetContentAscii(Path.Combine(stagingDirectory, "run.cmd"), $"@echo off\r\notter run \"%~dp0{entryLeaf}\" %*\r\n");
-            string launcher = Path.Combine(stagingDirectory, "run");
-            File.WriteAllText(launcher, $"#!/bin/sh\nexec otter run \"$(dirname \"$0\")/{entryLeaf}\" \"$@\"\n", Utf8NoBom);
-            if (!OperatingSystem.IsWindows())
+            else
             {
-                File.SetUnixFileMode(launcher, File.GetUnixFileMode(launcher) | UnixFileMode.UserExecute | UnixFileMode.GroupExecute | UnixFileMode.OtherExecute);
+                SetContentUtf8(Path.Combine(stagingDirectory, entryLeaf), resolved!.CombinedSource);
+
+                var builtManifest = new OtterThing("thing");
+                builtManifest.WriteProperty("$schema", "https://otter-lang.org/schema/project-v1.json");
+                builtManifest.WriteProperty("name", project.Name);
+                builtManifest.WriteProperty("version", project.Version);
+                builtManifest.WriteProperty("archetype", project.Archetype);
+                builtManifest.WriteProperty("target", project.Target);
+                builtManifest.WriteProperty("entryPoint", entryLeaf);
+                SetContentUtf8(Path.Combine(stagingDirectory, "otter.json"), OtterJson.Write(builtManifest)!);
+
+                // run.cmd for Windows, run for macOS and Linux (D129).
+                SetContentAscii(Path.Combine(stagingDirectory, "run.cmd"), $"@echo off\r\notter run \"%~dp0{entryLeaf}\" %*\r\n");
+                string launcher = Path.Combine(stagingDirectory, "run");
+                File.WriteAllText(launcher, $"#!/bin/sh\nexec otter run \"$(dirname \"$0\")/{entryLeaf}\" \"$@\"\n", Utf8NoBom);
+                if (!OperatingSystem.IsWindows())
+                {
+                    File.SetUnixFileMode(launcher, File.GetUnixFileMode(launcher) | UnixFileMode.UserExecute | UnixFileMode.GroupExecute | UnixFileMode.OtherExecute);
+            }
             }
 
             // 5. Declared assets.
@@ -328,9 +388,8 @@ internal static partial class ProjectCommands
     {
         if (string.IsNullOrWhiteSpace(target)) target = ".";
         Project project = Project.Load(target);
-        RequireNativeTarget(project);
         // Decide before anything is printed whether the program is native.
-        CheckProgram(project, out _);
+        if (CheckProgram(project, out _) == null) PrepareWebPage(project);
         Program.Trace("native: publish");
         string rootDirectory = project.RootDirectory;
 
@@ -428,10 +487,13 @@ internal static partial class ProjectCommands
 
             string runtimeRequirements = project.Target.ToLowerInvariant() switch
             {
+                "web" => "Modern web browser with JavaScript enabled.",
+                "game" => "Modern web browser with HTML5 Canvas / WebGL enabled.",
+                "desktop" => "Requires Otter runtime (otter in PATH) to run desktop application shell.",
                 "console" or "automation" => "Requires Otter runtime (otter in PATH) to execute application.",
                 _ => "Standard execution environment.",
             };
-            string entryRelative = Path.GetFileName(project.ResolvedEntryPoint);
+            string entryRelative = IsWebTarget(project) ? "index.html" : Path.GetFileName(project.ResolvedEntryPoint);
             var meta = new OtterThing("thing");
             meta.WriteProperty("name", project.Name);
             meta.WriteProperty("version", version);

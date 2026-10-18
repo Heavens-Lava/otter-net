@@ -102,7 +102,7 @@ static class RunnableSamples
         js.SetRuntimeUiNames(Array.Empty<string>(), Array.Empty<string>());
         try
         {
-            ProgramNode sample = Parser.Parse(Lexer.Tokenize(source), webTarget: true);
+            ProgramNode sample = Parser.Parse(Lexer.Tokenize(source));
             var statements = sample.Statements;
             if (statements.Count == 0) return null;
             if (RuntimeUi.SampleUsesUi(statements)) return null;

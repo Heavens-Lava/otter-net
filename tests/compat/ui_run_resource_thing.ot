@@ -1,0 +1,13 @@
+b is a button with text "Hi", width 100
+say text of b
+w is a heading with title "T"
+say title of w
+p is panel with draggable is true
+say draggable of p
+c is a card
+    align center
+    width full
+    round
+say align of c
+say width of c
+say round of c
