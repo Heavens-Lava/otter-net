@@ -32,6 +32,52 @@ count from 1 to 3 as i
 .
 ask "Name?" and call it who
 '@ }; Stdin = 'Ann' }
+        @{ Name = '-DebugAst of values only an expression shows'; Args = @('a.ot', '-DebugAst'); Files = @{ 'a.ot' = @'
+to never
+    say bytes from file "a.bin"
+    say secure random bytes 4
+    say xml from text "<a>1</a>"
+    say xml from file "a.xml"
+    say route parameter "id"
+    say query parameter "q"
+    say current route
+    say await get "/x"
+    say drag data
+    if "x" contains "y"
+        say 0
+    .
+    if "abc" starts with "a"
+        say 1
+    otherwise if 2 is 3
+        say 2
+    .
+    replace route with "/b"
+    set drag data to 1
+    try
+        fail with "x"
+    otherwise into reason
+        say reason
+    .
+    repeat 2 times
+        say 1
+    .
+say "done"
+'@ } }
+        @{ Name = '-DebugAst of UI, routes and servers'; Args = @('a.ot', '-DebugAst'); Files = @{ 'a.ot' = @'
+on route change
+    say 1
+.
+route "/a" shows home
+card "c"
+    columns 2 on small
+    text "t"
+state count is 0
+when count changes
+    say count
+.
+get system information "os" into info
+say "done"
+'@ } }
         @{ Name = '-DebugAst in a project'; Args = @('run', '.', '-DebugAst'); Files = @{ 'otter.json' = '{ "entryPoint": "main.ot" }'; 'main.ot' = 'say 1' } }
         @{ Name = '-DebugAst with check shows nothing'; Args = @('check', 'a.ot', '-DebugAst'); Files = @{ 'a.ot' = 'say 1' } }
         @{ Name = '-DebugTokens with a syntax error'; Args = @('run', 'bad.ot', '-DebugTokens'); Files = @{ 'bad.ot' = @'
