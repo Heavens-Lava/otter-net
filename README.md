@@ -55,6 +55,10 @@ newer than its C library, and so also run on current distributions. Managed
 (school or work) Chromebooks can have the Linux environment turned off by
 the administrator.
 
+Databases (D97) use the operating system's own SQLite: built into Windows
+and macOS; on Linux and Chromebooks install it with `sudo apt install
+libsqlite3-0` if a program says SQLite could not be loaded.
+
 Programs that otter-net does not run natively yet are handed to the
 PowerShell Otter, which needs PowerShell 7 (`pwsh`) on Linux, macOS and
 Chromebooks ([install it](https://aka.ms/install-powershell)); on Windows it
