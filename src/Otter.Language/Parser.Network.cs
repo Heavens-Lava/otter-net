@@ -103,7 +103,7 @@ public sealed partial class Parser
             case TokenKind.Download:
                 return ReadDownload(start);
             case TokenKind.Connect when IsIdentifierWordAt(1, "securely") || next == TokenKind.To:
-                return ReadConnect(start);
+                return ReadNetworkConnect(start);
             // `stop` lexes as Return. D104: stop watching X; any other word
             // after `stop` is otterPS's "I expected stop to end here."
             case TokenKind.Return when Same(start.Text, "stop") && next != TokenKind.Newline:
@@ -829,7 +829,7 @@ public sealed partial class Parser
     }
 
     // connect to websocket ... / connect [securely] to tcp ... (D106, D107, D112)
-    Stmt ReadConnect(Token start)
+    Stmt ReadNetworkConnect(Token start)
     {
         Read();
         bool secure = false;

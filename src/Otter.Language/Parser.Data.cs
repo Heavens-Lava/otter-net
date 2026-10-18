@@ -26,7 +26,7 @@ public sealed partial class Parser
         {
             // connect to websocket/tcp and connect securely are networking.
             case TokenKind.Connect when nextKind != TokenKind.To && !(At(1) is { Kind: TokenKind.Identifier } securely && Same(securely.Text, "securely")):
-                return ReadConnect(start);
+                return ReadDatabaseConnect(start);
             case TokenKind.Disconnect:
             {
                 Read();
@@ -102,7 +102,7 @@ public sealed partial class Parser
     // ---- databases (D97, D98) ----------------------------------------------
 
     // connect database into db
-    Stmt ReadConnect(Token start)
+    Stmt ReadDatabaseConnect(Token start)
     {
         Read();
         Expr config = ReadMathExpression();
@@ -231,15 +231,7 @@ public sealed partial class Parser
         return new BeginTransactionStmt(connection, target.Text, start.Line);
     }
 
-    // otterPS's Test-OtterSoftContinuation: a clause continued on an
-    // indented line.
-    bool SoftContinuation()
-    {
-        if (!Is(TokenKind.Newline) || !IsAt(1, TokenKind.Indent)) return false;
-        Read();
-        Read();
-        return true;
-    }
+    // SoftContinuation (otterPS's Test-OtterSoftContinuation) is in Parser.Network.cs.
 
     // get tables from db into tables / get columns from TABLE in db into
     // columns (D98), or null when `get` is not followed by either word.
