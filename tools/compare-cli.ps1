@@ -233,7 +233,17 @@ try {
                 $shown = ($fileDifferences | Select-Object -First 4 | ForEach-Object { "$(if ($_.SideIndicator -eq '<=') { 'reference' } else { 'otter-net' }) only: $($_.InputObject)" }) -join '; '
                 $problems.Add("files left behind differ: $shown")
             }
-            if ($referenceStderr.Trim() -ne $candidateStderr.Trim()) { $problems.Add("stderr differs: reference [$($referenceStderr.Trim())] otter-net [$($candidateStderr.Trim())]") }
+            # otter-net names otter.ps1 next to its own executable where otterPS's
+            # errors name the real script (SPEC-QUESTIONS C2-1): both become <otter.ps1>.
+            $referenceStderr = $referenceStderr.Replace($referenceScript, '<otter.ps1>')
+            $candidateStderr = $candidateStderr.Replace((Join-Path (Split-Path -Parent $OtterNet) 'otter.ps1'), '<otter.ps1>')
+            if ($referenceStderr.Trim() -ne $candidateStderr.Trim()) {
+                $refErr = $referenceStderr.Trim(); $candErr = $candidateStderr.Trim()
+                $at = Get-FirstDifference $refErr $candErr
+                $from = [Math]::Max(0, $at - 40)
+                $showErr = { param($t) ($t.Substring([Math]::Min($from, $t.Length), [Math]::Min(160, [Math]::Max(0, $t.Length - $from))) -replace "`r", '\r' -replace "`n", '\n') }
+                $problems.Add("stderr differs at character $($at): reference [$(& $showErr $refErr)] otter-net [$(& $showErr $candErr)]")
+            }
             $outcome = if ($problems.Count -eq 0) { 'match' }
                 elseif ($referenceIsPwsh7 -and $case.KnownOnPwsh7) { 'known' }
                 else { 'DIFFERENT' }

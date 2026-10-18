@@ -15,15 +15,41 @@ otter-net is complete only when all of these hold:
 | # | Gate | Now |
 |---|---|---|
 | 1 | Every Otter 1.0.1 language feature implemented in C# | no - see below |
-| 2 | Every conformance fixture passes | 18 of 19 run natively |
-| 3 | No supported program needs the PowerShell Otter | 132 of otterPS's 237 programs still do (almost all UI) |
+| 2 | Every conformance fixture passes | 19 of 19 checked natively; all identical on Windows |
+| 3 | No supported program needs the PowerShell Otter | 0 of 237 for `check`; at run time: desktop windows and remote commands on Windows (decisions pending), tasks/printers |
 | 4 | Syntax and runtime diagnostics independent of PowerShell | for native programs; strict mode: `tools/compare.ps1 -NativeOnly` |
-| 5 | All six platform configurations pass | PR #1 yes; the port (PR #3) is being checked |
+| 5 | All six platform configurations pass | yes (PR #3 CI) |
 | 6 | No unexplained compatibility differences | yes, for native programs |
-| 7 | Differential fuzzing passes, coverage documented | 300 programs, 0 differences (CI) |
+| 7 | Differential fuzzing passes, coverage documented | 300 programs, 0 differences, all native (CI); `docs/port/fuzz.md` |
 | 8 | Native AOT executables run without PowerShell | for native programs |
 | 9 | Packaging and clean-machine installation tests | not started |
 | 10 | Release candidate reviewed and approved | not started |
+
+## After wave 2 - 2026-10-18 (`port/native`: UI in run/check, serve, desktop, project builds; remaining parser forms; the CLI's PowerShell binding, -DebugAst, manifests)
+
+**All 237 of otterPS 1.0.1's programs - and all 483 programs in the corpus -
+are taken on natively** (`otter check` with OTTER_ENGINE=native; it was 96
+at the start of the campaign and 105 after wave 1).
+
+| Comparison | Result |
+|---|---|
+| Programs on Windows, against otterPS 1.0.1 on Windows PowerShell 5.1 (CI) | 252 programs: **0 different**, 217 identical (211 native), 35 skipped |
+| Network programs on Windows, native only (CI) | 16 of 16 identical |
+| `otter web` pages on Windows, byte for byte, no conversion (CI) | 308 programs: **0 different**, 268 compiled natively |
+| Differential fuzz on Windows (CI) | 300 programs: 0 different, all native |
+| Programs on macOS, native only | 252: 197 identical (all native), 35 skipped, 20 different - all known PowerShell 7 or macOS-SQLite cases |
+| CLI cases on macOS | 243: 0 different (58 known PowerShell 7 differences) |
+| CLI cases on Windows (CI) | 243: 210 identical, 33 different - all PowerShell's own parameter-binding error texts (`otter -Deb`, `-Port abc`, ...; SPEC-QUESTIONS C2-1) |
+| Six platforms (CI) | all build and pass tests/compat; the cross-platform check's remaining differences are declared with reasons |
+
+Still needing the PowerShell Otter, decided before anything runs:
+
+- **Desktop windows (WPF) in `otter run` on Windows** - needs a decision (`docs/port/desktop-options.md`).
+- **Remote commands on Windows** - PowerShell remoting; needs a decision.
+- System information `tasks` and `printers` on Windows.
+- Narrow cases: `replace route`, `set drag data`, a responsive column count that is not a number, PowerShell's own parameter-binding texts, `-DebugAst` of some node kinds, a few `otter serve`/`desktop` failure paths that otterPS reports with PowerShell's errors.
+
+Source sites left: 9 parser (`Unsupported`), 24 CLI (`NeedsPowerShell`) - see `docs/FULL_PORT_MATRIX.md`.
 
 ## After wave 1 - 2026-10-17 (`port/native`: System, Network, Data, CLI and UI areas merged)
 
