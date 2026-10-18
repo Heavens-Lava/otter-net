@@ -155,10 +155,33 @@ jobs:
           echo "$DOTNET_ROOT" >> "$GITHUB_PATH"
           echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
       - uses: actions/checkout@v4
-      - name: PowerShell 7, for the test tools
-        run: dotnet tool install --global PowerShell
       - name: Publish native (AOT)
         run: dotnet publish src/Otter.Cli/Otter.Cli.csproj -c Release -r ${{ matrix.rid }} -p:UseAppHost=true -o artifacts/${{ matrix.rid }} --nologo
+      # A clean machine: no PowerShell is installed yet. Every program in
+      # tests/compat and otterPS's corpus must run (or check) without asking
+      # for the PowerShell Otter; the hand-over says so on stderr.
+      - name: Without PowerShell - every program runs natively
+        run: |
+          if command -v pwsh >/dev/null || command -v powershell >/dev/null; then echo "PowerShell is installed; this is not a clean machine"; exit 1; fi
+          otter="$PWD/artifacts/${{ matrix.rid }}/otter"
+          failed=0; count=0
+          for program in tests/compat/*.ot; do
+            count=$((count + 1))
+            work=$(mktemp -d); cp tests/compat/* "$work"/ 2>/dev/null
+            input=/dev/null; [ -f "$program.input" ] && input="$PWD/$program.input"
+            name=$(basename "$program")
+            ( cd "$work" && timeout 60 "$otter" run "$name" < "$input" > /dev/null 2> stderr.txt ) || true
+            if grep -q "needs the PowerShell Otter" "$work/stderr.txt"; then echo "needs PowerShell: $program"; failed=$((failed + 1)); fi
+          done
+          for program in tests/web/*.ot; do
+            count=$((count + 1))
+            ( cd tests/web && "$otter" check "$(basename "$program")" > /dev/null 2> /tmp/stderr.txt ) || true
+            if grep -q "needs the PowerShell Otter" /tmp/stderr.txt; then echo "needs PowerShell: $program"; failed=$((failed + 1)); fi
+          done
+          echo "Without PowerShell: $((count - failed)) of $count programs ran natively" | tee -a "$GITHUB_STEP_SUMMARY"
+          [ "$failed" -eq 0 ]
+      - name: PowerShell 7, for the test tools
+        run: dotnet tool install --global PowerShell
       - name: Oldest C library the executable needs
         run: objdump -T artifacts/${{ matrix.rid }}/otter | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1 | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Capture output of tests/compat
