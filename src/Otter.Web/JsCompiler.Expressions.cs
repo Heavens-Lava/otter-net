@@ -180,6 +180,8 @@ sealed partial class JsCompiler
                     case BytesOp.ToHex: return $"((_b) => {{ if (!_b || typeof _b !== 'object' || !_b.__otterBytes) {{ throw new Error('I can only read hex from bytes, but this is something else.'); }} return ({Templates.JsBytesToHexFunc})(_b.value); }})({Expression(bytes.Source!)})";
                     default: return $"((_b) => {{ if (!_b || typeof _b !== 'object' || !_b.__otterBytes) {{ throw new Error('I can only read base64 from bytes, but this is something else.'); }} return ({Templates.JsBytesToBase64Func})(_b.value); }})({Expression(bytes.Source!)})";
                 }
+            case AwaitExpr awaitExpr:
+                return $"(await {Expression(awaitExpr.Expression)})";
             case CurrentRouteExpr:
                 return "window.location.pathname";
             case RouteParameterExpr routeParameter:

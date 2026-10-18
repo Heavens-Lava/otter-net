@@ -147,6 +147,12 @@ public sealed class UiActionStmt(string action, Expr target, int line) : Stmt(li
     public Expr Target { get; } = target;
 }
 
+// await delay 250 / x is await fetchData (D56). otterPS has one node kind
+// for both; otter-net needs an expression and a statement.
+public sealed class AwaitExpr(Expr expression, int line) : Expr(line) { public Expr Expression { get; } = expression; }
+
+public sealed class AwaitStmt(Expr expression, int line) : Stmt(line) { public Expr Expression { get; } = expression; }
+
 // use files - refused in Otter 1.0 (a `use "file.ot"` import never gets here)
 public sealed class UseModuleStmt(string module, int line) : Stmt(line) { public string Module { get; } = module; }
 

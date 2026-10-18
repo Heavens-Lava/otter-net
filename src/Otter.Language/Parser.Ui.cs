@@ -65,6 +65,8 @@ public sealed partial class Parser
 
         switch (start.Kind)
         {
+            case TokenKind.Await:
+                return ReadAwaitStatement(start);
             case TokenKind.State:
             {
                 Read();
@@ -157,6 +159,73 @@ public sealed partial class Parser
                 return TryReadReplaceRouteStatement(start);
         }
         return null;
+    }
+
+    // await X [make|into y] (Read-OtterStatement's Await case)
+    Stmt ReadAwaitStatement(Token start)
+    {
+        Read();
+        Token next = Current;
+        Expr expression;
+        if (next.Kind == TokenKind.Get || Same(next.Text, "get"))
+        {
+            Read();
+            expression = new CallExpr("get", new[] { ReadValue() }, next.Line);
+        }
+        else if (IsIdentifier(next))
+        {
+            Read();
+            var arguments = new List<Expr>();
+            while (!Is(TokenKind.Newline) && !Is(TokenKind.Make) && !Is(TokenKind.Into))
+            {
+                if (Is(TokenKind.And)) { Read(); continue; }
+                arguments.Add(ReadValue());
+            }
+            expression = arguments.Count > 0 || knownFunctions.ContainsKey(next.Text)
+                ? new CallExpr(next.Text, arguments, next.Line)
+                : new VariableExpr(next.Text, next.Line);
+        }
+        else
+        {
+            expression = ReadValue();
+        }
+        if (Is(TokenKind.Make) || Is(TokenKind.Into))
+        {
+            bool make = Is(TokenKind.Make);
+            Read();
+            Token target = ReadVariableName(make ? "I expected a variable name after \"make\"." : "I expected a variable name after \"into\".");
+            Expect(TokenKind.Newline, "I expected the await statement to end here.");
+            return new AssignStmt(new VariableExpr(target.Text, start.Line), new AwaitExpr(expression, start.Line), start.Line);
+        }
+        Expect(TokenKind.Newline, "I expected the await statement to end here.");
+        return new AwaitStmt(expression, start.Line);
+    }
+
+    // await X as a value (Read-OtterValue)
+    Expr ReadAwaitValue(Token token)
+    {
+        Read();
+        Token next = Current;
+        if (next.Kind == TokenKind.Get || Same(next.Text, "get"))
+        {
+            Read();
+            return new AwaitExpr(new CallExpr("get", new[] { ReadValue() }, next.Line), token.Line);
+        }
+        if (IsIdentifier(next))
+        {
+            Read();
+            var arguments = new List<Expr>();
+            while (!Is(TokenKind.Newline) && !Is(TokenKind.Make) && !Is(TokenKind.Into) && !Is(TokenKind.And) &&
+                   !Is(TokenKind.Minus) && !Is(TokenKind.Times) && !Is(TokenKind.DividedBy))
+            {
+                if (Current.Kind is TokenKind.Number or TokenKind.String or TokenKind.True or TokenKind.False or TokenKind.Identifier) arguments.Add(ReadValue());
+                else break;
+            }
+            if (arguments.Count > 0 || knownFunctions.ContainsKey(next.Text))
+                return new AwaitExpr(new CallExpr(next.Text, arguments, next.Line), token.Line);
+            return new AwaitExpr(new VariableExpr(next.Text, next.Line), token.Line);
+        }
+        return new AwaitExpr(ReadValue(), token.Line);
     }
 
     // route "/path" shows page / route otherwise shows page (D103)
@@ -581,6 +650,7 @@ public sealed partial class Parser
     Expr? TryReadUiValue(Token token)
     {
         if (!webTarget) return null;
+        if (token.Kind == TokenKind.Await) return ReadAwaitValue(token);
         Token? next = At(1);
         // D103: current route / route parameter X / query parameter X
         if (token.Kind == TokenKind.Identifier && Same(token.Text, "current") && next is { Kind: TokenKind.Identifier } && Same(next.Text, "route"))

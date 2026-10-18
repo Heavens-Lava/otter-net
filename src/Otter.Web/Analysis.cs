@@ -104,7 +104,7 @@ static class AsyncAnalysis
         switch (expression)
         {
             case null: return false;
-            case FileExistsExpr or FileLockedExpr or CryptoHashExpr or CryptoHmacExpr or PasswordMatchesExpr: return true;
+            case AwaitExpr or FileExistsExpr or FileLockedExpr or CryptoHashExpr or CryptoHmacExpr or PasswordMatchesExpr: return true;
             case SecureRandomBytesExpr random: return ExpressionNeedsAsync(random.Count);
             case SecurelyEqualsExpr securely: return ExpressionNeedsAsync(securely.Left) || ExpressionNeedsAsync(securely.Right);
             case BytesExpr bytes: return ExpressionNeedsAsync(bytes.Source);
@@ -137,7 +137,7 @@ static class AsyncAnalysis
         {
             switch (s)
             {
-                case ReadFileStmt or WriteFileStmt or AppendFileStmt or TransferStmt or DeleteFileStmt or CreateFolderStmt or DeleteFolderStmt
+                case AwaitStmt or ReadFileStmt or WriteFileStmt or AppendFileStmt or TransferStmt or DeleteFileStmt or CreateFolderStmt or DeleteFolderStmt
                     or GetEntriesStmt or RunCommandStmt or GetEnvironmentVariableStmt or GetSystemFolderStmt or HashTextStmt or CipherTextStmt:
                     return true;
                 case CryptoCipherStmt or HashPasswordStmt:

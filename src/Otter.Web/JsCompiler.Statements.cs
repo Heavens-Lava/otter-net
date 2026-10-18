@@ -101,6 +101,8 @@ sealed partial class JsCompiler
         string inner = Pad(indent + 1);
         switch (stmt)
         {
+            case AwaitStmt awaitStmt:
+                return $"{pad}await {Expression(awaitStmt.Expression)};";
             case AssignStmt { Target: PropertyAccessExpr access } assign:
                 return AssignProperty(access, assign.Value, pad, inner);
             case AssignStmt assign:

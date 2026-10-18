@@ -53,6 +53,8 @@ static class NodeFields
         PasswordMatchesExpr n => [("Password", n.Password), ("Hash", n.Hash)],
         SecurelyEqualsExpr n => [("Left", n.Left), ("Right", n.Right)],
         ConsoleInteractiveExpr => [],
+        AwaitExpr n => [("Expression", n.Expression)],
+        AwaitStmt n => [("Expression", n.Expression)],
         CurrentRouteExpr => [],
         RouteParameterExpr n => [("Name", n.Name)],
         QueryParameterExpr n => [("Name", n.Name)],
