@@ -20,6 +20,15 @@ public sealed class RunSshCommandStmt(Expr command, Expr hostName, string? resul
     public string? ResultTarget { get; } = resultTarget;
 }
 
+// run command "..." on remote "host" using credential "n" [into result]
+public sealed class RunRemoteCommandStmt(Expr command, Expr hostName, Expr credentialName, string? resultTarget, int line) : Stmt(line)
+{
+    public Expr Command { get; } = command;
+    public Expr HostName { get; } = hostName;
+    public Expr CredentialName { get; } = credentialName;
+    public string? ResultTarget { get; } = resultTarget;
+}
+
 // ---- system information and processes (D69, D70, D71, D75-D77, D80, D83, D86)
 
 // get system information "os" into info

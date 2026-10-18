@@ -1,0 +1,12 @@
+# run command ... on remote ... using credential (D84). otterPS asks
+# PowerShell remoting only once it has the credential; these never get that
+# far: a name that cannot be a credential, then one that is not stored.
+try
+    run command "hostname" on remote "localhost" using credential "bad/name" into r
+    say "wrong" r
+otherwise into reason
+    say reason
+.
+say "next"
+run command "hostname" on remote "localhost" using credential "p2-no-such-credential"
+say "not reached"

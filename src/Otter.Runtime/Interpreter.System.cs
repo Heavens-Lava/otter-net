@@ -42,6 +42,23 @@ public sealed partial class Interpreter
                 if (runSsh.ResultTarget != null) scope.Set(runSsh.ResultTarget, output);
                 return true;
             }
+            // Off Windows only (the parser hands Windows' to the PowerShell Otter).
+            case RunRemoteCommandStmt runRemote:
+            {
+                string command = Values.Format(Evaluate(runRemote.Command, scope));
+                string hostName = Values.Format(Evaluate(runRemote.HostName, scope));
+                string credentialName = Values.Format(Evaluate(runRemote.CredentialName, scope));
+                _ = command; _ = hostName;   // evaluated, as otterPS does, before the credential
+                string? password;
+                try { password = OtterRemoteCredentials.ReadOffWindows(credentialName); }
+                catch (CredentialProblem problem) { throw RuntimeError(problem.Message, runRemote.Line, problem.Suggestion); }
+                if (password == null)
+                {
+                    throw RuntimeError($"I do not have a credential called \"{credentialName}\" - use set credential \"{credentialName}\" to \"...\" to store one first.", runRemote.Line);
+                }
+                // Not reached: no credential can be decrypted outside Windows.
+                throw new InternalProblem("Remote commands need Windows PowerShell remoting.");
+            }
             case GetProcessesStmt getProcesses:
                 scope.Set(getProcesses.Target, OtterProcesses.List());
                 return true;
@@ -189,9 +206,16 @@ public sealed partial class Interpreter
                 return true;
             }
             case GetEventLogEntriesStmt eventLog:
-                // Windows runs these through the PowerShell Otter (the parser decides).
+            {
                 if (!OperatingSystem.IsWindows()) throw NotOnWindows("The event log", eventLog.Line);
+                string logName = Values.Format(Evaluate(eventLog.LogName, scope));
+                double maxEntries = RequireNumber(Evaluate(eventLog.MaxEntries, scope), eventLog.Line, "a maximum number of entries");
+                OtterList entries;
+                try { entries = OtterEventLog.Read(logName, maxEntries); }
+                catch (EventLogProblem problem) { throw RuntimeError($"I could not read the event log \"{logName}\". {problem.Message}", eventLog.Line); }
+                scope.Set(eventLog.Target, entries);
                 return true;
+            }
             // ---- credentials (D81) ----
             case SetCredentialStmt setCredential:
             {

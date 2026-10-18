@@ -20,16 +20,7 @@ public sealed class CredentialProblem(string message, string? suggestion = null)
 [SupportedOSPlatform("windows")]
 public static partial class OtterCredentials
 {
-    static readonly Regex SafeName = new("^[A-Za-z0-9_.\\- ]+$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-
-    static void AssertName(string name)
-    {
-        if (string.IsNullOrWhiteSpace(name) || !SafeName.IsMatch(name))
-        {
-            throw new CredentialProblem($"\"{name}\" is not a valid credential name.",
-                "Credential names may only use letters, numbers, spaces, dots, dashes, and underscores.");
-        }
-    }
+    static void AssertName(string name) => OtterRemoteCredentials.AssertName(name);
 
     // Get-OtterCredentialStorePath: made on first use.
     static string StoreFolder()
@@ -252,5 +243,36 @@ public static unsafe partial class OtterVault
         int error = Marshal.GetLastPInvokeError();
         if (error == ErrorNotFound) return false;
         throw new Win32Exception(error);
+    }
+}
+
+// run command "..." on remote "host" using credential "n" outside Windows.
+public static class OtterRemoteCredentials
+{
+    static readonly Regex SafeName = new("^[A-Za-z0-9_.\\- ]+$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+    internal static void AssertName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name) || !SafeName.IsMatch(name))
+        {
+            throw new CredentialProblem($"\"{name}\" is not a valid credential name.",
+                "Credential names may only use letters, numbers, spaces, dots, dashes, and underscores.");
+        }
+    }
+
+    // Get-OtterCredential as it runs on PowerShell 7 outside Windows (only
+    // `run command ... on remote` gets there): the name check, the store
+    // folder under $env:LOCALAPPDATA (Join-Path refuses a missing one), and
+    // no secret, since ProtectedData only decrypts on Windows.
+    public static string? ReadOffWindows(string name)
+    {
+        AssertName(name);
+        string? localAppData = Environment.GetEnvironmentVariable("LOCALAPPDATA");
+        if (localAppData == null) throw new Otter.Language.InternalProblem("Cannot bind argument to parameter 'Path' because it is null.");
+        if (localAppData.Length == 0) throw new Otter.Language.InternalProblem("Cannot bind argument to parameter 'Path' because it is an empty string.");
+        string folder = Path.Combine(localAppData, "Otter", "Credentials");
+        try { if (!Directory.Exists(folder)) Directory.CreateDirectory(folder); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+        return null;
     }
 }
