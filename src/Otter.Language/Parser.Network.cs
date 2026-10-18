@@ -702,6 +702,12 @@ public sealed partial class Parser
         try { first = ReadValue(); }
         catch (OtterError) { position = saved; return null; }
         if (Is(TokenKind.From)) { position = saved; return null; }
+        return ReadHttpGetRest(start, first);
+    }
+
+    // The rest of `get URL [as json] into X`, after the URL.
+    Stmt ReadHttpGetRest(Token start, Expr first)
+    {
         bool asJson = false;
         if (Is(TokenKind.As))
         {
@@ -932,10 +938,7 @@ public sealed partial class Parser
              Same(word, "tls") && SameAny(next.Text, "version", "protocol")) && IsAt(2, TokenKind.Of))
         {
             Read(); Read(); Read();
-            // otterPS reads the owner with -PropertyTarget, which only differs
-            // for a leading `the`; that is left to otterPS.
-            if (Same(Current.Text, "the") && At(1) is { } afterThe && IsIdentifier(afterThe)) throw Unsupported("'the' after a property");
-            return new PropertyAccessExpr($"{word.ToLowerInvariant()} {next.Text}", ReadValue(), token.Line);
+            return new PropertyAccessExpr($"{word.ToLowerInvariant()} {next.Text}", ReadValue(propertyTarget: true), token.Line);
         }
         return null;
     }

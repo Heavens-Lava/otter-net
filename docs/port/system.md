@@ -19,7 +19,7 @@ Parser: `src/Otter.Language/Parser.System.cs` unless noted. Nodes:
 | `run command C [into r]` | RunProgram (IsCommand) | `Run`; Invoke-OtterCommand | ReadSystemRun -> RunCommandStmt; Commands.cs | native | no | commands.ot | - |
 | `run P [into p]` | RunProgram | `Run`; Start-OtterProgram, New-OtterProcessObject | RunProgramStmt; Processes.cs `Start` | native | no | sys_processes.ot | - |
 | `run command C over ssh to H [into r]` | RunSshCommand | `Run`; Invoke-OtterSshCommand | RunSshCommandStmt; `RunOverSsh` | native | no | sys_ssh_arguments.ot | - |
-| `run command C on remote H using credential N [into r]` | RunRemoteCommand | `Run`; Invoke-OtterRemoteCommand (Invoke-Command over WinRM) | parsed, then Unsupported | missing | yes | sys_syntax_errors.ot (its syntax errors) | PowerShell remoting has no equivalent outside PowerShell |
+| `run command C on remote H using credential N [into r]` | RunRemoteCommand | `Run`; Invoke-OtterRemoteCommand (Invoke-Command over WinRM) | ReadSystemRun -> RunRemoteCommandStmt; Credentials.cs `OtterRemoteCredentials` | partial | on Windows | p2_remote_command.ot, sys_syntax_errors.ot | off Windows otterPS stops at the credential (name check, store folder, nothing decrypts) and so does otter-net; on Windows it needs PowerShell remoting: a decision is needed (see "Remote commands on Windows" below) |
 | `start command C and call it J` | StartCommand | `Start`; Start-OtterCommandJob | Parser.cs (Unsupported) | missing | yes | - | needs the event loop (`on output from`, `on exit of`, `cancel`, `is running`) of the Network area |
 | `received output` / `received error output` | JobContext | Read-OtterValue; `JobContext` | Parser.cs (Unsupported) | missing | yes | - | as above |
 | `get system information K into x`: os, cpu, memory, disk, network, user, groups, software, services | GetSystemInfo | `Get`; Get-OtterSystemInfoValue | GetSystemInfoStmt; SystemInfo.cs, Services.cs | native | no | sys_system_info.ot | - |
@@ -43,7 +43,7 @@ Parser: `src/Otter.Language/Parser.System.cs` unless noted. Nodes:
 | `set registry value N to D in K` | SetRegistryValue | `Set`; Set-OtterRegistryValue | Registry.cs | native | no | sys_windows.ot | - |
 | `delete registry value N from K` | DeleteRegistryValue | `Delete`; Remove-OtterRegistryValue | Registry.cs | native | no | sys_windows.ot | - |
 | `registry key K exists` (condition) | RegistryKeyExists | Read-OtterConditionPrimary; Test-OtterRegistryKeyExists | Registry.cs | native | no | sys_windows.ot | - |
-| `get event log entries from L up to N into x` | GetEventLogEntries | `Get`; Get-OtterEventLogEntries (Get-WinEvent) | GetEventLogEntriesStmt | partial | on Windows | sys_desktop.ot | Get-WinEvent's level names and its text for events without a description need checking on Windows before wevtapi.dll can stand in |
+| `get event log entries from L up to N into x` | GetEventLogEntries | `Get`; Get-OtterEventLogEntries (Get-WinEvent) | GetEventLogEntriesStmt; EventLog.cs `OtterEventLog` (wevtapi.dll) | native | no | sys_desktop.ot (Windows) | not yet compared on Windows: run sys_desktop.ot there (level names, messages of events without a description) |
 | `set credential N to S` / `get credential N into x` / `delete credential N` | SetCredential / GetCredential / DeleteCredential | `Set`/`Get`/`Delete`; DPAPI files in %LOCALAPPDATA%\Otter\Credentials | Credentials.cs `OtterCredentials` (CryptProtectData) | native | no | sys_windows.ot | - |
 | `store secret N with value V` / `delete secret N` | StoreSecret / DeleteSecret | pre-switch check; OtterCredentialApi (CredWrite/CredDelete) | Credentials.cs `OtterVault` | native | no | sys_windows.ot, sys_syntax_errors.ot | - |
 | `secret N` / `secret N exists` | SecretRead / SecretExists | Read-OtterValue; OtterCredentialApi (CredRead) | TryReadSystemValue; `OtterVault` | native | no | sys_windows.ot | - |
@@ -78,7 +78,56 @@ position; `tests/compat/sys_syntax_errors.ot` has one of each kind.
   available to a native program; the Windows calls they make are made
   directly. The printed page is laid out like PrintDocument's: 10-point
   Consolas, one-inch margins, as many lines on each page as fit.
-- A program that uses a form still handed to the PowerShell Otter (remote
-  commands, `start command` jobs, and on Windows the event log, "tasks",
-  "printers", or a system-information kind that is not written as text) runs
-  entirely in the PowerShell Otter, decided before anything runs.
+- A program that uses a form still handed to the PowerShell Otter (on
+  Windows: remote commands, "tasks", "printers", or a system-information kind
+  that is not written as text) runs entirely in the PowerShell Otter,
+  decided before anything runs. Everywhere else every form here is native.
+- The event log is read as Get-WinEvent reads it, through the Windows Event
+  Log API (`EvtOpenChannelEnum`, `EvtQuery` newest first, `EvtRender`,
+  `EvtOpenPublisherMetadata`, `EvtFormatMessage`): `-LogName` wildcards, a
+  debug or analytic log skipped when matched by a wildcard and refused when
+  named, the level name and message gone when the provider's metadata or
+  message cannot be found (EventLogRecord's own rule; Get-WinEvent's "Cannot
+  retrieve event message text." is replaced by that gone), "No events were
+  found" as an empty list, and Get-WinEvent's other texts after "I could not
+  read the event log". Written from PowerShell's and .NET's sources on macOS:
+  it still needs a run of `tests/compat/sys_desktop.ot` on Windows.
+
+## Remaining on Windows, and why
+
+- **"tasks" and "printers"** (`Parser.System.cs` ReadSystemGet, `Unsupported("this kind of system information")`).
+  Get-ScheduledTask/Get-ScheduledTaskInfo read the Task Scheduler through its
+  COM interface (ITaskService; Native AOT can call it only through
+  source-generated COM wrappers), and Win32_Printer's PrinterStatus is WMI's
+  own translation of the spooler's status bits, which is not documented.
+  Both can be written natively (EnumPrinters level 2 and GetDefaultPrinter;
+  ITaskService through `[GeneratedComInterface]`), but neither the WMI
+  status mapping, Get-ScheduledTask's order and "never run" times, nor the
+  result can be checked without a Windows machine: they stay with the
+  PowerShell Otter until they can be compared there. A kind that is not
+  written as text is refused on Windows for the same reason (it may be one
+  of these two).
+- **Remote commands** (`Parser.System.cs` ReadSystemRun, `Unsupported("remote commands")`).
+  Invoke-OtterRemoteCommand runs `Invoke-Command -ComputerName H -Credential
+  C -ScriptBlock { ... & $exe $args 2>&1 | Out-String }`: PowerShell
+  remoting, i.e. the PowerShell Remoting Protocol (PSRP) carried over
+  WS-Management, to the remote `microsoft.powershell` endpoint, which runs a
+  PowerShell script block there and sends back serialized PowerShell objects
+  (output strings, and error records for the command's standard error,
+  formatted by the remote Out-String). The local side must speak PSRP: the
+  WinRM client API (`WSManCreateShell` in wsmsvc.dll) can open a plain
+  `cmd` shell, but that runs a different command line, merges standard error
+  differently and does not produce what Out-String produces, so it is not
+  the same statement. Options for the owner:
+  1. Keep handing programs that use it to the PowerShell Otter on Windows
+     (today's behaviour; the only place PowerShell is still needed there).
+  2. Run only this statement through Windows' built-in `powershell.exe`
+     (always present on Windows), passing the command, host and secret
+     through standard input, and the output back as text. No PowerShell for
+     anything else; exact otterPS output, error text included.
+  3. Implement PSRP over WS-Management in C# (a large protocol: fragments,
+     CLIXML serialization, runspace pools, NTLM/Kerberos through
+     WinRM's own client API). Months of work for one statement.
+  4. Change the statement's meaning (for example a plain WinRM `cmd`
+     shell), which is a semantic change and needs a SPEC-DECISIONS entry.
+  Nothing is implemented beyond option 1 until that decision.

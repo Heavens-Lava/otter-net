@@ -440,3 +440,37 @@ program written for `otter web` therefore runs silently with exit 0, while
 `put`/`show` fail and `route`/`go to` statements and `current route` fail
 with "I do not know how to run a Route statement yet." otter-net copies
 this. Should `otter run` say that the program is a web application?
+
+## P2-1. Remote commands outside Windows end in an internal error (found 2026-10-17)
+
+Every other Windows-only statement starts with `Assert-OtterWindowsFeature`
+("... is only available on Windows, and this program is running on
+macOS/Linux."). `RunRemoteCommand` does not: off Windows it checks the
+credential name, then `Get-OtterCredentialStorePath` joins
+`$env:LOCALAPPDATA`, which is not set on macOS and Linux, and the program
+stops with "Otter hit a problem inside itself ... Cannot bind argument to
+parameter 'Path' because it is null." (with `LOCALAPPDATA` set, it creates
+`Otter/Credentials` there and says there is no such credential, since
+nothing can be decrypted off Windows). otter-net copies this
+(`tests/compat/p2_remote_command.ot`). Needs a decision: give remote commands
+the usual Windows-only message, or leave it.
+
+## P2-2. `get event log entries` takes a wildcard log name (found 2026-10-17)
+
+D79 describes reading one named log. otterPS passes the name to
+`Get-WinEvent -LogName`, which treats `*`, `?` and `[...]` as wildcards: `get
+event log entries from "*" up to 5 into e` reads the newest events of every
+log together, skipping debug and analytic logs, and a log name with an
+unbalanced `[` stops with "The specified wildcard character pattern is not
+valid". otter-net does the same. Needs a decision whether that is part of
+the language or an accident of the implementation.
+
+## P2-3. An event without a description has no message (found 2026-10-17)
+
+Get-WinEvent starts each event's Message at "Cannot retrieve event message
+text." and then replaces it with `FormatDescription()`, which is `$null`
+when the provider's metadata or the message is missing, so such entries
+have `message` gone (and `level` gone when the provider is unknown), not the
+"The description for Event ID ... cannot be found" text Event Viewer shows.
+otter-net follows the code. To be confirmed on Windows PowerShell 5.1, whose
+Get-WinEvent may differ from the PowerShell 7 source this was read from.

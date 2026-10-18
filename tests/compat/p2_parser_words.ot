@@ -1,0 +1,40 @@
+to store item
+    say "storing" item
+.
+to generate n
+    say "generating" n
+.
+store "apple"
+generate 3
+scores has Ada 90
+get "Ada" from scores
+    into ada
+say ada
+mkdir is "p2dir"
+create folder mkdir
+write "a" to "p2dir/a.txt"
+get files in mkdir
+    into entries
+say length of entries
+delete file "p2dir/a.txt"
+delete folder mkdir
+text is "Bob"
+set text to 75 in scores
+say Bob of scores
+read is "Cy"
+set read to 60 in scores
+say Cy of scores
+secret is "s"
+route is "r"
+local is "l"
+remote is "m"
+tls is "t"
+xml is "x"
+received is "v"
+sender is "e"
+close is "c"
+say secret 5
+say route local
+say remote tls
+say xml received sender
+say close 1

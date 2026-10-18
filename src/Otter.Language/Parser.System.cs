@@ -248,9 +248,7 @@ public sealed partial class Parser
                 ExpectWord("up", "I expected \"up to\" and a maximum count.", example);
                 Expect(TokenKind.To, "I expected \"to\" and a maximum count.");
                 Expr maxEntries = ReadValue();
-                string target = ReadGetResult();
-                if (OperatingSystem.IsWindows()) throw Unsupported("the event log");
-                return new GetEventLogEntriesStmt(logName, maxEntries, target, start.Line);
+                return new GetEventLogEntriesStmt(logName, maxEntries, ReadGetResult(), start.Line);
             }
             default:
                 return null;
@@ -502,14 +500,17 @@ public sealed partial class Parser
             Read();
             const string example = "run command \"...\" on remote \"host\" using credential \"n\"";
             ExpectWord("remote", "I expected \"remote\" after \"on\".", example);
-            ReadValue();
+            Expr hostName = ReadValue();
             ExpectWord("using", "I expected \"using credential\" after the host name.", example);
             ExpectWord("credential", "I expected \"credential\" after \"using\".", example);
-            ReadValue();
-            ReadRunResultTarget();
-            // PowerShell remoting (Invoke-Command over WinRM) has no
-            // equivalent outside PowerShell: the PowerShell Otter runs these.
-            throw Unsupported("remote commands");
+            Expr credentialName = ReadValue();
+            string? remoteResult = ReadRunResultTarget();
+            // On Windows otterPS runs the command through PowerShell remoting
+            // (Invoke-Command over WinRM), which has no equivalent outside
+            // PowerShell: the PowerShell Otter runs these there (see
+            // docs/port/system.md). Elsewhere it never reaches remoting.
+            if (OperatingSystem.IsWindows()) throw Unsupported("remote commands");
+            return new RunRemoteCommandStmt(target, hostName, credentialName, remoteResult, start.Line);
         }
         if (isCommand && after.Kind == TokenKind.Identifier && Same(after.Text, "over"))
         {
