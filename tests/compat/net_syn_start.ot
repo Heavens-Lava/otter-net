@@ -1,0 +1,64 @@
+# Asynchronous HTTP requests (D116B) against a tiny HTTP server written with
+# a tcp listener in the same program (D113), all on loopback.
+crlfBytes is bytes from hex "0D0A"
+crlf is text from bytes crlfBytes
+
+to reply with body and kind
+    lines are "HTTP/1.1 200 OK", "Content-Type: " plus kind, "Connection: close"
+    size is length of body
+    sizeParts are "Content-Length: ", size
+    join sizeParts with "" into sizeLine
+    add sizeLine to lines
+    add "" to lines
+    add body to lines
+    join lines with crlf into answer
+    return answer
+.
+
+listen for tcp on port 0 and call it server
+port is local port of server
+baseParts are "http://127.0.0.1:", port
+join baseParts with "" into base
+served is 0
+on connection to server
+    conn is incoming connection
+    on data from conn
+        request is text from bytes received data
+        served is served plus 1
+        if request starts with "GET /json"
+            answer is reply with "{\"name\": \"Otter\", \"version\": 1}" and "application/json"
+        otherwise if request starts with "POST"
+            answer is reply with "posted" and "text/plain"
+        otherwise
+            answer is reply with "hello from otter" and "text/plain"
+        .
+        send bytes from text answer through conn
+        close tcp conn
+    .
+.
+
+start get from base plus "/hello" and call it first
+say "first:" state of first
+if first is pending
+    say "first is pending"
+.
+on complete of first
+    say "first completed:" received response
+    say "status" status of first "state" state of first
+    if first is completed and first is not failed
+        say "first is completed"
+    .
+    start get from base plus "/json" as json and call it second
+    on complete of second
+        data is received response
+        say "second:" name of data version of data
+        start post "some text" to base plus "/post" and call it third
+        on complete of third
+            say "third:" response of third
+            say "error of third:" error of third
+            say "served" served "requests"
+            stop tcp server
+        .
+    .
+.
+say "main program done"

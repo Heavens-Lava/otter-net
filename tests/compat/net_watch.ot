@@ -1,0 +1,93 @@
+# File watching (D104): a handler runs while the program waits (EV3), the
+# ambient change values, stopping, and what the statements refuse.
+create folder "watched"
+watch folder "watched" and call it watcher
+say watcher
+if watcher is watching
+    say "watching"
+.
+created is false
+on create in watcher
+    say "created:" changed file name "kind:" change kind
+    if changed path ends with "note.txt"
+        say "the changed path ends with the file name"
+    .
+    try
+        say old path
+    otherwise into reason
+        say reason
+    .
+    created is true
+.
+write "hello" to "watched/note.txt"
+tries is 0
+while not created and tries is less than 100
+    wait 100 milliseconds
+    tries is tries plus 1
+.
+say "seen during wait:" created
+stop watching watcher
+if not watcher is watching
+    say "stopped"
+.
+stop watching watcher
+say "stopping twice is fine"
+
+try
+    watch file "missing.txt" and call it other
+otherwise into reason
+    say reason
+.
+try
+    watch folder "missing-folder" recursively and call it other
+otherwise into reason
+    say reason
+.
+try
+    on change of 42
+        say "never"
+    .
+otherwise into reason
+    say reason
+.
+try
+    stop watching "watched"
+otherwise into reason
+    say reason
+.
+try
+    if 42 is watching
+        say "never"
+    .
+otherwise into reason
+    say reason
+.
+try
+    say changed path
+otherwise into reason
+    say reason
+.
+try
+    say changed file name
+otherwise into reason
+    say reason
+.
+try
+    say change kind
+otherwise into reason
+    say reason
+.
+try
+    say old path
+otherwise into reason
+    say reason
+.
+watch file "watched/note.txt" and call it single
+deleted is false
+on delete in single
+    say "deleted:" changed file name "kind:" change kind
+    deleted is true
+    stop watching single
+.
+delete file "watched/note.txt"
+say "main program done"

@@ -1,0 +1,134 @@
+# What the HTTP statements say when a request cannot be made (D49, D96,
+# D101, D116A). Nothing here reaches a real server.
+to attempt label
+    say label
+.
+
+try
+    get "not-a-valid-url" into page
+otherwise into reason
+    say reason
+.
+try
+    get "ftp://example.test/file" into page
+otherwise into reason
+    say reason
+.
+try
+    post "data" to "" into answer
+otherwise into reason
+    say reason
+.
+try
+    get "http://127.0.0.1:1/" into page
+        with header "Bad Name" is "x"
+otherwise into reason
+    say reason
+.
+try
+    get "http://127.0.0.1:1/" into page
+        with header "" is "x"
+otherwise into reason
+    say reason
+.
+newline is "a\nb"
+try
+    put "data" to "http://127.0.0.1:1/" into answer
+        with header "X-Test" is newline
+otherwise into reason
+    say reason
+.
+try
+    delete from "http://127.0.0.1:1/" into answer
+        with timeout 0 seconds
+otherwise into reason
+    say reason
+.
+try
+    get json from "http://127.0.0.1:1/" into data
+        with timeout "soon" seconds
+otherwise into reason
+    say reason
+.
+try
+    get "http://127.0.0.1:1/" as json into data
+        with timeout true seconds
+        without cookies
+        without redirects
+otherwise into reason
+    say reason
+.
+try
+    post "x" as json to "mailto:someone" into answer
+        following redirects
+        with cookies
+otherwise into reason
+    say reason
+.
+try
+    download file from "ftp://example.test/a.txt" to "a.txt"
+otherwise into reason
+    say reason
+.
+try
+    download file from "nonsense" to "a.txt"
+otherwise into reason
+    say reason
+.
+write "already here" to "existing.txt"
+try
+    download file from "http://127.0.0.1:1/x" to "existing.txt"
+otherwise into reason
+    say reason
+.
+try
+    download file from "http://127.0.0.1:1/x" to "no-such-folder/a.txt"
+otherwise into reason
+    say reason
+.
+create folder "afolder"
+try
+    download file from "http://127.0.0.1:1/x" to "afolder"
+otherwise into reason
+    say reason
+.
+try
+    start get from "gopher://x" and call it request
+otherwise into reason
+    say reason
+.
+minusTwo is 0 minus 2
+try
+    start delete from "http://127.0.0.1:1/" and call it request
+        with timeout minusTwo seconds
+otherwise into reason
+    say reason
+.
+try
+    cancel 42
+otherwise into reason
+    say reason
+.
+# A server that accepts but never answers: the request waits for its timeout.
+listen for tcp on port 0 and call it silent
+silentParts are
+    "http://127.0.0.1:"
+    local port of silent
+    "/"
+.
+join silentParts with "" into silentUrl
+try
+    get silentUrl into page
+        with timeout 1 seconds
+otherwise into reason
+    say reason
+.
+try
+    post "data" as json to silentUrl into answer
+        with timeout 0.5 seconds
+        with header "Content-Type" is "text/plain"
+otherwise into reason
+    say reason
+.
+stop tcp silent
+say "done"

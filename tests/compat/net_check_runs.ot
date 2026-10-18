@@ -1,0 +1,12 @@
+# A handler set up inside a watcher handler that uses a name the watcher
+# handler sets on each run is refused before anything runs (D133 covers
+# only `when` inside `when` in Otter 1.0).
+say "this never runs"
+create folder "items"
+watch folder "items" and call it w
+on create in w
+    item is changed file name
+    on change of w
+        say "changed after" item
+    .
+.
