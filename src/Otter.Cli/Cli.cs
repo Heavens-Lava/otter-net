@@ -97,7 +97,6 @@ internal static class Cli
         if (!line.HasTarget) throw UsageError($"Usage: otter {line.Path} <file.ot>");
         string target = line.Target!;
         string[] arguments = line.RawTrailing(2);
-        if (!check && line.DebugAst && !line.ParseOnly) throw new NeedsPowerShell("-DebugAst shows otterPS's own syntax tree");
 
         if (!target.ToLowerInvariant().EndsWith(".ot", StringComparison.Ordinal))
         {
@@ -137,7 +136,6 @@ internal static class Cli
         string path = line.Path!;
         if (Project.Find(path) != null)
         {
-            if (line.DebugAst && !line.ParseOnly) throw new NeedsPowerShell("-DebugAst shows otterPS's own syntax tree");
             string[] projectArguments = line.RawTrailing(1);
             Project project = LoadProjectOrExit(path, ExitCheckError);
             return FileMode.Invoke(line, project.ResolvedEntryPoint, FileMode.Kind.Run, projectArguments, displayTarget: path);
@@ -153,14 +151,12 @@ internal static class Cli
             Host.Line("Run 'otter help' to see the available commands.", ConsoleColor.Red);
             throw new CliExit(ExitUsageError);
         }
-        if (line.DebugAst && !line.ParseOnly) throw new NeedsPowerShell("-DebugAst shows otterPS's own syntax tree");
         return FileMode.Invoke(line, path, FileMode.Kind.Run, line.RawTrailing(1));
     }
 
     static int Profile(CommandLine line)
     {
         if (!line.HasTarget) throw UsageError("Usage: otter profile <file.ot>");
-        if (line.DebugAst && !line.ParseOnly) throw new NeedsPowerShell("-DebugAst shows otterPS's own syntax tree");
         if (line.Verbose) throw VerboseModules();
         var profiler = new Profiler();
         return FileMode.Invoke(line, line.Target!, FileMode.Kind.Run, line.RawTrailing(2), profiler: profiler);
@@ -172,7 +168,6 @@ internal static class Cli
     static int Debug(CommandLine line)
     {
         if (!line.HasTarget) throw UsageError("Usage: otter debug <file.ot> -Breakpoints \"5,12\"");
-        if (line.DebugAst && !line.ParseOnly) throw new NeedsPowerShell("-DebugAst shows otterPS's own syntax tree");
         var breakpoints = new List<int>();
         if (!string.IsNullOrEmpty(line.Breakpoints))
         {
@@ -211,8 +206,11 @@ internal static class Cli
         if (Is(command, "studio")) throw new NeedsPowerShell("otter studio is not native");
         if (!line.HasTarget)
         {
+            // otter.ps1 says `exit 1` here, but under powershell.exe -File
+            // that script's `exit` reaches the process as 0 (otter.ps1 itself
+            // notes it, using [Environment]::Exit elsewhere): exit code 0.
             Host.Line($"Usage: otter {command} <script.ot>");
-            throw new CliExit(ExitUsageError);
+            throw new CliExit(ExitSuccess);
         }
         string scriptFile = line.Target!;
         bool project = Project.Find(scriptFile) != null;

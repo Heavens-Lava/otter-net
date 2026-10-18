@@ -30,6 +30,13 @@ say name
         @{ Name = 'repl: -DebugTokens'; Args = @('-DebugTokens'); Stdin = @'
 say 1
 '@ }
+        @{ Name = 'repl: -DebugAst'; Args = @('-DebugAst'); Stdin = @'
+x is 4
+if x is 4
+    say "four"
+
+say x plus 1
+'@ }
         @{ Name = 'debug: pause in a function'; Args = @('debug', 'p.ot', '-Breakpoints', '2'); Stdin = @'
 continue
 '@; Files = @{ 'p.ot' = @'

@@ -15,6 +15,25 @@ if true
     say "yes"
 .
 '@ } }
+        @{ Name = '-DebugAst'; Args = @('a.ot', '-DebugAst', '-DebugTokens'); Files = @{ 'a.ot' = @'
+to double n
+    return n times 2
+say double 21 "and" 2.5 true
+name is "Jeff"
+if name is "Jeff" and not false
+    say "yes"
+otherwise if 1 is less than 2
+    say "maybe"
+otherwise
+    say "no"
+.
+count from 1 to 3 as i
+    add i to total
+.
+ask "Name?" and call it who
+'@ }; Stdin = 'Ann' }
+        @{ Name = '-DebugAst in a project'; Args = @('run', '.', '-DebugAst'); Files = @{ 'otter.json' = '{ "entryPoint": "main.ot" }'; 'main.ot' = 'say 1' } }
+        @{ Name = '-DebugAst with check shows nothing'; Args = @('check', 'a.ot', '-DebugAst'); Files = @{ 'a.ot' = 'say 1' } }
         @{ Name = '-DebugTokens with a syntax error'; Args = @('run', 'bad.ot', '-DebugTokens'); Files = @{ 'bad.ot' = @'
 say "ok"
 x is

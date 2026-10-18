@@ -42,7 +42,6 @@ internal static class Repl
 
     public static int Start(CommandLine line)
     {
-        if (line.DebugAst && !line.ParseOnly) throw new NeedsPowerShell("-DebugAst shows otterPS's own syntax tree");
         Program.Trace("native: repl");
         Host.Line(Cli.VersionText);
         Host.Line("Readable like English. Precise like code.");
@@ -96,8 +95,19 @@ internal static class Repl
             Host.Line($"Otter: otter-net cannot run this yet: {unsupported.Message}. Start the REPL with OTTER_ENGINE=powershell to use it.", ConsoleColor.Red);
             return;
         }
+        List<string>? ast = null;
+        if (compiled.Failure == null && line.DebugAst && !line.ParseOnly)
+        {
+            try { ast = AstDump.Lines(compiled.Program!); }
+            catch (NeedsPowerShell unsupported)
+            {
+                Host.Line($"Otter: otter-net cannot run this yet: {unsupported.Message}. Start the REPL with OTTER_ENGINE=powershell to use it.", ConsoleColor.Red);
+                return;
+            }
+        }
         compiled.WriteTokens();
         Exception? failure = compiled.Failure;
+        if (ast != null) FileMode.WriteAst(ast);
         if (failure == null && !line.ParseOnly)
         {
             try { session.Run(compiled.Program!); }
