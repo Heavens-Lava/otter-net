@@ -23,7 +23,8 @@ public sealed partial class Interpreter
     readonly List<OtterFileWatcher> activeWatchers = new();
     readonly Dictionary<OtterFileWatcher, List<WatchHandler>> watcherHandlers = new(ReferenceEqualityComparer.Instance);
     readonly WatchQueue watchQueue = new();
-    readonly Dictionary<string, DateTime> watchLastEventAt = new(StringComparer.Ordinal);
+    // otterPS keeps these in a hashtable (@{}), whose keys ignore case.
+    readonly Dictionary<string, DateTime> watchLastEventAt = new(StringComparer.OrdinalIgnoreCase);
     WatchContext? currentWatchEvent;
 
     readonly List<OtterWebSocket> activeWebSockets = new();
