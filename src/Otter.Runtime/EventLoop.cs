@@ -66,7 +66,7 @@ public sealed partial class Interpreter
         {
             bool hasWatchers = activeWatchers.Count > 0;
             bool hasSockets = activeWebSockets.Any(ws => ws.State is "connecting" or "open" or "closing" && HasHandlers(ws))
-                || NetActive() || HttpActive() || otherEventSources.Any(source => source.IsActive);
+                || NetActive() || HttpActive() || JobsActive() || otherEventSources.Any(source => source.IsActive);
             if (!hasWatchers && !hasSockets) break;
             if (hasWatchers) WatchStep(TimeSpan.FromMilliseconds(hasSockets ? 20 : 200));
             else Thread.Sleep(10);
@@ -75,6 +75,7 @@ public sealed partial class Interpreter
                 WebSocketStep();
                 NetStep();
                 HttpStep();
+                JobStep();
                 foreach (var source in otherEventSources.ToArray()) source.Step();
             }
         }
@@ -85,11 +86,12 @@ public sealed partial class Interpreter
     void ServiceEventsDuringWait()
     {
         if (activeWatchers.Count == 0 && activeWebSockets.Count == 0 && activeNet.Count == 0 && activeTcpServers.Count == 0 &&
-            activeHttpRequests.Count == 0 && otherEventSources.Count == 0) return;
+            activeHttpRequests.Count == 0 && activeJobs.Count == 0 && otherEventSources.Count == 0) return;
         WatchStep(TimeSpan.Zero);
         WebSocketStep();
         NetStep();
         HttpStep();
+        JobStep();
         foreach (var source in otherEventSources.ToArray()) source.Step();
     }
 
@@ -113,6 +115,7 @@ public sealed partial class Interpreter
                 request.Disposed = true;
             }
         }
+        StopJobs();
         foreach (var source in otherEventSources.ToArray())
         {
             try { source.Shutdown(); } catch (Exception e) when (e is not OutOfMemoryException) { }

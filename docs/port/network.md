@@ -31,8 +31,8 @@ to the PowerShell Otter before anything runs. Tests are in `tests/compat/`.
 | Soft continuation (`into` on an indented line) | P Test-OtterSoftContinuation | PN SoftContinuation | native | no | | |
 | `download file from URL to PATH` and its checks | P `Download`; L Receive-OtterFileDownload | PN ReadDownload; H Download | native | no | net_http_errors (scheme, URL, existing file, missing folder, folder) | success not testable offline |
 | `start get/post/put/delete ... and call it R` (+ options) | P `Start`; I `HttpStart`; L Start-OtterHttpRequest | PN ReadHttpStart; H Start | native | no | net_http_async, net_http_requests | |
-| `cancel R` | P pre-switch `cancel`; I `HttpCancel` | PN; IN | native | no | net_http_requests | cancelling a command job (D119-R2) belongs with `start command` (system area) |
-| `R is [not] pending/running/completed/failed/cancelled` | P Read-OtterConditionPrimary; I `HttpRequestIsState` | PN ReadNetworkStatePredicate; IN | native | no | net_http_async, net_http_requests | a command job's states come with `start command` |
+| `cancel R` | P pre-switch `cancel`; I `HttpCancel` | PN; IN | native | no | net_http_requests, net_jobs | |
+| `R is [not] pending/running/completed/failed/cancelled` | P Read-OtterConditionPrimary; I `HttpRequestIsState` | PN ReadNetworkStatePredicate; IN | native | no | net_http_async, net_http_requests, net_jobs | |
 | `received response` | P Read-OtterValue; I `ReceivedResponse` | PN; IN | native | no | net_http_async, net_http_requests | |
 | `state/response/error/status of R` | I `PropertyAccess` | IN TryNetworkProperty | native | no | net_http_async, net_http_requests | |
 | `on complete/error/cancel of R`, kept outcome for a later handler | P `On`; I `WebSocketEvent` | PN ReadOnHandler; IN AddNetworkHandler | native | no | net_http_requests | |
@@ -67,7 +67,13 @@ to the PowerShell Otter before anything runs. Tests are in `tests/compat/`.
 | `changed path`, `changed file name`, `change kind`, `old path` | P; I | PN; IN | native | no | net_watch | |
 | `await X` as a statement, `await X make/into Y`, `await` as a value | P `Await`, Read-OtterValue; I default / `Await` | PN; IN | native (refusal) | no | net_server, net_syn_forms | |
 | Syntax errors of all the forms above, with otterPS's recovery | P | PN | native | no | net_syn_forms, net_syn_start | |
-| `on X` that is none of the forms ("I expected 'start' or 'close' after 'on'") | P `On` | PN ReadOnHandler | native | no | net_syn_forms | `on start`/`on close`, `on route change`, drag and drop are the UI's; `on output/error output/exit of` are the system area's (command jobs) |
+| `on X` that is none of the forms ("I expected 'start' or 'close' after 'on'") | P `On` | PN ReadOnHandler | native | no | net_syn_forms | `on start`/`on close`, `on route change`, drag and drop are the UI's (web target) |
+| `start command CMD and call it J` (D119-R2) | P `Start`; I `StartCommand`; L Start-OtterCommandJob; R OtterProcessTracker | PN ReadStart; `Jobs.cs` StartJob, JobTracker | native | no | net_jobs | |
+| `on output from J`, `on error output from J`, `on exit of J` (WhenStmt), kept exit for a later handler | P `On`; I `When` | PN ReadJobHandler; Jobs.cs TryExecuteJob | native | no | net_jobs | a `when` on a UI resource is the desktop's |
+| `on complete/cancel of J` (an exit kept for later counts as completing) | I `WebSocketEvent` | Jobs.cs AddJobNetworkHandler | native | no | net_jobs | |
+| `received output`, `received error output` | P Read-OtterValue; I `JobContext` | PN; Jobs.cs | native | no | net_jobs | |
+| `state/exit code/output/error output/id of J` (`command of J` cannot be written: `command` is a keyword) | I `PropertyAccess` | Jobs.cs TryJobProperty | native | no | net_jobs | |
+| Job events in the loop (at most 256 per job per turn), cancel kills the process tree, running jobs stopped at the end | I Invoke-OtterJobEventLoopStep, Stop-OtterCommandJob | Jobs.cs JobStep, CancelJob, StopJobs | native | no | net_jobs | |
 | `every N seconds` / timer events | none: otterPS 1.0.1 has no timer event (`docs/OTTER_1_0_EVENT_LOOP_REVIEW.md` section 6) | | not a language form | | | |
 
 ## The console event loop and capture rules
@@ -80,7 +86,7 @@ to the PowerShell Otter before anything runs. Tests are in `tests/compat/`.
 | Watch notifications: one per pass, 150 ms coalescing, the watcher error diagnostic | I Invoke-OtterWatchEventLoopStep | EL WatchStep, WatchQueue | native | net_watch | |
 | Unhandled network error stops the program (line 0, "Add \"on error of <name>\" ...") | I Send-OtterNetError | EL SendNetError | native | | |
 | Everything is closed when the program ends, however it ends | I Invoke-OtterProgram `finally` | EL CloseEventSources | native | | |
-| Another area's sources (command jobs) | I Invoke-OtterJobEventLoopStep | NV IOtterEventSource, EL AddEventSource | hook only | | the system area plugs `start command` in here |
+| Other areas' sources | | NV IOtterEventSource, IOtterHandlerTarget; EL AddEventSource | hook | | command jobs are in Jobs.cs; these hooks are for any later source |
 | D130 loop passes (`for each`, `count`, `repeat`, `while`) | LP Get-OtterLoopPassNames; I New-OtterLoopPass, Set-OtterLoopVariable, Complete-OtterLoopPasses | LPC Compute; EL Run*WithPasses; Interpreter.cs loops | native | net_loop_passes | network handlers do not count (SPEC-QUESTIONS Q10) |
 | D133 handler runs | LP; I Enter-OtterHandlerRun, Exit-OtterHandlerRun, New-OtterHandlerCaptureEnvironment | EL EnterHandlerRun, ExitHandlerRun, NewHandlerCaptureScope (public, for the UI area's `when`) | ready for the UI area | | only `when` handlers on UI resources use it in otterPS |
 | Check: a handler inside another handler's run that uses its names (`HandlerRunName`) | LP Get-OtterHandlerRunCaptures; V | LPC HandlerRunCaptures, Diagnostics; src/Otter.Cli/FileMode.cs | native | net_check_runs | |

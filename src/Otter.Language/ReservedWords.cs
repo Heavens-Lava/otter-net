@@ -147,6 +147,7 @@ public static class ReservedWords
                 case UdpOpenStmt udpOpen: Variable(udpOpen.Target, line); break;
                 case TcpListenStmt tcpListen: Variable(tcpListen.Target, line); break;
                 case FileWatchStmt fileWatch: Variable(fileWatch.Target, line); break;
+                case StartCommandStmt startCommand: Variable(startCommand.Target, line); break;
                 case WebRouteStmt route: Statements(route.Body); break;
                 case NetworkEventStmt networkEvent: Statements(networkEvent.Body); break;
                 case WatchEventStmt watchEvent: Statements(watchEvent.Body); break;

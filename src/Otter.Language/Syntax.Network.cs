@@ -249,3 +249,18 @@ public sealed class ChangedPathExpr(int line) : Expr(line);
 public sealed class ChangedFileNameExpr(int line) : Expr(line);
 public sealed class ChangeKindExpr(int line) : Expr(line);
 public sealed class OldPathExpr(int line) : Expr(line);
+
+// ---- command jobs (D119-R2): a program started in the background ------------
+
+// start command CMD and call it J
+public sealed class StartCommandStmt(Expr commandLine, string target, int line) : Stmt(line)
+{
+    public Expr CommandLine { get; } = commandLine;
+    public string Target { get; } = target;
+}
+
+// received output / received error output (in `on output from` / `on error output from`)
+public sealed class JobContextExpr(string field, int line) : Expr(line) { public string Field { get; } = field; }
+
+// `on output from J`, `on error output from J` and `on exit of J` are WhenStmt
+// nodes (Syntax.Ui.cs), as in otterPS.

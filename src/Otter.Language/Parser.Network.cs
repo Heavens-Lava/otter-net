@@ -355,10 +355,13 @@ public sealed partial class Parser
         if (Same(stage.Text, "connection") && afterStage == TokenKind.To) return ReadNetworkEvent(start, NetworkEventKind.Connection);
         // D107: on connect of <connection>
         if (Same(stage.Text, "connect") && afterStage == TokenKind.Of) return ReadNetworkEvent(start, NetworkEventKind.Connect);
-        // D119-R2: command job output - the system area's.
-        if (Same(stage.Text, "output") && afterStage == TokenKind.From) return null;
-        if ((stage.Kind == TokenKind.Problem || Same(stage.Text, "error")) && At(3) != null && IsWordAt(2, "output") && IsAt(3, TokenKind.From)) return null;
-        if (Same(stage.Text, "exit") && afterStage == TokenKind.Of) return null;
+        // D119-R2: on output from / on error output from / on exit of <job>
+        if (Same(stage.Text, "output") && afterStage == TokenKind.From) return ReadJobHandler(start, "output", 3);
+        if ((stage.Kind == TokenKind.Problem || Same(stage.Text, "error")) && At(3) != null && IsWordAt(2, "output") && IsAt(3, TokenKind.From))
+        {
+            return ReadJobHandler(start, "error output", 4);
+        }
+        if (Same(stage.Text, "exit") && afterStage == TokenKind.Of) return ReadJobHandler(start, "exit", 3);
         // D107/D108: on data from; D106: on message from / close of / error of
         if (Same(stage.Text, "data") && afterStage == TokenKind.From) return ReadNetworkEvent(start, NetworkEventKind.Data);
         if (Same(stage.Text, "message") && afterStage == TokenKind.From) return ReadNetworkEvent(start, NetworkEventKind.Message);
@@ -372,6 +375,14 @@ public sealed partial class Parser
         if (SameAny(stage.Text, "start", "close")) return null;
         Read(); Read();
         throw Error($"I expected 'start' or 'close' after 'on', but got '{stage.Text}'.", stage, "Write 'on start' or 'on close'.");
+    }
+
+    // A command job's handlers are `when` handlers in otterPS (WhenStmt).
+    Stmt ReadJobHandler(Token start, string eventName, int words)
+    {
+        for (int i = 0; i < words; i++) Read();
+        Expr job = ReadValue();
+        return new WhenStmt(job, eventName, ReadBlock(), start.Line);
     }
 
     Stmt ReadWatchEvent(Token start, WatchEventKind kind)
@@ -462,8 +473,19 @@ public sealed partial class Parser
         {
             return ReadHttpStart(start);
         }
-        // start command (D119-R2) is the system area's; start timer (D101) is core.
-        if (next.Kind == TokenKind.Command || (next.Kind == TokenKind.Identifier && Same(next.Text, "command"))) return null;
+        // D119-R2: start command <expr> and call it <target>
+        if (next.Kind == TokenKind.Command || (next.Kind == TokenKind.Identifier && Same(next.Text, "command")))
+        {
+            Read(); Read();
+            Expr commandLine = ReadValue();
+            Expect(TokenKind.And, "I expected \"and call it\" and a variable name.");
+            Expect(TokenKind.Call, "I expected \"call\" after \"and\".");
+            Expect(TokenKind.It, "I expected \"it\" after \"call\".");
+            Token jobName = ReadVariableName("I expected a variable name after \"call it\".");
+            Expect(TokenKind.Newline, "I expected the start command statement to end here.");
+            return new StartCommandStmt(commandLine, jobName.Text, start.Line);
+        }
+        // start timer (D101) is core.
         if (next.Kind == TokenKind.Identifier && Same(next.Text, "timer")) return null;
         Read();
         ReadOptionalTheBeforeName();
@@ -873,9 +895,13 @@ public sealed partial class Parser
         // D106: received message; D116B: received response
         if (Same(word, "received") && next.Kind == TokenKind.Identifier && Same(next.Text, "message")) { Read(); Read(); return new ReceivedMessageExpr(token.Line); }
         if (Same(word, "received") && next.Kind == TokenKind.Identifier && Same(next.Text, "response")) { Read(); Read(); return new ReceivedResponseExpr(token.Line); }
-        // received output / received error output (D119-R2) are the system area's.
-        if (Same(word, "received") && next.Kind == TokenKind.Identifier && Same(next.Text, "output")) return null;
-        if (Same(word, "received") && At(2) != null && (next.Kind == TokenKind.Problem || Same(next.Text, "error")) && IsIdentifierWordAt(2, "output")) return null;
+        // D119-R2: received output / received error output
+        if (Same(word, "received") && next.Kind == TokenKind.Identifier && Same(next.Text, "output")) { Read(); Read(); return new JobContextExpr("output", token.Line); }
+        if (Same(word, "received") && At(2) != null && (next.Kind == TokenKind.Problem || Same(next.Text, "error")) && IsIdentifierWordAt(2, "output"))
+        {
+            Read(); Read(); Read();
+            return new JobContextExpr("error output", token.Line);
+        }
         // D106: close was clean / close code / close reason / websocket error
         if (Same(word, "close") && At(2) != null && next.Kind == TokenKind.Identifier && Same(next.Text, "was") && IsIdentifierWordAt(2, "clean"))
         {

@@ -1,0 +1,77 @@
+# Commands started in the background (D119-R2): their output arrives in
+# handlers run by the event loop; a command that cannot start, and one that
+# is cancelled, keep their outcome for handlers set up afterwards.
+start command "net_job_helper.ps1" and call it job
+say job
+say "state:" state of job
+if job is running
+    say "it is running"
+.
+if exit code of job is gone
+    say "no exit code yet"
+.
+on output from job
+    say "output:" received output
+.
+on error output from job
+    lastError is received error output
+.
+on exit of job
+    say "exit: state" state of job "code" exit code of job
+    say "the error output was:" lastError
+    say "all of it:" error output of job
+    if job is failed
+        say "a non-zero exit is a failure"
+    .
+    # Started only now, so the order of what is said never depends on timing.
+    start command "net_job_sleep.ps1" and call it sleeper
+    on cancel of sleeper
+        say "cancelled:" state of sleeper
+    .
+    cancel sleeper
+    if sleeper is cancelled
+        say "the sleeper is cancelled"
+    .
+    cancel sleeper
+.
+on complete of job
+    say "never: the exit code is not 0"
+.
+
+start command "no-such-program-for-otter" and call it missing
+say "missing:" state of missing exit code of missing
+on exit of missing
+    say "exit of a command that never started:" received error output
+.
+on complete of missing
+    say "an exit kept for later counts as completing"
+.
+
+try
+    start command 42 and call it other
+otherwise into reason
+    say reason
+.
+try
+    on open of job
+        say "never"
+    .
+otherwise into reason
+    say reason
+.
+try
+    say received output
+otherwise into reason
+    say reason
+.
+try
+    say received error output
+otherwise into reason
+    say reason
+.
+try
+    say colour of job
+otherwise into reason
+    say reason
+.
+say "main program done"

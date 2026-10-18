@@ -13,6 +13,7 @@ public sealed partial class Interpreter
 {
     bool TryExecuteNetwork(Stmt statement, Scope scope)
     {
+        if (TryExecuteJob(statement, scope)) return true;   // command jobs (Jobs.cs)
         switch (statement)
         {
             // ---- HTTP (D49, D96, D101, D116A, D116B) ----
@@ -66,6 +67,7 @@ public sealed partial class Interpreter
             {
                 object? value = Evaluate(cancel.Request, scope);
                 // A command job (D119-R2) is cancelled by the system area.
+                if (value is OtterCommandJob job) { CancelJob(job); return true; }
                 if (value is IOtterHandlerTarget other) { other.Cancel(cancel.Line); return true; }
                 if (value is not OtterHttpRequest request) throw RuntimeError("cancel requires an HTTP request.", cancel.Line);
                 if (request.State != "pending") return true;
@@ -181,7 +183,7 @@ public sealed partial class Interpreter
 
     bool TryEvaluateNetwork(Expr expression, Scope scope, out object? value)
     {
-        value = null;
+        if (TryEvaluateJob(expression, out value)) return true;   // command jobs (Jobs.cs)
         switch (expression)
         {
             case AwaitExpr awaitExpr:
@@ -190,6 +192,17 @@ public sealed partial class Interpreter
             case HttpRequestIsStateExpr isState:
             {
                 object? target = Evaluate(isState.Request, scope);
+                if (target is OtterCommandJob job)
+                {
+                    value = job.State == isState.State switch
+                    {
+                        HttpRequestState.Pending => "running",
+                        HttpRequestState.Completed => "completed",
+                        HttpRequestState.Failed => "failed",
+                        _ => "cancelled",
+                    };
+                    return true;
+                }
                 if (target is IOtterHandlerTarget other) { value = other.IsInState(isState.State); return true; }
                 if (target is not OtterHttpRequest request)
                 {
@@ -302,7 +315,7 @@ public sealed partial class Interpreter
     // socket, websocket). False when the target is none of them.
     bool TryNetworkProperty(object? target, PropertyAccessExpr property, out object? value)
     {
-        value = null;
+        if (TryJobProperty(target, property, out value)) return true;   // Jobs.cs
         string name = property.Property;
         int line = property.Line;
         switch (target)
@@ -616,6 +629,11 @@ public sealed partial class Interpreter
         object? target = Evaluate(networkEvent.Socket, scope);
         NetworkEventKind kind = networkEvent.EventKind;
         // A command job (D119-R2) keeps its own handlers.
+        if (target is OtterCommandJob job)
+        {
+            AddJobNetworkHandler(job, networkEvent, scope);
+            return;
+        }
         if (target is IOtterHandlerTarget other)
         {
             other.AddHandler(kind, networkEvent.Body, scope, networkEvent.Line);
