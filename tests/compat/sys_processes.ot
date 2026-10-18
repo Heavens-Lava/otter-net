@@ -1,0 +1,93 @@
+# Processes (D70, D71, D75): run without waiting, process handles, the
+# process list, priority, waiting and killing. Only this program's own
+# sleeping child is ever touched.
+get environment variable "OS" into os
+sleeper is "sleep 30"
+if os is "Windows_NT"
+    sleeper is "powershell -NoProfile -NonInteractive -Command Start-Sleep -Seconds 30"
+.
+run sleeper into p
+say p
+if id of p is greater than 0
+    say "a real process id"
+.
+if name of p is gone
+    say "no name"
+otherwise
+    say "it has a name"
+.
+wait for process p up to 1 seconds into finished
+say "finished after a second:" finished
+set priority of process p to "below normal"
+say "priority lowered"
+try
+    set priority of process p to "fast"
+otherwise into reason
+    say reason
+.
+get processes into everything
+if length of everything is greater than 1
+    say "more than one process"
+.
+say first of everything
+find item in everything where id of item is id of p into found
+if found is gone
+    say "not in the list"
+otherwise
+    say "found it in the list"
+.
+kill process p and its children
+wait for process p up to 10 seconds into finished
+say "finished after the kill:" finished
+# Waiting for or killing a process that has gone is not an error.
+wait for process p up to 1 seconds
+kill process p
+wait for process p up to 0 seconds into again
+say "gone already:" again
+try
+    set priority of process p to "normal"
+otherwise into reason
+    if reason starts with "I could not set that process's priority."
+        say "a gone process keeps no priority"
+    .
+.
+# Anything that is not a process handle is refused.
+notProcess is a thing with name "x"
+attempts are
+    "kill"
+    "priority"
+    "wait"
+.
+for each attempt in attempts
+    try
+        if attempt is "kill"
+            kill process notProcess
+        otherwise if attempt is "priority"
+            set priority of process "123" to "high"
+        otherwise
+            wait for process 42 up to 1 seconds
+        .
+    otherwise into reason
+        say reason
+    .
+.
+# Starting something that is not there.
+try
+    run "definitely-not-a-program-xyz --flag"
+otherwise into reason
+    if os is "Windows_NT"
+        say reason
+    otherwise if reason starts with "I could not start \"definitely-not-a-program-xyz\"."
+        say "could not start it"
+    .
+.
+try
+    run "   "
+otherwise into reason
+    say reason
+.
+try
+    run "\"unclosed"
+otherwise into reason
+    say reason
+.

@@ -1,0 +1,17 @@
+app is a page
+    title is "Two"
+.
+b is a button
+    text is "Go"
+.
+box is a textbox
+    placeholder is "type"
+.
+when b is clicked
+    say "first"
+.
+when b is clicked
+    say "second"
+.
+put b, box in app
+show app

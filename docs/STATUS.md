@@ -39,16 +39,31 @@ Programs that use any of these run through otterPS, unchanged (the decision
 is made before anything runs):
 
 - CSV, XML, random numbers, `say in color`, `ask secretly`, `larger of` and
-  other `of` operations not yet ported, command results (`run`), clipboard,
-  environment variables, `get current ...`, system folders, processes,
-  registry, credentials, secrets, hashing and encryption, zip.
+  other `of` operations not yet ported, hashing and encryption.
+- Operating system integration (docs/port/system.md): `start command` jobs,
+  remote commands (`run command ... on remote`), and on Windows the event
+  log and the "tasks" and "printers" kinds of system information. The rest
+  (`run`, `run command`, processes, system information, clipboard,
+  notifications, dialogs, links, owners, read-only files, registry,
+  credentials, secrets, power, printing, ssh, environment variables, system
+  folders, zip) runs natively.
 - HTTP, downloads, servers, websockets, TCP/UDP, file watching.
 - Databases and queries.
 - UI: windows, pages, state, events, animation, routing.
-- Every `otter` command other than `run`, `check` and `--version` (`new`,
-  `test`, `build`, `web`, `serve`, `studio`, the REPL, projects).
-- A `use` path that is missing, absolute, circular or differs in capital
-  letters from the disk (otterPS reports these).
+- `otter web`, `browse`, `serve`, `studio`, `desktop` on Windows, and
+  `build`/`publish` of web, desktop and game projects (their usage and file
+  errors are native).
+- `-DebugAst`, `publish --output`, and any other argument starting with `-`
+  that is not one of otter.ps1's own flags (PowerShell's parameter binder
+  decides what those mean).
+
+Natively since 2026-10-17 (see `docs/port/cli.md`): every other `otter`
+command - `run`, `check` and the shortest form for files and projects,
+`new`, `test`, `build` and `publish` of console and automation projects,
+`profile`, `debug`, the REPL, help, usage errors, `-ParseOnly`,
+`-DebugTokens` - and every `use` problem (missing, absolute, circular,
+differing in capital letters). `tools/compare-cli.ps1` compares the
+command line itself, with the cases in `tests/cli`.
 
 ## Startup and speed (native, median of 7 runs; ms)
 

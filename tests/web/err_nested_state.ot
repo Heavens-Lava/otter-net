@@ -1,0 +1,5 @@
+state total is 0
+to bump
+    state inner is 1
+.
+bump

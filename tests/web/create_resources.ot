@@ -1,0 +1,31 @@
+# `create` statements, `has` and `X of Y is` at the top level, values only
+# known when the page runs, and runtime resources made inside a function.
+create window into app
+app has title "Created", background "#222"
+create the text box into the box
+create primary button into okButton
+create danger button into dangerButton
+create "odd<kind>" into odd
+okButton has text "OK", width full
+dangerButton has text label
+label is "Danger"
+title of app is "Retitled"
+text of box is "typed"
+put box, okButton, dangerButton, odd in the app
+
+to addLine message
+    create text into line
+    line has text message
+    put line in app
+    create "it's <odd> & new" into weird
+    put weird in app
+    when line clicked
+        say "line" message
+    .
+    show app
+.
+
+when okButton is clicked
+    addLine "hello"
+.
+show app

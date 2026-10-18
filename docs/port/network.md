@@ -10,7 +10,7 @@ Reference: otterPS 1.0.1. `P` = `src/Otter.Parser.psm1`, `I` =
 
 otter-net files: `PN` = `src/Otter.Language/Parser.Network.cs`, `SN` =
 `Syntax.Network.cs`, `IN` = `src/Otter.Runtime/Interpreter.Network.cs`, `EL` =
-`EventLoop.cs`, `H` = `Http.cs`, `NV` = `NetValues.cs`, `LPC` = `LoopPasses.cs`.
+`EventLoop.cs`, `H` = `Http.cs`, `NV` = `NetValues.cs`, `LPC` = `src/Otter.Language/LoopPasses.cs` (LoopPassAnalysis).
 
 Status: **native** = parsed and run by otter-net; **missing** = still handed
 to the PowerShell Otter before anything runs. Tests are in `tests/compat/`.
@@ -49,7 +49,7 @@ to the PowerShell Otter before anything runs. Tests are in `tests/compat/`.
 | `received message`, `close code`, `close reason`, `close was clean`, `websocket error` | P Read-OtterValue; I | PN; IN Ambient | native | no | net_websocket, net_http_requests | |
 | `state/url/protocol of W` | I `PropertyAccess` | IN | native | no | net_websocket | |
 | `connect to tcp H on port N and call it C` | P `Connect`, Read-OtterNetClauses; I `TcpConnect` | PN ReadConnect, ReadNetClauses; IN ConnectTcp | native | no | net_tcp, net_tcp_errors | |
-| `connect securely to tcp ... [for server S] [using protocol(s) P]` (D112) | as above | as above; EL TcpStep (SslStream) | native | no | net_tls, net_tcp_errors | `using protocol` gives 5.1's refusal (SPEC-QUESTIONS Q5) |
+| `connect securely to tcp ... [for server S] [using protocol(s) P]` (D112) | as above | as above; EL TcpStep (SslStream) | native | no | net_tls, net_tcp_errors | `using protocol` gives 5.1's refusal (SPEC-QUESTIONS Q13) |
 | `listen for tcp [on A] on port N and call it S`; `listen securely for tcp` (reserved) | P pre-switch `listen`, Read-OtterListenClauses; I `TcpListen` | PN ReadTcpListen; IN ListenTcp | native | no | net_tcp, net_tcp_errors, net_syn_forms | |
 | `stop tcp S` | P pre-switch `stop`; I `TcpStop` | PN; IN | native | no | net_tcp, net_tcp_errors | |
 | `open udp [on port N] and call it U` | P pre-switch `open`; I `UdpOpen` | PN ReadUdpOpen; IN | native | no | net_udp, net_tcp_errors | |
@@ -81,9 +81,9 @@ to the PowerShell Otter before anything runs. Tests are in `tests/compat/`.
 | Unhandled network error stops the program (line 0, "Add \"on error of <name>\" ...") | I Send-OtterNetError | EL SendNetError | native | | |
 | Everything is closed when the program ends, however it ends | I Invoke-OtterProgram `finally` | EL CloseEventSources | native | | |
 | Another area's sources (command jobs) | I Invoke-OtterJobEventLoopStep | NV IOtterEventSource, EL AddEventSource | hook only | | the system area plugs `start command` in here |
-| D130 loop passes (`for each`, `count`, `repeat`, `while`) | LP Get-OtterLoopPassNames; I New-OtterLoopPass, Set-OtterLoopVariable, Complete-OtterLoopPasses | LPC Compute; EL Run*WithPasses; Interpreter.cs loops | native | net_loop_passes | network handlers do not count (SPEC-QUESTIONS Q2) |
+| D130 loop passes (`for each`, `count`, `repeat`, `while`) | LP Get-OtterLoopPassNames; I New-OtterLoopPass, Set-OtterLoopVariable, Complete-OtterLoopPasses | LPC Compute; EL Run*WithPasses; Interpreter.cs loops | native | net_loop_passes | network handlers do not count (SPEC-QUESTIONS Q10) |
 | D133 handler runs | LP; I Enter-OtterHandlerRun, Exit-OtterHandlerRun, New-OtterHandlerCaptureEnvironment | EL EnterHandlerRun, ExitHandlerRun, NewHandlerCaptureScope (public, for the UI area's `when`) | ready for the UI area | | only `when` handlers on UI resources use it in otterPS |
-| Check: a handler inside another handler's run that uses its names (`HandlerRunName`) | LP Get-OtterHandlerRunCaptures; V | LPC HandlerRunCaptures, Diagnostics; Program.cs | native | net_check_runs | |
+| Check: a handler inside another handler's run that uses its names (`HandlerRunName`) | LP Get-OtterHandlerRunCaptures; V | LPC HandlerRunCaptures, Diagnostics; src/Otter.Cli/FileMode.cs | native | net_check_runs | |
 | Reserved names (D-2) in the area's statements | V walk | ReservedWords.cs | native | | |
 
 ## Notes
@@ -92,4 +92,4 @@ to the PowerShell Otter before anything runs. Tests are in `tests/compat/`.
   folder`, `open udp` or a URL, which is most of the `net_` programs; they are
   written to finish on their own and compared by passing them explicitly (see
   the final report of the port for how).
-- Known 5.1/7 and platform differences in this area: SPEC-QUESTIONS Q4, Q5.
+- Known 5.1/7 and platform differences in this area: SPEC-QUESTIONS Q12, Q13.

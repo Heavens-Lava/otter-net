@@ -53,7 +53,7 @@ public static class OtterFiles
     }
 
     // Initialize-OtterParentFolder: copy "a.txt" to "backup/a.txt" makes backup.
-    static void EnsureParentFolder(string fullPath)
+    internal static void EnsureParentFolder(string fullPath)
     {
         string? folder = Path.GetDirectoryName(fullPath);
         if (string.IsNullOrEmpty(folder) || File.Exists(folder) || Directory.Exists(folder)) return;

@@ -1,0 +1,12 @@
+app is a page
+    title is "Links"
+.
+internal is a link
+    text is "Docs"
+    url is "../welcome/"
+.
+external is a link
+    text is "Otter"
+    url is "https://example.com"
+.
+put internal, external in app

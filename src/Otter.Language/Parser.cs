@@ -45,9 +45,11 @@ public sealed partial class Parser
     // Every syntax error in the program, or the program. Throws
     // OtterMultipleErrors (one or more errors) as otterPS's ConvertTo-OtterAst
     // does, and NotSupportedYet for anything not ported.
-    public static ProgramNode Parse(IReadOnlyList<Token> tokens)
+    // webTarget: compiling for the web (`otter web`), where the UI forms are
+    // read too (Parser.Ui.cs); otherwise they are left to the PowerShell Otter.
+    public static ProgramNode Parse(IReadOnlyList<Token> tokens, bool webTarget = false)
     {
-        var parser = new Parser(tokens);
+        var parser = new Parser(tokens) { webTarget = webTarget };
         var statements = parser.ReadStatements();
         if (parser.Is(TokenKind.BlockEnd))
         {
@@ -239,7 +241,10 @@ public sealed partial class Parser
             try
             {
                 inRecoveryMode = false;
-                statements.Add(ReadStatement());
+                Stmt statement = ReadStatement();
+                // `put a, b in app` is one statement per item (otterPS returns an array).
+                if (statement is StatementGroup group) statements.AddRange(group.Statements);
+                else statements.Add(statement);
             }
             catch (OtterError error)
             {
@@ -618,8 +623,6 @@ public sealed partial class Parser
                 return ReadConvert(start);
             case TokenKind.Random:
                 return ReadRandom(start);
-            case TokenKind.Run:
-                return ReadRun(start);
             case TokenKind.Wait:
                 return ReadWait(start);
             case TokenKind.Hash:
@@ -805,7 +808,6 @@ public sealed partial class Parser
         }
         Expr source = ReadValue();
         Expect(TokenKind.To, "I expected \"to\" and a destination path.");
-        if (copy && Current.Kind == TokenKind.Identifier && Same(Current.Text, "clipboard")) throw Unsupported("copy to clipboard");
         Expr destination = ReadValue();
         Expect(TokenKind.Newline, $"I expected the {verb} statement to end here.");
         return new TransferStmt(copy ? FileAction.CopyFile : FileAction.MoveFile, source, destination, start.Line);
@@ -814,10 +816,7 @@ public sealed partial class Parser
     // delete file "a.txt" / delete folder "Old"
     Stmt ReadDelete(Token start)
     {
-        // D111's `delete secret "name"` is matched before otterPS's switch.
-        if (At(1) is { Kind: TokenKind.Identifier } secret && Same(secret.Text, "secret") && !IsAt(2, TokenKind.Is)) throw Unsupported("delete secret");
         Read();
-        if (Current.Kind == TokenKind.Identifier && SameAny(Current.Text, "registry", "credential")) throw Unsupported($"delete {Current.Text}");
         if (Is(TokenKind.Folder))
         {
             Read();
@@ -1011,16 +1010,10 @@ public sealed partial class Parser
         return new CipherTextStmt(decrypt, text, key, result.Text, start.Line);
     }
 
-    // wait 5 seconds (D101). `wait for process` is not ported yet.
+    // wait 5 seconds (D101). `wait for process` is read in Parser.System.cs.
     Stmt ReadWait(Token start)
     {
         Read();
-        if (Current.Kind == TokenKind.Identifier && Same(Current.Text, "for"))
-        {
-            Read();
-            if (Current.Kind == TokenKind.Identifier && Same(Current.Text, "process")) throw Unsupported("wait for process");
-            throw Error("I expected \"process\" after \"for\".", Current, "wait for process p up to 5 seconds");
-        }
         Expr duration = ReadValue();
         Token unitToken = Current;
         TimeUnit? unit = unitToken.Kind switch
@@ -1052,25 +1045,6 @@ public sealed partial class Parser
         Read();
         Expect(TokenKind.Newline, "I expected the wait statement to end here.");
         return new WaitDelayStmt(duration, unit.Value, start.Line);
-    }
-
-    // run command "git status" [into result]. Starting a program without
-    // waiting (`run "notepad"`), remote and ssh commands are not ported yet.
-    Stmt ReadRun(Token start)
-    {
-        Read();
-        if (!Is(TokenKind.Command)) throw Unsupported("run without command");
-        Read();
-        Expr target = ReadValue();
-        if (Current.Kind == TokenKind.Identifier && SameAny(Current.Text, "on", "over")) throw Unsupported($"run command {Current.Text}");
-        string? resultTarget = null;
-        if (Is(TokenKind.Into))
-        {
-            Read();
-            resultTarget = ReadVariableName("I expected a variable name after \"into\".").Text;
-        }
-        Expect(TokenKind.Newline, "I expected the run statement to end here.");
-        return new RunCommandStmt(target, resultTarget, start.Line);
     }
 
     // random number from 1 to 10 into n / random item from games into g (D30)
@@ -1366,13 +1340,16 @@ public sealed partial class Parser
         if (Is(TokenKind.Is))
         {
             Read();
-            if (Current.Kind == TokenKind.Identifier && Same(Current.Text, "panel") && IsAt(1, TokenKind.With)) throw Unsupported("UI elements");
-            if (Is(TokenKind.A))
+            // D110: `card is panel with draggable is true` - the article is
+            // optional, but only for "panel ... with".
+            bool isBarePanel = Current.Kind == TokenKind.Identifier && Same(Current.Text, "panel") && IsAt(1, TokenKind.With);
+            if (isBarePanel && !webTarget) throw Unsupported("UI elements");
+            if (Is(TokenKind.A) || isBarePanel)
             {
                 Read();
-                string typeName = ReadObjectTypeName();
+                string typeName = isBarePanel ? "panel" : ReadObjectTypeName();
                 // otterPS may treat other type names (button, window ...) as UI.
-                if (!Same(typeName, "thing") && !knownTypes.Contains(typeName)) throw Unsupported($"'{typeName}' things");
+                if (!webTarget && !Same(typeName, "thing") && !knownTypes.Contains(typeName)) throw Unsupported($"'{typeName}' things");
                 List<AssignStmt> properties;
                 if (Is(TokenKind.With))
                 {
@@ -1606,7 +1583,7 @@ public sealed partial class Parser
     // drops) are left to the PowerShell Otter.
     void RefuseUiProperty(Token property)
     {
-        if (SameAny(property.Text, "accepts", "align", "width", "height", "round", "spread")) throw Unsupported($"the '{property.Text}' property");
+        if (!webTarget && SameAny(property.Text, "accepts", "align", "width", "height", "round", "spread")) throw Unsupported($"the '{property.Text}' property");
     }
 
     List<AssignStmt> ReadObjectBlockProperties(bool allowEmpty)
@@ -1634,6 +1611,7 @@ public sealed partial class Parser
             }
             Token property = ReadVariableName("I expected a property name.", allowReservedLiteral: true);
             RefuseUiProperty(property);
+            string propertyName = ReadAcceptsDrops(property);
             // `is` is optional: "age 36" and "age is 36" mean the same.
             bool hadIs = false;
             if (Is(TokenKind.Is)) { Read(); hadIs = true; }
@@ -1642,6 +1620,10 @@ public sealed partial class Parser
             {
                 // D54: a bare property is true.
                 value = new LiteralExpr(true, property.Line);
+            }
+            else if (ReadUiPropertyValue(property, hadIs) is { } uiValue)
+            {
+                value = uiValue;
             }
             else
             {
@@ -1652,7 +1634,7 @@ public sealed partial class Parser
                 }
                 value = ReadMathExpression();
             }
-            properties.Add(new AssignStmt(new VariableExpr(property.Text, property.Line), value, property.Line));
+            properties.Add(new AssignStmt(new VariableExpr(propertyName, property.Line), value, property.Line));
             Token end = Current;
             if (end.Kind != TokenKind.Newline)
             {
@@ -1680,12 +1662,17 @@ public sealed partial class Parser
         {
             Token property = ReadVariableName("I expected a property name after \"has\", \"with\", or a comma.", allowReservedLiteral: true);
             RefuseUiProperty(property);
+            string propertyName = ReadAcceptsDrops(property);
             bool hadIs = false;
             if (Is(TokenKind.Is)) { Read(); hadIs = true; }
             Expr value;
             if (!hadIs && (Current.Text == "," || Current.Kind is TokenKind.Newline or TokenKind.EndOfFile))
             {
                 value = new LiteralExpr(true, property.Line);   // D54
+            }
+            else if (ReadUiPropertyValue(property, hadIs) is { } uiValue)
+            {
+                value = uiValue;
             }
             else
             {
@@ -1696,7 +1683,7 @@ public sealed partial class Parser
                 }
                 value = ReadMathExpression();
             }
-            properties.Add(new AssignStmt(new VariableExpr(property.Text, property.Line), value, property.Line));
+            properties.Add(new AssignStmt(new VariableExpr(propertyName, property.Line), value, property.Line));
             if (Current.Text != ",") break;
             Read();
             if (Is(TokenKind.Newline)) throw Error("I expected a property after the comma.", Current, "Add another property assignment after the comma.");
@@ -1995,7 +1982,8 @@ public sealed partial class Parser
             position = saved;
             plainXmlWord = true;
         }
-        if (!plainXmlWord && (token.Kind == TokenKind.Identifier && exactPhrase ? phraseFollows : SpecialValueWords.Contains(token.Text) && !ordinaryName))
+        if (!plainXmlWord && (token.Kind == TokenKind.Identifier && exactPhrase ? phraseFollows : SpecialValueWords.Contains(token.Text) && !ordinaryName) &&
+            !(webTarget && IsUiValueWord(token.Text)))
         {
             throw Unsupported($"'{token.Text}'");
         }
@@ -2141,22 +2129,6 @@ public sealed partial class Parser
                 return new XmlElementExistsExpr(selector, ReadValue(), head.Line);
             }
             position = saved;
-        }
-        if (head.Kind == TokenKind.Identifier && Same(head.Text, "registry")) throw Unsupported("'registry' conditions");
-        // file "x" exists / file "x" is locked (D72); read only and
-        // symbolic links are left to otterPS.
-        if (head.Kind == TokenKind.File)
-        {
-            Read();
-            Expr path = ReadValue();
-            if (Is(TokenKind.Exists))
-            {
-                Read();
-                return new FileExistsExpr(path, head.Line);
-            }
-            if (!(Is(TokenKind.Is) && At(1) is { Kind: TokenKind.Identifier } locked && Same(locked.Text, "locked"))) throw Unsupported("file conditions");
-            Read(); Read();
-            return new FileLockedExpr(path, head.Line);
         }
         // password attempt matches hash storedHash (D109), abandoned unless
         // "matches" follows the password.

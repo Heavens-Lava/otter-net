@@ -1,0 +1,8 @@
+app is a page
+    title is "Dimension App"
+.
+fullRow is a row with width full, height full
+pillBtn is a button with text "Pill", round
+put pillBtn in fullRow
+put fullRow in app
+show app

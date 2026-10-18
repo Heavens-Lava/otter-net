@@ -1,0 +1,20 @@
+# run command ... over ssh (D85): hosts ssh could misread are refused before
+# ssh starts; a host that cannot exist fails with ssh's own words. And
+# get arguments (D94).
+hosts are
+    "-oProxyCommand=calc.exe"
+    "user@host name"
+    "quote\"host"
+    ""
+    "user@otter-compat.invalid"
+.
+for each host in hosts
+    try
+        run command "echo hi" over ssh to host into result
+        say "ran on" host
+    otherwise into reason
+        say reason
+    .
+.
+get arguments into given
+say "arguments:" length of given

@@ -723,7 +723,7 @@ public sealed partial class Interpreter
 
     // ---- D130: loop passes ----
 
-    // The names each loop pass and handler run owns (LoopPasses.Compute),
+    // The names each loop pass and handler run owns (LoopPassAnalysis.Compute),
     // worked out once when the program starts.
     Dictionary<Node, HashSet<string>> loopPassNames = new(ReferenceEqualityComparer.Instance);
 

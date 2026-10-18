@@ -2,7 +2,7 @@ namespace Otter.Language;
 
 // Syntax nodes for networking and events (see docs/PORTING.md): HTTP (D49,
 // D96, D101, D116A, D116B), servers and routes (D51), WebSockets (D106), TCP
-// and UDP (D107, D108, D112, D113), file watching (D104) and `await` (D56).
+// and UDP (D107, D108, D112, D113), file watching (D104) (`await`, D56, is in Syntax.Ui.cs).
 // Property names follow otterPS's contract classes, because the D130 loop-pass
 // analysis reads the names a statement sets from them (Otter.Runtime.LoopPasses).
 
@@ -114,13 +114,6 @@ public sealed class StartServerStmt(Expr target, int line) : Stmt(line) { public
 
 // listen on port N
 public sealed class ListenServerStmt(Expr port, int line) : Stmt(line) { public Expr Port { get; } = port; }
-
-// ---- await (D56): parsed, refused when run ----------------------------------
-
-public sealed class AwaitExpr(Expr inner, int line) : Expr(line) { public Expr Inner { get; } = inner; }
-
-// `await x` as a statement of its own.
-public sealed class AwaitStmt(AwaitExpr await, int line) : Stmt(line) { public AwaitExpr Await { get; } = await; }
 
 // ---- WebSockets (D106), TCP and UDP (D107, D108, D112, D113) ----------------
 

@@ -49,6 +49,13 @@ public sealed partial class Interpreter
     // Set when the output is a real console: moves the cursor (column, row).
     public Action<int, int>? MoveCursor { get; init; }
 
+    // otterPS's Set-OtterStatementHook: called as each statement starts, for
+    // `otter debug` and `otter profile`. Null on an ordinary run.
+    public Action<Stmt, Scope>? StatementHook { get; init; }
+
+    // otterPS's $script:CallStack: the Otter functions running, innermost last.
+    public List<CallFrame> CallStack { get; } = new();
+
     void CompleteProgressBarLine()
     {
         if (!progressBarActive) return;
@@ -72,7 +79,7 @@ public sealed partial class Interpreter
     public void Run(ProgramNode program)
     {
         // D130/D133: the names each loop pass and handler run owns (EventLoop.cs).
-        loopPassNames = LoopPasses.Compute(program.Statements);
+        loopPassNames = LoopPassAnalysis.Compute(program.Statements);
         try
         {
             Execute(program.Statements, globals);
@@ -98,6 +105,7 @@ public sealed partial class Interpreter
 
     void Execute(Stmt statement, Scope scope)
     {
+        StatementHook?.Invoke(statement, scope);
         switch (statement)
         {
             // say "Hello" name     (D8: parts joined by exactly one space)
@@ -1620,6 +1628,7 @@ public sealed partial class Interpreter
                 "Check for infinite recursion or reduce call nesting.");
         }
         callDepth++;
+        CallStack.Add(new CallFrame(name, call.Line, local));
         try
         {
             Execute(function.Body, local);
@@ -1632,6 +1641,7 @@ public sealed partial class Interpreter
         finally
         {
             callDepth--;
+            CallStack.RemoveAt(CallStack.Count - 1);
         }
     }
 }

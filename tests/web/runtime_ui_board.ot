@@ -1,0 +1,56 @@
+create page into app
+app has title "Board"
+
+create column into cards
+cards has spacing 6
+put cards in app
+
+create text box into titleInput
+put titleInput in app
+
+create button into addButton
+addButton has text "Add card"
+put addButton in app
+
+create text into status
+status has text "ready"
+put status in app
+
+to addCard label
+    create card into box
+    box has background "#eef"
+    box has padding 10
+    create row into line
+    line has spacing 4
+    create text into caption
+    caption has text label
+    create button into closer
+    closer has text "x"
+    put caption in line
+    put closer in line
+    put line in box
+    put box in cards
+    when closer clicked
+        doneName is text of caption
+        message is "done " and doneName
+        status has text message
+        caption has text "done"
+    .
+.
+
+seeds are
+    "alpha"
+    "beta"
+.
+for each seed in seeds
+    addCard seed
+.
+
+when addButton clicked
+    addCard text of titleInput
+    newTitle is text of titleInput
+    message is "added " and newTitle
+    status has text message
+.
+
+show app

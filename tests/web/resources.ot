@@ -1,0 +1,38 @@
+# Every kind of top-level UI resource, with the properties the web renders.
+app is a page
+    title is "Resources & <All> of \"them\""
+    background "#101010"
+    foreground "#eeeeee"
+    spacing 20
+    scroll true
+.
+header is a card with title "Card <title>", spacing 4, shadow "0 1px 2px black", border "1px solid red"
+row1 is a row with spacing 10, wrap true, align top, justify "center"
+col1 is a column with align right, alignitems "baseline"
+col2 is a column with spread, items "center"
+scroller is a scroll with height 200, maxwidth 300, minwidth 100, minheight 50
+name is a text box with placeholder "Your \"name\"", value "Ada & co", width 120
+note is a text area with text "Line", rows 5, placeholder "Notes"
+choice is a dropdown with options "red, green ,blue"
+size is a slider with min 1, max 10, value 3
+pic is a image with source "a.png", alt "A <picture>", radius 8
+link1 is a link with text "Home", href "/home"
+link2 is a link with url "HTTPS://example.com"
+agree is a checkbox with text "I agree", checked true
+night is a toggle with text "Night", checked "true"
+pick is a radio button with text "One", group "g1", checked false
+level is a progress bar with value 30, max 50
+badge1 is a badge with text "New", fontsize 12, weight "bold", fontstyle "italic"
+tag1 is a tag with text "Old", style "italic", family "serif", lineheight 1.5, letterspacing "2px"
+paint is a canvas with width 640, height 480, animation "spin", mode "3d"
+blob is a table with whitespace "nowrap", overflow "hidden", align_h "center", flex 1, grow 2, cursor "pointer"
+dlg is a dialog with position "absolute", top 1, bottom 2, left 3, right 4, zindex 9, customstyle "outline: none"
+holder is a panel with padding 4, margin "auto", round, draggable true
+plain is a text with text "plain", runnable "false"
+saveButton is a primary button with text "Save"
+put header, row1, scroller, name, note, choice, size, pic, link1, link2 in app
+put agree, night, pick, level, badge1, tag1, paint, blob, dlg, holder, plain, saveButton in app
+put col1, col2 in row1
+text of header is "set later"
+width of header is 50
+show app

@@ -142,8 +142,9 @@ otter-net replaces otterPS feature by feature, never all at once:
 2. Then `otter` hands the whole program, unchanged, to the PowerShell Otter
    (`otter.ps1` from the installed release) - the user gets exactly today's
    behaviour. A program never starts natively and falls back halfway.
-3. Commands not implemented yet (`web`, `desktop`, `serve`, `build`,
-   `publish`, ...) are passed through the same way.
+3. Commands not implemented yet (`web`, `desktop`, `serve`, building web
+   projects, ...) are passed through the same way; `docs/port/cli.md`
+   lists what the `otter` command does natively.
 
 `OTTER_ENGINE=powershell` forces the old path; `OTTER_ENGINE=native` refuses
 to fall back (for tests). Every release moves more programs onto the native

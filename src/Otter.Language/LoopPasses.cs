@@ -1,12 +1,12 @@
 using System.Collections;
 using System.Reflection;
 using System.Text.RegularExpressions;
-using Otter.Language;
 
-namespace Otter.Runtime;
+namespace Otter.Language;
 
 // Which names belong to each loop pass (D130) and each `when` handler run
-// (D133): a port of otterPS's src/Otter.LoopPasses.psm1.
+// (D133): a port of otterPS's src/Otter.LoopPasses.psm1. The runtime half
+// (pass scopes, handler runs) is Otter.Runtime/EventLoop.cs.
 //
 // A handler set up during a loop pass remembers that pass. The names that
 // belong to a pass are the loop variable and every name the loop body sets
@@ -21,7 +21,8 @@ namespace Otter.Runtime;
 // otterPS's - and so covers every area's nodes without a list of them.
 // Statement kinds are recognised by their otterPS class names, because the
 // UI area's nodes (WhenStmt, UiEventStmt, ...) live in its own files.
-public static partial class LoopPasses
+// (The web compiler has its own copy, Otter.Web.LoopPasses, over NodeFields.)
+public static partial class LoopPassAnalysis
 {
     static readonly string[] BindingProperties = { "Target", "ResultTarget", "TargetName", "ErrorTarget", "RequestTarget", "ItemName", "VariableName" };
 

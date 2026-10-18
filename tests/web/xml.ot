@@ -1,0 +1,18 @@
+doc is xml with root "library"
+library is root of doc
+add element "book" to library and call it book
+set attribute "id" of book to "42"
+add element "title" with text "Learning Otter" to book
+output is text from xml doc
+say output
+pretty is pretty text from xml doc
+say pretty
+books is elements "book" in library
+if element "book" exists in doc
+    say "exists"
+.
+if book has attribute "id"
+    say "has attribute"
+.
+remove attribute "id" from book
+remove element book

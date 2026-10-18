@@ -1,0 +1,16 @@
+app is a page
+    title is "Controls App"
+.
+pBar is a progress
+    value is 75
+    max is 100
+.
+tSwitch is a toggle
+    text is "Night Mode"
+.
+rBtn is a radio
+    text is "Choice 1"
+    name is "opts"
+.
+put pBar, tSwitch, rBtn in app
+show app

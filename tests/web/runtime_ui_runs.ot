@@ -1,0 +1,22 @@
+app is a page with title "Runs"
+addButton is a button with text "Add"
+bumpButton is a button with text "Bump"
+tally is a text with value "none"
+taskList is a column with spacing 4
+bonus is 0
+made is 0
+when bumpButton is clicked
+    bonus is bonus plus 100
+.
+when addButton is clicked
+    made is made plus 1
+    mine is made
+    create button into showButton
+    text of showButton is "Show"
+    put showButton in taskList
+    when showButton is clicked
+        text of tally is mine plus bonus
+    .
+.
+put addButton, bumpButton, tally, taskList in app
+show app

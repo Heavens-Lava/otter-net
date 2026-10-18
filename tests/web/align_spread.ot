@@ -1,0 +1,8 @@
+app is a page
+    title is "Align App"
+.
+nav is a row with spread, align middle, width full
+sidebar is a column with align left
+contentCol is a column with spread, align center
+put nav, sidebar, contentCol in app
+show app

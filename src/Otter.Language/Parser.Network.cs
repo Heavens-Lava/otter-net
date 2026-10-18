@@ -78,6 +78,7 @@ public sealed partial class Parser
         if (identifierStatement) return null;
         switch (start.Kind)
         {
+            // `await` is read by Parser.Ui.cs, whose hook only runs for the web target.
             case TokenKind.Await:
                 return ReadAwaitStatement(start);
             case TokenKind.On:
@@ -330,68 +331,6 @@ public sealed partial class Parser
         return new WebSocketSendStmt(message, socket, start.Line);
     }
 
-    // ---- await (D56) ----
-
-    Stmt ReadAwaitStatement(Token start)
-    {
-        Read();
-        Token next = Current;
-        Expr expression;
-        if (next.Kind == TokenKind.Get || Same(next.Text, "get"))
-        {
-            Read();
-            expression = new CallExpr("get", new[] { ReadValue() }, next.Line);
-        }
-        else if (IsIdentifier(next))
-        {
-            Read();
-            var arguments = new List<Expr>();
-            while (!Is(TokenKind.Newline) && !Is(TokenKind.Make) && !Is(TokenKind.Into))
-            {
-                if (Is(TokenKind.And)) { Read(); continue; }
-                arguments.Add(ReadValue());
-            }
-            expression = arguments.Count > 0 || knownFunctions.ContainsKey(next.Text)
-                ? new CallExpr(next.Text, arguments, next.Line)
-                : new VariableExpr(next.Text, next.Line);
-        }
-        else expression = ReadValue();
-        // await x make y / await x into y: an assignment of the await value.
-        if (Is(TokenKind.Make) || Is(TokenKind.Into))
-        {
-            bool make = Read().Kind == TokenKind.Make;
-            Token target = ReadVariableName(make ? "I expected a variable name after \"make\"." : "I expected a variable name after \"into\".");
-            Expect(TokenKind.Newline, "I expected the await statement to end here.");
-            return new AssignStmt(new VariableExpr(target.Text, target.Line), new AwaitExpr(expression, start.Line), start.Line);
-        }
-        Expect(TokenKind.Newline, "I expected the await statement to end here.");
-        return new AwaitStmt(new AwaitExpr(expression, start.Line), start.Line);
-    }
-
-    Expr ReadAwaitValue(Token token)
-    {
-        Read();
-        Token next = Current;
-        if (next.Kind == TokenKind.Get || Same(next.Text, "get"))
-        {
-            Read();
-            return new AwaitExpr(new CallExpr("get", new[] { ReadValue() }, next.Line), token.Line);
-        }
-        if (IsIdentifier(next))
-        {
-            Read();
-            var arguments = new List<Expr>();
-            while (Current.Kind is not (TokenKind.Newline or TokenKind.Make or TokenKind.Into or TokenKind.And or TokenKind.Minus or TokenKind.Times or TokenKind.DividedBy))
-            {
-                if (Current.Kind is TokenKind.Number or TokenKind.String or TokenKind.True or TokenKind.False or TokenKind.Identifier) arguments.Add(ReadValue());
-                else break;
-            }
-            if (arguments.Count > 0 || knownFunctions.ContainsKey(next.Text)) return new AwaitExpr(new CallExpr(next.Text, arguments, next.Line), token.Line);
-            return new AwaitExpr(new VariableExpr(next.Text, next.Line), token.Line);
-        }
-        return new AwaitExpr(ReadValue(), token.Line);
-    }
-
     // ---- event handlers: on ... (D104, D106, D107, D113, D116B) ----
 
     Stmt? ReadOnHandler(Token start)
@@ -531,12 +470,6 @@ public sealed partial class Parser
         Token targetToken = ReadVariableName("I expected a server name after \"start\".");
         Expect(TokenKind.Newline, "I expected the start statement to end here.");
         return new StartServerStmt(new VariableExpr(targetToken.Text, targetToken.Line), start.Line);
-    }
-
-    // Read-OtterOptionalTheBeforeName
-    void ReadOptionalTheBeforeName()
-    {
-        if (Same(Current.Text, "the") && At(1) is { } name && IsIdentifier(name)) Read();
     }
 
     Stmt ReadListenServer(Token start)
@@ -929,7 +862,7 @@ public sealed partial class Parser
     // A value this area starts at `token`, or null.
     Expr? TryReadNetworkValue(Token token)
     {
-        if (token.Kind == TokenKind.Await) return ReadAwaitValue(token);
+        if (token.Kind == TokenKind.Await) return ReadAwaitValue(token);   // Parser.Ui.cs
         if (token.Kind != TokenKind.Identifier || At(1) is not { } next) return null;
         string word = token.Text;
         // D104: changed file name / changed path / change kind / old path

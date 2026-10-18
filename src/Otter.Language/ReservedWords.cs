@@ -150,6 +150,22 @@ public static class ReservedWords
                 case WebRouteStmt route: Statements(route.Body); break;
                 case NetworkEventStmt networkEvent: Statements(networkEvent.Body); break;
                 case WatchEventStmt watchEvent: Statements(watchEvent.Body); break;
+                // UI (web target): declared names, and the bodies inside.
+                case StateDefStmt state: Variable(state.Name, line); break;
+                case DeriveDefStmt derive: Variable(derive.Name, line); break;
+                case SharedStateStmt shared: Variable(shared.Name, line); break;
+                case MemoDefStmt memo: Variable(memo.Name, line); Statements(memo.Body); break;
+                case CreateUiResourceStmt create: Variable(create.Target, line); break;
+                case WatchStmt watch: Variable(watch.TargetName, line); Statements(watch.Body); break;
+                case WhenStmt whenStmt: Statements(whenStmt.Body); break;
+                case UiEventStmt uiEvent: Statements(uiEvent.Body); break;
+                case LifecycleStmt lifecycle: Statements(lifecycle.Body); break;
+                case RouteChangeStmt routeChange: Statements(routeChange.Body); break;
+                case UiElementStmt element:
+                    Statements(element.Properties);
+                    Statements(element.Events);
+                    Statements(element.Children);
+                    break;
             }
         }
 

@@ -1,0 +1,4 @@
+x is 1
+when x is clicked
+    card "inside"
+.

@@ -1,0 +1,7 @@
+app is a page with title "Samples"
+good is a text with value "name is \"World\"\nsay \"Hello\" name\nitems are\n    1\n    2\n.\nsay items", runnable true
+diskSample is a text with value "read \"x.txt\" into content\nsay content", runnable true
+shellSample is a text with value "otter run hello.ot", runnable true
+plain is a text with value "say \"not runnable\""
+put good, diskSample, shellSample, plain in app
+show app

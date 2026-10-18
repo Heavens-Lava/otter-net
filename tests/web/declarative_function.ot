@@ -1,0 +1,8 @@
+to profileCard who
+    card who
+        text "A profile"
+    .
+    say "made" who
+.
+profileCard "Ada"
+say "done"
