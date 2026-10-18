@@ -170,6 +170,17 @@ sealed class WatchQueue
     }
 }
 
+// A value of another area that takes `on complete/error/cancel of`, `cancel`
+// and `is pending/completed/failed/cancelled` like an http request does
+// (command jobs, D119-R2, in otterPS's same statement cases). The area runs
+// handler bodies through Interpreter.RunHandlerBody.
+public interface IOtterHandlerTarget
+{
+    void AddHandler(Otter.Language.NetworkEventKind kind, IReadOnlyList<Otter.Language.Stmt> body, Scope scope, int line);
+    void Cancel(int line);
+    bool IsInState(Otter.Language.HttpRequestState state);
+}
+
 // A source of events the console event loop services that another area of
 // the language owns (command jobs, D119-R2): it registers itself with
 // Interpreter.AddEventSource.

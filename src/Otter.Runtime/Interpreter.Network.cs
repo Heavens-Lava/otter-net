@@ -66,6 +66,7 @@ public sealed partial class Interpreter
             {
                 object? value = Evaluate(cancel.Request, scope);
                 // A command job (D119-R2) is cancelled by the system area.
+                if (value is IOtterHandlerTarget other) { other.Cancel(cancel.Line); return true; }
                 if (value is not OtterHttpRequest request) throw RuntimeError("cancel requires an HTTP request.", cancel.Line);
                 if (request.State != "pending") return true;
                 request.State = "cancelled";
@@ -189,6 +190,7 @@ public sealed partial class Interpreter
             case HttpRequestIsStateExpr isState:
             {
                 object? target = Evaluate(isState.Request, scope);
+                if (target is IOtterHandlerTarget other) { value = other.IsInState(isState.State); return true; }
                 if (target is not OtterHttpRequest request)
                 {
                     throw RuntimeError($"I can only check the state of an HTTP request or command job, but got {Values.TypeName(target)}.", isState.Line);
@@ -403,6 +405,10 @@ public sealed partial class Interpreter
         return false;
     }
 
+    // For another area's handlers (IOtterHandlerTarget, IOtterEventSource):
+    // runs a handler body the way this area runs its own.
+    public void RunHandlerBody(IReadOnlyList<Stmt> body, Scope scope) => Execute(body, scope);
+
     static EndPoint? SafeEndPoint(Func<EndPoint?> read)
     {
         try { return read(); }
@@ -609,6 +615,12 @@ public sealed partial class Interpreter
     {
         object? target = Evaluate(networkEvent.Socket, scope);
         NetworkEventKind kind = networkEvent.EventKind;
+        // A command job (D119-R2) keeps its own handlers.
+        if (target is IOtterHandlerTarget other)
+        {
+            other.AddHandler(kind, networkEvent.Body, scope, networkEvent.Line);
+            return;
+        }
         if (target is OtterHttpRequest request)
         {
             if (kind is not (NetworkEventKind.Complete or NetworkEventKind.Error or NetworkEventKind.Cancel))
