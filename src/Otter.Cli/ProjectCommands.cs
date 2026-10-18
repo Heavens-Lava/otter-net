@@ -67,13 +67,6 @@ internal static partial class ProjectCommands
             Host.Line($"Usage: otter new {archetype} <name>", ConsoleColor.Red);
             throw new CliExit(Cli.ExitUsageError);
         }
-        // A control character in the name makes the otter.json written below
-        // invalid JSON, whose message is the JSON reader's: decided before
-        // anything is created.
-        if (projectName.Trim().Any(c => c < ' '))
-        {
-            throw new NeedsPowerShell("a project name with a control character makes an otter.json only otterPS's JSON reader describes");
-        }
         Program.Trace("native: new");
         Project created;
         try
@@ -107,6 +100,12 @@ internal static partial class ProjectCommands
         {
             throw new OtterError($"Otter: \"{name}\" is not a valid project name.", 0, "check");
         }
+        // .NET Framework's Path.Combine refuses the characters Windows
+        // cannot have in a path; otter.ps1 shows the method call's error.
+        if (OperatingSystem.IsWindows() && cleanName.Any(c => c < ' '))
+        {
+            throw new InvalidOperationException("Exception calling \"Combine\" with \"2\" argument(s): \"Illegal characters in path.\"");
+        }
         string projectDirectory = Path.GetFullPath(Path.Combine(basePath, cleanName));
         if (File.Exists(projectDirectory) || (Directory.Exists(projectDirectory) && Directory.EnumerateFileSystemEntries(projectDirectory).Any()))
         {
@@ -120,6 +119,9 @@ internal static partial class ProjectCommands
         Directory.CreateDirectory(testsDirectory);
         Directory.CreateDirectory(assetsDirectory);
 
+        // The name goes into here-strings, whose own line breaks are "\r\n":
+        // a line break inside the name stays as typed.
+        const string N = "\u0000name\u0000";
         string mainCode = "";
         string targetName = "console";
         string[] assetList = Array.Empty<string>();
@@ -127,34 +129,34 @@ internal static partial class ProjectCommands
         switch (arch)
         {
             case "console":
-                mainCode = $"# {cleanName} - Console Application\n\nsay \"Hello from {cleanName}!\"";
+                mainCode = $"# {N} - Console Application\n\nsay \"Hello from {N}!\"";
                 break;
             case "desktop":
                 targetName = "desktop";
                 assetList = new[] { "assets/styles.css" };
-                mainCode = $"# {cleanName} - Desktop Application\n\ncreate window into app\ntitle of app is \"{cleanName}\"\n\ncreate button into btn\ntext of btn is \"Click Me\"\n\nput btn in app\nshow app";
+                mainCode = $"# {N} - Desktop Application\n\ncreate window into app\ntitle of app is \"{N}\"\n\ncreate button into btn\ntext of btn is \"Click Me\"\n\nput btn in app\nshow app";
                 SetContentUtf8(Path.Combine(assetsDirectory, "styles.css"), $"/* Stylesheet for {cleanName} */\nbody {{ margin: 0; padding: 16px; }}\n");
                 break;
             case "web":
                 targetName = "web";
                 startCommand = "otter web .";
-                mainCode = $"# {cleanName} - Web Application\n\napp is a page\n    title is \"{cleanName}\"\n.\n\nwelcomeText is a text\n    value is \"Welcome to {cleanName}!\"\n.\n\nput welcomeText in app\nshow app";
+                mainCode = $"# {N} - Web Application\n\napp is a page\n    title is \"{N}\"\n.\n\nwelcomeText is a text\n    value is \"Welcome to {N}!\"\n.\n\nput welcomeText in app\nshow app";
                 SetContentUtf8(Path.Combine(projectDirectory, "main.css"), $"/* Stylesheet for {cleanName} */\nbody {{ margin: 0; font-family: sans-serif; }}\n");
                 break;
             case "automation":
-                mainCode = $"# {cleanName} - Automation Task\n\nget current directory into cwd\nsay \"Running automation task in:\" cwd\n\nget files in \".\" into projectFiles\nsay \"Found\" length of projectFiles \"files.\"";
+                mainCode = $"# {N} - Automation Task\n\nget current directory into cwd\nsay \"Running automation task in:\" cwd\n\nget files in \".\" into projectFiles\nsay \"Found\" length of projectFiles \"files.\"";
                 break;
             case "game":
                 targetName = "game";
                 startCommand = "otter web .";
-                mainCode = $"# {cleanName} - 2D Game\n\napp is a page\n    title is \"{cleanName}\"\n.\n\ngameCanvas is a canvas\n    width is 640\n    height is 480\n    mode is \"2d\"\n.\n\nput gameCanvas in app\nshow app";
+                mainCode = $"# {N} - 2D Game\n\napp is a page\n    title is \"{N}\"\n.\n\ngameCanvas is a canvas\n    width is 640\n    height is 480\n    mode is \"2d\"\n.\n\nput gameCanvas in app\nshow app";
                 SetContentUtf8(Path.Combine(projectDirectory, "main.css"), $"/* Stylesheet for {cleanName} */\nbody {{ margin: 0; background: #000; }}\n");
                 break;
         }
-        SetContentUtf8(Path.Combine(projectDirectory, "main.ot"), HereString(mainCode));
+        SetContentUtf8(Path.Combine(projectDirectory, "main.ot"), HereString(mainCode).Replace(N, cleanName));
 
-        string testCode = $"# Tests for {cleanName}\n\nscore is 100\n\nif score is not 100\n    fail with \"Expected score to be 100.\"\n.\n\nsay \"All checks passed\"";
-        SetContentUtf8(Path.Combine(testsDirectory, "app_test.ot"), HereString(testCode));
+        string testCode = $"# Tests for {N}\n\nscore is 100\n\nif score is not 100\n    fail with \"Expected score to be 100.\"\n.\n\nsay \"All checks passed\"";
+        SetContentUtf8(Path.Combine(testsDirectory, "app_test.ot"), HereString(testCode).Replace(N, cleanName));
 
         // The assets list is joined with "`n" inside a here-string.
         string assetsJson = assetList.Length > 0
@@ -163,7 +165,7 @@ internal static partial class ProjectCommands
         string manifest = HereString(
             "{\n" +
             "  \"$schema\": \"https://otter-lang.org/schema/project-v1.json\",\n" +
-            $"  \"name\": \"{cleanName}\",\n" +
+            $"  \"name\": \"{N}\",\n" +
             "  \"version\": \"0.1.0\",\n" +
             $"  \"archetype\": \"{arch}\",\n" +
             $"  \"target\": \"{targetName}\",\n" +
@@ -178,7 +180,7 @@ internal static partial class ProjectCommands
             "    \"test\": \"otter test .\",\n" +
             "    \"check\": \"otter check .\"\n" +
             "  }\n" +
-            "}").Replace("[ASSETS]", "[" + assetsJson + "]");
+            "}").Replace("[ASSETS]", "[" + assetsJson + "]").Replace(N, cleanName);
         SetContentUtf8(Path.Combine(projectDirectory, "otter.json"), manifest);
 
         return Project.Load(projectDirectory);
