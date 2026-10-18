@@ -46,7 +46,8 @@ static class WebCommand
 
         ResolvedProgram resolved;
         try { resolved = Modules.Resolve(primarySource); }
-        catch (ModuleProblem problem) { reason = $"{problem.Message} (reported by the PowerShell Otter)"; return null; }
+        // An import problem: how otter web words it is not verified yet.
+        catch (OtterError problem) { reason = $"{problem.Message} (reported by the PowerShell Otter)"; return null; }
         string sourceText = resolved.CombinedSource;
 
         string html;

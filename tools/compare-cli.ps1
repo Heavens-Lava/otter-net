@@ -228,7 +228,7 @@ try {
                     $problems.Add("stdout differs at character $($at): reference [$(& $show $refOut)] otter-net [$(& $show $candOut)]")
                 }
             }
-            $fileDifferences = @(Compare-Object -ReferenceObject $reference.Files -DifferenceObject $candidate.Files -CaseSensitive)
+            $fileDifferences = @(Compare-Object -ReferenceObject @($reference.Files | Where-Object { $null -ne $_ }) -DifferenceObject @($candidate.Files | Where-Object { $null -ne $_ }) -CaseSensitive)
             if ($fileDifferences.Count -gt 0) {
                 $shown = ($fileDifferences | Select-Object -First 4 | ForEach-Object { "$(if ($_.SideIndicator -eq '<=') { 'reference' } else { 'otter-net' }) only: $($_.InputObject)" }) -join '; '
                 $problems.Add("files left behind differ: $shown")

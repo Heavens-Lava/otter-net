@@ -385,11 +385,7 @@ public sealed partial class Parser
         return null;
     }
 
-    // Read-OtterOptionalTheBeforeName: `the` is an article only when a name follows.
-    void ReadOptionalTheBeforeName()
-    {
-        if (Same(Current.Text, "the") && At(1) is { } next && IsIdentifier(next)) Read();
-    }
+    // ReadOptionalTheBeforeName (otterPS's Read-OtterOptionalTheBeforeName) is in Parser.System.cs.
 
     string ReadUiResourceTypeName()
     {
