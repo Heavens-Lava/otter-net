@@ -523,12 +523,25 @@ public sealed partial class Parser
     }
 
     // `columns N on medium`: otterPS converts the token's value with [int]
-    // (banker's rounding for a number). Anything else is left to otterPS.
+    // (banker's rounding for a number; text that reads as a number is that
+    // number, empty text 0). Anything else fails with PowerShell's own
+    // conversion error, which is left to otterPS.
     int ResponsiveColumnCount(Token token)
     {
-        if (token.Value is double number && number >= int.MinValue && number <= int.MaxValue)
-            return (int)Math.Round(number, MidpointRounding.ToEven);
-        if (token.Value is null && token.Kind != TokenKind.String) return 0;
+        double? number = token.Value switch
+        {
+            double value => value,
+            null when token.Kind != TokenKind.String => 0,
+            string text when text.Trim().Length == 0 => 0,
+            string text when double.TryParse(text.Trim(), System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out double parsed) => parsed,
+            _ => null,
+        };
+        if (number is double n && !double.IsNaN(n))
+        {
+            double rounded = Math.Round(n, MidpointRounding.ToEven);
+            if (rounded >= int.MinValue && rounded <= int.MaxValue) return (int)rounded;
+        }
         throw Unsupported("a responsive column count that is not a number");
     }
 

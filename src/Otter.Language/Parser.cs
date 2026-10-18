@@ -297,11 +297,10 @@ public sealed partial class Parser
     // main statement switch. otter-net does not run those yet.
     static readonly string[] SpecialStatementWords =
     {
-        // close, cancel, open, listen, send and watch are read by Parser.Network.cs.
+        // close, cancel, open, listen, send and watch are read by Parser.Network.cs;
+        // route, go, the UI element words and their variants by Parser.Ui.cs
+        // (a line they do not take over is an ordinary one, as in otterPS).
         "stop", "store", "generate",
-        "route", "go", "primary", "secondary", "danger",
-        "window", "page", "card", "heading", "text", "button", "panel", "section", "sidebar", "main",
-        "link", "image", "input", "grid",
     };
 
     Stmt ReadStatement()
