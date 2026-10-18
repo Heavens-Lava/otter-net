@@ -279,14 +279,14 @@ public sealed class WebCompiler
         foreach (WhenStmt when in whenHandlers)
         {
             string targetName = when.Target is VariableExpr whenVariable ? whenVariable.Name : "target";
-            if (when.EventName is "drag" or "drop" or "files dropped")
+            if (In(when.EventName, "drag", "drop", "files dropped"))
             {
                 var dragBodyLines = new List<string>();
                 bool enteredDrag = js.EnterHandlerRun(when);
                 try { foreach (Stmt s in when.Body) dragBodyLines.Add(js.Statement(s, 5)); }
                 finally { js.ExitHandlerRun(enteredDrag); }
-                string domEvent = when.EventName == "drag" ? "dragstart" : "drop";
-                string dragGuard = when.EventName switch
+                string domEvent = In(when.EventName, "drag") ? "dragstart" : "drop";
+                string dragGuard = when.EventName.ToLowerInvariant() switch
                 {
                     "drag" => "",
                     "drop" => "        if (!otterIsItemDrop(event)) { return; }\n",
@@ -320,7 +320,7 @@ public sealed class WebCompiler
                 if (resource.Properties.Contains(dragKey) && IsTrueOrText(resource.Properties[dragKey])) usesDragDrop = true;
             }
         }
-        foreach (WhenStmt w in whenHandlers) if (w.EventName is "drag" or "drop" or "files dropped") usesDragDrop = true;
+        foreach (WhenStmt w in whenHandlers) if (In(w.EventName, "drag", "drop", "files dropped")) usesDragDrop = true;
 
         string runnableRuntimeJs = "";
         string runnableCss = "";

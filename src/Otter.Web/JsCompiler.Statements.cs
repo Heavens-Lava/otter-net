@@ -926,7 +926,7 @@ sealed partial class JsCompiler
     string NestedWhen(WhenStmt when, int indent, HashSet<string>? localNames, HashSet<string>? knownGlobals)
     {
         string pad = Pad(indent);
-        if (when.EventName is "drag" or "drop" or "files dropped")
+        if (IsDragEvent(when.EventName))
         {
             throw WebError("Drag and drop handlers (\"on drag of\", \"on drop on\", \"on files dropped on\") must be written at the top level of a web program, not inside another handler or a function.", when.Line);
         }
@@ -967,6 +967,10 @@ sealed partial class JsCompiler
         string argList = string.Join(", ", captured.Select(n => $"typeof {n} === 'undefined' ? undefined : {n}"));
         return $"{pad}(({parameters}) => {{\n{registration}\n{pad}}})({argList});";
     }
+
+    // `-in @('drag', 'drop', 'files dropped')` ignores case.
+    static bool IsDragEvent(string eventName) =>
+        new[] { "drag", "drop", "files dropped" }.Any(e => string.Equals(e, eventName, StringComparison.OrdinalIgnoreCase));
 
     // `$n -match '^[A-Za-z_][A-Za-z0-9_]*$'` (PowerShell's -match ignores case).
     static readonly Regex PlainName = new("^[A-Za-z_][A-Za-z0-9_]*$", RegexOptions.CultureInvariant);
