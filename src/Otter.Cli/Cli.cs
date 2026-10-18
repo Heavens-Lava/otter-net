@@ -200,18 +200,19 @@ internal static class Cli
         {
             throw UsageError($"Otter: I cannot find an otter.json manifest in \"{scriptFile}\".");
         }
-        FileMode.AssertReadable(scriptFile);
+        scriptFile = FileMode.AssertReadable(scriptFile);
         if (Is(command, "desktop") && !OperatingSystem.IsWindows())
         {
             Program.Trace("native: desktop off Windows");
             throw UsageError("Otter: desktop windows are only available on Windows. Build this program as a web application instead: otter web <file.ot>");
         }
-        // otter web / browse of a single file: the web compiler (WebCommand.cs).
-        if ((Is(command, "web") || Is(command, "browse")) && !project)
+        // otter web / browse: the web compiler (WebCommand.cs), for a file or
+        // a project's entry point, whatever its extension.
+        if (Is(command, "web") || Is(command, "browse"))
         {
-            string[] webArgs = line.NoOpen ? new[] { command, scriptFile, "-NoOpen" } : new[] { command, scriptFile };
-            return WebCommand.Run(webArgs, Program.Trace, out string webReason) ?? throw new NeedsPowerShell(webReason);
+            return WebCommand.Run(scriptFile, line.Target!, line.NoOpen, Program.Trace, out string webReason) ?? throw new NeedsPowerShell(webReason);
         }
+        if (Is(command, "serve")) return ServeCommand.Run(line, scriptFile);
         throw new NeedsPowerShell($"otter {command.ToLowerInvariant()} is not native yet");
     }
 }
