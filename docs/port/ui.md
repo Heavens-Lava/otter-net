@@ -68,7 +68,7 @@ word that the UI form does not take over (`go home`, `primary "x"`,
 | `put data to url` / `as json` (HTTP) | Parser Put | - | missing (network area) | - |
 | `show app` (D47) | Parser Show | `TryReadUiStatement` Show | native | many |
 | UI elements: window page card heading text button panel section sidebar main link image input grid, `primary/secondary/danger` (D56) | Parser `Read-OtterUiElementStatement` | `ReadUiElementStatement` | native | declarative* |
-| Element body: layout, align, gap, spread, `columns N on BP`, `stack on BP`, round/background/placeholder/padding/margin/width/height | same | same | native | declarative |
+| Element body: layout, align, gap, spread, `columns N on BP` (N cast with PowerShell's [int]: a value it refuses is its conversion error as a syntax error), `stack on BP`, round/background/placeholder/padding/margin/width/height | same | same; `PowerShellInt32.TryCast` | native | declarative, responsive_text_columns, t3_columns_cast, t3_ui_columns_* |
 | Animation blocks hover/press/enter/leave; fade/move/slide/grow/shrink/scale/rotate; `animate N[ms\|s] [easing]` | Parser `Read-OtterAnimationBlock` | `ReadAnimationBlock` | native | declarative |
 | Event blocks click/change/input/submit/hover/press/focus/blur | Parser UI element | same | native | declarative |
 | `layout MODE [cols]` statement | Parser Layout | `TryReadUiStatement` Layout | native | declarative |

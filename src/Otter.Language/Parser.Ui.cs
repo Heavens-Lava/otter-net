@@ -469,9 +469,17 @@ public sealed partial class Parser
                 if (Same(current.Text, "columns") && position + 3 < tokens.Count && Same(tokens[position + 2].Text, "on"))
                 {
                     Read();
-                    int count = ResponsiveColumnCount(Read());
+                    object? countValue = Read().Value;
                     Read(); // on
                     string breakpoint = Read().Text;
+                    // otterPS casts with [int] only now, after `on` and the
+                    // breakpoint; a value [int] refuses is PowerShell's
+                    // conversion error, which Read-OtterStatements reports as
+                    // a syntax error at the current token.
+                    if (!PowerShellInt32.TryCast(countValue, out int count, out string castError))
+                    {
+                        throw Error($"Syntax error: {castError}", Current, null);
+                    }
                     layout.Responsive.Add(new ResponsiveRule(breakpoint, count, false));
                     Expect(TokenKind.Newline, "I expected the responsive rule to end here.");
                     SkipNewlines();
@@ -520,29 +528,6 @@ public sealed partial class Parser
             if (Is(TokenKind.BlockEnd)) { Read(); SkipNewlines(); }
         }
         return new UiElementStmt(tag, variant, label, name, layout, properties, events, animations, children, start.Line);
-    }
-
-    // `columns N on medium`: otterPS converts the token's value with [int]
-    // (banker's rounding for a number; text that reads as a number is that
-    // number, empty text 0). Anything else fails with PowerShell's own
-    // conversion error, which is left to otterPS.
-    int ResponsiveColumnCount(Token token)
-    {
-        double? number = token.Value switch
-        {
-            double value => value,
-            null when token.Kind != TokenKind.String => 0,
-            string text when text.Trim().Length == 0 => 0,
-            string text when double.TryParse(text.Trim(), System.Globalization.NumberStyles.Float,
-                System.Globalization.CultureInfo.InvariantCulture, out double parsed) => parsed,
-            _ => null,
-        };
-        if (number is double n && !double.IsNaN(n))
-        {
-            double rounded = Math.Round(n, MidpointRounding.ToEven);
-            if (rounded >= int.MinValue && rounded <= int.MaxValue) return (int)rounded;
-        }
-        throw Unsupported("a responsive column count that is not a number");
     }
 
     // Read-OtterAnimationBlock
