@@ -34,7 +34,14 @@ param(
     # examples, and otter-net's own compatibility cases.
     [string[]]$Corpus = @(),
     [string]$ReportPath = '',
-    [int]$TimeoutSeconds = 60
+    [int]$TimeoutSeconds = 60,
+    # Also run programs that listen, watch or use URLs - for programs written
+    # to finish on their own (tests/compat/net_*); the timeout still applies.
+    [switch]$IncludeEventPrograms,
+    # Native-only: otter-net may not hand any program to the PowerShell Otter
+    # (OTTER_ENGINE=native). A program it cannot run itself fails instead of
+    # matching through the fallback.
+    [switch]$NativeOnly
 )
 
 $ErrorActionPreference = 'Stop'
@@ -137,7 +144,7 @@ try {
         $name = $file.FullName
         Write-Progress -Activity 'Comparing otterPS and otter-net' -Status $file.Name -PercentComplete (100 * $index / $files.Count)
         $source = [System.IO.File]::ReadAllText($file.FullName)
-        if ($source -match $skipPattern) {
+        if (-not $IncludeEventPrograms -and $source -match $skipPattern) {
             $results.Add([pscustomobject]@{ File = $name; Outcome = 'skipped'; Engine = ''; Detail = 'opens a window, serves the web or waits for events' })
             continue
         }
@@ -169,7 +176,7 @@ try {
                 $candidateFile = $OtterNet; $candidateArguments = @('run', $file.Name)
                 if ($OtterNet.EndsWith('.dll')) { $candidateFile = 'dotnet'; $candidateArguments = @($OtterNet, 'run', $file.Name) }
                 $runs[$side] = Invoke-OtterProcess -FileName $candidateFile -Arguments $candidateArguments -WorkingDirectory $folder -InputText $inputText `
-                    -Environment @{ OTTER_NET_TRACE = '1'; OTTER_POWERSHELL = $referenceScript }
+                    -Environment $(if ($NativeOnly) { @{ OTTER_NET_TRACE = '1'; OTTER_ENGINE = 'native' } } else { @{ OTTER_NET_TRACE = '1'; OTTER_POWERSHELL = $referenceScript } })
             }
             $runs[$side] | Add-Member -NotePropertyName Files -NotePropertyValue (Get-FolderSnapshot -Folder $folder)
         }
@@ -212,7 +219,7 @@ $different = @($results | Where-Object { $_.Outcome -eq 'DIFFERENT' })
 $skipped = @($results | Where-Object { $_.Outcome -eq 'skipped' })
 $native = @($matched | Where-Object { $_.Engine -eq 'native' })
 $lines = [System.Collections.Generic.List[string]]::new()
-$lines.Add('# otterPS vs otter-net')
+$lines.Add($(if ($NativeOnly) { '# otterPS vs otter-net (native only: no PowerShell fallback)' } else { '# otterPS vs otter-net' }))
 $lines.Add('')
 $lines.Add("$($results.Count) programs: **$($different.Count) different**, $($matched.Count) identical ($($native.Count) run natively by otter-net, $($matched.Count - $native.Count) handed to the PowerShell Otter), $($skipped.Count) skipped.")
 $lines.Add('')
