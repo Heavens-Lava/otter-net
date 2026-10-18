@@ -53,7 +53,7 @@ static class WebCommand
         string html;
         try
         {
-            ProgramNode program = Parser.Parse(Lexer.Tokenize(sourceText), webTarget: true);
+            ProgramNode program = Parser.Parse(Lexer.Tokenize(sourceText));
             // D-2: names the grammar would misread, and handlers that would
             // see the wrong run's names (Assert-OtterLanguageContract).
             string[] sourceLines = sourceText.Replace("\r\n", "\n").Split('\n');

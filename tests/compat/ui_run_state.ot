@@ -1,0 +1,79 @@
+state clicks is 0
+derive doubled is clicks times 2
+derive label is doubled + 1000
+say label
+when clicks changes
+    say "clicks is now" clicks
+when doubled changes
+    say "doubled changed, reads" doubled
+clicks is 1
+clicks is 1
+add 2 to clicks
+say label
+remove 1 from clicks
+say doubled
+
+firstitems are
+    1
+    2
+state items is firstitems
+when items changes
+    say "items changed"
+add 3 to items
+say items
+other are
+    1
+    2
+    3
+items is other
+four are
+    4
+items is four
+say items
+
+note is "plain"
+when note changes
+    say "note is" note
+note is "changed"
+note is "changed"
+
+when ghost changes
+    say "ghost is" ghost
+say ghost
+ghost is 7
+
+to bump
+    add 1 to clicks
+bump
+say clicks
+
+someone is a thing
+state person is someone
+when person changes
+    say "person changed"
+person is person
+
+to localRead
+    clicks is 100
+    say doubled
+localRead
+say doubled
+
+to shadow
+    state clicks is 50
+    say doubled
+shadow
+say doubled
+
+for each clicks in other
+    say clicks doubled
+say doubled
+
+state n is 0
+derive first is n + 1
+derive second is first + 1
+when second changes
+    say "second changed"
+say second
+n is 5
+say second

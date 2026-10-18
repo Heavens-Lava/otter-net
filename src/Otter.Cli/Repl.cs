@@ -97,6 +97,11 @@ internal static class Repl
             Host.Line($"Otter: otter-net cannot run this yet: {unsupported.Message}. Start the REPL with OTTER_ENGINE=powershell to use it.", ConsoleColor.Red);
             return;
         }
+        if (compiled.CreatesUiResources && OperatingSystem.IsWindows() && !line.ParseOnly)
+        {
+            Host.Line("Otter: otter-net cannot run this yet: a desktop window (create, WPF) is not native. Start the REPL with OTTER_ENGINE=powershell to use it.", ConsoleColor.Red);
+            return;
+        }
         compiled.WriteTokens();
         Exception? failure = compiled.Failure;
         if (failure == null && !line.ParseOnly)

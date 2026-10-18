@@ -45,11 +45,16 @@ public sealed partial class Parser
     // Every syntax error in the program, or the program. Throws
     // OtterMultipleErrors (one or more errors) as otterPS's ConvertTo-OtterAst
     // does, and NotSupportedYet for anything not ported.
-    // webTarget: compiling for the web (`otter web`), where the UI forms are
-    // read too (Parser.Ui.cs); otherwise they are left to the PowerShell Otter.
-    public static ProgramNode Parse(IReadOnlyList<Token> tokens, bool webTarget = false)
+    // otterPS has one grammar for every command: `otter web`, `run` and
+    // `check` read the same forms (the UI ones in Parser.Ui.cs).
+    public static ProgramNode Parse(IReadOnlyList<Token> tokens) => Parse(tokens, out _);
+
+    // createsUiResources: the program has a `create KIND into x` (D44), the
+    // only statement that opens WPF when run (Parser.Ui.cs).
+    public static ProgramNode Parse(IReadOnlyList<Token> tokens, out bool createsUiResources)
     {
-        var parser = new Parser(tokens) { webTarget = webTarget };
+        var parser = new Parser(tokens);
+        createsUiResources = false;
         var statements = parser.ReadStatements();
         if (parser.Is(TokenKind.BlockEnd))
         {
@@ -62,6 +67,7 @@ public sealed partial class Parser
             parser.Record(parser.Error($"Unexpected input at end of program: '{token.Text}'.", token, "Make sure all statements and blocks are valid.", "TrailingInput"));
         }
         if (parser.diagnostics.Count > 0) throw new OtterMultipleErrors(parser.diagnostics);
+        createsUiResources = parser.createsUiResources;
         return new ProgramNode(statements);
     }
 
@@ -1345,13 +1351,10 @@ public sealed partial class Parser
             // D110: `card is panel with draggable is true` - the article is
             // optional, but only for "panel ... with".
             bool isBarePanel = Current.Kind == TokenKind.Identifier && Same(Current.Text, "panel") && IsAt(1, TokenKind.With);
-            if (isBarePanel && !webTarget) throw Unsupported("UI elements");
             if (Is(TokenKind.A) || isBarePanel)
             {
                 Read();
                 string typeName = isBarePanel ? "panel" : ReadObjectTypeName();
-                // otterPS may treat other type names (button, window ...) as UI.
-                if (!webTarget && !Same(typeName, "thing") && !knownTypes.Contains(typeName)) throw Unsupported($"'{typeName}' things");
                 List<AssignStmt> properties;
                 if (Is(TokenKind.With))
                 {
@@ -1581,13 +1584,6 @@ public sealed partial class Parser
         return string.Join(" ", words);
     }
 
-    // UI-only property forms (align, width full, bare round/spread, accepts
-    // drops) are left to the PowerShell Otter.
-    void RefuseUiProperty(Token property)
-    {
-        if (!webTarget && SameAny(property.Text, "accepts", "align", "width", "height", "round", "spread")) throw Unsupported($"the '{property.Text}' property");
-    }
-
     List<AssignStmt> ReadObjectBlockProperties(bool allowEmpty)
     {
         Expect(TokenKind.Newline, "I expected the object statement to end here.");
@@ -1612,7 +1608,6 @@ public sealed partial class Parser
                 throw Error("Only property assignments belong inside an object.", current, "Remove control flow or actions from this object block.");
             }
             Token property = ReadVariableName("I expected a property name.", allowReservedLiteral: true);
-            RefuseUiProperty(property);
             string propertyName = ReadAcceptsDrops(property);
             // `is` is optional: "age 36" and "age is 36" mean the same.
             bool hadIs = false;
@@ -1663,7 +1658,6 @@ public sealed partial class Parser
         while (true)
         {
             Token property = ReadVariableName("I expected a property name after \"has\", \"with\", or a comma.", allowReservedLiteral: true);
-            RefuseUiProperty(property);
             string propertyName = ReadAcceptsDrops(property);
             bool hadIs = false;
             if (Is(TokenKind.Is)) { Read(); hadIs = true; }
@@ -1988,7 +1982,7 @@ public sealed partial class Parser
             plainXmlWord = true;
         }
         if (!plainXmlWord && (token.Kind == TokenKind.Identifier && exactPhrase ? phraseFollows : SpecialValueWords.Contains(token.Text) && !ordinaryName) &&
-            !(webTarget && IsUiValueWord(token.Text)))
+            !IsUiValueWord(token.Text))
         {
             throw Unsupported($"'{token.Text}'");
         }

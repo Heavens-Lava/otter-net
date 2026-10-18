@@ -1,0 +1,4 @@
+derive left is right + 1
+derive right is left + 1
+say "before"
+say left

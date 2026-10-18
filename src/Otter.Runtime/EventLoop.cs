@@ -875,7 +875,7 @@ public sealed partial class Interpreter
             foreach (string name in names)
             {
                 if (capture.HasLocal(name) || !scope.Has(name)) continue;
-                capture.SetLocal(name, scope.Get(name));
+                capture.SetLocal(name, scope.GetRaw(name));
                 any = true;
             }
         }

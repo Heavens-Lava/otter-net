@@ -75,6 +75,14 @@ internal static class FileMode
             ShowFailure(compiled.Failure is OtterError otterError ? resolved.Remap(otterError) : compiled.Failure, line.DebugErrors);
             throw new CliExit(Cli.ExitCheckError);
         }
+        // Desktop windows: otterPS opens WPF for `create`, which Native AOT
+        // cannot host (docs/port/desktop-options.md). On Windows such a
+        // program goes to the PowerShell Otter whole; elsewhere WPF cannot
+        // start in otterPS either, and the program runs here until it says so.
+        if (!line.ParseOnly && !checkOnly && compiled.CreatesUiResources && OperatingSystem.IsWindows())
+        {
+            throw new NeedsPowerShell("a desktop window (create, WPF) is not native");
+        }
         compiled.WriteTokens();
 
         if (!line.ParseOnly && !checkOnly)
@@ -128,6 +136,7 @@ internal static class FileMode
         public Exception? Failure;
         public IReadOnlyList<Token>? Tokens;
         public bool ShowTokens;
+        public bool CreatesUiResources;
 
         // -DebugTokens: the tokens, as Invoke-OtterSource lists them.
         public void WriteTokens()
@@ -173,7 +182,7 @@ internal static class FileMode
         }
         try
         {
-            result.Program = Parser.Parse(result.Tokens);
+            result.Program = Parser.Parse(result.Tokens, out result.CreatesUiResources);
         }
         catch (NotSupportedYet unsupported)
         {

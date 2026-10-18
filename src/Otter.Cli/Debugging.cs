@@ -31,13 +31,18 @@ internal sealed class Debugger(string fileName, IEnumerable<int> breakpoints)
         json.Append(",\"locals\":{");
         bool first = true;
         // Only what this frame's own scope holds, never its parents'.
-        foreach (var (name, value) in scope.OwnVariables)
+        foreach (var (name, _) in scope.OwnVariables.ToArray())
         {
             if (!first) json.Append(',');
             first = false;
             CompactJson.String(name, json);
             json.Append(':');
-            CompactJson.String(Values.Format(value), json);
+            // Get-OtterDebugLocals: $Environment.Get (a state variable's value,
+            // a derived value worked out), '?' when that fails.
+            string shown;
+            try { shown = Values.Format(scope.Get(name)); }
+            catch (OtterError) { shown = "?"; }
+            CompactJson.String(shown, json);
         }
         json.Append("},\"callStack\":[");
         first = true;

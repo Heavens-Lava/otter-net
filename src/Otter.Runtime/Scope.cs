@@ -15,7 +15,30 @@ public sealed class Scope(Scope? parent = null)
 
     public bool Has(string name) => variables.ContainsKey(name) || (Parent?.Has(name) ?? false);
 
+    // D56: while a derived value is being worked out, the names it reads
+    // (otterPS's ActiveDependencyTracker, which ignores capitals).
+    [ThreadStatic] public static HashSet<string>? DependencyTracker;
+
+    // A name's value; a state variable gives its value and a derived value
+    // is worked out (Reactivity.cs).
     public object? Get(string name)
+    {
+        object? raw = GetRaw(name);
+        if (raw is OtterSignal signal)
+        {
+            DependencyTracker?.Add(signal.Name);
+            return signal.Value;
+        }
+        if (raw is OtterDerived derived)
+        {
+            DependencyTracker?.Add(derived.Name);
+            return derived.Read(this);
+        }
+        return raw;
+    }
+
+    // What the scope holds, a state variable or derived value itself included.
+    public object? GetRaw(string name)
     {
         for (Scope? scope = this; scope != null; scope = scope.Parent)
         {
@@ -33,7 +56,20 @@ public sealed class Scope(Scope? parent = null)
 
     public void Set(string name, object? value)
     {
-        if (variables.ContainsKey(name)) { variables[name] = value; return; }
+        if (variables.TryGetValue(name, out object? current))
+        {
+            // D56: a state variable keeps its identity; its watchers run only
+            // when the value really changes (Otter's own equality).
+            if (current is OtterSignal signal)
+            {
+                bool changed = !Values.AreEqual(signal.Value, value);
+                signal.Value = value;
+                if (changed) signal.Notify();
+                return;
+            }
+            variables[name] = value;
+            return;
+        }
         if (Parent != null && Parent.Has(name)) { Parent.Set(name, value); return; }
         variables[name] = value;
     }

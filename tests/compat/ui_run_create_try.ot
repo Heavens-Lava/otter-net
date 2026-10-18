@@ -1,0 +1,7 @@
+try
+    create panel into w
+otherwise into reason
+    say "caught:" reason
+.
+say "w exists?"
+say w

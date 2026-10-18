@@ -1,0 +1,7 @@
+state x is 1
+when x changes
+    say "about to fail"
+    y is missing
+say "set"
+x is 2
+say "not here"

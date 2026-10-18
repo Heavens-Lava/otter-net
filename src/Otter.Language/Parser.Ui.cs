@@ -5,13 +5,12 @@ namespace Otter.Language;
 // cases, Read-OtterUiElementStatement, Read-OtterAnimationBlock and the UI
 // forms of Read-OtterValue).
 //
-// These forms are read only when the program is compiled for the web
-// (`otter web`). `otter run` and `otter check` leave every UI form to the
-// PowerShell Otter, as before: desktop windows cannot run natively.
+// otterPS reads these forms the same way for every command (`otter web`,
+// `run`, `check`); what each one does when run is Interpreter.Ui.cs's.
 public sealed partial class Parser
 {
-    // Set by Parse(tokens, webTarget: true).
-    bool webTarget;
+    // A `create KIND into x` was read: running it needs WPF.
+    bool createsUiResources;
 
     static readonly string[] UiTags =
     {
@@ -25,7 +24,6 @@ public sealed partial class Parser
     // A statement this area starts at `start`, or null (the token is left unread).
     Stmt? TryReadUiStatement(Token start)
     {
-        if (!webTarget) return null;
         TokenKind nextKind = At(1)?.Kind ?? TokenKind.EndOfFile;
 
         bool isVariant = SameAny(start.Text, "primary", "secondary", "danger") && At(1) is { } variantNext &&
@@ -153,6 +151,7 @@ public sealed partial class Parser
                 ReadOptionalTheBeforeName();
                 Token target = ReadVariableName("I expected a variable name after \"into\".");
                 Expect(TokenKind.Newline, "I expected the create statement to end here.");
+                createsUiResources = true;
                 return new CreateUiResourceStmt(typeName, target.Text, start.Line);
             }
             case TokenKind.Replace when !IsAssignmentFollower(nextKind):
@@ -597,7 +596,7 @@ public sealed partial class Parser
     // D110: `accepts drops` is a two-word property name in a `has`/`with` list.
     string ReadAcceptsDrops(Token property)
     {
-        if (webTarget && Same(property.Text, "accepts") && Same(Current.Text, "drops"))
+        if (Same(property.Text, "accepts") && Same(Current.Text, "drops"))
         {
             Read();
             return "accepts drops";
@@ -612,7 +611,6 @@ public sealed partial class Parser
     // height full and a bare round or spread. Null for an ordinary value.
     Expr? ReadUiPropertyValue(Token property, bool hadIs)
     {
-        if (!webTarget) return null;
         if (Same(property.Text, "align"))
         {
             Token current = Current;
@@ -645,7 +643,6 @@ public sealed partial class Parser
     // A value this area starts at `token`, or null.
     Expr? TryReadUiValue(Token token)
     {
-        if (!webTarget) return null;
         if (token.Kind == TokenKind.Await) return ReadAwaitValue(token);
         Token? next = At(1);
         // D103: current route / route parameter X / query parameter X
