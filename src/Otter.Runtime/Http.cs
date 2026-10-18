@@ -47,6 +47,9 @@ public static partial class OtterHttp
     // Framework on Windows (the certified otterPS) refuses it as not a URL.
     static Uri CheckUrl(string url, string verb)
     {
+        // otterPS's -Url is a mandatory [string] parameter: PowerShell
+        // refuses an empty one before the function's own check runs.
+        if (url.Length == 0) throw new InternalProblem("Cannot bind argument to parameter 'Url' because it is an empty string.");
         if (string.IsNullOrWhiteSpace(url)) throw new NetProblem(verb == "download" ? "I need a URL to download from." : "I need a URL to send the HTTP request to.");
         if (url.StartsWith('/') || !Uri.TryCreate(url, UriKind.Absolute, out Uri? uri)) throw new NetProblem($"\"{url}\" is not a valid URL.");
         if (uri.Scheme != "http" && uri.Scheme != "https")
@@ -204,6 +207,7 @@ public static partial class OtterHttp
     public static void Download(string url, string path)
     {
         Uri uri = CheckUrl(url, "download");
+        if (path.Length == 0) throw new InternalProblem("Cannot bind argument to parameter 'Path' because it is an empty string.");
         string full;
         try { full = OtterFiles.Resolve(path); }
         catch (FileProblem problem) { throw new NetProblem(problem.Message); }

@@ -5,15 +5,20 @@ using System.Net.WebSockets;
 namespace Otter.Runtime;
 
 // A runtime value that names its own kind in messages ("a websocket", "a
-// tcp server" ...), as otterPS's Get-OtterTypeName does for its classes.
+// tcp server" ...), as otterPS's Get-OtterTypeName does for its classes, and
+// has its own text when a program says it (Format-OtterValue).
 public interface IOtterTypeNamed
 {
     string OtterTypeName { get; }
+    string OtterText { get; }
 }
 
 // The values of networking and file watching (otterPS's Otter.Runtime.psm1
 // classes). Their text, when a program says one, is what otterPS's
 // Format-OtterValue gives: a phrase for sockets, the class name for the rest.
+// ToString() is the class name, which is what PowerShell's [string] gives
+// when otterPS compares one with `is` (so two connections compare equal, as
+// there).
 
 // D104: a file watcher. Events arrive on .NET's threads and wait in the
 // interpreter's queue until the event loop hands them to handlers.
@@ -24,6 +29,7 @@ public sealed class OtterFileWatcher(FileSystemWatcher native, string path, bool
     public bool IsFolder { get; } = isFolder;
     public bool Active { get; set; } = true;
     public string OtterTypeName => "a file watcher";
+    public string OtterText => "OtterFileWatcher";
     public override string ToString() => "OtterFileWatcher";
 }
 
@@ -46,7 +52,8 @@ public sealed class OtterWebSocket(ClientWebSocket native, string url, string pr
     public WebSocketMessageType? MessageBufferType { get; set; }
     public bool Disposed { get; set; }
     public string OtterTypeName => "a websocket";
-    public override string ToString() => "a websocket";
+    public string OtterText => "a websocket";
+    public override string ToString() => "OtterWebSocket";
 }
 
 // D107, D112: a tcp connection, made by `connect to tcp` or accepted by a server.
@@ -68,7 +75,8 @@ public sealed class OtterTcp(TcpClient client, string remoteHost, int remotePort
     public Stream? Stream { get; set; }
     public Task? HandshakeTask { get; set; }
     public string OtterTypeName => "a tcp connection";
-    public override string ToString() => "a tcp connection";
+    public string OtterText => "a tcp connection";
+    public override string ToString() => "OtterTcp";
 }
 
 // D108: a udp socket; each receive is one datagram.
@@ -82,7 +90,8 @@ public sealed class OtterUdp(UdpClient client, int localPort) : IOtterTypeNamed
     public bool CloseFired { get; set; }
     public bool Disposed { get; set; }
     public string OtterTypeName => "a udp socket";
-    public override string ToString() => "a udp socket";
+    public string OtterText => "a udp socket";
+    public override string ToString() => "OtterUdp";
 }
 
 // D113: a tcp server; each accepted connection is an ordinary OtterTcp.
@@ -96,6 +105,7 @@ public sealed class OtterTcpServer(TcpListener listener, string boundAddress, in
     public Task<TcpClient>? AcceptTask { get; set; }
     public bool Disposed { get; set; }
     public string OtterTypeName => "a tcp server";
+    public string OtterText => "OtterTcpServer";
     public override string ToString() => "OtterTcpServer";
 }
 
@@ -117,7 +127,8 @@ public sealed class OtterHttpRequest(string method, string url, bool asJson) : I
     public bool IsTimeout { get; set; }
     public bool Disposed { get; set; }
     public string OtterTypeName => "an http request";
-    public override string ToString() => $"<an http request to {Url}>";
+    public string OtterText => $"<an http request to {Url}>";
+    public override string ToString() => "OtterHttpRequest";
 }
 
 // One event handed to `on ... of` handlers, with the values the ambient
