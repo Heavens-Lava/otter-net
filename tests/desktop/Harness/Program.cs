@@ -399,6 +399,10 @@ internal static class Program
                         if (match != null)
                         {
                             window = match;
+                            // Windows open where Windows places them, which
+                            // differs between runs; a part off screen is not
+                            // drawn. Every window is moved to the top left.
+                            Native.MoveToTopLeft(new IntPtr(match.Current.NativeWindowHandle));
                             Settle();
                             return $"window: \"{match.Current.Name}\"";
                         }
@@ -619,6 +623,10 @@ static class Native
 {
     [DllImport("user32.dll")] public static extern bool SetCaretBlinkTime(uint milliseconds);
     [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+    [DllImport("user32.dll")] static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int cx, int cy, uint flags);
+
+    // SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE
+    public static void MoveToTopLeft(IntPtr hwnd) => SetWindowPos(hwnd, IntPtr.Zero, 0, 0, 0, 0, 0x0001 | 0x0004 | 0x0010);
     [DllImport("user32.dll")] static extern uint SendInput(uint count, INPUT[] inputs, int size);
     [DllImport("user32.dll")] static extern bool GetClientRect(IntPtr hwnd, out RECT rect);
     [DllImport("user32.dll")] static extern bool PrintWindow(IntPtr hwnd, IntPtr hdc, uint flags);

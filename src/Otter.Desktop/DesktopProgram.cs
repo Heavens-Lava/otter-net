@@ -10,8 +10,12 @@ namespace Otter.Desktop;
 // code is otter's.
 public static class DesktopProgram
 {
+    // The user's culture, which PowerShell runs with (WPF's own messages use it).
+    public static CultureInfo UserCulture { get; private set; } = CultureInfo.InvariantCulture;
+
     public static int Main(string[] args)
     {
+        UserCulture = CultureInfo.CurrentCulture;
         // The native otter runs with the invariant culture (invariant
         // globalization); WPF needs real culture data, so this host has it,
         // and the command still sees the invariant culture.

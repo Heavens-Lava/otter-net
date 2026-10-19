@@ -479,8 +479,17 @@ public sealed class WpfUiProvider : IUiProvider
         }
         catch (Exception e) when (e is not OutOfMemoryException)
         {
-            throw new PowerShellError($"Exception setting \"{name}\": \"{e.Message}\"");
+            throw new PowerShellError($"Exception setting \"{name}\": \"{UserCultureText(e.Message)}\"");
         }
+    }
+
+    // WPF writes the value it refuses with the current culture: the user's,
+    // in PowerShell; this host runs with the invariant culture, whose
+    // infinity is "Infinity".
+    static string UserCultureText(string message)
+    {
+        var format = DesktopProgram.UserCulture.NumberFormat;
+        return message.Replace("'-Infinity'", $"'{format.NegativeInfinitySymbol}'").Replace("'Infinity'", $"'{format.PositiveInfinitySymbol}'");
     }
 
     // ---- align and spread (D54) ----
