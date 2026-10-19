@@ -118,7 +118,8 @@ $desktopProject = Get-ChildItem -Path (Join-Path $root 'src/Otter.Desktop') -Fil
 if ($os -eq 'win' -and $desktopProject) {
     $desktopOut = Join-Path $artifacts "publish/$Runtime-desktop"
     Write-Host "Publishing $($desktopProject.Name) for $Runtime ..."
-    Invoke-Native dotnet @('publish', $desktopProject.FullName, '-c', 'Release', '-r', $Runtime, "-p:Version=$Version", '-o', $desktopOut, '--nologo', '-v', 'quiet')
+    # As ci.yml and publish.ps1 publish it: framework-dependent, with its app host.
+    Invoke-Native dotnet @('publish', $desktopProject.FullName, '-c', 'Release', '-r', $Runtime, '--self-contained', 'false', '-p:UseAppHost=true', "-p:Version=$Version", '-o', $desktopOut, '--nologo', '-v', 'quiet')
     $desktopFiles = @(Get-ChildItem -LiteralPath $desktopOut -File | Where-Object { $_.Extension -ne '.pdb' })
     if (-not ($desktopFiles | Where-Object Name -eq 'otter-desktop.exe')) { throw "$($desktopProject.Name) did not publish otter-desktop.exe." }
 }
