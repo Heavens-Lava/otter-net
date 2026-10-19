@@ -15,6 +15,11 @@ on close of second
 connect to websocket "ws://127.0.0.1:18765/c" and call it third
 on open of third
     try
+        send 42 through third
+    otherwise into reason
+        say "third send:" reason
+    .
+    try
         close websocket third with code 30000000000
     otherwise into reason
         say "third:" reason
