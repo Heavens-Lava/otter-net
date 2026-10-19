@@ -101,4 +101,22 @@ state), the pixels of each snapshot's client area, standard output byte for
 byte, standard error, and the exit code. `.github/workflows/desktop.yml`
 runs it on `windows-latest` and writes the table to the job summary.
 
+What the harness leaves out, because it is not something a user sees and
+differs between the two WPFs (.NET Framework 4.8 under Windows PowerShell
+5.1, .NET 10 in otter-desktop):
+
+- hidden scroll bars (off screen, no rectangle) of text boxes and scrolls,
+  which .NET Framework's automation tree lists and .NET 10's does not;
+- pixels whose colours differ by 1 or 2 of 255 (seen: 3 pixels of a bold
+  heading's anti-aliased edge); they are counted in the table's notes;
+- where Windows places a window (every window is moved to the top left of
+  the screen before it is observed; positions inside it are compared).
+
+Verified: desktop.yml runs 39181553817 and 39182236408 (26 of 26 programs identical); the
+otterPS-observed quirks are listed as SPEC-QUESTIONS D4-1 to D4-5.
+
+Not verified on a high-DPI display: powershell.exe and otter-desktop.exe
+may differ in DPI awareness, so at a scale above 100 % one may be drawn
+sharper than the other; both lay out in the same device-independent units.
+
 See `tests/desktop/README.md` for the step language.
