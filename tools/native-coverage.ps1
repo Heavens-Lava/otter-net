@@ -320,11 +320,11 @@ $kindNotes = @{
     UiLayout = 'enum value only: otterPS 1.0.1 has no node class for it and nothing builds it'
     RouteParameter = 'unreachable in 1.0.1: `parameter` is a keyword only as the first word of a line (D33 mechanism 2), so `route parameter X` never lexes as this form, in otterPS or otter-net (SPEC-QUESTIONS V4-1)'
     QueryParameter = 'unreachable in 1.0.1: `query` and `parameter` are keywords only as the first word of a line (D33 mechanism 2), so `query parameter X` never lexes as this form, in otterPS or otter-net (SPEC-QUESTIONS V4-1)'
-    RunRemoteCommand = 'native off Windows (otterPS''s own errors); on Windows PowerShell remoting: **in progress (wave 4, D84)**'
-    CreateUiResource = 'web pages and the run-time UI native; a WPF window in `otter run` on Windows: **in progress (wave 4, otter-desktop)**'
-    When = 'web pages and the run-time UI native; WPF windows on Windows: **in progress (wave 4, otter-desktop)**'
-    PutIn = 'web pages and the run-time UI native; WPF windows on Windows: **in progress (wave 4, otter-desktop)**'
-    Show = 'web pages and the run-time UI native; WPF windows on Windows: **in progress (wave 4, otter-desktop)**'
+    RunRemoteCommand = 'native off Windows (otterPS''s own errors); on Windows PowerShell remoting, handed to the PowerShell Otter for the release candidate (owner decision, D84)'
+    CreateUiResource = 'web pages and the run-time UI native; a WPF window in `otter run` on Windows: native on Windows through otter-desktop.exe (WPF, `src/Otter.Desktop`, verified by tests/desktop on a Windows desktop)'
+    When = 'web pages and the run-time UI native; WPF windows on Windows: native on Windows through otter-desktop.exe (WPF, `src/Otter.Desktop`, verified by tests/desktop on a Windows desktop)'
+    PutIn = 'web pages and the run-time UI native; WPF windows on Windows: native on Windows through otter-desktop.exe (WPF, `src/Otter.Desktop`, verified by tests/desktop on a Windows desktop)'
+    Show = 'web pages and the run-time UI native; WPF windows on Windows: native on Windows through otter-desktop.exe (WPF, `src/Otter.Desktop`, verified by tests/desktop on a Windows desktop)'
 }
 
 $kindRows = New-Object System.Collections.Generic.List[string]
@@ -521,9 +521,9 @@ $counterparts = @{
     'Write-OtterFileBytes' = @('src/Otter.Runtime/Files.cs', 'static void WriteBytes\(')
 }
 $libraryNotes = @{
-    'Invoke-OtterRemoteCommand' = 'remote commands on Windows: **in progress (wave 4, D84)**; off Windows otterPS''s own errors are native (`Interpreter.System.cs`)'
-    'Set-OtterUiDispatcher' = 'the WPF dispatcher of desktop windows: **in progress (wave 4, otter-desktop)**'
-    'Get-OtterUiDispatcher' = 'the WPF dispatcher of desktop windows: **in progress (wave 4, otter-desktop)**'
+    'Invoke-OtterRemoteCommand' = 'remote commands on Windows: handed to the PowerShell Otter for the release candidate (owner decision, D84); off Windows otterPS''s own errors are native (`Interpreter.System.cs`)'
+    'Set-OtterUiDispatcher' = 'the WPF dispatcher of desktop windows: native on Windows through otter-desktop.exe (WPF, `src/Otter.Desktop`, verified by tests/desktop on a Windows desktop)'
+    'Get-OtterUiDispatcher' = 'the WPF dispatcher of desktop windows: native on Windows through otter-desktop.exe (WPF, `src/Otter.Desktop`, verified by tests/desktop on a Windows desktop)'
 }
 $psModules = @{}
 foreach ($f in Get-ChildItem -LiteralPath (Join-Path $OtterPs 'src') -Filter '*.psm1') { $psModules[$f.Name] = Read-Lines $f.FullName }
@@ -581,7 +581,7 @@ $messageNotes = [ordered]@{
     'not implemented in provider' = 'the abstract database provider''s methods; the SQLite provider implements them all'
     'provider does not support schema introspection' = 'SQLite, the only provider, supports it'
     'I do not know a power action called' = 'unreachable: the parser only builds the four power actions'
-    'I could not build a credential for' = 'remote commands on Windows: in progress (wave 4, D84)'
+    'I could not build a credential for' = 'remote commands on Windows: handed to the PowerShell Otter (owner decision, D84)'
     'Otter could not turn this into JSON.' = 'ConvertTo-Json failing after the shape check; otter-net''s writer cannot fail there'
     'cancel requires a command job.' = 'unreachable: the interpreter calls Stop-OtterCommandJob only for a command job'
     'Unknown job context field' = 'unreachable: the parser builds only the job fields it knows'
@@ -639,21 +639,21 @@ foreach ($module in ($psModules.Keys | Sort-Object)) {
 # Category, then why, for each site: matched by file and by the text of the line.
 $siteRules = @(
     @{ File = 'Parser\.cs$'; Text = 'class NotSupportedYet|NotSupportedYet Unsupported'; Category = 'definition'; Why = 'the mechanism itself (the exception and its helper), not a site' }
-    @{ File = 'Parser\.System\.cs$'; Text = 'remote commands'; Category = 'wave 4 in progress'; Why = 'remote commands on Windows (PowerShell remoting, D84): being ported by another agent' }
+    @{ File = 'Parser\.System\.cs$'; Text = 'remote commands'; Category = 'remote commands (owner decision)'; Why = 'remote commands on Windows (PowerShell remoting, D84): handed to the PowerShell Otter for the release candidate; a native WinRM client awaits the owner''s decision (docs/FULL_PORT_MATRIX.md)' }
     @{ File = 'JsCompiler\.(Statements|Expressions)\.cs$|NodeFields\.cs$'; Text = 'compiling'; Category = 'bug guard'; Why = 'a node class with no web compiler case; every node otter-net parses has one (the census above: every kind the parser builds is compiled or refused with otterPS''s own error)' }
     @{ File = 'WebCompiler\.cs$'; Text = '200 deep'; Category = 'PowerShell-rendered error'; Why = 'UI resources nested more than 200 deep without a cycle: whether otterPS overflows PowerShell''s call depth depends on how many PowerShell frames each level takes' }
     @{ File = 'ServeCommand\.cs$'; Text = 'fails inside Otter'; Category = 'PowerShell-rendered error'; Why = '`otter serve` of an empty program: the parameter-binding error escapes otter.ps1 and powershell.exe renders it (SPEC-QUESTIONS Q12)' }
     @{ File = 'ServeCommand\.cs$'; Text = 'could not start'; Category = 'PowerShell-rendered error'; Why = 'HttpListener cannot start: Windows'' HTTP.sys text wrapped in a MethodInvocationException that PowerShell renders' }
-    @{ File = '(FileMode|ProjectBuild|DesktopCommand|WebCommand)\.cs$'; Text = 'is not native yet'; Category = 'wave 4 in progress'; Why = 'passes on the parser''s or web compiler''s NotSupportedYet: only remote commands on Windows reach it' }
+    @{ File = '(FileMode|ProjectBuild|DesktopCommand|WebCommand)\.cs$'; Text = 'is not native yet'; Category = 'remote commands (owner decision)'; Why = 'passes on the parser''s or web compiler''s NotSupportedYet: only remote commands on Windows reach it' }
     @{ File = '(FileMode|ProjectBuild|DesktopCommand|WebCommand)\.cs$'; Text = 'stopped unexpectedly'; Category = 'bug guard'; Why = 'a crash of otter-net''s lexer, parser or web compiler is handed over instead of shown' }
     @{ File = 'AstDump\.cs$'; Text = '.'; Category = 'bug guard'; Why = '-DebugAst of a node class with no table entry; every class has one (tools/NodeCensus maps every node of the corpus)' }
     @{ File = 'Project\.cs$'; Text = 'refused by the JSON reader'; Category = 'bug guard'; Why = 'the two manifest readers disagree; they agree on 2.4 million fuzzed inputs' }
-    @{ File = 'FileMode\.cs$'; Text = 'desktop window'; Category = 'wave 4 in progress'; Why = 'a WPF window (`create`) in `otter run` on Windows: otter-desktop is being built by another agent' }
+    @{ File = 'FileMode\.cs$'; Text = 'desktop window'; Category = 'remote commands (owner decision)'; Why = 'a WPF window (`create`) in `otter run` on Windows when otter-desktop.exe is missing (otter-desktop runs it otherwise)' }
     @{ File = 'Cli\.cs$'; Text = 'InformationAction'; Category = 'PowerShell-rendered error'; Why = '-InformationAction Stop/Inquire/Ignore act on PowerShell''s information stream, which carries everything otterPS shows (SPEC-QUESTIONS C2-5)' }
     @{ File = 'Cli\.cs$'; Text = 'studio'; Category = 'out of scope'; Why = '`otter studio`: the IDE is developed separately' }
-    @{ File = 'Cli\.cs$'; Text = 'webReason'; Category = 'wave 4 in progress'; Why = 'passes on WebCommand''s reason: the web compiler''s NotSupportedYet (remote commands on Windows) or a crash (bug guard)' }
+    @{ File = 'Cli\.cs$'; Text = 'webReason'; Category = 'remote commands (owner decision)'; Why = 'passes on WebCommand''s reason: the web compiler''s NotSupportedYet (remote commands on Windows) or a crash (bug guard)' }
     @{ File = '(Cli|FileMode)\.cs$'; Text = 'VerboseModules'; Category = 'PowerShell-rendered output'; Why = '-Verbose: otterPS''s Import-Module calls list every module loaded, in PowerShell''s VERBOSE format (SPEC-QUESTIONS C2-5)' }
-    @{ File = 'DesktopCommand\.cs$'; Text = 'import problem|bridge could not start|could not be written'; Category = 'PowerShell-rendered error'; Why = '`otter desktop` failures that escape Start-OtterDesktopApplication and are rendered by powershell.exe (Windows only; the desktop command is wave 4''s otter-desktop)' }
+    @{ File = 'DesktopCommand\.cs$'; Text = 'import problem|bridge could not start|could not be written'; Category = 'PowerShell-rendered error'; Why = '`otter desktop` failures that escape Start-OtterDesktopApplication and are rendered by powershell.exe (Windows only)' }
     @{ File = 'Program\.cs$'; Text = '.'; Category = 'owner decision'; Why = 'OTTER_ENGINE=powershell and the hand-over itself: removed last (phase D)' }
 )
 $siteRows = New-Object System.Collections.Generic.List[string]
