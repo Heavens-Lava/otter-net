@@ -223,7 +223,9 @@ public sealed partial class Interpreter
             case RepeatStmt repeat:
             {
                 double count = RequireNumber(Evaluate(repeat.Count, scope), repeat.Line, "the number of repeats");
-                int whole = (int)Math.Floor(count);
+                // [int][Math]::Floor($count): PowerShell's error beyond Int32; the
+                // compiled engine's C# (int) makes such a count 0x80000000 instead.
+                int whole = CompiledEngine ? OtterPsCompiledEngine.FrameworkInt32(Math.Floor(count)) : PowerShellCastInt(Math.Floor(count));
                 if (LoopHasPasses(repeat)) { RunRepeatWithPasses(repeat, whole, scope); return; }   // D130
                 for (int i = 0; i < whole; i++) Execute(repeat.Body, scope);
                 return;
@@ -711,7 +713,8 @@ public sealed partial class Interpreter
                 {
                     ServiceEventsDuringWait();
                     double remaining = target - clock.ElapsedMilliseconds;
-                    if (remaining > 0) Thread.Sleep((int)Math.Min(remaining, 20));
+                    // [Math]::Min([int]$remaining, 20): the cast fails beyond Int32 (a wait of about 25 days or more).
+                    if (remaining > 0) Thread.Sleep(Math.Min(PowerShellCastInt(remaining), 20));
                 }
                 ServiceEventsDuringWait();
                 return;

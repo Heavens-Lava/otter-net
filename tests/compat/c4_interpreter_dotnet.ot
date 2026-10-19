@@ -50,6 +50,24 @@ random number from 0 to 2147483647 into r3
 say "double pick:" r3
 random number from 1 to 6 into r4
 say "whole pick:" r4
+try
+    repeat 3000000000 times
+        say "never"
+    .
+otherwise into reason
+    say "repeat:" reason
+.
+repeat 2.7 times
+    say "repeat 2.7 times runs twice"
+.
+try
+    wait 1 month
+otherwise into reason
+    # The number is the time still to wait, which depends on the machine.
+    if reason starts with "Cannot convert value \""
+        say "a wait beyond Int32 milliseconds is refused"
+    .
+.
 say "the last one is not caught:"
 add 100000 years to d
 say "never"
