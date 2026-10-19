@@ -1,0 +1,35 @@
+base is "http://127.0.0.1:18765/"
+get "http://127.0.0.1:18765/hello.txt" into page
+say page
+get json from "http://127.0.0.1:18765/data.json" into data
+say data
+say name of data
+get "http://127.0.0.1:18765/data.json" as json into data2
+say n of data2
+try
+    get "http://127.0.0.1:18765/missing.txt" into missing
+    say missing
+otherwise into reason
+    say "404:" reason
+.
+try
+    post "x" to "http://127.0.0.1:18765/hello.txt" into answer
+    say answer
+otherwise into reason
+    say "post:" reason
+.
+try
+    delete from "http://127.0.0.1:18765/hello.txt" into gone1
+    say gone1
+otherwise into reason
+    say "delete:" reason
+.
+download file from "http://127.0.0.1:18765/hello.txt" to "copy.txt"
+read "copy.txt" into copied
+say copied
+get "http://127.0.0.1:18765/hello.txt" into page2
+    with header "X-A" is "1"
+    with timeout 5 seconds
+    with cookies
+    following redirects
+say page2

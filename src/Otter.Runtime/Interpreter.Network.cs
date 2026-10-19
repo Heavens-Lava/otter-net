@@ -588,6 +588,9 @@ public sealed partial class Interpreter
         _ => $"{socket.GetType().Name.Replace("Expr", "")}@L{socket.Line}",
     };
 
+    // The values System.Net.WebSockets.WebSocketCloseStatus names.
+    static readonly HashSet<int> DefinedCloseStatuses = new() { 1000, 1001, 1002, 1003, 1005, 1007, 1008, 1009, 1010, 1011 };
+
     void CloseWebSocket(WebSocketCloseStmt close, Scope scope)
     {
         object? target = Evaluate(close.Socket, scope);
@@ -600,7 +603,8 @@ public sealed partial class Interpreter
             {
                 throw RuntimeError($"I need a number for a close code, but this is {Values.TypeName(codeValue)}.", close.Line);
             }
-            code = (int)Math.Round(number, MidpointRounding.ToEven);
+            // [int](ConvertTo-OtterNumber $cVal): PowerShell's own error beyond Int32.
+            if (!PowerShellInt32.TryCast(number, out code, out string castError)) throw new InternalProblem(castError);
         }
         string reason = "";
         if (close.Reason != null)
@@ -615,6 +619,15 @@ public sealed partial class Interpreter
             ws.CloseCode = code;
             ws.CloseReason = reason;
             ws.CloseWasClean = code == 1000;
+            // [System.Net.WebSockets.WebSocketCloseStatus]$code inside otterPS's
+            // try: PowerShell refuses a number the enum does not name (an
+            // application code such as 4000), and the catch marks the socket
+            // closed without sending anything or running `on close`.
+            if (!DefinedCloseStatuses.Contains(code))
+            {
+                ws.State = "closed";
+                return;
+            }
             try { _ = ws.Native.CloseOutputAsync((WebSocketCloseStatus)code, reason, ws.Cts.Token); }
             catch (Exception e) when (e is WebSocketException or ArgumentException or InvalidOperationException or ObjectDisposedException)
             {

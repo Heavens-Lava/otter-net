@@ -1,0 +1,27 @@
+connect to websocket "ws://127.0.0.1:18765/a" and call it first
+on open of first
+    close websocket first with code 1001 and reason "going away"
+.
+on close of first
+    say "first closed:" close code close reason close was clean state of first
+.
+connect to websocket "ws://127.0.0.1:18765/b" and call it second
+on open of second
+    close websocket second
+.
+on close of second
+    say "second closed:" close code close reason close was clean
+.
+connect to websocket "ws://127.0.0.1:18765/c" and call it third
+on open of third
+    try
+        close websocket third with code 30000000000
+    otherwise into reason
+        say "third:" reason
+    .
+    close websocket third with code 1005
+    say "third state:" state of third
+.
+on close of third
+    say "never"
+.
