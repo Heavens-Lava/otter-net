@@ -62,16 +62,14 @@ function Get-PathWithoutPowerShell {
 }
 
 # The installed otter-net products, as Settings > Apps lists them. A per-user
-# MSI is registered with Windows Installer, not under ...\Uninstall in HKCU,
-# so Windows Installer is asked.
+# MSI is not under ...\Uninstall in HKCU: Windows Installer registers it under
+# its UserData for the user's SID, which is what Settings > Apps reads.
 function Get-OtterEntries {
-    $msi = New-Object -ComObject WindowsInstaller.Installer
-    @(foreach ($code in $msi.Products) {
-        $name = $msi.ProductInfo($code, 'ProductName')
-        if ($name -like 'Otter (otter-net)*') {
-            [pscustomobject]@{ ProductCode = $code; DisplayName = $name; DisplayVersion = $msi.ProductInfo($code, 'VersionString') }
-        }
-    })
+    $sid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+    $products = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\UserData\$sid\Products"
+    @(Get-ChildItem $products -ErrorAction SilentlyContinue | ForEach-Object {
+        Get-ItemProperty (Join-Path $_.PSPath 'InstallProperties') -ErrorAction SilentlyContinue
+    } | Where-Object { $_ -and $_.PSObject.Properties['DisplayName'] -and $_.DisplayName -like 'Otter (otter-net)*' })
 }
 
 # Runs a program with the PATH without PowerShell; returns exit code and output.
@@ -164,7 +162,12 @@ try {
     Invoke-Msiexec @('/i', "`"$Msi`"") (Join-Path $LogDirectory 'install.log')
     $entries = Get-OtterEntries
     if ($entries.Count -eq 1 -and $entries[0].DisplayVersion -eq $numericVersion) { Pass "Settings > Apps: one entry, $($entries[0].DisplayName) $($entries[0].DisplayVersion)" }
-    else { Fail "Settings > Apps entries: $(($entries | ForEach-Object { "$($_.DisplayName) $($_.DisplayVersion)" }) -join '; ')" }
+    else {
+        Fail "Settings > Apps entries: $(($entries | ForEach-Object { "$($_.DisplayName) $($_.DisplayVersion)" }) -join '; ')"
+        Get-ChildItem 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\UserData' -Recurse -ErrorAction SilentlyContinue |
+            Where-Object { $_.PSChildName -eq 'InstallProperties' } | ForEach-Object { Get-ItemProperty $_.PSPath } |
+            Where-Object { $_.PSObject.Properties['DisplayName'] -and $_.DisplayName -like '*otter*' } | ForEach-Object { Write-Host "  found: $($_.PSPath) $($_.DisplayName) $($_.DisplayVersion)" }
+    }
     if ($OlderMsi) { Note '- msi: upgrade from an older MSI leaves one Apps entry and one PATH entry' }
     if (Test-Path (Join-Path $installDir 'otter.exe')) { Pass "$installDir\otter.exe" } else { Fail "no $installDir\otter.exe" }
     $userPath = @(([Environment]::GetEnvironmentVariable('Path', 'User') -split ';') | Where-Object { $_ })

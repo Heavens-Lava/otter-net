@@ -283,6 +283,10 @@ $($components.ToString().TrimEnd())
                 '--install-location', '/usr/local/lib/otter-net', '--ownership', 'recommended', '--quiet', (Join-Path $components 'otter-net-component.pkg'))
             $pkg = Join-Path $OutputDirectory "$name.pkg"
             Invoke-Native productbuild @('--distribution', $distribution, '--resources', $resources, '--package-path', $components, '--quiet', $pkg)
+            # macOS adds com.apple.provenance to files written by some sandboxed
+            # processes; it cannot be removed and pkgbuild stores it as empty
+            # ._ entries. Harmless, but not in a clean (CI) build.
+            if ((& pkgutil --payload-files $pkg) -match '/\._') { Write-Warning "$pkg has ._ (extended attribute) entries: build it where files carry no com.apple.provenance, as CI does." }
             $built += $pkg
         }
         'linux' {
