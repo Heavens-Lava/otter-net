@@ -74,7 +74,8 @@ if ($Cobertura) {
     foreach ($class in $report.SelectNodes('//class')) {
         $name = $class.filename -replace '\\', '/'
         $at = $name.IndexOf('/src/')
-        if ($at -ge 0) { $name = $name.Substring($at + 1) }
+        if ($at -ge 0) { $name = $name.Substring($at + 1) } elseif (-not [System.IO.Path]::IsPathRooted($name)) { $name = 'src/' + $name }
+        if ($name -match '/obj/') { continue }
         foreach ($line in $class.SelectNodes('lines/line')) {
             $key = "${name}:$($line.number)"
             $value = [long]$line.hits
@@ -546,6 +547,73 @@ foreach ($moduleName in @('Otter.Library.psm1', 'Otter.Runtime.psm1')) {
     }
 }
 
+
+# ---- every message otterPS can show ----
+# The literal text of each OtterError, runtime error and thrown message in
+# otterPS's modules (the longest piece between interpolations, 12 characters
+# or more), looked for in otter-net's C#.
+$messageNotes = [ordered]@{
+    'I can only roll back a real database transaction.' = 'present: Database.cs writes "I can only {verb} a real database transaction." with verb "roll back"'
+    'not the xml add-element form' = 'the parser''s internal back-tracking signal (otter-net: NotThisForm), never shown'
+    'not the xml remove-element form' = 'the parser''s internal back-tracking signal, never shown'
+    'not the xml remove-attribute form' = 'the parser''s internal back-tracking signal, never shown'
+    'not implemented in provider' = 'the abstract database provider''s methods; the SQLite provider implements them all'
+    'provider does not support schema introspection' = 'SQLite, the only provider, supports it'
+    'I do not know a power action called' = 'unreachable: the parser only builds the four power actions'
+    'I could not build a credential for' = 'remote commands on Windows: in progress (wave 4, D84)'
+    'Otter could not turn this into JSON.' = 'ConvertTo-Json failing after the shape check; otter-net''s writer cannot fail there'
+    'cancel requires a command job.' = 'unreachable: the interpreter calls Stop-OtterCommandJob only for a command job'
+    'Unknown job context field' = 'unreachable: the parser builds only the job fields it knows'
+    'Only properties belong inside a thing.' = 'unreachable: the parser builds only `name is value` lines inside a thing'
+    'A property name inside a thing must be a plain name.' = 'unreachable: as above'
+    'Archive entry' = 'Expand-OtterDeterministicArchive is exported but nothing calls it'
+    'is required for publish.' = 'unreachable for target and entryPoint: the manifest reader has already required or defaulted them'
+    'No profile is running.' = 'Get-OtterProfileResult before Start-OtterProfile: otter.ps1 never does that'
+    'Could not bind terminal bridge listener on port' = 'otter studio (out of scope)'
+    'Node.js is required to run the full Otter Studio backend' = 'otter studio (out of scope)'
+    'The compiled backend does not support' = 'otterPS''s compiled engine refusing a program: the interpreter then runs it and nothing is shown (OtterPsCompiledEngine.Accepts)'
+    'values yet. Run this program with otter run.' = 'the compiled engine''s bridge meeting a value it cannot convert: no library function in its subset returns one'
+    'The compiled backend has no library bridge for' = 'the compiled engine''s own guard'
+}
+$csAll = (($csFiles.Values | ForEach-Object { $_ -join "`n" }) -join "`n")
+$csUnescaped = $csAll.Replace('\"', '"')
+$messagePattern = '(?:OtterError\]::new\(|New-OtterRuntimeError\s+(?:-Message\s+)?|-Message\s+|throw\s+)("(?:[^"`]|`.)*"|''(?:[^'']|'''')*'')'
+$messageRows = New-Object System.Collections.Generic.List[string]
+$messageStats = @{ Total = 0; Found = 0; Explained = 0; Missing = 0 }
+foreach ($module in ($psModules.Keys | Sort-Object)) {
+    $lines = $psModules[$module]
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        foreach ($m in [regex]::Matches($lines[$i], $messagePattern)) {
+            $literal = $m.Groups[1].Value
+            $body = $literal.Substring(1, $literal.Length - 2)
+            if ($literal[0] -eq '"') { $parts = [regex]::Split($body, '\$\([^)]*\)|\$\{[^}]*\}|\$[\w:.]+') }
+            else { $parts = @($body.Replace("''", "'")) }
+            $fragment = ([string]($parts | ForEach-Object { $_.Replace('`"', '"').Replace('`n', "`n").Replace('""', '"') } | Sort-Object Length -Descending | Select-Object -First 1)).Trim()
+            if ($fragment.Length -lt 12) { continue }
+            $messageStats.Total++
+            if ($csAll.Contains($fragment) -or $csUnescaped.Contains($fragment)) { $messageStats.Found++; continue }
+            # otter-net may interpolate a word otterPS writes out (or the other
+            # way round): found when a run of whole words covering most of the
+            # message is in the C#.
+            $words = $fragment.Split(' ')
+            $best = 0
+            for ($a = 0; $a -lt $words.Count; $a++) {
+                for ($b = $words.Count - 1; $b -ge $a; $b--) {
+                    $run = ($words[$a..$b] -join ' ')
+                    if ($run.Length -le $best) { break }
+                    if ($csUnescaped.Contains($run)) { $best = $run.Length; break }
+                }
+            }
+            if ($best -ge 20 -and $best -ge 0.6 * $fragment.Length) { $messageStats.Found++; continue }
+            $note = $null
+            foreach ($key in $messageNotes.Keys) { if ($fragment.Contains($key) -or $key.Contains($fragment)) { $note = $messageNotes[$key]; break } }
+            if ($note) { $messageStats.Explained++ } else { $messageStats.Missing++; $note = '**not found**' }
+            $shown = $fragment -replace '\|', '\|' -replace "`n", ' '
+            $messageRows.Add("| $($module):$($i + 1) | ``$shown`` | $note |")
+        }
+    }
+}
+
 # ---- fallback sites ----
 # Category, then why, for each site: matched by file and by the text of the line.
 $siteRules = @(
@@ -621,6 +689,8 @@ $out.Add("| Library functions exported (Otter.Library.psm1, Otter.Runtime.psm1) 
 $out.Add("| ... called from otterPS | $($libStats.Reachable) |")
 $out.Add("| ... with a C# counterpart found | **$($libStats.Mapped)** |")
 if ($Cobertura) { $out.Add("| ... whose counterpart a corpus run reached (of those measured) | $($libStats.Reached) of $($libStats.Measured) |") }
+$out.Add("| Messages in otterPS's modules (errors and refusals, by their literal text) | $($messageStats.Total) |")
+$out.Add("| ... found in otter-net's C# / not reachable or out of scope (explained below) / missing | **$($messageStats.Found)** / $($messageStats.Explained) / **$($messageStats.Missing)** |")
 $out.Add("| Places that can still hand a program to PowerShell | $($siteRows.Count) |")
 foreach ($c in $siteCounts.Keys) { $out.Add("| ... $c | $($siteCounts[$c]) |") }
 $out.Add('')
@@ -638,6 +708,15 @@ $out.Add('')
 $out.Add('| Site | Code | Category | Why |')
 $out.Add('|---|---|---|---|')
 foreach ($r in $siteRows) { $out.Add($r) }
+$out.Add('')
+$out.Add("## Messages not found in otter-net's source")
+$out.Add('')
+$out.Add("Every other message otterPS's modules can show is in otter-net's C#, word for word")
+$out.Add('(interpolated values aside). These are not, and why:')
+$out.Add('')
+$out.Add('| otterPS | Message | Why |')
+$out.Add('|---|---|---|')
+foreach ($r in $messageRows) { $out.Add($r) }
 $out.Add('')
 $out.Add('## Node kinds')
 $out.Add('')
