@@ -220,7 +220,7 @@ $censusDll = Join-Path $census 'bin/Release/net10.0/NodeCensus.dll'
 $scratch = Join-Path ([System.IO.Path]::GetTempPath()) ('otter-native-coverage-' + [Guid]::NewGuid().ToString('N').Substring(0, 8))
 New-Item -ItemType Directory -Path $scratch | Out-Null
 $programs = New-Object System.Collections.Generic.List[object]
-foreach ($folder in @('tests/compat', 'tests/web')) {
+foreach ($folder in @('tests/compat', 'tests/web', 'tests/network')) {
     foreach ($f in Get-ChildItem -LiteralPath (Join-Path $here $folder) -Recurse -Filter '*.ot' -File) {
         $programs.Add([pscustomobject]@{ Path = $f.FullName; Corpus = $folder; Name = (Get-Relative $f.FullName $here) })
     }
