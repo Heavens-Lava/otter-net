@@ -1,0 +1,263 @@
+# Release-candidate packages and clean-machine install tests.
+#
+# Builds every package on its own platform (tools/package.ps1), then installs
+# each on a fresh runner or container WITHOUT PowerShell (on Windows,
+# powershell.exe and pwsh.exe are removed from the PATH the installed otter
+# runs with), runs `otter --version`, tests/compat and a new project,
+# uninstalls it and checks that nothing is left behind (tools/test-package.sh
+# and tools/test-package.ps1).
+#
+# NOTHING IS PUBLISHED: no release, no tag, no package registry, no winget or
+# Store submission. The packages are kept as workflow artifacts for 14 days,
+# for review only. They are unsigned release candidates. This repository is
+# public, so anyone signed in to GitHub can download a workflow artifact
+# while it is kept (docs/PACKAGING.md).
+name: package
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [port/package]
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
+
+jobs:
+  windows-build:
+    name: Build - Windows ${{ matrix.rid }} (zip, msi)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, rid: win-x64 }
+          - { os: windows-11-arm, rid: win-arm64 }
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - id: version
+        shell: pwsh
+        run: |
+          "version=$((Get-Content VERSION -Raw).Trim())" >> $env:GITHUB_OUTPUT
+      - name: Package (zip, msi)
+        shell: pwsh
+        run: ./tools/package.ps1 -Runtime ${{ matrix.rid }} -Installer
+      - name: An older MSI (0.9.0, the same files), to test the upgrade
+        shell: pwsh
+        run: ./tools/package.ps1 -Runtime ${{ matrix.rid }} -Installer -Version 0.9.0 -PublishDirectory artifacts/publish/${{ matrix.rid }} -OutputDirectory older
+      - name: What was built (the MSI build also ran Windows Installer's ICE validation)
+        shell: pwsh
+        run: |
+          Get-ChildItem artifacts/packages | Format-Table Name, Length -AutoSize | Out-String -Width 200
+          Get-Content artifacts/packages/SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: otter-net-${{ steps.version.outputs.version }}-${{ matrix.rid }}-UNSIGNED-release-candidate
+          path: artifacts/packages/
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        with:
+          name: upgrade-test-${{ matrix.rid }}
+          path: older/*.msi
+          retention-days: 1
+
+  windows-test:
+    name: Clean install - Windows ${{ matrix.rid }} (msi, zip), without PowerShell
+    needs: windows-build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, rid: win-x64 }
+          - { os: windows-11-arm, rid: win-arm64 }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: otter-net-${{ needs.windows-build.outputs.version }}-${{ matrix.rid }}-UNSIGNED-release-candidate
+          path: packages
+      - uses: actions/download-artifact@v4
+        with:
+          name: upgrade-test-${{ matrix.rid }}
+          path: older
+      - name: Install, upgrade, run without PowerShell, uninstall
+        shell: powershell
+        run: |
+          $v = '${{ needs.windows-build.outputs.version }}'
+          powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-package.ps1 `
+            -Msi "packages\otter-net-$v-${{ matrix.rid }}.msi" `
+            -OlderMsi "older\otter-net-0.9.0-${{ matrix.rid }}.msi" `
+            -Zip "packages\otter-net-$v-${{ matrix.rid }}.zip" -LogDirectory msi-logs
+          exit $LASTEXITCODE
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: msi-logs-${{ matrix.rid }}
+          path: msi-logs/
+          retention-days: 14
+
+  # Debian 12 - the system a Chromebook's Linux runs - like ci.yml's linux job.
+  linux-build:
+    name: Build - Linux ${{ matrix.rid }} (tar.gz, deb)
+    runs-on: ${{ matrix.os }}
+    container: debian:bookworm
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, rid: linux-x64 }
+          - { os: ubuntu-24.04-arm, rid: linux-arm64 }
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    env:
+      DOTNET_ROOT: /usr/share/dotnet
+      DOTNET_ROLL_FORWARD: Major
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Native AOT prerequisites, the .NET 10 SDK and PowerShell 7 (to build only)
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates curl git clang zlib1g-dev binutils
+          curl -sSL https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 10.0 --install-dir "$DOTNET_ROOT"
+          echo "$DOTNET_ROOT" >> "$GITHUB_PATH"
+          echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
+          "$DOTNET_ROOT/dotnet" tool install --global PowerShell
+      - uses: actions/checkout@v4
+      - id: version
+        run: echo "version=$(tr -d ' \r\n' < VERSION)" >> "$GITHUB_OUTPUT"
+      - name: Package (tar.gz, deb)
+        run: pwsh -NoProfile -File tools/package.ps1 -Runtime ${{ matrix.rid }} -Installer
+      - name: An older .deb (0.9.0, the same files), to test the upgrade
+        run: pwsh -NoProfile -File tools/package.ps1 -Runtime ${{ matrix.rid }} -Installer -Version 0.9.0 -PublishDirectory artifacts/publish/${{ matrix.rid }} -OutputDirectory older
+      - name: What was built
+        run: |
+          ls -l artifacts/packages
+          cat artifacts/packages/SHA256SUMS
+          dpkg-deb --info artifacts/packages/*.deb
+          dpkg-deb --contents artifacts/packages/*.deb
+          objdump -p artifacts/publish/${{ matrix.rid }}/otter | grep NEEDED
+      - uses: actions/upload-artifact@v4
+        with:
+          name: otter-net-${{ steps.version.outputs.version }}-${{ matrix.rid }}-UNSIGNED-release-candidate
+          path: artifacts/packages/
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        with:
+          name: upgrade-test-${{ matrix.rid }}
+          path: older/*.deb
+          retention-days: 1
+
+  linux-test:
+    name: Clean install - Debian 12 / Chromebook ${{ matrix.rid }} (deb, tar.gz), no PowerShell
+    needs: linux-build
+    runs-on: ${{ matrix.os }}
+    # A fresh Debian 12: no PowerShell, no .NET, nothing but what the .deb
+    # itself asks apt for.
+    container: debian:bookworm
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, rid: linux-x64 }
+          - { os: ubuntu-24.04-arm, rid: linux-arm64 }
+    defaults:
+      run:
+        shell: sh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: otter-net-${{ needs.linux-build.outputs.version }}-${{ matrix.rid }}-UNSIGNED-release-candidate
+          path: packages
+      - uses: actions/download-artifact@v4
+        with:
+          name: upgrade-test-${{ matrix.rid }}
+          path: older
+      - name: Checksums
+        run: cd packages && sha256sum -c SHA256SUMS
+      - name: The .deb - install over an older one, run without PowerShell, remove
+        run: sh tools/test-package.sh deb packages/*.deb older/*.deb
+      - name: The .tar.gz - install.sh into ~/.local, run without PowerShell, uninstall.sh
+        run: sh tools/test-package.sh tarball packages/*.tar.gz
+
+  macos-build:
+    name: Build - macOS ${{ matrix.rid }} (tar.gz, pkg)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-latest, rid: osx-arm64 }
+          - { os: macos-15-intel, rid: osx-x64 }
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - id: version
+        run: echo "version=$(tr -d ' \r\n' < VERSION)" >> "$GITHUB_OUTPUT"
+      - name: Package (tar.gz, pkg)
+        shell: pwsh
+        run: ./tools/package.ps1 -Runtime ${{ matrix.rid }} -Installer
+      - name: An older .pkg (0.9.0, the same files), to test the upgrade
+        shell: pwsh
+        run: ./tools/package.ps1 -Runtime ${{ matrix.rid }} -Installer -Version 0.9.0 -PublishDirectory artifacts/publish/${{ matrix.rid }} -OutputDirectory older
+      - name: What was built
+        run: |
+          ls -l artifacts/packages
+          cat artifacts/packages/SHA256SUMS
+          pkgutil --payload-files artifacts/packages/*.pkg
+          otool -L artifacts/publish/${{ matrix.rid }}/otter
+      - uses: actions/upload-artifact@v4
+        with:
+          name: otter-net-${{ steps.version.outputs.version }}-${{ matrix.rid }}-UNSIGNED-release-candidate
+          path: artifacts/packages/
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        with:
+          name: upgrade-test-${{ matrix.rid }}
+          path: older/*.pkg
+          retention-days: 1
+
+  macos-test:
+    name: Clean install - macOS ${{ matrix.rid }} (pkg, tar.gz), without PowerShell
+    needs: macos-build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-latest, rid: osx-arm64 }
+          - { os: macos-15-intel, rid: osx-x64 }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: otter-net-${{ needs.macos-build.outputs.version }}-${{ matrix.rid }}-UNSIGNED-release-candidate
+          path: packages
+      - uses: actions/download-artifact@v4
+        with:
+          name: upgrade-test-${{ matrix.rid }}
+          path: older
+      - name: Checksums
+        run: cd packages && shasum -a 256 -c SHA256SUMS
+      # The runner has PowerShell (in /usr/local/bin among others): the
+      # installed otter runs with PATH=/usr/bin:/bin:/usr/sbin:/sbin and a
+      # folder holding only its link, and the script checks pwsh is not found.
+      - name: The .pkg - install over an older one, run without PowerShell, uninstall
+        run: env PATH=/usr/bin:/bin:/usr/sbin:/sbin sh tools/test-package.sh pkg packages/*.pkg older/*.pkg
+      - name: The .tar.gz - install.sh into ~/.local, run without PowerShell, uninstall.sh
+        run: env PATH=/usr/bin:/bin:/usr/sbin:/sbin sh tools/test-package.sh tarball packages/*.tar.gz

@@ -77,7 +77,9 @@ uses the built-in Windows PowerShell.
     dotnet build otter-net.sln -c Release
     dotnet src/Otter.Cli/bin/Release/net10.0/otter.dll run hello.ot
 
-`tools/publish.ps1` makes the native executable. `tools/compare.ps1
+`tools/publish.ps1` makes the native executable; `tools/package.ps1` makes
+the (unsigned, unpublished) release-candidate packages and installers - see
+[docs/PACKAGING.md](docs/PACKAGING.md). `tools/compare.ps1
 -OtterPs <otterPS checkout> -OtterNet <otter.dll or otter.exe>` compares the
 two implementations.
 

@@ -1,3 +1,5 @@
 * text=auto
 *.ot text eol=lf
 *.input text eol=lf
+*.sh text eol=lf
+distribution/macos/scripts/* text eol=lf

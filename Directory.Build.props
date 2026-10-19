@@ -8,5 +8,13 @@
     <!-- Otter always uses the invariant culture; no culture data needed. -->
     <InvariantGlobalization>true</InvariantGlobalization>
     <IsAotCompatible>true</IsAotCompatible>
+    <!-- The release version of otter-net's packages, from VERSION (the one
+         source; tools/package.ps1 reads it too). What otter prints for its
+         version is the Otter language version, Program.Version, which
+         otterPS defines. -->
+    <Version>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)VERSION').Trim())</Version>
+    <Company>Jeffrey Macy</Company>
+    <Product>Otter (otter-net)</Product>
+    <Copyright>Copyright (c) 2026 Jeffrey Macy</Copyright>
   </PropertyGroup>
 </Project>
