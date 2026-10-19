@@ -119,3 +119,52 @@ try
 otherwise into reason
     say "json:" reason
 .
+try
+    replace "a" with "b" in nothingHere
+otherwise into reason
+    say "replace:" reason
+.
+try
+    add 2 days to nothingHere
+otherwise into reason
+    say "add days:" reason
+.
+try
+    if password 5 matches hash "x"
+        say "never"
+    .
+otherwise into reason
+    say "password:" reason
+.
+try
+    hash password "" and call it nope
+otherwise into reason
+    say "hash empty:" reason
+.
+early is date from "2025-03-20"
+late is date from "2024-01-25"
+say "months back:" months between early and late
+say "years back:" years between early and late
+blank is a thing
+try
+    say colour of blank
+otherwise into reason
+    say "no properties:" reason
+.
+nothingYet are empty
+say "last of empty:" last of nothingYet
+wait 0 days
+wait 0 years
+doc is xml from text "<a><b>1</b></a>"
+say "missing element:" element "c" in doc
+try
+    show progress 101 percent
+otherwise into reason
+    say "progress:" reason
+.
+try
+    nobody are empty
+    choose from nobody into pick
+otherwise into reason
+    say "choose:" reason
+.
