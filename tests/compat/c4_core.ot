@@ -110,3 +110,12 @@ try
 otherwise into reason
     say "random:" reason
 .
+a Shape has
+    sides
+.
+try
+    convert Shape to json into shapeJson
+    say shapeJson
+otherwise into reason
+    say "json:" reason
+.

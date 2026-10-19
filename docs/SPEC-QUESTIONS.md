@@ -576,3 +576,18 @@ be between +/-10000.\r\nParameter name: years"); the texts are to be
 confirmed on Windows by CI (`c4_compiled_engine.ot`, `c4_interpreter_dotnet.ot`).
 Needs a decision: should the compiled engine's differences be part of the
 language, or is the interpreter the specification?
+
+### V4-3. `convert X to json` of a timer, xml or a network handle
+
+`ConvertTo-OtterJsonShape` passes anything that is not a thing, a list, a
+function or a type straight to `ConvertTo-Json -Depth 32`, which writes the
+PowerShell object's own properties: a timer becomes the Stopwatch
+(`IsRunning`, `Elapsed` with every TimeSpan field, `ElapsedMilliseconds`,
+`ElapsedTicks`), xml becomes `{"Node": [...]}` (XmlNode's enumeration), and a
+websocket, tcp or udp handle, an http request or a command job becomes its
+PowerShell class's fields. otter-net writes such a value's type name as a
+JSON text (`"System.Diagnostics.Stopwatch"`, `"OtterXml"`). The timer's
+numbers change from run to run, and the other shapes are .NET runtime
+internals (and differ between Windows PowerShell 5.1 and PowerShell 7), so
+otter-net has not copied them. Needs a decision: refuse these values ("Otter
+cannot turn ... into JSON"), or specify a shape.
