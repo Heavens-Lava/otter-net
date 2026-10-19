@@ -57,7 +57,9 @@ internal static class Program
             SideResult reference = RunSide("otterps", test, steps);
             SideResult candidate = RunSide("otter-net", test, steps);
             var differences = Compare(name, reference, candidate);
-            string notes = differences.Count == 0 ? $"{reference.Observations.Count} observations, {reference.Images.Count} snapshots, exit {reference.Exit}" : differences[0];
+            string notes = differences.Count == 0
+                ? $"{reference.Observations.Count} steps, {reference.Images.Count} snapshots, exit {reference.Exit}" + (nearlySame > 0 ? $"; {nearlySame} pixels within 2/255" : "")
+                : differences[0];
             if (!candidate.RanInDesktopHost && candidate.CreatesWindows)
             {
                 differences.Add("otter-net did not run the program in otter-desktop (no `otter-net desktop:` trace)");
@@ -243,8 +245,12 @@ internal static class Program
         return result;
     }
 
+    // Pixels whose colours differ by 1 or 2 of 255, in the last comparison.
+    static int nearlySame;
+
     static List<string> Compare(string name, SideResult reference, SideResult candidate)
     {
+        nearlySame = 0;
         var differences = new List<string>();
         if (reference.Exit != candidate.Exit) differences.Add($"exit code: otterPS {reference.Exit}, otter-net {candidate.Exit}");
         if (!reference.Stdout.AsSpan().SequenceEqual(candidate.Stdout))
@@ -279,12 +285,18 @@ internal static class Program
             if (r.Width != c.Width || r.Height != c.Height) pixelDifference = $"size {r.Width}x{r.Height} against {c.Width}x{c.Height}";
             else
             {
-                int differing = 0;
+                // A pixel differs when a colour channel differs by more than 2
+                // of 255: .NET Framework's and .NET 10's WPF anti-alias some
+                // glyph edges one step apart (seen on bold heading text).
+                int differing = 0, nearly = 0;
                 for (int p = 0; p + 3 < r.Pixels.Length; p += 4)
                 {
-                    if (r.Pixels[p] != c.Pixels[p] || r.Pixels[p + 1] != c.Pixels[p + 1] || r.Pixels[p + 2] != c.Pixels[p + 2]) differing++;
+                    int delta = Math.Max(Math.Abs(r.Pixels[p] - c.Pixels[p]), Math.Max(Math.Abs(r.Pixels[p + 1] - c.Pixels[p + 1]), Math.Abs(r.Pixels[p + 2] - c.Pixels[p + 2])));
+                    if (delta > 2) differing++;
+                    else if (delta > 0) nearly++;
                 }
                 if (differing > 0) pixelDifference = $"{differing} of {r.Width * r.Height} pixels differ";
+                if (nearly > 0) nearlySame += nearly;
             }
             if (pixelDifference != null)
             {
@@ -561,6 +573,11 @@ internal static class Program
                 {
                     var c = element.Current;
                     if (c.ControlType == ControlType.TitleBar || c.ControlType == ControlType.MenuBar) continue;
+                    // .NET Framework's WPF lists a text box's two hidden scroll
+                    // bars (off screen, no rectangle) as its children; .NET 10's
+                    // does not. Nothing a user sees: left out on both sides.
+                    if (c.ControlType == ControlType.ScrollBar && c.IsOffscreen && c.BoundingRectangle.IsEmpty
+                        && parent.Current.ControlType == ControlType.Edit) continue;
                     text.Append('\n').Append(new string(' ', depth * 2));
                     text.Append(c.ControlType.ProgrammaticName.Replace("ControlType.", ""));
                     text.Append($" \"{Escape(c.Name)}\"");

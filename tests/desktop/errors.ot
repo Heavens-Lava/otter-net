@@ -177,7 +177,11 @@ try
 otherwise into reason
     say "29:" reason
 .
-say "30:" the round of k
+try
+    k has round
+otherwise into reason
+    say "30:" reason
+.
 try
     width of b is "Infinity"
 otherwise into reason

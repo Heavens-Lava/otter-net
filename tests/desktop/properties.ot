@@ -50,7 +50,7 @@ say "heading:" text of h "foreground:" foreground of h
 text of h is "Heading"
 
 create card into k
-say "card:" background of k "round:" round of k "spacing:" spacing of k
+say "card:" background of k "spacing:" spacing of k
 k has width 160, height 40
 
 create panel into p
