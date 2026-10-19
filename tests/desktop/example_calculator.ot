@@ -1,0 +1,36 @@
+# Copied unchanged from otterPS 1.0.1's examples/calculator.ot.
+create window into app
+app has title is "Otter Calculator", width 420, height 320, background "#111827", spacing 12
+
+create text into firstLabel
+firstLabel has text "First number", foreground  "white"
+
+create text box into firstBox
+firstBox has width 260, background "white", foreground "black"
+
+create text into secondLabel
+secondLabel has text "Second number", foreground "white"
+
+create text box into secondBox
+secondBox has width 260, background "white", foreground "black"
+
+create button into addButton
+addButton has text "Add", width 120, height 40, background "#2563EB", foreground "white"
+
+create text into resultLabel
+resultLabel has text "Result", foreground "white"
+
+put firstLabel, firstBox, secondLabel, secondBox, addButton, resultLabel in app
+
+when addButton is clicked
+    try
+        number1 is text of firstBox
+        number2 is text of secondBox
+        total is number1 plus number2
+        text of resultLabel is total
+    otherwise
+        text of resultLabel is "Please enter two numbers"
+    .
+.
+
+show app

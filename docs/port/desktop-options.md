@@ -1,23 +1,30 @@
 # Desktop UI in otter-net: what it needs, and the options
 
-**Decision needed from the project owner.** Until it is made, every program
-that opens a desktop window keeps running on the PowerShell Otter on
-Windows, and that decision is taken before anything runs.
+**Decided (2026-10-18): option B, a WPF host.** The project owner approved
+implementing Otter 1.0.1's desktop windows natively with WPF. They run in
+`otter-desktop.exe` (`src/Otter.Desktop`), which the native `otter` starts
+on Windows, before anything runs, for a program that creates a window (and
+for the REPL); without it the PowerShell Otter runs the program as before.
+What it covers, where, and how it is verified against otterPS on a Windows
+desktop: `docs/port/desktop.md`. The rest of this page is the analysis the
+decision was made from, as it stood on 2026-10-17.
 
-What that means precisely (2026-10-17): in otterPS only `create KIND into x`
-reaches WPF when a program runs (`New-OtterUiResourceValue`; `put`, `show`,
-`when`, property access and the `x is a ...` object forms all need a
-resource that only `create` makes, and the declarative `page`/`card` blocks
-only run their inner statements in `otter run`). So:
+What that meant precisely (2026-10-17, before the decision): in otterPS only
+`create KIND into x` reaches WPF when a program runs
+(`New-OtterUiResourceValue`; `put`, `show`, `when`, property access and the
+`x is a ...` object forms all need a resource that only `create` makes, and
+the declarative `page`/`card` blocks only run their inner statements in
+`otter run`). So:
 
 - `otter check` of any UI program is native everywhere.
 - `otter run` of a program without `create` is native everywhere (state,
   derived values, watchers and every refusal included).
-- `otter run` of a program with `create`: on Windows it is handed to the
-  PowerShell Otter before it starts (decided from the parse, `FileMode.cs`;
-  the REPL refuses such a line); on macOS and Linux it runs natively and
-  fails at the first `create` exactly as otterPS does there ("Otter could not
-  start its UI provider. WPF may not be available on this system.").
+- `otter run` of a program with `create`: on Windows it was handed to the
+  PowerShell Otter before it started (decided from the parse, `FileMode.cs`;
+  the REPL refused such a line) - now it runs in `otter-desktop.exe`; on
+  macOS and Linux it runs natively and fails at the first `create` exactly as
+  otterPS does there ("Otter could not start its UI provider. WPF may not be
+  available on this system.").
 - `otter desktop` (the browser window, not WPF) is native.
 
 In otterPS 1.0.1's corpus 11 programs contain `create` (examples greeter,
@@ -112,11 +119,15 @@ output through.
 | Win32 through `LibraryImport` | yes | Every control drawn by the OS's classic controls: very different look; a large amount of hand-written code to get WPF's layout behaviour (StackPanel spacing, alignment, scroll). |
 | A browser window over the web compiler (what `otter desktop` already does) | yes | The page's HTML/CSS look instead of WPF's; and the program would run as JavaScript in the page rather than in the interpreter, so `say`, timing, errors and console input behave like the web target, not like `otter run`. A different product, not a port. |
 
-### Recommendation
+### Recommendation (2026-10-17) and decision (2026-10-18)
 
-Keep **A** as the default now (nothing to do). If desktop speed matters,
-choose **B**: it is the only option that keeps the WPF behaviour exactly.
-Options in **C** each change what users see and need a SPEC decision first.
+The recommendation was to keep **A** as the default and to choose **B** if
+desktop speed mattered: it is the only option that keeps the WPF behaviour
+exactly. Options in **C** each change what users see and need a SPEC
+decision first. **The owner chose B**; it is implemented
+(`docs/port/desktop.md`). Of the declarative/animation rows above, only the
+resource model is reachable from `otter run` in otterPS 1.0.1 (SPEC-QUESTIONS
+UI2-5), so that is what the host ports.
 
 `otter desktop` (the browser-window form) is separate from this choice and
 is now native (`src/Otter.Cli/DesktopCommand.cs`). Its WinForms file dialogs

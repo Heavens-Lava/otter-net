@@ -1,0 +1,14 @@
+# A failure inside a handler stops the window's message loop: otterPS
+# reports it at the `show`, as a window that cannot be shown again.
+create window into app
+title of app is "Failing handler"
+create button into bad
+text of bad is "Fail"
+when bad is clicked
+    say "about to fail"
+    fail with "boom"
+.
+put bad in app
+say "showing"
+show app
+say "never reached"

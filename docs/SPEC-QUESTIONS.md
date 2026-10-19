@@ -523,3 +523,51 @@ PowerShell's error view and scoping rules; it cannot be compared
 automatically (the server never ends) and should be confirmed by hand on
 Windows. The path assumes otterPS's layout next to otter.exe, as in C2-1.
 Needs a decision whether an unreadable port should rather be an Otter error.
+
+## D4 questions (found 2026-10-18, porting desktop windows to the WPF host)
+
+Each was observed on Windows PowerShell 5.1 with otterPS 1.0.1 by
+`tests/desktop` (desktop.yml); otter-net does the same.
+
+### D4-1. A failure inside a window's handler is reported as "already closed"
+
+`Show-OtterUiResource` wraps `ShowDialog()` in a catch-all, so any failure in
+a handler while the window is shown (`fail with`, an unknown property, a
+`stop`) ends the message loop and becomes "This window has already been
+closed, so it can't be shown again." at the `show` line; the handler's own
+message is lost, and the window stays on screen, unresponsive, until the
+program ends (tests/desktop/handler_error*.ot). Should the handler's error
+be reported instead?
+
+### D4-2. A change handler that fails while the program sets the text
+
+`text of box is "x"` raises the text box's `changed` handler at once; if it
+fails, PowerShell reports its own `Exception setting "Text": "..."` as
+"Otter hit a problem inside itself" (tests/desktop/sync_handler_error.ot).
+Similarly a card's `round` has no WPF property behind it, so setting it is
+PowerShell's "The property '' cannot be found on this object..." and reading
+it gives gone; a width of "Infinity" is WPF's refusal in the user's culture.
+Were these meant to be Otter errors?
+
+### D4-3. `width of x is true` is full width
+
+The check for `full` is PowerShell's `$Value -eq 'full'`, so `true`, any
+capitalisation of "full", and a list holding one of them all mean full
+width, while `false` is "I expected a number ... but got false."
+(tests/desktop/quirks.ot). `spread of x is false` also spreads (the value is
+not read). Intended?
+
+### D4-4. Every UI resource equals every other
+
+`Test-OtterEqual` compares two resources as PowerShell's `[string]` of the
+class, so `if b is other` is true for any two resources, and a resource
+equals the text "OtterUiResource" (tests/desktop/errors.ot). Things compare
+by identity (D44's own comment says resources should too).
+
+### D4-5. A text box's foreground changes its placeholder's background
+
+`Set-OtterUiProperty` treats every colour property alike: on a text box with
+a placeholder, setting `foreground` also replaces the colour the watermark
+is drawn on (and the background restored once text is typed), and on a
+padded window the `foreground` paints the padding Border's background.
+otter-net copies it (tests/desktop/placeholder.ot). Intended?

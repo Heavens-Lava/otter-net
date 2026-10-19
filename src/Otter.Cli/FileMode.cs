@@ -83,12 +83,13 @@ internal static class FileMode
             throw Cli.VerboseModules();
         }
         // Desktop windows: otterPS opens WPF for `create`, which Native AOT
-        // cannot host (docs/port/desktop-options.md). On Windows such a
-        // program goes to the PowerShell Otter whole; elsewhere WPF cannot
-        // start in otterPS either, and the program runs here until it says so.
-        if (!line.ParseOnly && !checkOnly && compiled.CreatesUiResources && OperatingSystem.IsWindows())
+        // cannot host (docs/port/desktop.md). On Windows such a program runs
+        // whole in the otter-desktop host, which has the WPF provider;
+        // elsewhere WPF cannot start in otterPS either, and the program runs
+        // here until it says so.
+        if (!line.ParseOnly && !checkOnly && compiled.CreatesUiResources && OperatingSystem.IsWindows() && UiProviders.Current == null)
         {
-            throw new NeedsPowerShell("a desktop window (create, WPF) is not native");
+            throw new NeedsDesktop("a desktop window (create, WPF)");
         }
         // -DebugAst: the tree, after the tokens, when the program will run.
         List<string>? ast = line.DebugAst && !line.ParseOnly && !checkOnly ? AstDump.Lines(compiled.Program!) : null;

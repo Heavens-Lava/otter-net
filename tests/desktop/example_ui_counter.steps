@@ -1,0 +1,7 @@
+window "Otter Counter"
+click button "Add one"
+click button "Add one"
+click button "Add one"
+snap
+close
+exit

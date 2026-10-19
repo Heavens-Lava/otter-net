@@ -1,0 +1,16 @@
+# Real keystrokes in a text box: one change event per character, and a
+# button that reads what was typed.
+create window into app
+title of app is "Typing"
+create text box into box
+box has width 200
+create button into read
+text of read is "Read"
+when box is changed
+    say "now:" text of box
+.
+when read is clicked
+    say "read:" text of box
+.
+put box, read in app
+show app

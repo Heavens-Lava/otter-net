@@ -1,0 +1,10 @@
+window "Events"
+snap
+type edit#1 "typed"
+click button "Go"
+click button "Later"
+click button "Stop"
+mouse text "The card is below" 30 40
+snap
+close
+exit

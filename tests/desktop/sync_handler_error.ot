@@ -1,0 +1,18 @@
+# A handler that fails while the program itself changes the text box: the
+# failure reaches the program through the property it was setting.
+create window into app
+title of app is "Sync"
+create text box into box
+when box is changed
+    say "handler sees" text of box
+    fail with "no changes allowed"
+.
+try
+    text of box is "first"
+otherwise into reason
+    say "caught:" reason
+.
+put box in app
+say "box reads" text of box
+text of box is "second"
+say "never reached"

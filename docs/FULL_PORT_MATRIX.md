@@ -22,7 +22,8 @@ otter-net location, its tests and its remaining work.
 | Network and events: HTTP, downloads, servers and routes, WebSockets, TCP, TLS, UDP, file watching, command jobs, the event loop (D130, D133), `await` | `docs/port/network.md` | 63 | - | 1 | - |
 | Data: databases (D97, D98), queries (D99), `the PROPERTY of X` | `docs/port/data.md` | 18 | - | 1 | - |
 | CLI: every `otter` command, flags, projects, `new`, `test`, `build`, `publish`, REPL, debugger, profiler | `docs/port/cli.md` | 33 | 3 | 2 | - |
-| UI: the web compiler (`otter web`), UI grammar, routing, state, animation, drag and drop | `docs/port/ui.md` | 62 | - | 1 (WPF windows in `otter run` on Windows: needs a decision) | 1 (`otter studio`) |
+| UI: the web compiler (`otter web`), UI grammar, routing, state, animation, drag and drop | `docs/port/ui.md` | 63 | - | - | 1 (`otter studio`) |
+| Desktop windows (WPF) in `otter run` and the REPL on Windows, through `otter-desktop.exe` | `docs/port/desktop.md` | 25 | - | - | - |
 
 ## Everything that can still hand a program to PowerShell
 
@@ -61,7 +62,6 @@ parser bug.
 
 | Site | Case | Why it stays |
 |---|---|---|
-| `FileMode.cs` ~91 | a desktop window (`create`, WPF) in `otter run` on Windows | **needs a decision** (`docs/port/desktop-options.md`) |
 | `FileMode.cs` ~190, ~207; `ProjectBuild.cs` ~75; `DesktopCommand.cs` ~44; `Cli.cs` ~236 (`WebCommand`'s reason) | the parser's or web compiler's `NotSupportedYet` above | only remote commands on Windows reach them |
 | `FileMode.cs` ~199, ~217; `ProjectBuild.cs` ~84; `DesktopCommand.cs` ~61; `Cli.cs` ~236 | a lexer, parser or web compiler crash | bug guards (a bug in otter-net is handed over instead of shown) |
 | `AstDump.cs` ~68, ~108, ~157 | `-DebugAst` of a node class with no table entry | bug guards: every node class otter-net parses has an entry; the dumps of all 475 corpus programs match otterPS's |
@@ -72,6 +72,7 @@ parser bug.
 | `DesktopCommand.cs` ~36, ~65, ~86 | `otter desktop`: an import problem; the bridge cannot start; the page cannot be written | each is an exception escaping `Start-OtterDesktopApplication` (an OtterError thrown in `Otter.Module.psm1`/`Otter.Desktop.psm1`, or Set-Content's error) and rendered by powershell.exe for a `-File` script; the record's category, error id and multi-line position for a `throw` of an exception object cannot be checked without 5.1 (Windows only) |
 | `Cli.cs` ~206 | `otter studio` | out of scope (the IDE is developed separately) |
 | `Program.cs` | `OTTER_ENGINE=powershell`; the hand-over itself | removed last (phase D) |
+| `Program.cs` `Desktop` | a desktop window program on Windows when `otter-desktop.exe` is missing beside otter | packaging guard: with the host installed (as published) desktop windows are native (`docs/port/desktop.md`; decided 2026-10-18, WPF host) |
 
 Native in this batch (CLI): `otter serve`'s port casts (`ServeCommand.CastPort`,
 SPEC-QUESTIONS T3-3), the web compiler's internal problems in `otter web`,
@@ -83,15 +84,14 @@ page of the corpus, `-DebugAst` of every node kind, and the unreachable
 
 | What | Why | Status |
 |---|---|---|
-| Desktop windows (WPF) in `otter run` on Windows | Native AOT cannot host WPF | **needs a decision**: `docs/port/desktop-options.md` |
 | A REPL line using an unported feature | a session cannot be handed to PowerShell halfway; the line is refused and the session goes on | disappears when everything is ported |
 
 ## Decisions
 
 1. **Desktop windows (WPF) on Windows** - decided 2026-10-18: implemented
    natively with WPF in a companion `otter-desktop.exe` (Native AOT cannot
-   host WPF); in progress on `port/desktop`, verified with real windows on a
-   Windows runner.
+   host WPF): 26 desktop programs identical to otterPS on a real Windows
+   desktop (window tree, pixels, output, exit code); `docs/port/desktop.md`.
 2. **Remote commands (`run command ... on remote ... using credential`, D84)
    on Windows** - for the release candidate, the one statement still handed
    to the PowerShell Otter, which runs it with Windows' built-in PowerShell

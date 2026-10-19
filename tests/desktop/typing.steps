@@ -1,0 +1,7 @@
+window "Typing"
+focus edit#1
+keys "otter"
+click button "Read"
+snap
+close
+exit

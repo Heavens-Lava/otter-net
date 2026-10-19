@@ -1,0 +1,15 @@
+window "Captures"
+click button "Ada"
+click button "Linus"
+click button "Grace"
+click button#4
+click button#5
+click button "Make one"
+click button "Make one"
+click button "From a function"
+snap
+click button "child"
+click button#2 "child"
+snap
+close
+exit

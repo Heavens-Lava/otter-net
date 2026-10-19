@@ -136,9 +136,10 @@ public sealed partial class Interpreter
     }
 
     // Stop-OtterCommandJob: the process and its children end; the cancel
-    // event waits in the job's queue (otterPS runs it at once only inside a
-    // desktop window's dispatcher).
-    static void CancelJob(OtterCommandJob job)
+    // event waits in the job's queue. Once a desktop window has been made,
+    // otterPS's Invoke-OtterJobEvent also runs the cancel handlers at once on
+    // the window's thread, each one's failure ignored.
+    void CancelJob(OtterCommandJob job)
     {
         if (job.State is "cancelled" or "completed" or "failed") return;
         job.State = "cancelled";
@@ -150,6 +151,19 @@ public sealed partial class Interpreter
         var cancel = new JobEvent("cancel", new Dictionary<string, object?>());
         job.RetainedTerminalEvent = cancel;
         job.EventQueue.Enqueue(cancel);
+        if (UiProviders.Current is { OnDispatcherThread: true })
+        {
+            foreach (var handler in job.Handlers.Where(h => h.EventName == "cancel").ToList())
+            {
+                if (handler.Fired) continue;
+                handler.Fired = true;
+                var previous = currentJobContext;
+                currentJobContext = cancel.Context;
+                try { Execute(handler.Body, handler.Scope); }
+                catch (Exception e) when (e is not OutOfMemoryException) { }
+                finally { currentJobContext = previous; }
+            }
+        }
     }
 
     // Test-OtterJobsActive
@@ -235,8 +249,8 @@ public sealed partial class Interpreter
                 return true;
             }
             // on output from / on error output from / on exit of <job>: the
-            // console's `when` (otterPS's When case); UI resources are the
-            // desktop's, which otter-net hands to otterPS.
+            // console's `when` (otterPS's When case); a UI resource's events
+            // are the UI provider's (Interpreter.Ui.cs).
             case WhenStmt handlerStmt:
             {
                 if (handlerStmt.EventName is "drag" or "drop" or "files dropped")
@@ -245,6 +259,11 @@ public sealed partial class Interpreter
                         handlerStmt.Line, "Compile the program with: otter web <file.ot>");
                 }
                 object? target = Evaluate(handlerStmt.Target, scope);
+                if (target is UiResource resource)
+                {
+                    AddUiHandler(handlerStmt, resource, scope);
+                    return true;
+                }
                 if (target is not OtterCommandJob job)
                 {
                     throw RuntimeError($"I can only listen for an event on a UI resource or command job, but this is {Values.TypeName(target)}.", handlerStmt.Line);

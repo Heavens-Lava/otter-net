@@ -10,7 +10,9 @@ namespace Otter.Cli;
 // A REPL cannot be handed to the PowerShell Otter halfway through a session
 // without losing what was typed before, so a line that uses something
 // otter-net does not have yet is refused on its own, and the session goes on
-// (OTTER_ENGINE=powershell starts the PowerShell Otter's REPL instead).
+// (OTTER_ENGINE=powershell starts the PowerShell Otter's REPL instead). On
+// Windows the REPL runs in the otter-desktop host, where desktop windows
+// work; without that host a line that creates one is refused.
 internal static class Repl
 {
     static readonly string[] BlockOpeners = { "if", "while", "repeat", "count", "for", "to", "otherwise" };
@@ -42,6 +44,12 @@ internal static class Repl
 
     public static int Start(CommandLine line)
     {
+        // Any line may open a desktop window, so on Windows the whole REPL
+        // runs in the otter-desktop host when it is installed.
+        if (OperatingSystem.IsWindows() && UiProviders.Current == null && Program.DesktopHostPath() != null)
+        {
+            throw new NeedsDesktop("the REPL can open desktop windows (create, WPF)");
+        }
         Program.Trace("native: repl");
         Host.Line(Cli.VersionText);
         Host.Line("Readable like English. Precise like code.");
@@ -95,7 +103,7 @@ internal static class Repl
             Host.Line($"Otter: otter-net cannot run this yet: {unsupported.Message}. Start the REPL with OTTER_ENGINE=powershell to use it.", ConsoleColor.Red);
             return;
         }
-        if (compiled.CreatesUiResources && OperatingSystem.IsWindows() && !line.ParseOnly)
+        if (compiled.CreatesUiResources && OperatingSystem.IsWindows() && !line.ParseOnly && UiProviders.Current == null)
         {
             Host.Line("Otter: otter-net cannot run this yet: a desktop window (create, WPF) is not native. Start the REPL with OTTER_ENGINE=powershell to use it.", ConsoleColor.Red);
             return;

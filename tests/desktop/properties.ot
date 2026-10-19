@@ -1,0 +1,86 @@
+# Reading and setting every property of every kind (D45, D48, D53, D54):
+# what each reads before it is set, and after.
+create window into app
+say "window title:" title of app
+say "window width:" width of app "height:" height of app
+say "window background:" background of app "foreground:" foreground of app
+say "window spacing:" spacing of app "padding:" padding of app
+app has title "Properties", width 640, height 520, background "#f0f4f8", foreground "navy"
+say "window now:" title of app width of app height of app background of app foreground of app
+spacing of app is 6
+padding of app is 10
+say "window spacing:" spacing of app "padding:" padding of app
+
+create button into b
+say "button text:" text of b "width:" width of b "align:" align of b
+say "button background:" background of b "foreground:" foreground of b
+b has text 42, width 120, height 30, background "LightYellow", foreground "#336699"
+align of b is "Right"
+say "button now:" text of b width of b height of b background of b foreground of b align of b
+
+create text into t
+say "text text:" text of t "background:" background of t "foreground:" foreground of t
+t has text "Some text", foreground "#80ff0000", width 200
+align of t is "center"
+say "text now:" text of t foreground of t width of t align of t
+
+create text box into tb
+say "text box text:" text of tb "placeholder:" placeholder of tb
+tb has text "", width 180
+placeholder of tb is "Type a name"
+say "text box now:" text of tb "placeholder:" placeholder of tb
+
+create row into r
+say "row spacing:" spacing of r "padding:" padding of r "spread:" spread of r "align:" align of r
+r has spacing 8, background "#ddeeff"
+align of r is "middle"
+say "row now:" spacing of r background of r spread of r align of r
+
+create column into c
+c has spacing 4
+say "column:" spacing of c "align:" align of c
+
+create scroll into s
+say "scroll:" width of s height of s background of s
+s has width 300, height 60, background "white"
+say "scroll now:" width of s height of s background of s
+
+create heading into h
+say "heading:" text of h "foreground:" foreground of h
+text of h is "Heading"
+
+create card into k
+say "card:" background of k "spacing:" spacing of k
+k has width 160, height 40
+
+create panel into p
+create grid into g
+say "panel:" width of p "grid:" width of g
+p has spacing 3, padding 2
+g has spacing 3
+
+create primary button into pb
+create secondary button into sb
+create danger button into db
+say "primary:" background of pb foreground of pb
+say "secondary:" background of sb foreground of sb
+say "danger:" background of db foreground of db
+pb has text "Go"
+sb has text "Later"
+db has text "Stop"
+
+create text into first
+create text into last
+text of first is "a"
+text of last is "z"
+put first, b, last in r
+put r, t, tb, c, s, h, k, p, g, pb, sb, db in app
+
+width of t is "full"
+say "text width:" width of t
+width of t is 220
+say "text width:" width of t
+height of app is "FULL"
+say "window height is full:" height of app
+
+show app

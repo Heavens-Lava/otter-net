@@ -4,11 +4,12 @@ namespace Otter.Runtime;
 
 // The runtime for user interfaces as `otter run` runs them (otterPS
 // src/Otter.Interpreter.psm1's UI cases). Only `create` reaches a desktop
-// window (WPF, src/Otter.UI.psm1): on Windows a program that creates one is
-// handed to the PowerShell Otter before it starts (FileMode.cs); elsewhere
-// WPF cannot start, as otterPS says. Everything else here needs no window:
-// state, derived values and watchers (D56), declarative elements (their
-// statements run), and the forms Otter 1.0 refuses when run.
+// window (WPF, src/Otter.UI.psm1), through the UI provider (UiProvider.cs):
+// on Windows a program that creates one runs in the `otter-desktop` host,
+// which has the WPF provider (FileMode.cs decides before it starts);
+// elsewhere WPF cannot start, as otterPS says. Everything else here needs no
+// window: state, derived values and watchers (D56), declarative elements
+// (their statements run), and the forms Otter 1.0 refuses when run.
 public sealed partial class Interpreter
 {
     bool TryExecuteUi(Stmt statement, Scope scope)
@@ -17,23 +18,43 @@ public sealed partial class Interpreter
         {
             // create button into helloButton (D44): New-OtterUiResourceValue
             // starts WPF first, whatever the kind.
-            case CreateUiResourceStmt:
+            case CreateUiResourceStmt create:
+                if (UiProviders.Current is { } provider)
+                {
+                    scope.Set(create.Target, provider.Create(create.TypeName, create.Line));
+                    return true;
+                }
                 if (OperatingSystem.IsWindows())
                 {
-                    throw new InvalidOperationException("Desktop windows (WPF) are run by the PowerShell Otter.");
+                    throw new InvalidOperationException("Desktop windows (WPF) are run by the otter-desktop host.");
                 }
                 throw new OtterError("Otter could not start its UI provider. WPF may not be available on this system.", 0, "runtime");
-            // put helloButton in app (D47). No UI resource exists without WPF.
+            // put helloButton in app (D47)
             case PutInStmt put:
             {
                 object? item = Evaluate(put.Item, scope);
-                throw RuntimeError($"I can only put a UI resource somewhere, but this is {Values.TypeName(item)}.", put.Line);
+                if (item is not UiResource itemResource)
+                {
+                    throw RuntimeError($"I can only put a UI resource somewhere, but this is {Values.TypeName(item)}.", put.Line);
+                }
+                object? container = Evaluate(put.Container, scope);
+                if (container is not UiResource containerResource)
+                {
+                    throw RuntimeError($"I can only put something in a UI resource, but this is {Values.TypeName(container)}.", put.Line);
+                }
+                Ui.Put(containerResource, itemResource, put.Line);
+                return true;
             }
             // show app (D47)
             case ShowStmt show:
             {
                 object? target = Evaluate(show.Target, scope);
-                throw RuntimeError($"I can only show a UI resource, but this is {Values.TypeName(target)}.", show.Line);
+                if (target is not UiResource resource)
+                {
+                    throw RuntimeError($"I can only show a UI resource, but this is {Values.TypeName(target)}.", show.Line);
+                }
+                Ui.Show(resource, show.Line);
+                return true;
             }
             // state count is 0
             case StateDefStmt state:
@@ -119,6 +140,40 @@ public sealed partial class Interpreter
                 throw NotEvaluable("QueryParameter", queryParameter.Line);
         }
         return false;
+    }
+
+    // A UI resource exists only when a provider made it.
+    static IUiProvider Ui => UiProviders.Current ?? throw new InvalidOperationException("A UI resource exists without a UI provider.");
+
+    // when helloButton is clicked (D46), after Jobs.cs has ruled out a
+    // command job. A handler set up while another handler runs keeps that
+    // run's names (D133); the body runs in the scope the handler was set up
+    // in, as otterPS's GetNewClosure() handler does.
+    void AddUiHandler(WhenStmt handlerStmt, UiResource resource, Scope scope)
+    {
+        Scope captured = NewHandlerCaptureScope(scope);
+        IReadOnlyList<Stmt> body = handlerStmt.Body;
+        Ui.AddEventHandler(resource, handlerStmt.EventName, () =>
+        {
+            bool entered = EnterHandlerRun(handlerStmt);
+            try { Execute(body, captured); }
+            finally { ExitHandlerRun(entered); }
+        }, handlerStmt.Line);
+    }
+
+    // `x has text "Hi", width 80` on an existing resource (otterPS's ObjectDef
+    // case): each property in turn, through the provider.
+    void SetUiProperties(UiResource resource, ObjectDefStmt objectDef, Scope scope)
+    {
+        foreach (var property in objectDef.Properties)
+        {
+            if (property.Target is not VariableExpr name)
+            {
+                throw RuntimeError("A UI resource property name must be a plain name.", property.Line);
+            }
+            object? value = Evaluate(property.Value, scope);
+            Ui.SetProperty(resource, name.Name, value, property.Line);
+        }
     }
 
     OtterError NotEvaluable(string kind, int line) => RuntimeError($"I do not know how to work out a {kind} value yet.", line);

@@ -19,8 +19,9 @@ statement in the program is one otter-net parses and the web compiler here
 knows; otherwise the command falls back. **The rule for `otter run` /
 `otter check`:** otterPS has one grammar, so every UI form is parsed (and
 checked) natively for every command. When run, only `create KIND into x`
-opens WPF in otterPS: on Windows a program containing one goes to the
-PowerShell Otter before it starts (`FileMode.cs`, decided from the parse);
+opens WPF in otterPS: on Windows a program containing one runs in the WPF
+host `otter-desktop.exe`, decided from the parse before it starts
+(`FileMode.cs`; `docs/port/desktop.md`);
 off Windows otterPS cannot start WPF either, and otter-net gives the same
 runtime error at the same statement. Everything else runs natively (see
 "Run" below).
@@ -46,7 +47,7 @@ otterPS files below: `Web` = `src/Otter.Web.psm1`, `JS` =
 | `otter serve <file.ot> [-Port N]` (also a project) | `otter.ps1`, `src/Otter.Server.psm1` | `Otter.Cli/ServeCommand.cs` | native: the program is checked, never run; top-level `when S receives METHOD at PATH` routes answered from their first `respond with` (a literal, or otterPS's node text `Kind@Lline`), 404 JSON, 413 over 10 MB, 500 and the console line for a failed request | a server that cannot start (PowerShell's error text); a `port` PowerShell cannot convert | `tests/cli/ui.psd1` (errors); serving tested by hand with curl (below) | - |
 | `otter desktop <file.ot>` | `otter.ps1`, `src/Otter.Desktop.psm1` `Start-OtterDesktopApplication` | `Otter.Cli/DesktopCommand.cs` | native on Windows (off Windows otterPS's refusal, native) | an import problem (PowerShell's error), a page the web compiler cannot make, a bridge that cannot start | test hook `OTTER_NET_DESKTOP_NO_BROWSER=1` (no window, any system), tested by hand with curl | bridge JSON key order is otter-net's (otterPS's comes from hash tables); file dialogs answer "cancelled" (no native page reaches them: `choose file` is not compiled natively) |
 | `otter studio` | `otter.ps1`, Desktop `Start-OtterStudio` | - | out of scope | whole command | - | developed separately |
-| `otter run` of a program with `create` (WPF windows) | Interp UI cases, UI | - | missing on Windows; native elsewhere (WPF cannot start) | on Windows, any `create KIND into x` | `tests/compat/ui_run_create*.ot` | see `desktop-options.md` |
+| `otter run` of a program with `create` (WPF windows) | Interp UI cases, UI | `otter-desktop.exe` (`src/Otter.Desktop`), `FileMode.cs`, `Program.Desktop` | native (Windows: in the WPF host; elsewhere WPF cannot start, as in otterPS) | only when `otter-desktop.exe` is missing | `tests/desktop/*`, `tests/compat/ui_run_create*.ot` | - (`docs/port/desktop.md`) |
 | `otter run` / `otter check` of every other UI form | Interp, Validation | `Parser.Ui.cs`, `Interpreter.Ui.cs`, `Reactivity.cs` | native | - | `tests/compat/ui_run_*.ot`, `tests/cli/ui.psd1` | - |
 | `otter build` / `publish` of web, desktop and game projects | Project `Invoke-OtterProjectBuild` (`Export-OtterWebApplication -PassThruExceptions`) | `ProjectBuild.cs` | native: the page is compiled before anything is printed | a page the web compiler cannot make | `tests/cli/ui.psd1` | - |
 
@@ -132,7 +133,7 @@ later without a case (tests: `tests/web/t3_system_hooks.ot`,
 
 | Form | otterPS | Status | Tests |
 |---|---|---|---|
-| `create KIND into x` (D44) | Interp `CreateUiResource`, UI `New-OtterUiResourceValue` (WPF first, then the kind) | Windows: the program goes to the PowerShell Otter before it runs; elsewhere native: "Otter could not start its UI provider. WPF may not be available on this system." (line 0, catchable) | ui_run_create, ui_run_create_try, ui_run_create_unknown |
+| `create KIND into x` (D44) | Interp `CreateUiResource`, UI `New-OtterUiResourceValue` (WPF first, then the kind) | Windows: native in `otter-desktop.exe` (`docs/port/desktop.md`); elsewhere native: "Otter could not start its UI provider. WPF may not be available on this system." (line 0, catchable) | ui_run_create, ui_run_create_try, ui_run_create_unknown |
 | `put x in y`, `show x` (D47) | Interp `PutIn`, `Show` | native (no UI resource can exist without WPF: otterPS's "I can only put/show a UI resource" errors) | ui_run_put*, ui_run_show* |
 | `when x is EVENT` (D46), `on drag/drop/files dropped` (D110) | Interp `When` | native (command jobs, drag and drop refusal, non-resource error) | ui_run_when_clicked, ui_run_on_drag |
 | `state`, `derive`, `when x changes` (D56) | Interp `StateDef`, `DeriveDef`, `Watch`; Runtime `OtterSignal`, `OtterDerived`, `OtterEnvironment.Get/Set` | native, quirks included: a derived value is worked out in the scope that reads it; it subscribes to what it read only once read; a watcher runs only on a real change (Otter equality); dependency names ignore capitals | ui_run_state, ui_run_derive_cycle, ui_run_watch_* |
@@ -145,5 +146,5 @@ later without a case (tests: `tests/web/t3_system_hooks.ot`,
 
 | Capability | otterPS | otter-net | Status | Fallback | Remaining |
 |---|---|---|---|---|---|
-| WPF resources, properties, events, containment, show, animations | UI, Interp | - | missing on Windows | whole program (`otter run`), decided from the parse | decision in `desktop-options.md` |
+| WPF resources, properties, events, containment, show | UI, Interp | `src/Otter.Desktop` (`otter-desktop.exe`), `Otter.Runtime/UiProvider.cs` | native (`docs/port/desktop.md`; the declarative WPF renderer and animations are unreachable in otterPS 1.0.1) | only a missing `otter-desktop.exe` | - |
 | `otter desktop` (browser window + bridge) | Desktop | `DesktopCommand.cs` | native | see Commands | - |

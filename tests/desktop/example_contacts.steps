@@ -1,0 +1,24 @@
+window "Contact Manager"
+snap
+click button "Add"
+type edit#1 "Ada Lovelace"
+type edit#2 "ada@example.com"
+type edit#3 "555-0100"
+type edit#4 "first programmer"
+click button "Add"
+snap
+type edit#1 "Grace Hopper"
+click button "Add"
+click button "Ada Lovelace"
+snap
+type edit#1 "Ada King"
+click button "Save"
+click button "Save File"
+click button "Grace Hopper"
+click button "Delete"
+snap
+click button "Clear"
+click button "Load File"
+snap
+close
+exit

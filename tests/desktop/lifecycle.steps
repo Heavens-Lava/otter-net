@@ -1,0 +1,13 @@
+window "First"
+click button "Open another"
+window "Second"
+snap
+windows
+close
+window "First"
+snap
+close
+window "Empty"
+snap
+close
+exit

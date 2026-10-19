@@ -1,0 +1,45 @@
+# Every kind of resource otterPS can create (D44, D53, D56 variants), how
+# each prints, and each in a window.
+create window into app
+title of app is "All kinds"
+create button into plainButton
+create text into label
+create text box into box
+create row into toolbar
+create column into stack
+create scroll into area
+create card into box2
+create heading into headingText
+create panel into side
+create grid into board
+create primary button into ok
+create secondary button into later
+create danger button into dangerButton
+
+say app
+say plainButton label box toolbar stack area
+say box2 headingText side board ok later dangerButton
+
+text of plainButton is "Plain"
+text of label is "A label"
+text of box is "typed"
+text of headingText is "A heading"
+text of ok is "Primary"
+text of later is "Secondary"
+text of dangerButton is "Danger"
+
+create text into inRow
+text of inRow is "in the row"
+put plainButton, ok, later, dangerButton in toolbar
+put inRow in toolbar
+create text into inColumn
+text of inColumn is "in the column"
+put inColumn in stack
+create column into scrolled
+create text into far
+text of far is "inside the scroll"
+put far in scrolled
+put scrolled in area
+
+put headingText, label, box, toolbar, stack, area, box2, side, board in app
+show app
