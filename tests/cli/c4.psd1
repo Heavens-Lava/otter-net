@@ -32,5 +32,9 @@ show "<a & 'b'>\t\"q\"\\ end\nline"
             Files = @{ 'otter.json' = '{ "name": "Auto", "version": "0.1.0", "entryPoint": "main.ot", "target": "automation" }'; 'main.ot' = 'say 1' } }
         @{ Name = 'build: a web project'; Args = @('build'); KnownOnPwsh7 = 'the page (5.1 layout)'
             Files = @{ 'otter.json' = '{ "name": "Site", "version": "0.1.0", "entryPoint": "main.ot", "target": "web" }'; 'main.ot' = "app is a page`n    title is `"Site`"`n.`nshow app" } }
+        @{ Name = 'manifest: a string not closed'; Args = @('run', '.'); Files = @{ 'otter.json' = '{ "entryPoint": "main.ot'; 'main.ot' = 'say 1' }; KnownOnPwsh7 = 'ConvertFrom-Json is Newtonsoft.Json on PowerShell 7, JavaScriptSerializer on 5.1: other messages' }
+        @{ Name = 'manifest: unicode and slash escapes'; Args = @('run', '.'); Files = @{ 'otter.json' = '{ "entryPoint": "m\u0061in.ot", "description": "a\/b" }'; 'main.ot' = 'say "escapes read"' } }
+        @{ Name = 'manifest: a unicode escape too short'; Args = @('run', '.'); Files = @{ 'otter.json' = '{ "entryPoint": "main.ot", "description": "\u12" }'; 'main.ot' = 'say 1' }; KnownOnPwsh7 = 'ConvertFrom-Json is Newtonsoft.Json on PowerShell 7, JavaScriptSerializer on 5.1: other messages' }
+        @{ Name = 'manifest: an empty property name'; Args = @('run', '.'); Files = @{ 'otter.json' = '{ "entryPoint": "main.ot", "": 1 }'; 'main.ot' = 'say 1' }; KnownOnPwsh7 = 'ConvertFrom-Json is Newtonsoft.Json on PowerShell 7, JavaScriptSerializer on 5.1: other messages' }
     )
 }
