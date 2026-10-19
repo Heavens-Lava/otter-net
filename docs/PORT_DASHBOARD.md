@@ -14,16 +14,16 @@ otter-net is complete only when all of these hold:
 
 | # | Gate | Now |
 |---|---|---|
-| 1 | Every Otter 1.0.1 language feature implemented in C# | yes, except desktop windows (WPF) and remote commands on Windows (wave 4, in progress); proved source by source in `docs/NATIVE_COVERAGE.md` |
+| 1 | Every Otter 1.0.1 language feature implemented in C# | yes, except remote commands on Windows (owner decision) - 225 of 225 node kinds |
 | 2 | Every conformance fixture passes | 19 of 19 checked natively; all identical on Windows |
-| 3 | No supported program needs the PowerShell Otter | 0 of 512 for `check`; at run time only desktop windows and remote commands on Windows (decisions pending) |
+| 3 | No supported program needs the PowerShell Otter | 568 of 568 checked natively; at run time only remote commands on Windows |
 | 4 | Syntax and runtime diagnostics independent of PowerShell | for native programs; strict mode: `tools/compare.ps1 -NativeOnly` |
 | 5 | All six platform configurations pass | yes (PR #3 CI) |
 | 6 | No unexplained compatibility differences | yes: Windows 0; elsewhere every difference declared with its reason |
 | 7 | Differential fuzzing passes, coverage documented | CI: 300 programs, 0 different; coverage audit: 3,160 programs run, 18,877 parsed, 5,490 pages compiled against otterPS, 0 differences of otter-net's after one fix (`docs/port/fuzz.md`); line coverage 84.3%, branch 78.5% (`docs/coverage/`) |
-| 8 | Native AOT executables run without PowerShell | for native programs |
-| 9 | Packaging and clean-machine installation tests | not started |
-| 10 | Release candidate reviewed and approved | not started |
+| 8 | Native AOT executables run without PowerShell | yes: 293 of 293 on a clean Debian 12; packaged builds on all six platforms |
+| 9 | Packaging and clean-machine installation tests | yes: MSI/ZIP, pkg/tarball, deb/tarball, installed and removed on clean machines (`docs/PACKAGING.md`) |
+| 10 | Release candidate reviewed and approved | **ready for review** - `docs/RELEASE_CANDIDATE_REPORT.md` |
 
 ## Coverage audit - 2026-10-18 (`port/coverage`)
 
@@ -57,6 +57,15 @@ random bounds and seeds, repeat counts and waits beyond Int32, process ids
 and wait timeouts give PowerShell's own errors; a websocket closed with an
 application code; a resource property set under a differently-capitalised
 name in a web page.
+
+## Release candidate 1.0.1-rc.1 - 2026-10-19 (wave 4: desktop windows, packaging, coverage audit)
+
+The full report is `docs/RELEASE_CANDIDATE_REPORT.md`. In short, against
+otterPS 1.0.1 on Windows PowerShell 5.1: programs 271, network 18, CLI 259,
+web pages 363, fuzz 300, desktop windows 26 - **0 differences**; 225 of 225
+node kinds native; 568 of 568 programs checked with no PowerShell; 293 of 293
+run on a clean machine; packages for six platforms install-tested. Not
+native: remote commands on Windows (owner decision).
 
 ## After wave 3 - 2026-10-18 (Windows tasks and printers, the last UI fallbacks, the web compiler for system/network/data programs, JSON reader fixes, PowerShell's own error layout)
 
