@@ -225,6 +225,6 @@ items are
     2
 add b to items
 say "41:" items
-put label, box in app
+put r, box in app
 show app
 say "the end"

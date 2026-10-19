@@ -564,9 +564,10 @@ class, so `if b is other` is true for any two resources, and a resource
 equals the text "OtterUiResource" (tests/desktop/errors.ot). Things compare
 by identity (D44's own comment says resources should too).
 
-### D4-5. Colour properties on a padded control paint its padding
+### D4-5. A text box's foreground changes its placeholder's background
 
-A row or column with `padding` sits in a Border; setting its `foreground`
-(as well as its `background`) sets that Border's background, and a text
-box's `foreground` replaces the colour its placeholder watermark is drawn
-on. otter-net copies `Set-OtterUiProperty`.
+`Set-OtterUiProperty` treats every colour property alike: on a text box with
+a placeholder, setting `foreground` also replaces the colour the watermark
+is drawn on (and the background restored once text is typed), and on a
+padded window the `foreground` paints the padding Border's background.
+otter-net copies it (tests/desktop/placeholder.ot). Intended?
