@@ -67,6 +67,10 @@ internal sealed class PowerShellError : Exception
     // PowerShell 5.1 in CI (otter -Deb, -OutBuffer -1, -ErrorAction 9, ...).
     static string Wrapped(string text, int width)
     {
+        // A line break inside the message starts a new line, counted afresh
+        // (measured: -ErrorAction foo's list of names after "try again:").
+        string[] paragraphs = text.Replace("\r\n", "\n").Split('\n');
+        if (paragraphs.Length > 1) return string.Join(Environment.NewLine, paragraphs.Select(p => Wrapped(p, width)));
         var lines = new List<string>();
         var line = new StringBuilder();
         int i = 0;
