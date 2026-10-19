@@ -1,0 +1,8 @@
+# `otter shortform.ot` (no `run`) and program arguments reach the window.
+create window into app
+title of app is "Short form"
+create text into shown
+text of shown is arguments
+put shown in app
+say "arguments:" arguments
+show app

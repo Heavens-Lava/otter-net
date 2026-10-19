@@ -479,7 +479,7 @@ public sealed class WpfUiProvider : IUiProvider
         }
         catch (Exception e) when (e is not OutOfMemoryException)
         {
-            throw new PowerShellError($"Exception setting \"{name}\": \"{PowerShellError.FrameworkText(e.Message)}\"");
+            throw new PowerShellError($"Exception setting \"{name}\": \"{e.Message}\"");
         }
     }
 
@@ -889,8 +889,4 @@ public sealed class WpfUiProvider : IUiProvider
 
 // An exception that reaches the user as PowerShell would show it from
 // otterPS: "Otter hit a problem inside itself" with this text.
-public sealed class PowerShellError(string message) : Exception(message)
-{
-    // .NET Framework's words for values .NET 10 writes differently.
-    public static string FrameworkText(string text) => text.Replace("-∞", "-Infinity").Replace("∞", "Infinity");
-}
+public sealed class PowerShellError(string message) : Exception(message);

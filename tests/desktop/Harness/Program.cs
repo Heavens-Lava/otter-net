@@ -573,11 +573,11 @@ internal static class Program
                 {
                     var c = element.Current;
                     if (c.ControlType == ControlType.TitleBar || c.ControlType == ControlType.MenuBar) continue;
-                    // .NET Framework's WPF lists a text box's two hidden scroll
-                    // bars (off screen, no rectangle) as its children; .NET 10's
-                    // does not. Nothing a user sees: left out on both sides.
-                    if (c.ControlType == ControlType.ScrollBar && c.IsOffscreen && c.BoundingRectangle.IsEmpty
-                        && parent.Current.ControlType == ControlType.Edit) continue;
+                    // .NET Framework's WPF lists the hidden scroll bars of text
+                    // boxes and scroll viewers (off screen, no rectangle) in the
+                    // tree; .NET 10's does not. Nothing a user sees: left out on
+                    // both sides.
+                    if (c.ControlType == ControlType.ScrollBar && c.IsOffscreen && c.BoundingRectangle.IsEmpty) continue;
                     text.Append('\n').Append(new string(' ', depth * 2));
                     text.Append(c.ControlType.ProgrammaticName.Replace("ControlType.", ""));
                     text.Append($" \"{Escape(c.Name)}\"");

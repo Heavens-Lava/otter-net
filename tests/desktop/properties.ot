@@ -76,11 +76,11 @@ text of last is "z"
 put first, b, last in r
 put r, t, tb, c, s, h, k, p, g, pb, sb, db in app
 
-width of t is full
+width of t is "full"
 say "text width:" width of t
 width of t is 220
 say "text width:" width of t
-height of app is full
+height of app is "FULL"
 say "window height is full:" height of app
 
 show app
