@@ -494,8 +494,9 @@ internal static class Program
                             if (attempt == 5) return $"close: failed ({e.GetType().Name})";
                         }
                     }
-                    Settle();
+                    // The window is gone (or going): nothing of it to observe.
                     window = null;
+                    Settle();
                     return "close: done";
                 }
                 case "wait":
@@ -525,7 +526,8 @@ internal static class Program
             for (int i = 0; i < 20; i++)
             {
                 string now;
-                try { now = Dump(window); } catch (ElementNotAvailableException) { return; }
+                // A window that goes away while it is read throws either.
+                try { now = Dump(window); } catch (Exception e) when (e is ElementNotAvailableException or COMException) { return; }
                 if (now == last) return;
                 last = now;
                 Thread.Sleep(150);
