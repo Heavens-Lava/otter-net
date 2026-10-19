@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- A developer tool, not part of otter-net.sln and never shipped: which
+       otterPS NodeKinds otter-net's parser builds for each program
+       (tools/native-coverage.ps1). It reuses -DebugAst's mapping from
+       otter-net's syntax classes to otterPS's (src/Otter.Cli/AstDump.cs). -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsAotCompatible>false</IsAotCompatible>
+    <NoWarn>$(NoWarn);IL2026;IL2070;IL2072;IL2075;IL2080;IL3050</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Otter.Runtime\Otter.Runtime.csproj" />
+    <Compile Include="..\..\src\Otter.Cli\AstDump.cs" Link="AstDump.cs" />
+    <Compile Include="..\..\src\Otter.Cli\AstDumpTable.g.cs" Link="AstDumpTable.g.cs" />
+  </ItemGroup>
+</Project>
