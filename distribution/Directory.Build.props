@@ -1,0 +1,3 @@
+<!-- Stops the repository's Directory.Build.props (C# settings: target
+     framework, warnings as errors) from applying to the installer projects. -->
+<Project />

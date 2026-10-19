@@ -1,0 +1,25 @@
+#!/bin/sh
+# otter-net @VERSION@ .pkg, after its files are in /usr/local/lib/otter-net:
+#
+# 1. An upgrade replaces the older version. Installer never removes files of
+#    an earlier package, so older version folders that carry otter-net's
+#    marker are removed here.
+# 2. /usr/local/bin/otter becomes a link to this version (preinstall has
+#    already refused anything there that is not otter-net's link). The link
+#    is made here, not carried in the payload, so the package never takes
+#    over /usr/local/bin's owner and permissions.
+#
+# $3 is the target volume ("/" for a normal installation).
+set -e
+target="${3:-/}"
+target="${target%/}"
+lib="$target/usr/local/lib/otter-net"
+for old in "$lib"/*/; do
+    old="${old%/}"
+    [ "$(basename "$old")" = "@VERSION@" ] && continue
+    [ -f "$old/.otter-net-install" ] || continue
+    rm -rf "$old"
+done
+mkdir -p "$target/usr/local/bin"
+ln -sfn "/usr/local/lib/otter-net/@VERSION@/otter" "$target/usr/local/bin/otter"
+exit 0

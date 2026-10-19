@@ -1,0 +1,16 @@
+Package: otter-net
+Version: @VERSION@
+Architecture: @ARCH@
+Maintainer: Jeffrey Macy <114191752+Heavens-Lava@users.noreply.github.com>
+Installed-Size: @INSTALLED_SIZE@
+Depends: @DEPENDS@
+Recommends: libsqlite3-0, ca-certificates
+Section: devel
+Priority: optional
+Homepage: https://otterprogramming.com
+Description: Otter programming language - otter-net release candidate
+ otter-net is the native implementation of the Otter programming language,
+ a language that reads like plain English: one self-contained otter command
+ that runs Otter 1.0.1 programs with otterPS's output and error messages.
+ .
+ This is an unsigned release candidate, not an Otter release.

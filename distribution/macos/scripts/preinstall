@@ -1,0 +1,19 @@
+#!/bin/sh
+# otter-net @VERSION@ .pkg: refuse to replace a /usr/local/bin/otter that is
+# not otter-net's own link (another program, or a copy someone put there).
+# $3 is the target volume ("/" for a normal installation).
+target="${3:-/}"
+target="${target%/}"
+link="$target/usr/local/bin/otter"
+if [ -e "$link" ] || [ -L "$link" ]; then
+    if [ ! -L "$link" ]; then
+        echo "otter-net: $link exists and is not otter-net's link; not replacing it." >&2
+        exit 1
+    fi
+    case "$(readlink "$link")" in
+        /usr/local/lib/otter-net/*|../lib/otter-net/*) ;;
+        *) echo "otter-net: $link points elsewhere ($(readlink "$link")); not replacing it." >&2
+           exit 1 ;;
+    esac
+fi
+exit 0

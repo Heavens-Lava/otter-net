@@ -1,0 +1,22 @@
+<!--
+  otter-net's MSI (Package.wxs). Built by tools\package.ps1 -Installer on
+  Windows; not part of otter-net.sln. The WiX SDK comes from NuGet:
+
+    dotnet build distribution\windows\otter-net.wixproj -c Release
+      -p:InstallerPlatform=x64|arm64 -p:ProductVersion=1.0.1
+      -p:PackageVersion=1.0.1-rc.1 -p:PayloadWxs=<generated fragment>
+-->
+<Project Sdk="WixToolset.Sdk/5.0.2">
+  <PropertyGroup>
+    <OutputName>otter-net</OutputName>
+    <InstallerPlatform Condition="'$(InstallerPlatform)' == ''">x64</InstallerPlatform>
+    <DefineConstants>ProductVersion=$(ProductVersion);PackageVersion=$(PackageVersion)</DefineConstants>
+    <!-- ICE91: per-user files are not copied to other profiles on a
+         per-machine install; this package is per-user only. ICE61: same
+         version upgrades are allowed on purpose (release candidates). -->
+    <SuppressIces>ICE91;ICE61</SuppressIces>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(PayloadWxs)" Condition="'$(PayloadWxs)' != ''" />
+  </ItemGroup>
+</Project>
