@@ -1,0 +1,33 @@
+# Coverage audit (c4, found by case-variant fuzzing): `results has text report`
+# after `create text into rEsUlTs` sets the property on the name as written.
+create page into app
+create text into rEsUlTs
+results hAs TEXT ""
+put results in App
+report is ""
+try
+    read "notes.txt" into Content
+    report is report plus "read gave [" plus Content plus "] "
+otherwise
+    report is REPORT plus "read failed "
+.
+try
+    write "hello" To "notes.txt"
+    report IS report Plus "write done "
+otherwise
+    report is report Plus "write failed "
+.
+try
+    get files in "." into names
+    report is report plus "files gave " plus length of names plus " "
+otherwise
+    Report is report PLUS "files failed "
+.
+try
+    get folders in "." INTO names
+    report is report plus "folders gave " plus length of names
+otherwise
+    rEpOrT is report plus "folders failed"
+.
+results hAs text report
+show app
