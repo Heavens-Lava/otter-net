@@ -1,0 +1,51 @@
+# Coverage audit (c4): declarative layouts, alignments, properties,
+# easings, movements and events the other pages never use.
+state shown is 0
+start timer clock
+page "Layouts"
+    layout centered
+    card "Cards"
+        layout cards
+        align left
+        gap 6
+        color "#222222"
+        foreground "#333333"
+        width 320
+        height "40vh"
+        round 8
+        text "left"
+            enter
+                move down 10
+                animate 300ms ease-in
+        text "right"
+            align right
+            enter
+                slide from left
+                animate 1 s linear
+    card "Form"
+        layout form
+        align right
+        gap 4
+        text "form"
+            enter
+                move left 5
+            hover
+                grow 1.2
+    card "Stacked"
+        layout stack
+        align top
+        text "top"
+            enter
+                slide from right
+                move right
+    card "Bottom"
+        align bottom
+        text "bottom"
+            enter
+                slide from top
+                move up
+    card "Middle"
+        align middle
+        text "middle"
+            enter
+                slide from bottom
