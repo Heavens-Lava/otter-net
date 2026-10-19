@@ -470,11 +470,20 @@ internal static class Program
                 case "close":
                 {
                     if (window == null) return "close: no window";
-                    try
+                    // UI Automation can fail for a moment while a window is
+                    // busy (a COMException): try again; a window that went
+                    // away during a failed attempt was closed by it.
+                    for (int attempt = 1; ; attempt++)
                     {
-                        ((WindowPattern)window.GetCurrentPattern(WindowPattern.Pattern)).Close();
+                        try
+                        {
+                            ((WindowPattern)window.GetCurrentPattern(WindowPattern.Pattern)).Close();
+                            break;
+                        }
+                        catch (ElementNotAvailableException) when (attempt > 1) { break; }
+                        catch (ElementNotAvailableException) { return "close: the window is gone"; }
+                        catch (COMException) when (attempt < 5) { Thread.Sleep(500); }
                     }
-                    catch (ElementNotAvailableException) { return "close: the window is gone"; }
                     Settle();
                     window = null;
                     return "close: done";
