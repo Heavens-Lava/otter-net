@@ -160,7 +160,7 @@ try {
         Write-Host "installed the older MSI: $((Get-OtterEntries | ForEach-Object DisplayName) -join ', ')"
     }
     Invoke-Msiexec @('/i', "`"$Msi`"") (Join-Path $LogDirectory 'install.log')
-    $entries = Get-OtterEntries
+    $entries = @(Get-OtterEntries)
     if ($entries.Count -eq 1 -and $entries[0].DisplayVersion -eq $numericVersion) { Pass "Settings > Apps: one entry, $($entries[0].DisplayName) $($entries[0].DisplayVersion)" }
     else {
         Fail "Settings > Apps entries: $(($entries | ForEach-Object { "$($_.DisplayName) $($_.DisplayVersion)" }) -join '; ')"
