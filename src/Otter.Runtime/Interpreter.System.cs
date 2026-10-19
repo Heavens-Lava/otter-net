@@ -65,7 +65,8 @@ public sealed partial class Interpreter
             case KillProcessStmt kill:
             {
                 object? process = Evaluate(kill.Process, scope);
-                int id = ProcessHandleId(process, "kill a real process handle", kill.Line);
+                // Stop-OtterProcess: $rootPid = [int]$ProcessId, before anything is tried.
+                int id = CastProcessId(ProcessHandleId(process, "kill a real process handle", kill.Line));
                 OtterProcesses.Kill(id, kill.IncludeChildren);
                 return true;
             }
@@ -74,11 +75,16 @@ public sealed partial class Interpreter
                 object? process = Evaluate(setPriority.Process, scope);
                 if (!IsProcessHandle(process)) throw NotAProcessHandle("set the priority of a real process handle", setPriority.Line);
                 string priority = Values.Format(Evaluate(setPriority.Priority, scope));
-                int id = ProcessId(((OtterThing)process!).ReadProperty("id"));
+                double processId = ProcessId(((OtterThing)process!).ReadProperty("id"));
                 if (!OtterProcesses.TryPriorityClass(priority, out var priorityClass))
                 {
                     throw RuntimeError($"I do not know a process priority called \"{priority}\".", setPriority.Line,
                         "set priority of process p to \"high\" (also: \"low\", \"below normal\", \"normal\", \"above normal\", \"realtime\")");
+                }
+                // Set-OtterProcessPriority casts the id inside its try: a failed cast is its message.
+                if (!PowerShellInt32.TryCast(processId, out int id, out string castError))
+                {
+                    throw RuntimeError($"I could not set that process's priority. {castError}", setPriority.Line);
                 }
                 try { OtterProcesses.SetPriority(id, priorityClass); }
                 catch (CommandProblem problem) { throw RuntimeError(problem.Message, setPriority.Line); }
@@ -89,8 +95,10 @@ public sealed partial class Interpreter
                 object? process = Evaluate(waitFor.Process, scope);
                 if (!IsProcessHandle(process)) throw NotAProcessHandle("wait for a real process handle", waitFor.Line);
                 double seconds = RequireNumber(Evaluate(waitFor.TimeoutSeconds, scope), waitFor.Line, "a number of seconds");
-                int id = ProcessId(((OtterThing)process!).ReadProperty("id"));
-                bool finished = OtterProcesses.Wait(id, seconds);
+                double processId = ProcessId(((OtterThing)process!).ReadProperty("id"));
+                bool finished;
+                try { finished = OtterProcesses.Wait(processId, seconds); }
+                catch (ProcessTimeoutCast cast) { throw new InternalProblem(cast.Message); }
                 if (waitFor.Target != null) scope.Set(waitFor.Target, finished);
                 return true;
             }
@@ -349,15 +357,23 @@ public sealed partial class Interpreter
     OtterError NotAProcessHandle(string what, int line) =>
         RuntimeError($"I can only {what}, such as the one \"run ... into p\" or \"get processes into list\" gives you.", line);
 
-    int ProcessHandleId(object? process, string what, int line)
+    double ProcessHandleId(object? process, string what, int line)
     {
         if (!IsProcessHandle(process)) throw NotAProcessHandle(what, line);
         return ProcessId(((OtterThing)process!).ReadProperty("id"));
     }
 
-    // A process id reaches otterPS's helpers as a [double] parameter and is
-    // then cast to [int]: the nearest whole number, halves to even.
-    static int ProcessId(object? id)
+    // [int]$ProcessId: the nearest whole number, halves to even; PowerShell's
+    // own error beyond Int32.
+    static int CastProcessId(double processId)
+    {
+        if (!PowerShellInt32.TryCast(processId, out int id, out string message)) throw new InternalProblem(message);
+        return id;
+    }
+
+    // A process id reaches otterPS's helpers as a [double] parameter, which
+    // refuses what is not a number; each helper casts it to [int] itself.
+    static double ProcessId(object? id)
     {
         double number;
         if (id is null) number = 0;
@@ -367,12 +383,7 @@ public sealed partial class Interpreter
         {
             throw new InternalProblem($"Cannot process argument transformation on parameter 'ProcessId'. Cannot convert value \"{Values.Format(id)}\" to type \"System.Double\". Error: \"Input string was not in a correct format.\"");
         }
-        double rounded = Math.Round(number, MidpointRounding.ToEven);
-        if (double.IsNaN(rounded) || rounded < int.MinValue || rounded > int.MaxValue)
-        {
-            throw new InternalProblem($"Cannot convert value \"{Values.PowerShellText(number)}\" to type \"System.Int32\". Error: \"Value was either too large or too small for an Int32.\"");
-        }
-        return (int)rounded;
+        return number;
     }
 
     // Invoke-OtterSshCommand: the system's ssh client, never waiting at a
