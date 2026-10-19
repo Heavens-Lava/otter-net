@@ -1,0 +1,44 @@
+# Coverage audit (c4): bytes conversions given what they cannot read.
+attempts are
+    "zz"
+    "ABC"
+    "0g"
+    ""
+.
+for each source in attempts
+    try
+        data is bytes from hex source
+        say "hex" source "is" length of data "bytes"
+    otherwise into reason
+        say reason
+    .
+.
+try
+    data is bytes from base64 "not base64!"
+    say length of data
+otherwise into reason
+    say reason
+.
+try
+    say text from bytes 5
+otherwise into reason
+    say reason
+.
+try
+    say hex from bytes "text"
+otherwise into reason
+    say reason
+.
+try
+    say base64 from bytes gone
+otherwise into reason
+    say reason
+.
+data is bytes from hex "C3"
+try
+    say "half a character:" text from bytes data
+otherwise into reason
+    say reason
+.
+say hex from bytes bytes from text "Ünï"
+say base64 from bytes empty bytes
