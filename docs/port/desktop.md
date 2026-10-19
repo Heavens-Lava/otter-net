@@ -112,7 +112,7 @@ differs between the two WPFs (.NET Framework 4.8 under Windows PowerShell
 - where Windows places a window (every window is moved to the top left of
   the screen before it is observed; positions inside it are compared).
 
-Verified: desktop.yml runs 39181553817 and 39182236408 (26 of 26 programs identical); the
+Verified: desktop.yml run 39191260698 (26 of 26 programs identical, every step reached its control); the
 otterPS-observed quirks are listed as SPEC-QUESTIONS D4-1 to D4-5.
 
 Not verified on a high-DPI display: powershell.exe and otter-desktop.exe
