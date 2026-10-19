@@ -45,15 +45,30 @@ public static class OtterJson
             case string s: SerializeString(s, sb); return;
             case OtterThing thing:
             {
-                sb.Append('{');
-                bool first = true;
+                // ConvertTo-OtterJsonShape copies the properties into an
+                // [ordered]@{}, whose keys ignore case: properties whose names
+                // differ only in case become one entry, where the first was,
+                // with the last one's name and value (OrderedDictionary's
+                // setter replaces the key too).
+                var entries = new List<(string Name, string Json)>();
+                var index = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
                 foreach (string name in thing.PropertyNames)
                 {
-                    if (!first) sb.Append(',');
-                    first = false;
-                    SerializeString(name, sb);
-                    sb.Append(':');
-                    Serialize(thing.ReadProperty(name), sb);
+                    var item = new StringBuilder();
+                    Serialize(thing.ReadProperty(name), item);
+                    if (index.TryGetValue(name, out int at)) entries[at] = (name, item.ToString());
+                    else
+                    {
+                        index[name] = entries.Count;
+                        entries.Add((name, item.ToString()));
+                    }
+                }
+                sb.Append('{');
+                for (int i = 0; i < entries.Count; i++)
+                {
+                    if (i > 0) sb.Append(',');
+                    SerializeString(entries[i].Name, sb);
+                    sb.Append(':').Append(entries[i].Json);
                 }
                 sb.Append('}');
                 return;
@@ -342,12 +357,15 @@ public static class OtterJson
             if (string.CompareOrdinal(text, position, "\"\\/Date(", 0, 8) == 0 && position + 8 <= text.Length)
             {
                 Match date = DatePattern.Match(text.Substring(position));
-                if (date.Success)
+                // JavaScriptObjectDeserializer: milliseconds that do not fit a
+                // long make the value an ordinary string; the ticks are worked
+                // out without an overflow check.
+                if (date.Success && long.TryParse(date.Groups["ticks"].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out long ms))
                 {
-                    if (!long.TryParse(date.Groups["ticks"].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out long ms)) throw new JsonProblem();
                     position += date.Length;
-                    try { return new DateTime(checked(ms * 10000 + UnixEpochTicks), DateTimeKind.Utc); }
-                    catch (Exception e) when (e is ArgumentOutOfRangeException or OverflowException) { throw new JsonProblem(); }
+                    long ticks = unchecked(ms * 10000 + UnixEpochTicks);
+                    if (ticks < DateTime.MinValue.Ticks || ticks > DateTime.MaxValue.Ticks) throw new JsonProblem();
+                    return new DateTime(ticks, DateTimeKind.Utc);
                 }
             }
             if (c == '{') return ReadObject(depth);

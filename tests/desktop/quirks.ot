@@ -1,0 +1,29 @@
+# What PowerShell's comparisons make of property values in otterPS: `true`
+# and a list holding "full" are full width; align words ignore capitals.
+create window into app
+title of app is "Quirks"
+create text into ta
+ta has text "true is full", background "#ddd"
+width of ta is true
+say "a:" width of ta
+create text into b
+b has text "a list with full", background "#ccc"
+choices are
+    1
+    "Full"
+width of b is choices
+say "b:" width of b
+create row into r
+r has width 300, background "#eee"
+align of r is "CENTER"
+say "r:" align of r
+create text into inside
+text of inside is "centred"
+put inside in r
+put ta, b, r in app
+try
+    width of ta is false
+otherwise into reason
+    say "false:" reason
+.
+show app

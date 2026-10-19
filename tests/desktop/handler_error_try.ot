@@ -1,0 +1,21 @@
+# The same failure, with the show inside try: the program goes on after it.
+create window into app
+title of app is "Caught failure"
+create button into bad
+text of bad is "Fail"
+when bad is clicked
+    say "the handler runs"
+    missing is nothing of bad
+.
+put bad in app
+try
+    show app
+otherwise into reason
+    say "caught:" reason
+.
+try
+    show app
+otherwise into reason
+    say "again:" reason
+.
+say "the program goes on"

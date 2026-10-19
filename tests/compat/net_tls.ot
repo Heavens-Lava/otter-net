@@ -1,0 +1,25 @@
+# D112: a secure connection to something that does not speak TLS fails its
+# handshake, and the failure reaches "on error of". All on loopback.
+listen for tcp on port 0 and call it server
+on connection to server
+    conn is incoming connection
+    on data from conn
+        send bytes from text "this is not TLS" through conn
+        close tcp conn
+    .
+.
+connect securely to tcp "127.0.0.1" on port local port of server for server "localhost" and call it secure
+say "state:" state of secure
+on connect of secure
+    say "connected, which should not happen"
+.
+on error of secure
+    if network error starts with "The TLS handshake with 127.0.0.1 failed: "
+        say "the handshake failed"
+    .
+    say "state:" state of secure
+    if not secure is secure
+        say "the connection is not secure"
+    .
+    stop tcp server
+.

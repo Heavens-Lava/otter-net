@@ -1,0 +1,118 @@
+# otter run / otter check / the shortest form, with otter.ps1's own flags (D57, D94).
+@{
+    Cases = @(
+        @{ Name = 'run with arguments'; Args = @('run', 'a.ot', 'x', 'y z'); Files = @{ 'a.ot' = 'say "args:" arguments' } }
+        @{ Name = 'shortest form with arguments'; Args = @('a.ot', '1', '2'); Files = @{ 'a.ot' = 'say "args:" arguments' } }
+        @{ Name = 'capital letters in the command and extension'; Args = @('Run', 'u.OT'); Files = @{ 'u.OT' = 'say "upper"' } }
+        @{ Name = 'own flags are not program arguments'; Args = @('run', 'a.ot', 'x', '-Port', '8080', '-Open', '-NoOpen', 'y'); Files = @{ 'a.ot' = 'say "args:" arguments' } }
+        @{ Name = 'flags before the command shift the arguments'; Args = @('-DebugErrors', 'run', 'a.ot', 'k'); Files = @{ 'a.ot' = 'say "args:" arguments' } }
+        @{ Name = '-Breakpoints on a plain run'; Args = @('run', 'a.ot', '-Breakpoints', '1,2', 'z'); Files = @{ 'a.ot' = 'say "args:" arguments' } }
+        @{ Name = '-DebugTokens'; Args = @('a.ot', '-DebugTokens'); Files = @{ 'a.ot' = @'
+to double n
+    return n times 2
+say double 21
+if true
+    say "yes"
+.
+'@ } }
+        @{ Name = '-DebugAst'; Args = @('a.ot', '-DebugAst', '-DebugTokens'); Files = @{ 'a.ot' = @'
+to double n
+    return n times 2
+say double 21 "and" 2.5 true
+name is "Jeff"
+if name is "Jeff" and not false
+    say "yes"
+otherwise if 1 is less than 2
+    say "maybe"
+otherwise
+    say "no"
+.
+count from 1 to 3 as i
+    add i to total
+.
+ask "Name?" and call it who
+'@ }; Stdin = 'Ann' }
+        @{ Name = '-DebugAst of values only an expression shows'; Args = @('a.ot', '-DebugAst'); Files = @{ 'a.ot' = @'
+to never
+    say bytes from file "a.bin"
+    say secure random bytes 4
+    say xml from text "<a>1</a>"
+    say xml from file "a.xml"
+    say route parameter "id"
+    say query parameter "q"
+    say current route
+    say await get "/x"
+    say drag data
+    if "x" contains "y"
+        say 0
+    .
+    if "abc" starts with "a"
+        say 1
+    otherwise if 2 is 3
+        say 2
+    .
+    replace route with "/b"
+    set drag data to 1
+    try
+        fail with "x"
+    otherwise into reason
+        say reason
+    .
+    repeat 2 times
+        say 1
+    .
+say "done"
+'@ } }
+        @{ Name = '-DebugAst of UI, routes and servers'; Args = @('a.ot', '-DebugAst'); Files = @{ 'a.ot' = @'
+on route change
+    say 1
+.
+route "/a" shows home
+card "c"
+    columns 2 on small
+    text "t"
+state count is 0
+when count changes
+    say count
+.
+get system information "os" into info
+say "done"
+'@ } }
+        @{ Name = '-DebugAst in a project'; Args = @('run', '.', '-DebugAst'); Files = @{ 'otter.json' = '{ "entryPoint": "main.ot" }'; 'main.ot' = 'say 1' } }
+        @{ Name = '-DebugAst with check shows nothing'; Args = @('check', 'a.ot', '-DebugAst'); Files = @{ 'a.ot' = 'say 1' } }
+        @{ Name = '-DebugTokens with a syntax error'; Args = @('run', 'bad.ot', '-DebugTokens'); Files = @{ 'bad.ot' = @'
+say "ok"
+x is
+'@ } }
+        @{ Name = '-ParseOnly'; Args = @('run', 'a.ot', '-ParseOnly'); Files = @{ 'a.ot' = 'say "not printed"' } }
+        @{ Name = '-ParseOnly on the shortest form'; Args = @('a.ot', '-parseonly'); Files = @{ 'a.ot' = 'say "not printed"' } }
+        @{ Name = 'check'; Args = @('check', 'a.ot'); Files = @{ 'a.ot' = 'say "not printed"' } }
+        @{ Name = 'check with -ParseOnly'; Args = @('check', 'a.ot', '-ParseOnly'); Files = @{ 'a.ot' = 'say "not printed"' } }
+        @{ Name = 'check: a second file is only an argument'; Args = @('check', 'a.ot', 'bad.ot'); Files = @{ 'a.ot' = 'say 1'; 'bad.ot' = 'x is' } }
+        @{ Name = 'check: syntax errors'; Args = @('check', 'bad.ot'); Files = @{ 'bad.ot' = @'
+say "one"
+x is
+y is
+'@ } }
+        @{ Name = 'check: reserved name'; Args = @('check', 'r.ot'); Files = @{ 'r.ot' = @'
+to main
+    say "never"
+'@ } }
+        @{ Name = 'run: runtime error'; Args = @('run', 'e.ot'); Files = @{ 'e.ot' = @'
+say "before"
+say nothing
+'@ } }
+        @{ Name = 'run: runtime error with -DebugErrors'; Args = @('run', 'e.ot', '-DebugErrors'); Files = @{ 'e.ot' = 'fail with "stop here"' } }
+        @{ Name = 'run: ask reads standard input'; Args = @('run', 'ask.ot'); Stdin = @'
+Jeff
+41
+'@; Files = @{ 'ask.ot' = @'
+ask "Name?" and call it name
+ask "Age?" and call it age
+say name age plus 1
+'@ } }
+        @{ Name = 'run: a file in another folder'; Args = @('run', 'sub/b.ot'); Files = @{ 'sub/b.ot' = 'say "from sub"' } }
+        @{ Name = 'check: a file in another folder'; Args = @('check', 'sub/b.ot'); Files = @{ 'sub/b.ot' = 'say "from sub"' } }
+        @{ Name = 'an empty program'; Args = @('empty.ot'); Files = @{ 'empty.ot' = '' } }
+    )
+}

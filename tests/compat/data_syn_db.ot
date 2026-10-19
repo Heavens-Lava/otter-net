@@ -1,0 +1,47 @@
+# Syntax errors in database statements (D97, D98).
+connect config
+connect config into
+disconnect db extra
+query db "select 1" into rows
+query db with "select 1"
+query db with "select 1" into rows extra
+query db with
+    "select 1"
+    parameter 5 is 1
+into rows
+query db with
+    "select 1"
+    parameter "x" 1
+into rows
+query db with
+    "select 1"
+    say "hello"
+into rows
+query db with
+    "select 1"
+    parameter "x" is 1
+say "no into"
+execute db "x"
+execute db with "x" into
+execute db with
+    "x"
+    parameter "y" is 2
+    something else
+execute db with
+    "x"
+into result extra
+begin transaction db into tx
+begin transaction on db tx
+begin transaction on db into
+commit tx extra
+rollback tx extra
+get tables db into t
+get tables from db t
+get columns "t" in db into c
+get columns from "t" db into c
+get columns from "t" in db c
+get tables from db into t extra
+query is 5
+connect is "a"
+commit of thing is 3
+say query connect

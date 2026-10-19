@@ -5,6 +5,9 @@ namespace Otter.Language;
 // prototype has the core language; each further kind arrives with the
 // feature that needs it.
 
+// Public properties are kept for Native AOT: the D130 loop-pass analysis
+// (Otter.Runtime.LoopPasses) reads them by name, as otterPS does.
+[System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicProperties)]
 public abstract class Node
 {
     protected Node(int line) => Line = line;

@@ -84,6 +84,8 @@ public static class Values
             case OtterXml xml: return PowerShellXml.Text(PowerShellXml.OuterXml(xml.Node));
             // Printing a function is almost always a forgotten call.
             case OtterFunction function: return $"<{function.Name}, something Otter can do>";
+            // Sockets, servers, watchers and requests (NetValues.cs).
+            case IOtterTypeNamed named: return named.OtterText;
             default: return value.ToString() ?? "";
         }
     }
@@ -120,6 +122,7 @@ public static class Values
         OtterList => "a list",
         double => "a number",
         string => "some text",
+        IOtterTypeNamed named => named.OtterTypeName,   // sockets, watchers, requests (NetValues.cs)
         _ => "a value Otter does not recognise",
     };
 

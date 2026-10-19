@@ -1,0 +1,8 @@
+# `columns N on SIZE` with text [int] cannot read: PowerShell's conversion
+# error (.NET Framework's words on Windows PowerShell 5.1), as a syntax
+# error. A name is its own text.
+card "x"
+    columns "abc" on medium
+card "y"
+    columns wide on large
+say "after"

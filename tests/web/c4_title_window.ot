@@ -1,0 +1,3 @@
+window "Declared Title"
+    heading "Inside"
+    text "hello"

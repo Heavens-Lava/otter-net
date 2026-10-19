@@ -1,0 +1,53 @@
+# The query language (D99) on something that is not a database: the query
+# is read and its values evaluated, then the connection is refused.
+notADatabase is a thing
+limitWord is "many"
+
+to attempt n
+    try
+        if n is 1
+            get all from items in notADatabase into rows
+        if n is 2
+            get distinct name, price from "items" in notADatabase where price is at least 3 order by name into rows
+        if n is 3
+            get all from items in notADatabase where price is at least missingName into rows
+        if n is 4
+            get all from items in notADatabase order by missingName descending into rows
+        if n is 5
+            get name of missingThing from items in notADatabase into rows
+        if n is 6
+            get "name" from items in notADatabase take missingLimit into rows
+        if n is 7
+            count all from items in notADatabase into total
+        if n is 8
+            sum of price from items in notADatabase where category is in missingList into total
+        if n is 9
+            average of price from items in notADatabase with
+                where price is between 1 and missingUpper
+            into total
+        if n is 10
+            get all from items in missingDatabase into rows
+        if n is 11
+            get all from items in notADatabase where name starts with missingPrefix into rows
+        if n is 12
+            get all from items in notADatabase where name contains "x" or name is gone into rows
+        if n is 13
+            minimum of price from items in notADatabase as i into total
+        if n is 14
+            get
+                all
+                from items in notADatabase
+                where price is 1
+            into rows
+        say "ok" n
+    otherwise into reason
+        say n reason
+
+count from 1 to 14 as n
+    attempt n
+
+total is 3
+sum is 4
+max is 5
+say total sum max
+count of total from things in notADatabase into counted

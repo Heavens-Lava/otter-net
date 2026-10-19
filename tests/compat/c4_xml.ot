@@ -1,0 +1,80 @@
+# Coverage audit (c4): xml statements and values given something that is
+# not xml, an element removed twice, and child positions PowerShell's [int]
+# cannot hold.
+catalog is xml with root "library"
+library is root of catalog
+add element "book" to library and call it book
+add element "title" with text "Otter" to book
+set attribute "id" of book to "7"
+try
+    remove attribute "id" from 5
+otherwise into reason
+    say "remove attribute:" reason
+.
+try
+    set text of 5 to "x"
+otherwise into reason
+    say "set text:" reason
+.
+try
+    set text of "title" in 5 to "x"
+otherwise into reason
+    say "set text in:" reason
+.
+try
+    set attribute "a" of 5 to "x"
+otherwise into reason
+    say "set attribute:" reason
+.
+try
+    say text of "title" in 5
+otherwise into reason
+    say "text of in:" reason
+.
+try
+    if element "book" exists in 5
+        say "never"
+    .
+otherwise into reason
+    say "exists in:" reason
+.
+try
+    if 5 has attribute "id"
+        say "never"
+    .
+otherwise into reason
+    say "has attribute:" reason
+.
+try
+    say text from xml 5
+otherwise into reason
+    say "text from xml:" reason
+.
+try
+    remove element 5
+otherwise into reason
+    say "remove element:" reason
+.
+add element "spare" to library and call it spare
+remove element spare
+try
+    remove element spare
+otherwise into reason
+    say "removed twice:" reason
+.
+first is child 0 in library
+say text from xml first
+say child 5 in library
+try
+    say child 30000000000 in library
+otherwise into reason
+    say "child position:" reason
+.
+say child 0.5 in library
+say child 1.5 in library
+try
+    say root of book
+otherwise into reason
+    say "root of an element:" reason
+.
+say text from xml catalog

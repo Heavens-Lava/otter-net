@@ -1,0 +1,9 @@
+state x is 1
+when x changes
+    fail with "watch failed"
+try
+    x is 2
+otherwise into reason
+    say "caught" reason
+.
+say x

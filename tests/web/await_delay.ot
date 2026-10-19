@@ -1,0 +1,4 @@
+to delayNotice
+    await delay 250
+    say "Timer done"
+.

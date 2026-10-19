@@ -17,4 +17,11 @@ $installer = 'C:\Program Files (x86)\Microsoft Visual Studio\Installer'
 if ((Test-Path $installer) -and -not ($env:PATH -split ';' | Where-Object { $_ -eq $installer })) { $env:PATH = "$installer;$env:PATH" }
 & dotnet publish (Join-Path $root 'src/Otter.Cli/Otter.Cli.csproj') -c Release -r $Runtime -o (Join-Path $root "artifacts/$Runtime") --nologo -v quiet
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed ($LASTEXITCODE)" }
+# Desktop windows (WPF) run in otter-desktop.exe, beside otter.exe, on
+# Windows (docs/port/desktop.md). It is framework-dependent: it needs the
+# .NET 10 Desktop Runtime.
+if ($Runtime -like 'win-*') {
+    & dotnet publish (Join-Path $root 'src/Otter.Desktop/Otter.Desktop.csproj') -c Release -r $Runtime --self-contained false -p:UseAppHost=true -o (Join-Path $root "artifacts/$Runtime") --nologo -v quiet
+    if ($LASTEXITCODE -ne 0) { throw "dotnet publish of otter-desktop failed ($LASTEXITCODE)" }
+}
 Get-Item (Join-Path $root "artifacts/$Runtime/otter*") | Where-Object { $_.Extension -in '.exe', '' } | ForEach-Object { "$($_.FullName) ($([int]($_.Length / 1KB)) KB)" }

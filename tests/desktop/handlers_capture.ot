@@ -1,0 +1,53 @@
+# D130 and D133: a handler set up in a loop pass keeps that pass's names; a
+# handler set up while another handler runs keeps that run's names; a
+# function call gives each handler its own names.
+create window into app
+title of app is "Captures"
+names are
+    "Ada"
+    "Grace"
+    "Linus"
+for each who in names
+    create button into rowButton
+    text of rowButton is who
+    when rowButton is clicked
+        say "loop pass:" who
+    .
+    put rowButton in app
+.
+count from 1 to 2 as n
+    create button into numbered
+    text of numbered is "number " plus "x"
+    when numbered is clicked
+        say "count pass:" n
+    .
+    put numbered in app
+.
+
+create button into maker
+text of maker is "Make one"
+made is 0
+when maker is clicked
+    add 1 to made
+    serial is made
+    create button into child
+    text of child is "child"
+    when child is clicked
+        say "child of run" serial "now made is" made
+    .
+    put child in app
+    say "made a child, run" serial
+.
+put maker in app
+
+to addLabeled label
+    create button into own
+    text of own is label
+    when own is clicked
+        say "function call:" label
+    .
+    put own in app
+.
+addLabeled "From a function"
+show app
+say "who after the loop:" who

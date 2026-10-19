@@ -1,0 +1,10 @@
+say "start"
+page "Home"
+    heading "Welcome"
+    card "One"
+        text "Hello"
+        button "Go"
+            click
+                say "clicked"
+    primary button "Save"
+say "end"

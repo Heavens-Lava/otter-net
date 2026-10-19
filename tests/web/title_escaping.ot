@@ -1,0 +1,8 @@
+app is a window
+    title is "A & B < C \"q\" 'x' </title><script>window.PWN_TITLE=1</script>"
+.
+t is a text
+    text is "hi"
+.
+put t in app
+show app

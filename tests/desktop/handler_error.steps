@@ -1,0 +1,4 @@
+window "Failing handler"
+click button "Fail"
+exit 30000
+windows

@@ -1,0 +1,5 @@
+# Escapes: PowerShell's switch ignores case, so \N and \T are escapes too.
+say "a\Nb"
+say "c\Td"
+say "e\Qf"
+say "g\nh\ti\\j\"k"

@@ -1,0 +1,14 @@
+b has k 1
+store
+generate x
+stop now
+x is local address of the
+get
+get 5 as text into z
+get all of into q
+get "a" from b
+    into c d
+say "after"
+get files in "."
+    into 5
+say "end"

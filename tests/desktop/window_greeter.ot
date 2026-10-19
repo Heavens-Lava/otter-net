@@ -1,0 +1,26 @@
+# A window with a text box and a button (D44-D47): the click handler reads
+# the text box and says hello on the console.
+create window into app
+title of app is "Otter Greeter"
+
+create text box into nameBox
+text of nameBox is "Jeff"
+
+create button into helloButton
+text of helloButton is "Say Hello"
+
+put nameBox in app
+put helloButton in app
+
+say "title:" title of app
+say "button:" text of helloButton
+say "box:" text of nameBox
+say "app is" app
+
+when helloButton is clicked
+    name is text of nameBox
+    say "Hello," name
+.
+
+show app
+say "the window closed"

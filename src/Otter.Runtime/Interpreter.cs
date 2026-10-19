@@ -10,7 +10,7 @@ namespace Otter.Runtime;
 // The prototype walks the syntax tree with dictionary scopes, exactly as
 // otterPS does, so behaviour can be compared first; the binder and its
 // slot-numbered bound tree (docs/ARCHITECTURE.md) replace this walk in phase 2.
-public sealed class Interpreter
+public sealed partial class Interpreter
 {
     readonly TextWriter output;
     readonly TextReader input;
@@ -49,6 +49,21 @@ public sealed class Interpreter
     // Set when the output is a real console: moves the cursor (column, row).
     public Action<int, int>? MoveCursor { get; init; }
 
+    // otterPS's Set-OtterStatementHook: called as each statement starts, for
+    // `otter debug` and `otter profile`. Null on an ordinary run.
+    public Action<Stmt, Scope>? StatementHook { get; init; }
+
+    // The program runs as otterPS's compiled engine runs it (CompiledEngine.cs):
+    // set by `otter run` when otterPS would compile this program.
+    public bool CompiledEngine { get; init; }
+
+    // otterPS's $script:CallStack: the Otter functions running, innermost last.
+    public List<CallFrame> CallStack { get; } = new();
+
+    // Read-Host (ConsoleInput.ReadLine): with redirected input each
+    // character is echoed as read when echoInput is set.
+    string? ReadInputLine() => ConsoleInput.ReadLine(input, echoInput ? output : null);
+
     void CompleteProgressBarLine()
     {
         if (!progressBarActive) return;
@@ -71,14 +86,24 @@ public sealed class Interpreter
 
     public void Run(ProgramNode program)
     {
+        // D130/D133: the names each loop pass and handler run owns (EventLoop.cs).
+        loopPassNames = LoopPassAnalysis.Compute(program.Statements);
+        ResetEventSources();
         try
         {
             Execute(program.Statements, globals);
+            // Handlers run after the last statement (EventLoop.cs, D121).
+            RunEventLoop();
         }
         catch (ReturnSignal signal)
         {
             // D37: stop outside anything callable.
             throw RuntimeError("stop only works inside something Otter can call, like a function. There is nothing here to stop.", signal.Line);
+        }
+        finally
+        {
+            // Watchers, sockets, servers and requests never outlive the program.
+            CloseEventSources();
         }
     }
 
@@ -89,6 +114,7 @@ public sealed class Interpreter
 
     void Execute(Stmt statement, Scope scope)
     {
+        StatementHook?.Invoke(statement, scope);
         switch (statement)
         {
             // say "Hello" name     (D8: parts joined by exactly one space)
@@ -137,6 +163,12 @@ public sealed class Interpreter
             {
                 if (scope.Has(objectDef.Name))
                 {
+                    // D45: `app has title "Hi"` sets a UI resource's properties.
+                    if (scope.Get(objectDef.Name) is UiResource resource)
+                    {
+                        SetUiProperties(resource, objectDef, scope);
+                        return;
+                    }
                     throw RuntimeError($"Otter will not replace existing {Values.TypeName(scope.Get(objectDef.Name))} called \"{objectDef.Name}\" with a new thing.",
                         objectDef.Line, "Use a new name, or assign individual properties instead.");
                 }
@@ -167,9 +199,7 @@ public sealed class Interpreter
                 if (ask.Secret && ReadSecretLine != null) typed = ReadSecretLine();
                 else
                 {
-                    typed = input.ReadLine();
-                    // At the end of the input there is nothing to echo.
-                    if (echoInput && typed != null) output.WriteLine(typed);
+                    typed = ReadInputLine();
                 }
                 scope.Set(ask.Name, Values.FromInput(typed));
                 return;
@@ -193,12 +223,16 @@ public sealed class Interpreter
                 return;
             }
             case WhileStmt whileStmt:
+                if (LoopHasPasses(whileStmt)) { RunWhileWithPasses(whileStmt, scope); return; }   // D130
                 while (Values.IsTruthy(Evaluate(whileStmt.Condition, scope))) Execute(whileStmt.Body, scope);
                 return;
             case RepeatStmt repeat:
             {
                 double count = RequireNumber(Evaluate(repeat.Count, scope), repeat.Line, "the number of repeats");
-                int whole = (int)Math.Floor(count);
+                // [int][Math]::Floor($count): PowerShell's error beyond Int32; the
+                // compiled engine's C# (int) makes such a count 0x80000000 instead.
+                int whole = CompiledEngine ? OtterPsCompiledEngine.FrameworkInt32(Math.Floor(count)) : PowerShellCastInt(Math.Floor(count));
+                if (LoopHasPasses(repeat)) { RunRepeatWithPasses(repeat, whole, scope); return; }   // D130
                 for (int i = 0; i < whole; i++) Execute(repeat.Body, scope);
                 return;
             }
@@ -208,6 +242,7 @@ public sealed class Interpreter
                 double from = RequireNumber(Evaluate(count.From, scope), count.Line, "the value to count from");
                 double to = RequireNumber(Evaluate(count.To, scope), count.Line, "the value to count to");
                 int step = from <= to ? 1 : -1;
+                if (LoopHasPasses(count)) { RunCountWithPasses(count, from, to, scope); return; }   // D130
                 for (double n = from; (step > 0 && n <= to) || (step < 0 && n >= to); n += step)
                 {
                     scope.SetLocal(count.VariableName, n);
@@ -223,6 +258,7 @@ public sealed class Interpreter
                     throw RuntimeError($"I can only go through a list, but this is {Values.TypeName(collection)}.", forEach.Line);
                 }
                 // Copy first: the body may add to the list while we walk it.
+                if (LoopHasPasses(forEach)) { RunForEachWithPasses(forEach, list.ToArray(), scope); return; }   // D130
                 foreach (var item in list.ToArray())
                 {
                     scope.SetLocal(forEach.VariableName, item);
@@ -257,7 +293,9 @@ public sealed class Interpreter
                 {
                     // `return` passes straight through a try; everything else is
                     // a failure. D68: `otherwise into reason` keeps its message.
-                    if (!string.IsNullOrEmpty(tryStmt.ErrorTarget)) scope.Set(tryStmt.ErrorTarget, failure.Message);
+                    // The compiled engine catches .NET's own exception, not PowerShell's wrapping of it.
+                    string message = CompiledEngine ? OtterPsCompiledEngine.RawMessage(failure) : failure.Message;
+                    if (!string.IsNullOrEmpty(tryStmt.ErrorTarget)) scope.Set(tryStmt.ErrorTarget, message);
                     if (tryStmt.OtherwiseBody != null) Execute(tryStmt.OtherwiseBody, scope);
                 }
                 return;
@@ -359,18 +397,30 @@ public sealed class Interpreter
                     throw RuntimeError($"I can only add time to a date, but \"{name}\" holds {Values.TypeName(scope.Get(name))}.", adjust.Line);
                 }
                 double amount = RequireNumber(Evaluate(adjust.Amount, scope), adjust.Line, "the amount of time");
-                int whole = (int)Math.Truncate(amount);
-                if (adjust.IsRemoval) whole = -whole;
-                RequireUnitAllowed(current, adjust.Unit, adjust.Line);
-                DateTime moved = adjust.Unit switch
+                double whole;
+                if (CompiledEngine)
                 {
-                    TimeUnit.Year => current.Value.AddYears(whole),
-                    TimeUnit.Month => current.Value.AddMonths(whole),
-                    TimeUnit.Day => current.Value.AddDays(whole),
-                    TimeUnit.Hour => current.Value.AddHours(whole),
-                    TimeUnit.Minute => current.Value.AddMinutes(whole),
-                    _ => current.Value.AddSeconds(whole),
-                };
+                    // R.DateAdjust: C#'s (int) cast and int negation.
+                    int compiledWhole = OtterPsCompiledEngine.FrameworkInt32(Math.Truncate(amount));
+                    whole = adjust.IsRemoval ? unchecked(-compiledWhole) : compiledWhole;
+                }
+                else
+                {
+                    // [int][Math]::Truncate($amount), then -$whole: PowerShell
+                    // turns -[int]::MinValue into a double.
+                    if (!PowerShellInt32.TryCast(Math.Truncate(amount), out int cast, out string castError)) throw new InternalProblem(castError);
+                    whole = adjust.IsRemoval ? -(double)cast : cast;
+                }
+                RequireUnitAllowed(current, adjust.Unit, adjust.Line);
+                // AddYears and AddMonths take an Int32 PowerShell cannot make of 2147483648.
+                if (whole > int.MaxValue && adjust.Unit is TimeUnit.Year or TimeUnit.Month)
+                {
+                    throw new InternalProblem(FrameworkDates.ArgumentConversion(adjust.Unit == TimeUnit.Year ? "AddYears" : "AddMonths", whole));
+                }
+                if (!FrameworkDates.TryAdd(current.Value, adjust.Unit, whole, out DateTime moved, out string method, out string error))
+                {
+                    throw new DotNetCallProblem(method, 1, error);
+                }
                 scope.Set(name, new OtterDate(moved, current.HasTime));
                 return;
             }
@@ -618,8 +668,7 @@ public sealed class Interpreter
                 while (!chosen)
                 {
                     output.Write("Choose a number: ");
-                    string? typed = input.ReadLine();
-                    if (echoInput && typed != null) output.WriteLine(typed);
+                    string? typed = ReadInputLine();
                     if (typed != null && int.TryParse(typed, NumberStyles.Integer, CultureInfo.CurrentCulture, out int number) && number >= 1 && number <= options.Count)
                     {
                         selected = options[number - 1];
@@ -662,15 +711,18 @@ public sealed class Interpreter
                     TimeUnit.Year => amount * 31556952000,
                     _ => amount * 1000,
                 };
-                // [Math]::Round: halves to even. Nothing else can happen while a
-                // console program waits, so this is a plain sleep.
+                // [Math]::Round: halves to even. Every event source is serviced
+                // between short sleeps (EV3, EventLoop.cs).
                 double target = Math.Round(milliseconds);
                 var clock = System.Diagnostics.Stopwatch.StartNew();
                 while (clock.ElapsedMilliseconds < target)
                 {
+                    ServiceEventsDuringWait();
                     double remaining = target - clock.ElapsedMilliseconds;
-                    if (remaining > 0) Thread.Sleep((int)Math.Min(remaining, int.MaxValue));
+                    // [Math]::Min([int]$remaining, 20): the cast fails beyond Int32 (a wait of about 25 days or more).
+                    if (remaining > 0) Thread.Sleep(Math.Min(PowerShellCastInt(remaining), 20));
                 }
+                ServiceEventsDuringWait();
                 return;
             }
             case StartTimerStmt startTimer:
@@ -695,8 +747,22 @@ public sealed class Interpreter
                 double to = RequireNumber(toValue, randomNumber.Line, "the highest number");
                 if (from > to) (from, to) = (to, from);
                 // Get-Random -Maximum is exclusive, so one is added to include the top.
-                int picked = random.Next(PowerShellInt(Math.Floor(from), randomNumber.Line), PowerShellInt(Math.Floor(to), randomNumber.Line) + 1);
-                scope.Set(randomNumber.Target, (double)picked);
+                if (CompiledEngine)
+                {
+                    // R.RandomNumber: C#'s (int) casts and int addition, then
+                    // Get-Random -Minimum min -Maximum max+1 through the bridge.
+                    int low = OtterPsCompiledEngine.FrameworkInt32(Math.Floor(from));
+                    int top = unchecked(OtterPsCompiledEngine.FrameworkInt32(Math.Floor(to)) + 1);
+                    if (low >= top) throw new InternalProblem(GetRandomRange(low, top));
+                    scope.Set(randomNumber.Target, (double)random.Next(low, top));
+                    return;
+                }
+                // Get-Random -Minimum ([int][Math]::Floor($from)) -Maximum (([int][Math]::Floor($to)) + 1):
+                // PowerShell's casts, and [int]::MaxValue + 1 is a double, which
+                // makes Get-Random pick a double.
+                int lowest = PowerShellCastInt(Math.Floor(from));
+                int highest = PowerShellCastInt(Math.Floor(to));
+                scope.Set(randomNumber.Target, highest == int.MaxValue ? random.NextDouble(lowest, 2147483648.0) : (double)random.Next(lowest, highest + 1));
                 return;
             }
             case RandomItemStmt randomItem:
@@ -709,7 +775,7 @@ public sealed class Interpreter
             case SetRandomSeedStmt setSeed:
             {
                 double seed = RequireNumber(Evaluate(setSeed.Seed, scope), setSeed.Line, "a random seed");
-                random.Seed(PowerShellInt(seed, setSeed.Line));
+                random.Seed(PowerShellCastInt(seed));
                 return;
             }
             // ---- xml (D105) ----
@@ -819,6 +885,10 @@ public sealed class Interpreter
             case ReturnStmt returnStmt:
                 throw new ReturnSignal(returnStmt.Value == null ? null : Evaluate(returnStmt.Value, scope), returnStmt.Line);
             default:
+                // Each area of the language runs its own statements in its
+                // own file (Interpreter.<Area>.cs).
+                if (TryExecuteSystem(statement, scope) || TryExecuteNetwork(statement, scope) || TryExecuteData(statement, scope) || TryExecuteUi(statement, scope))
+                    return;
                 throw new InvalidOperationException($"No runtime for {statement.GetType().Name}.");
         }
     }
@@ -834,6 +904,12 @@ public sealed class Interpreter
             case PropertyAccessExpr property:
             {
                 object? owner = Evaluate(property.Target, scope);
+                // text of helloButton is "Say Hello" (D45)
+                if (owner is UiResource resource)
+                {
+                    Ui.SetProperty(resource, property.Property, value, property.Line);
+                    return;
+                }
                 if (owner is not OtterThing thing)
                 {
                     throw RuntimeError($"I can only set properties on a thing, but this is {Values.TypeName(owner)}.", property.Line);
@@ -869,17 +945,18 @@ public sealed class Interpreter
         return Environment.GetEnvironmentVariable(name);
     }
 
-    // PowerShell's [int] cast: the nearest whole number, halves to even.
-    // Out of range is an error there too; otter-net names it plainly.
-    int PowerShellInt(double value, int line)
+    // PowerShell's [int] cast: the nearest whole number, halves to even; out
+    // of range is PowerShell's own error (PSInvalidCastException), not an
+    // Otter one.
+    static int PowerShellCastInt(double value)
     {
-        double rounded = Math.Round(value, MidpointRounding.ToEven);
-        if (double.IsNaN(rounded) || rounded < int.MinValue || rounded > int.MaxValue)
-        {
-            throw RuntimeError($"{Values.FormatNumber(value)} is too large for a random number.", line);
-        }
-        return (int)rounded;
+        if (!PowerShellInt32.TryCast(value, out int result, out string message)) throw new InternalProblem(message);
+        return result;
     }
+
+    // Get-Random's refusal of an empty range (GetRandomCommandStrings).
+    static string GetRandomRange(int minimum, int maximum) =>
+        $"The Minimum value ({minimum.ToString(CultureInfo.InvariantCulture)}) cannot be greater than or equal to the Maximum value ({maximum.ToString(CultureInfo.InvariantCulture)}).";
 
     static readonly string[] ConsoleColorNames =
     {
@@ -1306,7 +1383,7 @@ public sealed class Interpreter
                     {
                         double index = RequireNumber(Evaluate(select.Selector, scope), select.Line, "a child index");
                         var children = XmlChildren(xml.Node);
-                        int position = PowerShellInt(index, select.Line);
+                        int position = PowerShellCastInt(index);
                         return position < 0 || position >= children.Count ? null : new OtterXml(children[position]);
                     }
                     default:
@@ -1424,7 +1501,10 @@ public sealed class Interpreter
                 object? target = Evaluate(property.Target, scope);
                 // D32.2: a date answers its own parts.
                 if (target is OtterDate date) return DatePart(date, property.Property, property.Line);
+                // text of helloButton (D45)
+                if (target is UiResource resource) return Ui.GetProperty(resource, property.Property, property.Line);
                 if (target is OtterXml xml) return XmlProperty(xml, property.Property, property.Line);
+                if (TryNetworkProperty(target, property, out object? networkValue)) return networkValue;   // Interpreter.Network.cs
                 if (target is not OtterThing thing)
                 {
                     throw RuntimeError($"I can only read properties of a thing, but this is {Values.TypeName(target)}.", property.Line);
@@ -1437,7 +1517,12 @@ public sealed class Interpreter
                 return thing.ReadProperty(property.Property);
             }
             default:
+            {
+                if (TryEvaluateSystem(expression, scope, out object? value) || TryEvaluateNetwork(expression, scope, out value) ||
+                    TryEvaluateData(expression, scope, out value) || TryEvaluateUi(expression, scope, out value))
+                    return value;
                 throw new InvalidOperationException($"No runtime for {expression.GetType().Name}.");
+            }
         }
     }
 
@@ -1504,7 +1589,8 @@ public sealed class Interpreter
             case OfOperation.Length:
                 if (subject is OtterList list) return (double)list.Count;
                 if (subject is string text) return (double)text.Length;
-                if (subject is OtterBytes bytes) return (double)bytes.Value.Length;
+                // R.Length knows only lists and text.
+                if (subject is OtterBytes bytes && !CompiledEngine) return (double)bytes.Value.Length;
                 throw RuntimeError($"I can only measure the length of text, a list, or bytes, but this is {Values.TypeName(subject)}.", operation.Line);
             case OfOperation.Uppercase: return Values.Format(subject).ToUpperInvariant();
             case OfOperation.Lowercase: return Values.Format(subject).ToLowerInvariant();
@@ -1595,6 +1681,7 @@ public sealed class Interpreter
                 "Check for infinite recursion or reduce call nesting.");
         }
         callDepth++;
+        CallStack.Add(new CallFrame(name, call.Line, local));
         try
         {
             Execute(function.Body, local);
@@ -1607,6 +1694,7 @@ public sealed class Interpreter
         finally
         {
             callDepth--;
+            CallStack.RemoveAt(CallStack.Count - 1);
         }
     }
 }

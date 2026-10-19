@@ -50,7 +50,7 @@ public static class OtterCommands
 
     // .NET Framework's Win32Exception text, which PowerShell 5.1 shows: no
     // final period.
-    static string FrameworkMessage(Win32Exception e) => e.NativeErrorCode switch
+    internal static string FrameworkMessage(Win32Exception e) => e.NativeErrorCode switch
     {
         2 => "The system cannot find the file specified",
         3 => "The system cannot find the path specified",
@@ -111,7 +111,7 @@ public static class OtterCommands
 
     // ---- finding the program --------------------------------------------------
 
-    static (ProcessStartInfo Start, string Program) StartInfoFor(string commandLine)
+    internal static (ProcessStartInfo Start, string Program) StartInfoFor(string commandLine)   // also start command (Jobs.cs)
     {
         List<string> parts = Split(commandLine);
         string program = parts[0];
@@ -174,6 +174,14 @@ public static class OtterCommands
         return null;
     }
 
+    // Get-Command -CommandType Application: a path to a file, or a program on
+    // PATH; never a command of PowerShell's own.
+    internal static string? FindApplication(string program)
+    {
+        if (program.IndexOfAny(new[] { '\\', '/' }) >= 0) return File.Exists(program) ? Path.GetFullPath(program) : null;
+        return FindOnPath(program);
+    }
+
     static List<string> PathExtensions()
     {
         string pathExt = Environment.GetEnvironmentVariable("PATHEXT") ?? "";
@@ -232,7 +240,7 @@ public static class OtterCommands
 
     // ConvertTo-OtterCmdArgument: cmd.exe reads the line itself, so what it
     // cannot take literally is refused, and anything it would act on is quoted.
-    static string CmdArgument(string argument)
+    internal static string CmdArgument(string argument)
     {
         if (Regex.IsMatch(argument, "[\"%\r\n\0]"))
         {

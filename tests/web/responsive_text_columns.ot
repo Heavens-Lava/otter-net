@@ -1,0 +1,4 @@
+card "x"
+    columns "2.5" on medium
+    columns 3.5 on large
+    columns "" on small

@@ -1,0 +1,12 @@
+# D-2: the state words of sockets, servers, watchers and requests cannot
+# name what the network statements make.
+open udp and call it closed
+listen for tcp on port 0 and call it stopped
+start get from "http://127.0.0.1:1/" and call it pending
+watch folder "." and call it watching
+connect to tcp "127.0.0.1" on port 1 and call it connected
+connect to websocket "ws://127.0.0.1:1" and call it connecting
+get "http://127.0.0.1:1/" into completed
+on data from closed
+    failed is true
+.

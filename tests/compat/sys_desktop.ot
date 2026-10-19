@@ -1,0 +1,84 @@
+# Notifications and file dialogs (D67), the event log (D79), printing (D83)
+# and the scheduled-task, printer and service lists (D80, D83, D86). File
+# dialogs wait for a person, so they are only tried where they cannot open.
+get environment variable "OS" into os
+onWindows is false
+if os is "Windows_NT"
+    onWindows is true
+.
+write "line one\nline two" to "page.txt"
+steps are
+    "notify"
+    "event log"
+    "missing event log"
+    "print"
+    "tasks"
+    "printers"
+    "services"
+.
+for each step in steps
+    try
+        if step is "notify"
+            notify "Otter compatibility test" with "This test shows a notification."
+            say step "sent"
+        otherwise if step is "event log"
+            get event log entries from "Application" up to 2 into entries
+            for each entry in entries
+                say entry
+            .
+        otherwise if step is "missing event log"
+            get event log entries from "No Such Otter Log" up to 2 into entries
+            say step "wrong"
+        otherwise if step is "print"
+            print "page.txt" to "No Such Otter Printer"
+            say step "wrong"
+        otherwise if step is "tasks"
+            get system information "tasks" into tasks
+            for each task in tasks
+                if name of task is gone
+                    say "a task with no name"
+                .
+            .
+            say step "is a list"
+        otherwise if step is "printers"
+            get system information "printers" into printers
+            for each printer in printers
+                if name of printer is gone
+                    say "a printer with no name"
+                .
+            .
+            say step "is a list"
+        otherwise
+            get system information "services" into services
+            for each service in services
+                if name of service is gone
+                    say "a service with no name"
+                .
+            .
+            say step "is a list"
+        .
+    otherwise into reason
+        say step "->" reason
+    .
+.
+if not onWindows
+    dialogs are
+        "file"
+        "folder"
+        "save"
+    .
+    for each dialog in dialogs
+        try
+            if dialog is "file"
+                choose file into picked
+            otherwise if dialog is "folder"
+                choose folder into picked
+            otherwise
+                choose file to save into picked
+            .
+        otherwise into reason
+            say dialog "->" reason
+        .
+    .
+.
+delete file "page.txt"

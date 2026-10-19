@@ -1,0 +1,54 @@
+# Database statements given something that is not a database (D97, D98):
+# every check here happens before SQLite is used.
+notADatabase is a thing
+
+to probe n
+    try
+        if n is 1
+            query notADatabase with "select 1" into x
+        if n is 3
+            execute notADatabase with "select 1"
+        if n is 4
+            disconnect "db"
+        if n is 5
+            begin transaction on 5 into tx
+        if n is 6
+            commit 5
+        if n is 7
+            rollback notADatabase
+        if n is 8
+            get tables from 5 into t
+        if n is 9
+            get columns from "t" in 5 into c
+        if n is 10
+            connect 5 into other
+        if n is 11
+            c has connection "x.db"
+            connect c into other
+        if n is 12
+            c has provider "sqlite", connection ""
+            connect c into other
+        if n is 13
+            c has Provider "SQLite", Connection "   "
+            connect c into other
+        if n is 14
+            c has provider "oracle", connection "x"
+            connect c into other
+        if n is 15
+            c has provider "sqlite"
+            connect c into other
+        if n is 32
+            c has provider gone, connection ":memory:"
+            connect c into other
+        if n is 2
+            query notADatabase with "" into x
+        say "ok" n
+    otherwise into reason
+        if reason starts with "The folder \"" and reason ends with "for the SQLite database does not exist."
+            say n "The folder ... for the SQLite database does not exist."
+        otherwise
+            say n reason
+
+count from 1 to 15 as n
+    probe n
+probe 32

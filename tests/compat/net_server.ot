@@ -1,0 +1,75 @@
+# Web routes and servers (D51) belong to `otter serve`; `otter run` parses
+# them and stops when one runs. `await` (D56) is not part of Otter 1.0.
+to fetchThing
+    return 5
+.
+try
+    when api receives GET at "/hello" into request
+        respond with "hi"
+    .
+otherwise into reason
+    say reason
+.
+try
+    when api receives a request at "/any"
+        respond with status 404
+    .
+otherwise into reason
+    say reason
+.
+try
+    respond with "x" as json and status 201
+otherwise into reason
+    say reason
+.
+try
+    respond with status 500
+otherwise into reason
+    say reason
+.
+try
+    start api
+otherwise into reason
+    say reason
+.
+try
+    start the api
+otherwise into reason
+    say reason
+.
+try
+    listen on port 8080
+otherwise into reason
+    say reason
+.
+try
+    listen port 8080
+otherwise into reason
+    say reason
+.
+try
+    listen api
+otherwise into reason
+    say reason
+.
+try
+    await fetchThing
+otherwise into reason
+    say reason
+.
+try
+    await get "http://example.test"
+otherwise into reason
+    say reason
+.
+try
+    say await fetchThing
+otherwise into reason
+    say reason
+.
+try
+    value is await 5 plus 1
+otherwise into reason
+    say reason
+.
+say "done"

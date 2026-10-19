@@ -1,0 +1,4 @@
+app is a page with title "Rows"
+bar is a row with spread, align center
+put bar in app
+show app

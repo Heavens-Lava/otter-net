@@ -1,0 +1,10 @@
+create window into w
+title of w is "From the REPL"
+create text into t
+text of t is "made at the prompt"
+put t in w
+show w
+say "back at the prompt" title of w
+create gadget into g
+show t
+exit

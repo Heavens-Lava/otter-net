@@ -27,6 +27,16 @@ public sealed class PowerShellRandom
         return (int)((long)(NextDouble() * range) + minValue);
     }
 
+    // Get-Random with a double bound (GetRandomCommand.GetRandomDouble): a
+    // number in [min, max), drawn again if rounding reaches max.
+    public double NextDouble(double minValue, double maxValue)
+    {
+        double diff = maxValue - minValue;
+        double result;
+        do { result = minValue + NextDouble() * diff; } while (result >= maxValue);
+        return result;
+    }
+
     double NextDouble() => NextInt() * (1.0 / int.MaxValue);
 
     int NextInt()

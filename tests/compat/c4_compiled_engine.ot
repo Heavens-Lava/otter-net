@@ -1,0 +1,55 @@
+# Coverage audit (c4): otterPS's `otter run` compiles this program (every
+# statement is in its compiled engine's subset), so it runs on
+# src/native/OtterNativeRuntime.cs, not the interpreter: `length of` bytes
+# is refused, .NET's own failures keep .NET's message in `otherwise into`,
+# and a failure that is not an Otter error ends the program as the compiled
+# engine's internal problem.
+b is bytes from text "abc"
+try
+    say length of b
+otherwise into reason
+    say "length:" reason
+.
+d is date from "2024-01-15"
+try
+    add 100000 years to d
+otherwise into reason
+    say "years:" reason
+.
+try
+    add 9000 years to d
+otherwise into reason
+    say "years past 9999:" reason
+.
+try
+    add 200000 months to d
+otherwise into reason
+    say "months:" reason
+.
+try
+    add 3000000 days to d
+otherwise into reason
+    say "days:" reason
+.
+try
+    add 1000000000 days to d
+otherwise into reason
+    say "days out of range:" reason
+.
+try
+    random number from 2147483647 to 2147483647 into top
+    say top
+otherwise into reason
+    say "random:" reason
+.
+try
+    set random seed to 30000000000
+otherwise into reason
+    say "seed:" reason
+.
+set random seed to 2.5
+random number from 1 to 100 into pick
+say "seeded:" pick
+say "the last one is not caught:"
+add 100000 years to d
+say "never"

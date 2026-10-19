@@ -1,0 +1,12 @@
+# `columns N on SIZE` casts N with [int] (Read-OtterUiElementStatement):
+# numbers round half to even, true is 1, hexadecimal text converts, and a
+# number too big for [int] is PowerShell's conversion error, reported as a
+# syntax error at the end of the line.
+say "never runs"
+card "x"
+    columns 2.5 on small
+    columns true on medium
+    columns "0x10" on large
+    columns "1,000" on wide
+card "y"
+    columns 30000000000 on medium

@@ -1,0 +1,6 @@
+# `replace route with PATH` must end after the path; `in` makes it the text
+# statement.
+route is "/home"
+replace route with "/a" into x
+replace route with "/b" in route
+say route

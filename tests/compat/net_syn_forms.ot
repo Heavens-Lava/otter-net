@@ -1,0 +1,55 @@
+# Syntax errors in the network, server and watching forms, reported the
+# way otterPS recovers from them (D117).
+listen securely for tcp on port 1 and call it s
+listen for tcp and call it s
+listen for tcp on port 1
+open udp on port 1
+open udp to "x" and call it u
+connect securely to websocket "x" and call it w
+connect securely tcp "x" on port 1 and call it c
+connect to ftp "x"
+connect to websocket "ws://x" using proto "y" and call it w
+connect to tcp "x" and call it c
+connect to tcp "x" on port 1
+send "x" to y
+send x through y to "h"
+close websocket w with code 1000 extra
+cancel
+stop watching
+stop tcp x y
+watch file "x" as w
+on bogus of x
+    say 1
+.
+when server receives GET "/x"
+    say 1
+.
+when server receives a thing at "/x"
+    say 1
+.
+respond "x"
+respond with "x" as xml
+get "x" into page
+    with header "a" "b"
+    with tea
+    without tea
+    following tea
+    sideways
+    with timeout 5 minutes
+get json "x" into y
+get "x" as xml into y
+get "x" y
+post "x" into y
+put "x" as json into y
+delete from "x" into
+download "x" to "y"
+download file "x" to "y"
+download file from "x" "y"
+start get "x" and call it r
+start post "x" as json "y" and call it r
+start get from "x" and name it r
+start delete "x"
+download file from "x" to "y" extra
+listen on port 80 now
+start the
+await thing make

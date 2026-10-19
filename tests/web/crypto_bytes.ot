@@ -1,0 +1,6 @@
+message is bytes from text "Hello from Otter"
+digest is sha256 of message
+generate encryption key and call it key
+encrypt message using key and call it encrypted
+decrypt encrypted using key and call it decrypted
+say text from bytes decrypted

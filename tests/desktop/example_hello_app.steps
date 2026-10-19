@@ -1,0 +1,7 @@
+window "Hello Otter"
+click button "Say Hello"
+type edit#1 "changed"
+click button "Say Hello"
+snap
+close
+exit

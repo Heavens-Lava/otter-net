@@ -1,0 +1,7 @@
+1337 otter processes, 1 stopped after 30 s, 0 of them killed (hits lost).
+check: 183
+cli: 259
+run: 358
+web: 537
+Stopped after the timeout:
+  timeout	run otter-net/tests/compat/output_before_hang.ot

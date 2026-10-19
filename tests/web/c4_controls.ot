@@ -1,0 +1,57 @@
+app is a page
+    title is "Otter Web App"
+.
+sl is a slider
+    name is "sl"
+.
+sl2 is a slider
+    min is 5
+    max is 50
+    value is 10
+.
+cv is a canvas
+    name is "cv"
+.
+cv2 is a canvas
+    width is 640
+    height is 480
+    animation is "spin"
+    mode is "3d"
+.
+img is an image
+    source is "otter.png"
+.
+cb is a checkbox
+    text is "agree"
+    checked is true
+.
+dd is a dropdown
+    options is "a, b , c"
+.
+tb is a text box
+    placeholder is "Name"
+.
+pb is a progress
+    name is "pb"
+.
+tg is a toggle
+    checked is true
+.
+rb is a radio
+    checked is true
+.
+r1 is a row with align left
+r2 is a row with align center
+r3 is a row with align right
+c1 is a column with align top
+c2 is a column with align middle
+c3 is a column with align bottom
+r4 is a row with spread, align top
+tx is a text
+    text is "styled"
+    style is "italic"
+    fontweight is "bold"
+    radius is "round"
+.
+put sl, sl2, cv, cv2, img, cb, dd, tb, pb, tg, rb, r1, r2, r3, c1, c2, c3, r4, tx in app
+show app

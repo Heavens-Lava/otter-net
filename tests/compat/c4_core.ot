@@ -1,0 +1,170 @@
+# Coverage audit (c4): core statements and values the rest of the corpus
+# never reached - each error is caught so the next one runs.
+say "a bare say prints an empty line:"
+say
+d is date from "2024-01-15 10:30:00"
+add 2 hours to d
+add 30 seconds to d
+remove 5 minutes from d
+add 1 minutes to d
+format d as "yyyy-MM-dd HH:mm:ss" into shown
+say shown
+try
+    format d as "%" into bad
+    say bad
+otherwise into reason
+    say "format:" reason
+.
+try
+    format d as "yyyy\\" into bad
+    say bad
+otherwise into reason
+    say "format backslash:" reason
+.
+e is date from "2024-01-15 12:45:20"
+say minutes between d and e
+say hours between d and e
+say seconds between d and e
+try
+    say days between d and 5
+otherwise into reason
+    say "between:" reason
+.
+try
+    x is date from "15/01/2024" using "yyyy-MM-dd"
+otherwise into reason
+    say "date using:" reason
+.
+y is date from "2024/01/15" using "yyyy/MM/dd"
+format y as "dd MMM yyyy" into shownY
+say shownY
+get system folder "appdata" into appData
+if length of appData is greater than 0
+    say "appdata is a folder name"
+.
+get system folder "user" into userFolder
+if length of userFolder is greater than 0
+    say "user is a folder name"
+.
+wait 0 minutes
+wait 0 hours
+say "waited no time"
+name is "text"
+try
+    remove 1 from name
+otherwise into reason
+    say "remove:" reason
+.
+try
+    if 5 contains 1
+        say "never"
+    .
+otherwise into reason
+    say "contains:" reason
+.
+try
+    say last of 5
+otherwise into reason
+    say "last:" reason
+.
+try
+    say 1 plus "a"
+otherwise into reason
+    say "right side:" reason
+.
+try
+    if 5 is greater than "a"
+        say "never"
+    .
+otherwise into reason
+    say "comparison right:" reason
+.
+if d is at most e
+    say "dates: at most"
+.
+if e is at most d
+    say "never"
+otherwise
+    say "dates: not at most"
+.
+if false or true
+    say "or reaches its right side"
+.
+to twice n
+    return n times 2
+.
+try
+    say twice 1 2
+otherwise into reason
+    say "arity:" reason
+.
+try
+    if password "pw" matches hash 5
+        say "never"
+    .
+otherwise into reason
+    say "hash:" reason
+.
+try
+    random number from 1 to 30000000000 into r
+otherwise into reason
+    say "random:" reason
+.
+a Shape has
+    sides
+.
+try
+    convert Shape to json into shapeJson
+    say shapeJson
+otherwise into reason
+    say "json:" reason
+.
+try
+    replace "a" with "b" in nothingHere
+otherwise into reason
+    say "replace:" reason
+.
+try
+    add 2 days to nothingHere
+otherwise into reason
+    say "add days:" reason
+.
+try
+    if password 5 matches hash "x"
+        say "never"
+    .
+otherwise into reason
+    say "password:" reason
+.
+try
+    hash password "" and call it nope
+otherwise into reason
+    say "hash empty:" reason
+.
+early is date from "2025-03-20"
+late is date from "2024-01-25"
+say "months back:" months between early and late
+say "years back:" years between early and late
+blank is a thing
+try
+    say colour of blank
+otherwise into reason
+    say "no properties:" reason
+.
+nothingYet are empty
+say "last of empty:" last of nothingYet
+wait 0 days
+wait 0 years
+doc is xml from text "<a><b>1</b></a>"
+say "missing element:" element "c" in doc
+try
+    show progress 101 percent
+otherwise into reason
+    say "progress:" reason
+.
+try
+    nobody are empty
+    choose from nobody into pick
+otherwise into reason
+    say "choose:" reason
+.

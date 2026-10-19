@@ -126,6 +126,15 @@ public static class ReservedWords
                 case ConvertCsvStmt convertCsv: Variable(convertCsv.Target, line); break;
                 case RandomNumberStmt randomNumber: Variable(randomNumber.Target, line); break;
                 case RandomItemStmt randomItem: Variable(randomItem.Target, line); break;
+                // databases and queries (D97-D99)
+                case ConnectDbStmt connect: Variable(connect.Target, line); break;
+                case DbQueryStmt dbQuery: Variable(dbQuery.Target, line); break;
+                case DbExecuteStmt dbExecute: Variable(dbExecute.Target, line); break;
+                case BeginTransactionStmt begin: Variable(begin.Target, line); break;
+                case GetTablesStmt tables: Variable(tables.Target, line); break;
+                case GetColumnsStmt columns: Variable(columns.Target, line); break;
+                case QueryStmt query: Variable(query.Target, line); break;
+                case QueryAggregateStmt aggregate: Variable(aggregate.Target, line); break;
                 case TryStmt attempt:
                     Variable(attempt.ErrorTarget, line);
                     Statements(attempt.Body);
@@ -137,6 +146,36 @@ public static class ReservedWords
                     break;
                 case WhileStmt loop: Statements(loop.Body); break;
                 case RepeatStmt repeat: Statements(repeat.Body); break;
+                // Networking and file watching (Syntax.Network.cs).
+                case HttpGetStmt httpGet: Variable(httpGet.Target, line); break;
+                case HttpSendStmt httpSend: Variable(httpSend.Target, line); break;
+                case HttpDeleteStmt httpDelete: Variable(httpDelete.Target, line); break;
+                case HttpStartStmt httpStart: Variable(httpStart.TargetName, line); break;
+                case WebSocketConnectStmt webSocket: Variable(webSocket.Target, line); break;
+                case TcpConnectStmt tcpConnect: Variable(tcpConnect.Target, line); break;
+                case UdpOpenStmt udpOpen: Variable(udpOpen.Target, line); break;
+                case TcpListenStmt tcpListen: Variable(tcpListen.Target, line); break;
+                case FileWatchStmt fileWatch: Variable(fileWatch.Target, line); break;
+                case StartCommandStmt startCommand: Variable(startCommand.Target, line); break;
+                case WebRouteStmt route: Statements(route.Body); break;
+                case NetworkEventStmt networkEvent: Statements(networkEvent.Body); break;
+                case WatchEventStmt watchEvent: Statements(watchEvent.Body); break;
+                // UI (web target): declared names, and the bodies inside.
+                case StateDefStmt state: Variable(state.Name, line); break;
+                case DeriveDefStmt derive: Variable(derive.Name, line); break;
+                case SharedStateStmt shared: Variable(shared.Name, line); break;
+                case MemoDefStmt memo: Variable(memo.Name, line); Statements(memo.Body); break;
+                case CreateUiResourceStmt create: Variable(create.Target, line); break;
+                case WatchStmt watch: Variable(watch.TargetName, line); Statements(watch.Body); break;
+                case WhenStmt whenStmt: Statements(whenStmt.Body); break;
+                case UiEventStmt uiEvent: Statements(uiEvent.Body); break;
+                case LifecycleStmt lifecycle: Statements(lifecycle.Body); break;
+                case RouteChangeStmt routeChange: Statements(routeChange.Body); break;
+                case UiElementStmt element:
+                    Statements(element.Properties);
+                    Statements(element.Events);
+                    Statements(element.Children);
+                    break;
             }
         }
 

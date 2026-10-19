@@ -1,0 +1,211 @@
+# What the tcp and udp statements refuse (D107, D108, D112, D113), and a
+# refused connection handled by "on error of".
+connect to tcp "127.0.0.1" on port 1 and call it refused
+say "before connecting:" remote address of refused remote port of refused local address of refused local port of refused
+try
+    send bytes from text "x" through refused
+otherwise into reason
+    say reason
+.
+on connect of refused
+    say "connected, which should not happen"
+.
+on error of refused
+    if network error starts with "Could not connect to tcp 127.0.0.1 on port 1:"
+        say "the connection was refused, state" state of refused
+    .
+.
+try
+    connect to tcp 42 on port 1 and call it other
+otherwise into reason
+    say reason
+.
+try
+    connect to tcp "   " on port 1 and call it other
+otherwise into reason
+    say reason
+.
+try
+    connect to tcp "localhost" on port 70000 and call it other
+otherwise into reason
+    say reason
+.
+try
+    connect to tcp "localhost" on port "80" and call it other
+otherwise into reason
+    say reason
+.
+try
+    connect to tcp "localhost" on port 0 and call it other
+otherwise into reason
+    say reason
+.
+try
+    connect to tcp "localhost" on port 1.5 and call it other
+otherwise into reason
+    say reason
+.
+try
+    connect to tcp "localhost" on port 443 for server "example.com" and call it other
+otherwise into reason
+    say reason
+.
+try
+    connect securely to tcp "localhost" on port 443 for server 7 and call it other
+otherwise into reason
+    say reason
+.
+try
+    listen for tcp on port 65536 and call it server
+otherwise into reason
+    say reason
+.
+try
+    listen for tcp on 42 on port 0 and call it server
+otherwise into reason
+    say reason
+.
+try
+    open udp on port 99999 and call it socket
+otherwise into reason
+    say reason
+.
+open udp and call it udp
+try
+    send "text" through udp to "127.0.0.1" on port 9
+otherwise into reason
+    say reason
+.
+try
+    send bytes from text "x" through udp
+otherwise into reason
+    say reason
+.
+try
+    send bytes from text "x" through udp to 42 on port 9
+otherwise into reason
+    say reason
+.
+try
+    send bytes from text "x" through udp to "127.0.0.1" on port 0
+otherwise into reason
+    say reason
+.
+try
+    send bytes from text "x" through refused to "127.0.0.1" on port 9
+otherwise into reason
+    say reason
+.
+try
+    close udp refused
+otherwise into reason
+    say reason
+.
+try
+    close tcp udp
+otherwise into reason
+    say reason
+.
+try
+    stop tcp udp
+otherwise into reason
+    say reason
+.
+try
+    say tls version of refused
+otherwise into reason
+    say reason
+.
+try
+    say tls protocol of refused
+otherwise into reason
+    say reason
+.
+try
+    say size of refused
+otherwise into reason
+    say reason
+.
+try
+    say size of udp
+otherwise into reason
+    say reason
+.
+try
+    if udp is secure
+        say "never"
+    .
+otherwise into reason
+    say reason
+.
+try
+    if udp is listening
+        say "never"
+    .
+otherwise into reason
+    say reason
+.
+if not refused is secure
+    say "a plain connection is not secure"
+.
+try
+    say received data
+otherwise into reason
+    say reason
+.
+try
+    say sender address
+otherwise into reason
+    say reason
+.
+try
+    say sender port
+otherwise into reason
+    say reason
+.
+try
+    say network error
+otherwise into reason
+    say reason
+.
+try
+    say incoming connection
+otherwise into reason
+    say reason
+.
+try
+    on connect of udp
+        say "registered for nothing"
+    .
+otherwise into reason
+    say reason
+.
+listen for tcp on "127.0.0.1" on port 0 and call it server
+say server
+try
+    on data from server
+        say "never"
+    .
+otherwise into reason
+    say reason
+.
+try
+    say name of server
+otherwise into reason
+    say reason
+.
+stop tcp server
+say "server state:" state of server
+stop tcp server
+close udp udp
+say "udp state:" state of udp
+close udp udp
+say udp
+say refused
+# otterPS compares these values by PowerShell's text of them: the class name.
+if refused is "OtterTcp"
+    say "a connection compares as its class name"
+.
+if udp is not refused
+    say "a udp socket is not a tcp connection"
+.

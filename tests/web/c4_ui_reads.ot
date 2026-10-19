@@ -1,0 +1,20 @@
+app is a page
+    title is "Reads"
+.
+box is a text box
+    text is "typed"
+.
+note is a text
+    text is "x"
+.
+go is a button
+    text is "Go"
+.
+put box, note, go in app
+start timer clock
+when go is clicked
+    say value of box
+    say height of note
+    say elapsed time of clock
+    say elapsed milliseconds of clock
+show app

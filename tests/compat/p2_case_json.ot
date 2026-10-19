@@ -1,0 +1,21 @@
+# Converting a thing to JSON goes through an ordered hashtable, whose keys
+# ignore case: names that differ only in case become one entry, where the
+# first was, with the last one's name and value.
+p has name "a"
+set "Name" to "b" in p
+set "NAME" to "c" in p
+say p
+convert p to json into j
+say j
+q has x 1
+set "y" to 2 in q
+set "X" to 3 in q
+inner has Id 1
+set "id" to 2 in inner
+set "inner" to inner in q
+items are
+    q
+    inner
+.
+convert items to json into k
+say k

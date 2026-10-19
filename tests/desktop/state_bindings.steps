@@ -1,0 +1,9 @@
+window "Counter"
+click button "Add one"
+click button "Add one"
+snap
+type edit#1 "hello"
+click button "Add one"
+snap
+close
+exit

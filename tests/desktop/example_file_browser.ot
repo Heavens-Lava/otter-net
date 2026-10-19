@@ -1,0 +1,58 @@
+# Copied unchanged from otterPS 1.0.1's examples/v1/file-browser.ot.
+#create the window and set its properties
+create window into app
+app has title "Otter File Utility", width 800, height 550, background "#111827", spacing 12
+
+#header within the browser
+create text into heading
+heading has text "Folder Browser", foreground "white"
+
+#create text box
+create text box into folderBox
+folderBox has width 500
+
+#create button to load files to the right of the text box
+create button into loadButton
+loadButton has text "Load Files", width 120, background "#2563EB", foreground "white"
+
+#row to hold the text box and button
+create row into toolbar
+toolbar has spacing 10
+
+#place the text box and button into the row
+put folderBox, loadButton in toolbar
+
+#status line above the file list
+create text into statusText
+statusText has text "Enter a folder path.", foreground "white"
+
+#column that will hold one label per file, filled in when Load Files is clicked
+create column into resultsColumn
+resultsColumn has spacing 4
+
+#scroll area so the file list stays reachable no matter how many files load (D53)
+create scroll into fileArea
+fileArea has width 760, height 350
+
+put resultsColumn in fileArea
+
+#place the header, toolbar, status line, and scrollable results area into the app
+put heading, toolbar, statusText, fileArea in app
+
+#button click event to load files from the folder specified in the text box
+when loadButton is clicked
+    try
+        folder is text of folderBox
+        get files in folder into files
+        total is length of files
+        text of statusText is total
+        for each file in files
+            create text into fileLabel
+            fileLabel has text name of file, foreground "#94a3b8"
+            put fileLabel in resultsColumn
+        .
+    otherwise
+        text of statusText is "Could not load that folder."
+.
+
+show app

@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- otter-desktop.exe: the `otter` command with otterPS's desktop windows
+       (src/Otter.UI.psm1, WPF). Native AOT cannot host WPF, so the native
+       `otter` starts this host for a program that creates a window, on
+       Windows (docs/port/desktop.md). It is the same command: Otter.Cli's
+       sources are compiled in, not copied, and the interpreter is
+       Otter.Runtime's. JIT, not trimmed. Builds on every system
+       (EnableWindowsTargeting); it runs on Windows only. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <AssemblyName>otter-desktop</AssemblyName>
+    <RootNamespace>Otter.Desktop</RootNamespace>
+    <StartupObject>Otter.Desktop.DesktopProgram</StartupObject>
+    <IsAotCompatible>false</IsAotCompatible>
+    <PublishAot>false</PublishAot>
+    <PublishTrimmed>false</PublishTrimmed>
+    <!-- WPF needs culture data; the command itself still runs with the
+         invariant culture, as the native otter does (DesktopProgram). -->
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <!-- Like otter.exe: an app host only where executables are built (CI),
+         passed as -p:UseAppHost=true. -->
+    <UseAppHost>false</UseAppHost>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- WPF projects leave System.IO out of the implicit usings; the command's
+         sources expect it, as in Otter.Cli. -->
+    <Using Include="System.IO" />
+    <Compile Include="..\Otter.Cli\**\*.cs" Exclude="..\Otter.Cli\bin\**;..\Otter.Cli\obj\**" LinkBase="Cli" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Otter.Runtime\Otter.Runtime.csproj" />
+    <ProjectReference Include="..\Otter.Web\Otter.Web.csproj" />
+  </ItemGroup>
+</Project>

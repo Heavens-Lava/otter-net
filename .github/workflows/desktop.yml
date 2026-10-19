@@ -1,0 +1,68 @@
+# Desktop windows (WPF) in `otter run` on Windows: otter-net's otter-desktop
+# host against otterPS 1.0.1, on a real Windows desktop (hosted Windows
+# runners have an interactive session, so the windows really open).
+#
+# tests/desktop/Harness runs every program in tests/desktop with both, drives
+# the windows through UI Automation (tests/desktop/<name>.steps) and compares
+# the window tree after every step, the pixels of every snapshot, standard
+# output byte for byte, standard error and the exit code. Any difference
+# fails. Only reports (and the images of a difference) are uploaded.
+name: desktop windows
+
+on:
+  push:
+    branches: [port/desktop, port/native]
+  workflow_dispatch:
+
+jobs:
+  desktop:
+    name: Windows - desktop windows vs otterPS 1.0.1
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check out otterPS 1.0.1 (the reference)
+        uses: actions/checkout@v4
+        with:
+          repository: Heavens-Lava/otterPS
+          ref: v1.0.1
+          path: otterps
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Publish otter (native AOT) and otter-desktop beside it
+        run: |
+          dotnet publish src/Otter.Cli/Otter.Cli.csproj -c Release -r win-x64 -p:UseAppHost=true -o artifacts/win-x64 --nologo
+          dotnet publish src/Otter.Desktop/Otter.Desktop.csproj -c Release -r win-x64 --self-contained false -p:UseAppHost=true -o artifacts/win-x64 --nologo
+      - name: Build the UI test harness
+        run: dotnet build tests/desktop/Harness/Harness.csproj -c Release -o artifacts/harness --nologo
+      - name: Desktop windows - otter-net against otterPS 1.0.1
+        shell: pwsh
+        run: |
+          & artifacts/harness/desktop-harness.exe --otterps otterps/otter.ps1 --otter artifacts/win-x64/otter.exe --tests tests/desktop --out results/desktop --summary $env:GITHUB_STEP_SUMMARY
+          exit $LASTEXITCODE
+      - name: Without otter-desktop, the PowerShell Otter runs a window program
+        if: always()
+        shell: pwsh
+        run: |
+          $work = New-Item -ItemType Directory -Force -Path (Join-Path $env:RUNNER_TEMP 'no-desktop')
+          Set-Content -Path (Join-Path $work 'made.ot') -Value "create window into w`nsay ""made"" w"
+          $env:OTTER_DESKTOP = Join-Path $work 'missing\otter-desktop.exe'
+          $env:OTTER_POWERSHELL = (Resolve-Path otterps/otter.ps1).Path
+          $env:OTTER_NET_TRACE = '1'
+          Push-Location $work
+          $output = & "$env:GITHUB_WORKSPACE/artifacts/win-x64/otter.exe" run made.ot 2>&1 | ForEach-Object { "$_" }
+          $code = $LASTEXITCODE
+          Pop-Location
+          $output | Write-Host
+          $lines = @('## Without otter-desktop', '', '```') + $output + @('```', '', "exit code: $code")
+          $lines | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+          if ($code -ne 0) { throw "exit code $code" }
+          if (-not ($output -match 'otter-net desktop: otter-desktop.exe is missing')) { throw 'no trace of the missing host' }
+          if (-not ($output -match 'otter-net fallback:')) { throw 'the PowerShell Otter did not run it' }
+          if (-not ($output -contains 'made a window')) { throw 'the program did not run' }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: desktop
+          path: results/

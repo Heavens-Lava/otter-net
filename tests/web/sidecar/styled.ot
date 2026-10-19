@@ -1,0 +1,4 @@
+app is a page with title "Styled"
+note is a text with text "styled by the sidecar"
+put note in app
+show app

@@ -1,0 +1,73 @@
+# Coverage audit (c4): `say ... in color` keeps this program out of otterPS's
+# compiled engine, so the interpreter runs it: .NET's failures arrive
+# wrapped by PowerShell ("Exception calling ..."), PowerShell's own [int]
+# casts refuse numbers beyond Int32, and [int]::MaxValue + 1 is a double,
+# which makes Get-Random pick a double.
+say "interpreted" in color "red"
+b is bytes from text "abc"
+say length of b
+d is date from "2024-01-15"
+try
+    add 100000 years to d
+otherwise into reason
+    say "years:" reason
+.
+try
+    add 200000 months to d
+otherwise into reason
+    say "months:" reason
+.
+try
+    add 30000000000 days to d
+otherwise into reason
+    say "days cast:" reason
+.
+big is 0 minus 2147483648
+try
+    remove big years from d
+otherwise into reason
+    say "years argument:" reason
+.
+try
+    remove big months from d
+otherwise into reason
+    say "months argument:" reason
+.
+try
+    random number from 1 to 30000000000 into r1
+otherwise into reason
+    say "random cast:" reason
+.
+try
+    set random seed to 2147483647.5
+otherwise into reason
+    say "seed cast:" reason
+.
+set random seed to 9
+random number from 2147483640 to 2147483647 into r2
+say "double pick:" r2
+random number from 0 to 2147483647 into r3
+say "double pick:" r3
+random number from 1 to 6 into r4
+say "whole pick:" r4
+try
+    repeat 3000000000 times
+        say "never"
+    .
+otherwise into reason
+    say "repeat:" reason
+.
+repeat 2.7 times
+    say "repeat 2.7 times runs twice"
+.
+try
+    wait 1 month
+otherwise into reason
+    # The number is the time still to wait, which depends on the machine.
+    if reason starts with "Cannot convert value \""
+        say "a wait beyond Int32 milliseconds is refused"
+    .
+.
+say "the last one is not caught:"
+add 100000 years to d
+say "never"

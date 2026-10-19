@@ -1,0 +1,6 @@
+# A query limit that is not a number fails inside otterPS (PowerShell's
+# [int] conversion), before the database is used.
+notADatabase is a thing
+say "before"
+get all from items in notADatabase take "many" into rows
+say "never"

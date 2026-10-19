@@ -28,9 +28,33 @@ jobs:
           dotnet-version: '10.0.x'
       - name: Publish native (AOT)
         run: dotnet publish src/Otter.Cli/Otter.Cli.csproj -c Release -r win-x64 -p:UseAppHost=true -o artifacts/win-x64 --nologo
+      # Desktop windows (WPF) run in otter-desktop, beside otter (docs/port/desktop.md;
+      # tested on a real desktop by desktop.yml).
+      - name: Publish otter-desktop beside it
+        run: dotnet publish src/Otter.Desktop/Otter.Desktop.csproj -c Release -r win-x64 --self-contained false -p:UseAppHost=true -o artifacts/win-x64 --nologo
       - name: Compatibility - otterPS conformance, examples and tests/compat
         shell: powershell
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File tools/compare.ps1 -OtterPs otterps -OtterNet artifacts/win-x64/otter.exe -ReportPath results/compat-windows.md
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File tools/compare.ps1 -OtterPs otterps -OtterNet artifacts/win-x64/otter.exe -ReportPath results/compat-windows.md
+          powershell -NoProfile -ExecutionPolicy Bypass -Command "& tools/compare.ps1 -OtterPs otterps -OtterNet artifacts/win-x64/otter.exe -Corpus @(Get-ChildItem tests/compat -Filter 'net_*.ot' | ForEach-Object FullName) -IncludeEventPrograms -NativeOnly -ReportPath results/network-windows.md; exit `$LASTEXITCODE"
+
+      - name: Native only - no program may need the PowerShell fallback
+        # Not blocking yet: new on Windows PowerShell 5.1; made blocking once green.
+        continue-on-error: true
+        shell: powershell
+        run: |
+          # Report only (does not fail the job yet): which programs still need PowerShell.
+          powershell -NoProfile -ExecutionPolicy Bypass -File tools/port-progress.ps1 -OtterPs otterps -OtterNet artifacts/win-x64/otter.exe -ReportPath results/port-progress-windows.md
+      - name: Command line - otter commands against otterPS 1.0.1
+        # Not blocking yet: new on Windows PowerShell 5.1; made blocking once green.
+        continue-on-error: true
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tools/compare-cli.ps1 -OtterPs otterps -OtterNet artifacts/win-x64/otter.exe -ReportPath results/cli-windows.md
+      - name: Web - otter web pages byte for byte against otterPS 1.0.1
+        # Not blocking yet: new on Windows PowerShell 5.1; made blocking once green.
+        continue-on-error: true
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tools/compare-web.ps1 -OtterPs otterps -OtterNet artifacts/win-x64/otter.exe -ReportPath results/web-windows.md
       - name: Differential fuzz - otterPS's generators, 150 programs and 150 mutated
         shell: powershell
         run: |
@@ -130,15 +154,38 @@ jobs:
       - name: Native AOT prerequisites (clang, zlib) and the .NET 10 SDK
         run: |
           apt-get update
-          apt-get install -y --no-install-recommends ca-certificates curl git clang zlib1g-dev libicu72
+          apt-get install -y --no-install-recommends ca-certificates curl git clang zlib1g-dev libicu72 libsqlite3-0
           curl -sSL https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 10.0 --install-dir "$DOTNET_ROOT"
           echo "$DOTNET_ROOT" >> "$GITHUB_PATH"
           echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
       - uses: actions/checkout@v4
-      - name: PowerShell 7, for the test tools
-        run: dotnet tool install --global PowerShell
       - name: Publish native (AOT)
         run: dotnet publish src/Otter.Cli/Otter.Cli.csproj -c Release -r ${{ matrix.rid }} -p:UseAppHost=true -o artifacts/${{ matrix.rid }} --nologo
+      # A clean machine: no PowerShell is installed yet. Every program in
+      # tests/compat and otterPS's corpus must run (or check) without asking
+      # for the PowerShell Otter; the hand-over says so on stderr.
+      - name: Without PowerShell - every program runs natively
+        run: |
+          if command -v pwsh >/dev/null || command -v powershell >/dev/null; then echo "PowerShell is installed; this is not a clean machine"; exit 1; fi
+          otter="$PWD/artifacts/${{ matrix.rid }}/otter"
+          failed=0; count=0
+          for program in tests/compat/*.ot; do
+            count=$((count + 1))
+            work=$(mktemp -d); cp tests/compat/* "$work"/ 2>/dev/null || true  # (subfolders are not copied)
+            input=/dev/null; [ -f "$program.input" ] && input="$PWD/$program.input"
+            name=$(basename "$program")
+            ( cd "$work" && timeout 60 "$otter" run "$name" < "$input" > /dev/null 2> stderr.txt ) || true
+            if grep -q "needs the PowerShell Otter" "$work/stderr.txt"; then echo "needs PowerShell: $program"; failed=$((failed + 1)); fi
+          done
+          for program in tests/web/*.ot; do
+            count=$((count + 1))
+            ( cd tests/web && "$otter" check "$(basename "$program")" > /dev/null 2> /tmp/stderr.txt ) || true
+            if grep -q "needs the PowerShell Otter" /tmp/stderr.txt; then echo "needs PowerShell: $program"; failed=$((failed + 1)); fi
+          done
+          echo "Without PowerShell: $((count - failed)) of $count programs ran natively" | tee -a "$GITHUB_STEP_SUMMARY"
+          [ "$failed" -eq 0 ]
+      - name: PowerShell 7, for the test tools
+        run: dotnet tool install --global PowerShell
       - name: Oldest C library the executable needs
         run: objdump -T artifacts/${{ matrix.rid }}/otter | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1 | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Capture output of tests/compat
@@ -172,7 +219,13 @@ jobs:
           # difference fails the check.
           $declared = @(
               @{ Platforms = 'osx-*', 'linux-*'; Programs = 'commands.ot'; Reason = 'runs cmd.exe and .cmd files: a Windows-only test' }
-              @{ Platforms = 'osx-*', 'linux-*'; Programs = 'files_errors.ot', 'zip.ot'; Reason = 'paths in messages use the platform separator, / (docs/CROSS-PLATFORM-CONSISTENCY.md, 7)' }
+              @{ Platforms = 'osx-*', 'linux-*'; Programs = 'files_errors.ot', 'zip.ot', 'net_http_errors.ot'; Reason = 'paths in messages use the platform separator, / (docs/CROSS-PLATFORM-CONSISTENCY.md, 7)' }
+              @{ Platforms = 'osx-*', 'linux-*'; Programs = 'sys_windows.ot', 'sys_print_notify.ot', 'sys_desktop.ot', 'sys_system_info.ot', 't3_system_tasks_printers.ot'; Reason = 'Windows-only features (registry, credentials, notifications, printing, event log, tasks) give otterPS''s "only available on Windows" message' }
+              @{ Platforms = 'osx-*', 'linux-*'; Programs = 'sys_processes.ot', 'sys_ssh_arguments.ot'; Reason = 'the operating system''s own words for a missing program; otterPS looks for ssh.exe (SPEC-QUESTIONS Q8)' }
+              @{ Platforms = '*'; Programs = 'ui_run_create.ot', 'ui_run_create_try.ot', 'ui_run_create_unknown.ot'; Reason = 'desktop windows (WPF): on Windows they need the PowerShell Otter (a decision pending, docs/port/desktop-options.md); elsewhere otterPS''s "could not start its UI provider"' }
+              @{ Platforms = 'win-arm64'; Programs = 't3_system_tasks_printers.ot'; Reason = 'lists the names of the machine''s scheduled tasks and printers, and win-arm64 is another machine than the reference''s' }
+              @{ Platforms = 'linux-*'; Programs = 'c4_core.ot'; Reason = 'the Debian 12 container has no ~/.config, and .NET (otterPS too) gives no "appdata" folder that does not exist' }
+              @{ Platforms = '*'; Programs = 'p2_remote_command.ot'; Reason = 'remote commands: on Windows they need the PowerShell Otter (a decision pending); elsewhere otterPS''s internal error (SPEC-QUESTIONS P2-1)' }
           )
           $failed = $false
           foreach ($platform in $captured.Keys) {

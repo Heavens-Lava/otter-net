@@ -1,0 +1,11 @@
+window "Otter Calculator"
+snap
+type edit#1 "2"
+type edit#2 "3.5"
+click button "Add"
+snap
+type edit#2 "three"
+click button "Add"
+snap
+close
+exit

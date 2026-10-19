@@ -1,0 +1,149 @@
+# The query language (D99, experimental in otterPS 1.0.1).
+config has
+    provider is "sqlite"
+    connection is ":memory:"
+.
+connect config into db
+
+execute db with "CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT, price REAL, category TEXT)"
+execute db with "INSERT INTO items (name, price, category) VALUES ('Pen', 1.50, 'office')"
+execute db with "INSERT INTO items (name, price, category) VALUES ('Notebook', 4.00, 'office')"
+execute db with "INSERT INTO items (name, price, category) VALUES ('Backpack', 25.00, 'travel')"
+execute db with "INSERT INTO items (name, price, category) VALUES ('Apple', 0.75, 'food')"
+execute db with "INSERT INTO items (name, price, category) VALUES ('Pineapple', 3.25, NULL)"
+
+get all from items in db into allItems
+say "Count:" length of allItems
+firstItem is first of allItems
+say name of firstItem price of firstItem
+
+get name and price from items in db with
+    order by price descending
+into sortedItems
+each item in sortedItems
+    say name of item price of item
+.
+
+get name, category from items in db where price is at least 3 order by name into some
+each item in some
+    say name of item category of item
+.
+
+get distinct category from items in db order by category into categories
+each c in categories
+    say "category:" category of c
+.
+
+minPrice is 1
+get all from items in db with
+    where price is at least minPrice and category is "office"
+into officeItems
+say "Office:" length of officeItems
+
+get all from items in db with
+    where price is less than 1 or category is gone
+    order by id ascending
+into others
+each item in others
+    say "Other:" name of item
+.
+
+term is "apple"
+get all from items in db where name contains term order by id into apples
+say "Contains apple:" length of apples
+get all from items in db where name starts with "P" order by id into ps
+say "Starts with P:" length of ps
+get all from items in db where name ends with "e" order by id into es
+say "Ends with e:" length of es
+
+wanted are
+    "office"
+    "food"
+.
+get all from items in db where category is in wanted order by id into inWanted
+say "In wanted:" length of inWanted
+get all from items in db where category is not in wanted order by id into notWanted
+say "Not in wanted:" length of notWanted
+nothing are empty
+get all from items in db where category is in nothing into none
+say "In nothing:" length of none
+get all from items in db where category is not in nothing into everything
+say "Not in nothing:" length of everything
+get all from items in db where category is in "travel" into travel
+say "In travel:" length of travel
+
+get all from items in db where price is between 1 and 4 order by price into mid
+each item in mid
+    say "Between:" name of item
+.
+get all from items in db where category is not gone order by id into known
+say "Known:" length of known
+
+get all from items in db with
+    order by category ascending then price descending
+    take 3
+into page
+each item in page
+    say "Page:" name of item
+.
+get all from items in db order by id limit 2 offset 1 into page2
+each item in page2
+    say "Page 2:" id of item
+.
+get all from items in db order by id skip 3 into tail
+each item in tail
+    say "Tail:" id of item
+.
+get all from items in db order by id limit 1.5 into rounded
+say "Rounded limit:" length of rounded
+get all from items in db as i where id is 2 into aliased
+say "Aliased:" name of first of aliased
+get
+    all
+    from items in db
+    where id is at most 2
+into spread
+say "Spread:" length of spread
+
+count all from items in db into allCount
+count of category from items in db into categoryCount
+sum of price from items in db into sumPrices
+total of price from items in db into totalPrices
+average of price from items in db into avgPrice
+minimum of price from items in db into minPrice
+maximum of price from items in db into maxPrice
+say "All:" allCount "Categories:" categoryCount
+say "Sum:" sumPrices "Total:" totalPrices "Average:" avgPrice
+say "Min:" minPrice "Max:" maxPrice
+
+count all from items in db with
+    where category is "office"
+into officeCount
+say "Office count:" officeCount
+sum of price from items in db where category is "nothing" into noSum
+say "No sum:" noSum
+count all from items in db where category is "nothing" into noCount
+say "No count:" noCount
+max of price from items in db into maxAgain
+say "Max again:" maxAgain
+avg of price from items in db as i where price of i is at least 1 into avgAgain
+say "Average again:" avgAgain
+
+malicious is "' OR '1'='1"
+get all from items in db where name is malicious into injected
+say "Injected:" length of injected
+
+try
+    get all from missing_table in db into nothing
+otherwise into reason
+    say reason
+try
+    get name of i from items in db as i into broken
+otherwise into reason
+    say reason
+
+disconnect db
+try
+    get all from items in db into closedRows
+otherwise into reason
+    say reason

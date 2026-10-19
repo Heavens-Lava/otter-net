@@ -1,0 +1,45 @@
+# Events (D46): a text box's changes (set by the program and typed), each
+# kind of button, a card's click, and the window closing. Handlers run in
+# the scope they were set up in.
+create window into app
+title of app is "Events"
+create text box into box
+create text into echo
+text of echo is "nothing yet"
+changes is 0
+when box is changed
+    add 1 to changes
+    say "changed:" text of box "(" changes ")"
+    text of echo is text of box
+.
+text of box is "set by the program"
+
+create primary button into go
+text of go is "Go"
+when go is click
+    say "primary clicked"
+.
+create secondary button into later
+text of later is "Later"
+when later clicked
+    say "secondary clicked"
+.
+create danger button into halt
+text of halt is "Stop"
+when halt is clicked
+    say "danger clicked"
+    background of halt is "black"
+.
+create text into cardLabel
+text of cardLabel is "The card is below"
+create card into k
+k has width 200, height 30
+when k is clicked
+    say "card clicked"
+.
+when app is closed
+    say "closed, changes:" changes
+.
+put box, echo, go, later, halt, cardLabel, k in app
+show app
+say "after show:" text of echo

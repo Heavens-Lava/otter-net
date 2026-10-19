@@ -1,0 +1,18 @@
+# A text box's placeholder (a watermark while it is empty) and how a
+# colour set afterwards and typing interact with it.
+create window into app
+app has title "Placeholder", width 360, height 260
+create text box into plain
+plain has width 240
+placeholder of plain is "Your name"
+create text box into coloured
+coloured has width 240
+placeholder of coloured is "Coloured"
+background of coloured is "LightYellow"
+create text box into filled
+filled has width 240, text "already here"
+placeholder of filled is "never seen"
+foreground of filled is "green"
+put plain, coloured, filled in app
+show app
+say "plain:" text of plain "placeholder:" placeholder of plain

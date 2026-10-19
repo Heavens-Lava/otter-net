@@ -1,0 +1,66 @@
+# Layout (D47, D48, D53, D54): spacing set before and after children,
+# padding on a window and on a row, alignment on both axes, spread, full
+# width, nesting, and a scroll with more than it can show.
+create window into app
+app has title "Layout", width 600, height 560
+padding of app is 12
+
+create row into top
+top has width 560, height 40, background "#e0e7ff"
+create button into one
+text of one is "One"
+create button into two
+text of two is "Two"
+put one, two in top
+spacing of top is 10
+create button into three
+text of three is "Three"
+put three in top
+align of top is "right"
+align of top is "bottom"
+
+create row into spreadRow
+spreadRow has width 560, spread, background "#fef3c7"
+create text into s1
+text of s1 is "left"
+create text into s2
+text of s2 is "middle"
+create text into s3
+text of s3 is "right"
+put s1, s2, s3 in spreadRow
+
+create column into side
+side has height 120, width 200, background "#dcfce7", spacing 5
+align of side is "middle"
+align of side is "center"
+create text into c1
+text of c1 is "centred"
+create button into c2
+text of c2 is "in the middle"
+put c1, c2 in side
+
+create row into padded
+padded has background "#fee2e2", width 300
+create text into p1
+text of p1 is "padded row"
+put p1 in padded
+padding of padded is 14
+
+create text into wide
+wide has text "full width", width full, background "#e5e7eb"
+align of wide is "center"
+
+create scroll into area
+area has width 300, height 90
+create column into lines
+spacing of lines is 2
+count from 1 to 12 as n
+    create text into line
+    text of line is n
+    put line in lines
+.
+put lines in area
+
+put top, spreadRow, side, padded, wide, area in app
+spacing of app is 8
+show app

@@ -1,0 +1,127 @@
+# Databases (D97, D98): the operating system's SQLite.
+database has
+    provider is "sqlite"
+    connection is ":memory:"
+.
+connect database into db
+say db
+say provider of db
+say connection of db
+
+execute db with
+    "create table users (id integer primary key autoincrement, name text not null, email text, age integer, score real, bio blob)"
+
+execute db with
+    "insert into users (name, email, age, score) values (@name, @email, @age, @score)"
+    parameter "name" is "Alice"
+    parameter "email" is "alice@example.com"
+    parameter "age" is 30
+    parameter "score" is 9.5
+into first
+say "rows affected:" rows affected of first "last id:" last inserted id of first
+say first
+
+execute db with
+    "insert into users (name, email, age, score) values (:name, $email, @age, @score)"
+    parameter name is "Bob"
+    parameter "email" is gone
+    parameter "AGE" is 25
+    parameter "age" is 26
+    parameter "score" is 7
+    parameter "unused" is "ignored"
+into second
+say "last id:" last inserted id of second
+say "with the:" the rows affected of second the last inserted id of the second
+
+execute db with "insert into users (name, age) values ('Carol', 41)"
+greeting is "Hello 世界! 🦦 'single' and \"double\""
+execute db with "insert into users (name, bio) values ('Dan', ?1)"
+execute db with
+    "insert into users (name, email) values (@name, @flag)"
+    parameter "name" is greeting
+    parameter "flag" is true
+
+query db with "select id, name, email, age, score from users order by id" into rows
+say "rows:" length of rows
+each row in rows
+    say id of row name of row email of row age of row score of row
+.
+query db with
+    "select name from users where age > @min order by name"
+    parameter "min" is 26
+into older
+each row in older
+    say "older:" name of row
+.
+query db with "select count(*) as n, sum(age) as total, avg(score) as mean, 1.0 * 3 as three, x'414243' as blob from users" into stats
+row is first of stats
+say n of row total of row mean of row three of row blob of row
+
+execute db with "update users set age = age + 1 where age is not null" into updated
+say "updated:" rows affected of updated "last id:" last inserted id of updated
+execute db with "select * from users" into selected
+say "select as execute:" rows affected of selected
+query db with "create table empty (x integer)" into created
+say "query as execute:" length of created
+execute db with "insert into users (name) values ('First'); insert into users (name) values ('Second')"
+query db with "select name from users where name in ('First', 'Second')" into firstOnly
+say "first statement only:" length of firstOnly
+
+begin transaction on db into tx
+say tx
+say provider of tx
+execute tx with "insert into users (name) values ('in transaction')"
+query tx with "select count(*) as c from users" into inside
+say "inside:" c of first of inside
+commit tx
+begin transaction on db into tx2
+execute tx2 with "delete from users"
+rollback tx2
+query db with "select count(*) as c from users" into after
+say "after rollback:" c of first of after
+
+get tables from db into tables
+each table in tables
+    say kind of table name of table schema of table
+.
+execute db with "create view grown as select name from users where age > 30"
+execute db with "create table notes (note_id integer, task_id integer, body text default 'none', flag boolean, at datetime, data varbinary, misc, primary key (note_id, task_id))"
+get tables from db into tables
+each table in tables
+    say "---" kind of table name of table
+    get columns from table in db into columns
+    each column in columns
+        say name of column "|" type of column "|" database type of column "|" nullable of column "|" primary key of column "|" primary key position of column "|" default expression of column
+    .
+.
+get columns from "users" in db into userColumns
+say length of userColumns
+
+begin transaction on db into openTx
+disconnect db
+say "disconnected"
+
+fileConfig has provider "SQLite", connection "data.db"
+connect fileConfig into fileDb
+execute fileDb with "create table t (x)"
+execute fileDb with "insert into t values (42)"
+disconnect fileDb
+connect "data.db" into again
+query again with "select x from t" into xs
+say "from the file:" x of first of xs
+disconnect again
+readOnly has provider "sqlite", connection "data.db", readonly "true"
+connect readOnly into reader
+query reader with "select x from t" into xs
+say "read only:" x of first of xs
+try
+    execute reader with "insert into t values (1)"
+otherwise into reason
+    say reason
+disconnect reader
+delete file "data.db"
+
+secretConfig has provider "sqlite", connection ":memory:;Password=SuperSecret123;"
+connect secretConfig into masked
+say connection of masked
+disconnect masked

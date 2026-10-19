@@ -1,0 +1,23 @@
+games are
+    "Zelda"
+    "Mario"
+.
+inner are
+    1
+    2
+.
+outer are
+    inner
+    3
+.
+flags are
+    true
+    false
+.
+nothing is gone
+person has name "Ada", age 36
+a Point has
+    x
+    y
+.
+spot is a Point with x 1, y 2

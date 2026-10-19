@@ -1,0 +1,4 @@
+# A form a web page cannot have: otterPS's error for it.
+when api receives GET at "/x"
+    respond with "ok"
+.

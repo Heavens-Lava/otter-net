@@ -1,0 +1,36 @@
+create page into app
+create text into shown
+shown has text "none"
+put shown in app
+create text into tally
+tally has text "0"
+put tally in app
+clicks is 0
+numbers are empty
+add 1 to numbers
+add 2 to numbers
+for each n in numbers
+    label is n times 10
+    create button into b
+    b has text "top"
+    put b in app
+    when b clicked
+        clicks is clicks plus 1
+        text of shown is label
+        text of tally is clicks
+    .
+.
+to build
+    for each k in numbers
+        create button into c
+        c has text "fn"
+        put c in app
+        when c clicked
+            clicks is clicks plus 1
+            text of shown is k plus 100
+            text of tally is clicks
+        .
+    .
+.
+build
+show app
