@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The desktop UI test harness (tests/desktop/README.md): runs each test
+       program with otterPS and with otter-net, drives the windows through UI
+       Automation, and compares what each shows and prints. Windows only;
+       builds anywhere. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <AssemblyName>desktop-harness</AssemblyName>
+    <RootNamespace>Otter.DesktopHarness</RootNamespace>
+    <IsAotCompatible>false</IsAotCompatible>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <Using Include="System.IO" />
+  </ItemGroup>
+</Project>

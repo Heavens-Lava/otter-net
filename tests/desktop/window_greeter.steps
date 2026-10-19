@@ -1,0 +1,8 @@
+window "Otter Greeter"
+snap
+click button "Say Hello"
+type edit#1 "Ada"
+click button "Say Hello"
+snap
+close
+exit

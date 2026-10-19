@@ -28,6 +28,10 @@ jobs:
           dotnet-version: '10.0.x'
       - name: Publish native (AOT)
         run: dotnet publish src/Otter.Cli/Otter.Cli.csproj -c Release -r win-x64 -p:UseAppHost=true -o artifacts/win-x64 --nologo
+      # Desktop windows (WPF) run in otter-desktop, beside otter (docs/port/desktop.md;
+      # tested on a real desktop by desktop.yml).
+      - name: Publish otter-desktop beside it
+        run: dotnet publish src/Otter.Desktop/Otter.Desktop.csproj -c Release -r win-x64 --self-contained false -p:UseAppHost=true -o artifacts/win-x64 --nologo
       - name: Compatibility - otterPS conformance, examples and tests/compat
         shell: powershell
         run: |

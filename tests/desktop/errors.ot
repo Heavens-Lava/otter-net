@@ -1,0 +1,226 @@
+# otterPS's errors for windows, each caught and said (D44-D48, D53, D54,
+# D110), and the Otter errors a window program meets.
+create window into app
+title of app is "Errors"
+create button into b
+create text into label
+create text box into box
+create row into r
+create column into c
+create scroll into s
+create card into k
+
+to check what
+    say what
+.
+negative is 0 minus 5
+negativeHalf is 0 minus 2.5
+notUi is "app"
+five is 5
+
+try
+    create gadget into g
+otherwise into reason
+    say "1:" reason
+.
+try
+    colour of b is "red"
+otherwise into reason
+    say "2:" reason
+.
+try
+    say spacing of b
+otherwise into reason
+    say "3:" reason
+.
+try
+    width of b is "wide"
+otherwise into reason
+    say "4:" reason
+.
+try
+    width of b is true
+otherwise into reason
+    say "5:" reason
+.
+try
+    height of label is negative
+otherwise into reason
+    say "6:" reason
+.
+try
+    spacing of app is negativeHalf
+otherwise into reason
+    say "7:" reason
+.
+try
+    background of b is "notacolor"
+otherwise into reason
+    say "8:" reason
+.
+try
+    align of b is "sideways"
+otherwise into reason
+    say "9:" reason
+.
+try
+    align of label is "top"
+otherwise into reason
+    say "10:" reason
+.
+try
+    align of r is "left"
+    align of r is "right"
+otherwise into reason
+    say "11:" reason
+.
+try
+    spread of r is true
+otherwise into reason
+    say "12:" reason
+.
+try
+    spread of c is true
+    align of c is "bottom"
+otherwise into reason
+    say "13:" reason
+.
+try
+    align of c is "left"
+    align of c is "center"
+otherwise into reason
+    say "14:" reason
+.
+try
+    put label in b
+otherwise into reason
+    say "15:" reason
+.
+try
+    put label in r
+    put label in c
+otherwise into reason
+    say "16:" reason
+.
+try
+    put c in s
+    put box in s
+otherwise into reason
+    say "17:" reason
+.
+try
+    put r in s
+otherwise into reason
+    say "18:" reason
+.
+try
+    show b
+otherwise into reason
+    say "19:" reason
+.
+try
+    when b is hovered
+        say "never"
+    .
+otherwise into reason
+    say "20:" reason
+.
+try
+    when label is clicked
+        say "never"
+    .
+otherwise into reason
+    say "21:" reason
+.
+try
+    on drop on b
+        say "never"
+    .
+otherwise into reason
+    say "22:" reason
+.
+try
+    put "text" in app
+otherwise into reason
+    say "23:" reason
+.
+try
+    put b in notUi
+otherwise into reason
+    say "24:" reason
+.
+try
+    show five
+otherwise into reason
+    say "25:" reason
+.
+try
+    when five is clicked
+        say "never"
+    .
+otherwise into reason
+    say "26:" reason
+.
+try
+    put app in r
+otherwise into reason
+    say "27:" reason
+.
+try
+    put k in app
+    put k in app
+otherwise into reason
+    say "28:" reason
+.
+try
+    k has round is 12
+otherwise into reason
+    say "29:" reason
+.
+say "30:" the round of k
+try
+    width of b is "Infinity"
+otherwise into reason
+    say "31:" reason
+.
+try
+    put b in k
+otherwise into reason
+    say "32:" reason
+.
+try
+    title of b is "x"
+otherwise into reason
+    say "33:" reason
+.
+try
+    b is a thing
+otherwise into reason
+    say "34:" reason
+.
+b has text "B", width 40
+say "35:" text of b width of b
+check b
+create button into other
+if b is other
+    say "37: two resources are equal"
+.
+if b is "OtterUiResource"
+    say "38: a resource equals that text"
+.
+if b
+    say "39: a resource is true"
+.
+try
+    say b plus 1
+otherwise into reason
+    say "40:" reason
+.
+items are
+    1
+    2
+add b to items
+say "41:" items
+put label, box in app
+show app
+say "the end"

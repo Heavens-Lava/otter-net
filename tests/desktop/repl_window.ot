@@ -1,0 +1,3 @@
+# The REPL (no file: see repl_window.args, which is empty) with the lines in
+# repl_window.ot.input: a window from the REPL, then the REPL goes on.
+create window into w

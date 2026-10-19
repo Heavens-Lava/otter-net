@@ -1,0 +1,5 @@
+window "Otter"
+click button "Say Hello"
+snap
+close
+exit

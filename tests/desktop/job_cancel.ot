@@ -1,0 +1,17 @@
+# Once a window has been made, cancelling a command job runs its cancel
+# handlers at once (otterPS's Invoke-OtterJobEvent on the window's
+# dispatcher), not after the program's last line.
+start command "ping -n 30 127.0.0.1" and call it before
+on cancel of before
+    say "cancelled before any window:" state of before
+.
+cancel before
+say "after the first cancel"
+create window into app
+start command "ping -n 30 127.0.0.1" and call it sleeper
+on cancel of sleeper
+    say "cancelled:" state of sleeper
+.
+say "before cancel"
+cancel sleeper
+say "after cancel"

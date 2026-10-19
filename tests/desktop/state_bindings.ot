@@ -1,0 +1,36 @@
+# State, derived values and watchers (D56) driving a window: a click
+# changes state, a watcher updates the window, a derived value follows.
+create window into app
+title of app is "Counter"
+state clicks is 0
+derive doubled is clicks times 2
+create text into display
+text of display is "clicks: 0"
+create text into twice
+text of twice is "doubled: 0"
+create button into addButton
+text of addButton is "Add one"
+when clicks changes
+    text of display is "clicks: " plus "?"
+    text of display is clicks
+    say "clicks changed to" clicks
+.
+when doubled changes
+    text of twice is doubled
+    say "doubled is" doubled
+.
+say "doubled starts at" doubled
+when addButton is clicked
+    add 1 to clicks
+.
+create text box into entry
+state typed is ""
+when typed changes
+    say "typed is now" typed
+.
+when entry is changed
+    typed is text of entry
+.
+put display, twice, addButton, entry in app
+show app
+say "final" clicks doubled typed

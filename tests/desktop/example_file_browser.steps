@@ -1,0 +1,10 @@
+window "Otter File Utility"
+snap
+type edit#1 "no such folder here"
+click button "Load Files"
+snap
+type edit#1 "."
+click button "Load Files"
+snap
+close
+exit

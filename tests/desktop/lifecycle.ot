@@ -1,0 +1,34 @@
+# A window's life (D47): shown, closed, then shown again; a second window
+# opened from a handler, modal over the first; an empty window.
+create window into app
+title of app is "First"
+create button into opener
+text of opener is "Open another"
+when opener is clicked
+    create window into second
+    second has title "Second", width 300, height 200
+    create text into note
+    text of note is "the second window"
+    put note in second
+    when second is closed
+        say "second closed"
+    .
+    say "opening the second window"
+    show second
+    say "the second window is gone"
+.
+when app is closed
+    say "first closed"
+.
+put opener in app
+show app
+say "shown once"
+try
+    show app
+otherwise into reason
+    say "again:" reason
+.
+create window into empty
+title of empty is "Empty"
+show empty
+say "done"

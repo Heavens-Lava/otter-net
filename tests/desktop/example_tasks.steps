@@ -1,0 +1,10 @@
+window "Otter Tasks"
+snap
+type edit#1 "Buy milk"
+click button "Add"
+type edit#1 "Walk the otter"
+click button "Add"
+click button "Add"
+snap
+close
+exit

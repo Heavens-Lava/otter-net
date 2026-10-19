@@ -1,0 +1,6 @@
+window "Otter Input"
+type edit#1 "copied text"
+click button "Copy text"
+snap
+close
+exit

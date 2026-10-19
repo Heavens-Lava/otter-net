@@ -1,0 +1,10 @@
+window "Placeholder"
+snap
+type edit#1 "Ada"
+type edit#2 "x"
+type edit#3 ""
+snap
+type edit#1 ""
+snap
+close
+exit
