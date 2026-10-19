@@ -11,7 +11,7 @@ name: desktop windows
 
 on:
   push:
-    branches: [port/desktop]
+    branches: [port/desktop, port/native]
   workflow_dispatch:
 
 jobs:

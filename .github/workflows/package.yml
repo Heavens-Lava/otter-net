@@ -17,7 +17,7 @@ name: package
 on:
   workflow_dispatch:
   push:
-    branches: [port/package]
+    branches: [port/package, port/native]
 
 permissions:
   contents: read
@@ -62,7 +62,7 @@ jobs:
         with:
           name: otter-net-${{ steps.version.outputs.version }}-${{ matrix.rid }}-UNSIGNED-release-candidate
           path: artifacts/packages/
-          retention-days: 14
+          retention-days: ${{ github.ref_name == 'port/package' && 14 || 1 }}  # for review only from port/package
       - uses: actions/upload-artifact@v4
         with:
           name: upgrade-test-${{ matrix.rid }}
@@ -103,7 +103,7 @@ jobs:
         with:
           name: msi-logs-${{ matrix.rid }}
           path: msi-logs/
-          retention-days: 14
+          retention-days: ${{ github.ref_name == 'port/package' && 14 || 1 }}  # for review only from port/package
 
   # Debian 12 - the system a Chromebook's Linux runs - like ci.yml's linux job.
   linux-build:
@@ -151,7 +151,7 @@ jobs:
         with:
           name: otter-net-${{ steps.version.outputs.version }}-${{ matrix.rid }}-UNSIGNED-release-candidate
           path: artifacts/packages/
-          retention-days: 14
+          retention-days: ${{ github.ref_name == 'port/package' && 14 || 1 }}  # for review only from port/package
       - uses: actions/upload-artifact@v4
         with:
           name: upgrade-test-${{ matrix.rid }}
@@ -225,7 +225,7 @@ jobs:
         with:
           name: otter-net-${{ steps.version.outputs.version }}-${{ matrix.rid }}-UNSIGNED-release-candidate
           path: artifacts/packages/
-          retention-days: 14
+          retention-days: ${{ github.ref_name == 'port/package' && 14 || 1 }}  # for review only from port/package
       - uses: actions/upload-artifact@v4
         with:
           name: upgrade-test-${{ matrix.rid }}
