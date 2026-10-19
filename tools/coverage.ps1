@@ -206,7 +206,7 @@ if ($RunCorpus) {
     $log.Add("$($results.Count) otter processes, $timedOut stopped after $TimeoutSeconds s, $lost of them killed (hits lost).")
     foreach ($group in ($results | Group-Object { (($_ -split "`t")[1] -split ' ')[0] } | Sort-Object Name)) { $log.Add("$($group.Name): $($group.Count)") }
     $log.Add('Stopped after the timeout:')
-    foreach ($r in ($results | Where-Object { $_ -notlike "ok`t*" } | Sort-Object { ($_ -split "`t")[1] })) { $log.Add("  $r") }
+    foreach ($r in ($results | Where-Object { $_ -notlike "ok`t*" } | Sort-Object { ($_ -split "`t")[1] })) { $log.Add("  " + $r.Replace($here, 'otter-net').Replace($OtterPs, 'otterPS')) }
     if ($LogPath) { [System.IO.File]::WriteAllLines($LogPath, $log) }
     Write-Host $log[0]
     exit 0

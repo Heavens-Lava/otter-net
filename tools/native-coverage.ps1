@@ -140,6 +140,20 @@ $psInterpreter = Read-Lines $psInterpreterPath
 $psJsPath = Join-Path $OtterPs 'src/Otter.Compiler.JavaScript.psm1'
 $psJs = Read-Lines $psJsPath
 
+# otterPS's compiled engine (`otter run` of a program in its subset): the
+# kinds its ConvertTo-OtterNative* switches handle.
+$psNative = Read-Lines (Join-Path $OtterPs 'src/Otter.Compiler.Native.psm1')
+$psNativeCases = @{}
+$psNativeExperimental = @([regex]::Matches(($psNative -join "`n"), "NativeExperimentalKinds = @\(([^)]*)\)").Groups[1].Value -split ',' | ForEach-Object { $_.Trim().Trim("'") })
+for ($i = 0; $i -lt $psNative.Count; $i++) {
+    foreach ($m in [regex]::Matches($psNative[$i], "^\s+'(\w+)'\s*\{|'(\w+)',\s*'")) {
+        $k = if ($m.Groups[1].Success) { $m.Groups[1].Value } else { $m.Groups[2].Value }
+        if ($kinds -contains $k -and -not $psNativeCases.ContainsKey($k)) { $psNativeCases[$k] = $i + 1 }
+    }
+    if ($psNative[$i] -match "\`$_ -in ('[\w']+(,\s*'\w+')*)") {
+        foreach ($w in [regex]::Matches($Matches[1], "'(\w+)'")) { $k = $w.Groups[1].Value; if ($kinds -contains $k -and -not $psNativeCases.ContainsKey($k)) { $psNativeCases[$k] = $i + 1 } }
+    }
+}
 $psBuilds = @{}
 for ($i = 0; $i -lt $psParser.Count; $i++) {
     foreach ($m in [regex]::Matches($psParser[$i], '\[(\w+)\]::new\(')) {
@@ -322,6 +336,10 @@ foreach ($kind in $kinds) {
     if ($psBuilds.ContainsKey($kind)) { foreach ($fn in $psBuilds[$kind].Keys) { $psSide.Add("parser ``$fn`` (Otter.Parser.psm1:$($psBuilds[$kind][$fn]))") } }
     if ($psCases.ContainsKey($kind)) { $psSide.Add("interpreter ``'$kind'`` (Otter.Interpreter.psm1:$($psCases[$kind]))") }
     if ($psJsCases.ContainsKey($kind)) { $psSide.Add("JS compiler (Otter.Compiler.JavaScript.psm1:$($psJsCases[$kind]))") }
+    if ($psNativeCases.ContainsKey($kind)) {
+        $experimental = if ($psNativeExperimental -contains $kind) { ', only with OTTER_NATIVE_EXPERIMENTAL=1' } else { '' }
+        $psSide.Add("compiled engine (Otter.Compiler.Native.psm1:$($psNativeCases[$kind])$experimental)")
+    }
 
     $netSide = New-Object System.Collections.Generic.List[string]
     $netClasses = @(); if ($kindNet.ContainsKey($kind)) { $netClasses = @($kindNet[$kind] | Sort-Object) }
@@ -334,11 +352,14 @@ foreach ($kind in $kinds) {
             $parsed = $true
             $netSide.Add("parser ``$(Get-CsMethod $site.File $site.Line)`` ($($site.File -replace '^src/', ''):$($site.Line))")
         }
-        foreach ($site in @(Find-Cs '^src/Otter\.Runtime/' "(case $c\b|\b$c \w+ (=>|when)|is $c\b)" 2)) {
+        foreach ($site in @(Find-Cs '^src/Otter\.Runtime/(?!CompiledEngine)' "(case $c\b|\b$c \w+ (=>|when)|is $c\b)" 2)) {
             $runSite = $true
             $r = Get-Reached $site.File $site.Line
             if ($r) { if ($r -like '*(run)*') { $reached = $true } elseif ($null -eq $reached) { $reached = $false } }
             $netSide.Add("run ($($site.File -replace '^src/', ''):$($site.Line))$r")
+        }
+        foreach ($site in @(Find-Cs '^src/Otter\.Runtime/CompiledEngine' "^\s+$c\b" 1)) {
+            $netSide.Add("compiled-engine subset ($($site.File -replace '^src/', ''):$($site.Line))")
         }
         foreach ($site in @(Find-Cs '^src/Otter\.Web/(JsCompiler|DeclarativeRenderer|RuntimeUi|WebCompiler)' "(case $c\b|\b$c \w+ (=>|when)|is $c\b)" 2)) {
             $webSite = $true
@@ -664,7 +685,10 @@ $out.Add('found in the sources: otterPS 1.0.1''s contract, parser, interpreter, 
 $out.Add('compiler, otter.ps1 and library modules; otter-net''s C# (file:line); and the')
 $out.Add('test programs that contain each node, measured by parsing them with')
 $out.Add('otter-net (`tools/NodeCensus`). The summary of what remains is')
-$out.Add('`docs/FULL_PORT_MATRIX.md`; code coverage is `docs/coverage/`.')
+$out.Add('`docs/FULL_PORT_MATRIX.md`; code coverage is `docs/coverage/`. "compiled engine" is')
+$out.Add('otterPS''s other runtime: a plain `otter run` of a program whose statements are all')
+$out.Add('in its subset runs there (SPEC-QUESTIONS V4-2); "compiled-engine subset" is where')
+$out.Add('otter-net decides the same (`CompiledEngine.cs`).')
 $out.Add('')
 if ($Cobertura) {
     $out.Add('"(run)" after an otter-net location: a corpus run executed it (tools/coverage.ps1);')

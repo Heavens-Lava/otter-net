@@ -15,7 +15,7 @@ on a PowerShell 7 reference, as compare-web.ps1 does: no byte order mark,
 LF ending, < > & ' not escaped in JSON), or the syntax and compile errors in
 full. Suited to fuzzing the web compiler with mutated UI programs.
 
-Not compared: sidecar stylesheets and what
+Not compared: sidecar stylesheets (none is copied) and what
 otter.ps1 itself prints. Exit code 0 when every program matched.
 #>
 [CmdletBinding()]
@@ -23,6 +23,9 @@ param(
     [Parameter(Mandatory)][string]$OtterPs,
     [Parameter(Mandatory)][string]$OtterNet,
     [Parameter(Mandatory)][string[]]$Corpus,
+    # Files copied next to every program (modules it uses, for example
+    # otter-docs/pages/_shell.ot for mutated documentation pages).
+    [string[]]$SupportFiles = @(),
     [string]$ReportPath = ''
 )
 $ErrorActionPreference = 'Stop'
@@ -41,6 +44,12 @@ $work = Join-Path ([System.IO.Path]::GetTempPath()) ('otter-compare-web-batch-' 
 New-Item -ItemType Directory -Path $work | Out-Null
 $list = Join-Path $work 'files.txt'
 [System.IO.File]::WriteAllLines($list, [string[]]$files)
+# Each program gets its own folder, the same for both sides, so paths in
+# messages agree: run/<n>/<name>.ot with the support files beside it.
+$runRoot = Join-Path $work 'run'
+New-Item -ItemType Directory -Path $runRoot | Out-Null
+$supportList = Join-Path $work 'support.txt'
+[System.IO.File]::WriteAllLines($supportList, [string[]]@($SupportFiles | ForEach-Object { (Resolve-Path -LiteralPath $_).Path }))
 $utf8 = [System.Text.UTF8Encoding]::new($false)
 
 function ConvertTo-Pwsh7Form([string]$Text) {
@@ -65,8 +74,14 @@ using module '$(Join-Path $OtterPs 'src/Otter.Web.psm1')'
 `$ErrorActionPreference = 'Stop'
 `$utf8 = [System.Text.UTF8Encoding]::new(`$false)
 `$index = 0
-foreach (`$path in [System.IO.File]::ReadAllLines('$list')) {
+`$support = [System.IO.File]::ReadAllLines('$supportList')
+foreach (`$original in [System.IO.File]::ReadAllLines('$list')) {
     `$index++
+    `$dir = Join-Path '$runRoot' "`$index"
+    [void][System.IO.Directory]::CreateDirectory(`$dir)
+    foreach (`$file in `$support) { if (`$file) { Copy-Item -LiteralPath `$file -Destination `$dir } }
+    `$path = Join-Path `$dir ([System.IO.Path]::GetFileName(`$original))
+    Copy-Item -LiteralPath `$original -Destination `$path
     `$resolved = `$null
     try {
         # Export-OtterWebApplication: the source through module resolution, so
@@ -97,15 +112,12 @@ foreach (`$path in [System.IO.File]::ReadAllLines('$list')) {
 
     $different = [System.Collections.Generic.List[object]]::new()
     $pages = 0; $errors = 0
-    $runDir = Join-Path $work 'run'
     for ($i = 0; $i -lt $files.Count; $i++) {
         $path = $files[$i]
         $reference = [System.IO.File]::ReadAllText((Join-Path $refDir "$($i + 1).txt"))
-        # otter-net: `otter web` in a scratch folder holding only the program.
-        if (Test-Path -LiteralPath $runDir) { Remove-Item -LiteralPath $runDir -Recurse -Force }
-        New-Item -ItemType Directory -Path $runDir | Out-Null
+        # otter-net: `otter web` in the folder the reference used.
+        $runDir = Join-Path $runRoot "$($i + 1)"
         $copy = Join-Path $runDir ([System.IO.Path]::GetFileName($path))
-        Copy-Item -LiteralPath $path -Destination $copy
         $psi = [System.Diagnostics.ProcessStartInfo]::new()
         if ($OtterNet.EndsWith('.dll')) { $psi.FileName = 'dotnet'; $psi.ArgumentList.Add($OtterNet) } else { $psi.FileName = $OtterNet }
         foreach ($a in @('web', [System.IO.Path]::GetFileName($path), '-NoOpen')) { $psi.ArgumentList.Add($a) }
