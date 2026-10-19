@@ -431,7 +431,8 @@ internal static class Program
                 }
                 case "type":
                 {
-                    var element = Find(t, 1, out string selector);
+                    // The last token is the text; the selector is before it.
+                    var element = Find(t.Take(t.Count - 1).ToList(), 1, out string selector);
                     if (element == null) return $"type {selector}: not found";
                     string text = t[^1].TrimStart('"');
                     ((ValuePattern)element.GetCurrentPattern(ValuePattern.Pattern)).SetValue(text);
@@ -482,7 +483,14 @@ internal static class Program
                         }
                         catch (ElementNotAvailableException) when (attempt > 1) { break; }
                         catch (ElementNotAvailableException) { return "close: the window is gone"; }
-                        catch (COMException) when (attempt < 5) { Thread.Sleep(500); }
+                        catch (COMException) when (attempt < 5)
+                        {
+                            // The call can fail as the window goes away under it.
+                            Thread.Sleep(500);
+                            int handle;
+                            try { handle = window.Current.NativeWindowHandle; } catch (Exception) { break; }
+                            if (!Windows().Any(w => w.Current.NativeWindowHandle == handle)) break;
+                        }
                     }
                     Settle();
                     window = null;
