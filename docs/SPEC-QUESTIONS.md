@@ -523,3 +523,56 @@ PowerShell's error view and scoping rules; it cannot be compared
 automatically (the server never ends) and should be confirmed by hand on
 Windows. The path assumes otterPS's layout next to otter.exe, as in C2-1.
 Needs a decision whether an unreadable port should rather be an Otter error.
+
+## V4 questions (found 2026-10-18, the source-level coverage audit)
+
+### V4-1. `route parameter X` and `query parameter X` cannot be written
+
+D103 adds two expressions, `route parameter "id"` and `query parameter
+"search"` (RouteParameterExpr, QueryParameterExpr; `Read-OtterValue` in
+src/Otter.Parser.psm1 checks for an identifier `route`, or the token `query`,
+followed by the token `parameter`). But `parameter` and `query` are keywords
+only as the first word of a line (D33 mechanism 2, the lexer's
+`$StatementHeadKeywords`): after `route` or after any other word, `parameter`
+lexes as an ordinary identifier. So no program can reach either form -
+`x is route parameter "id"` is "I expected the assignment to end here. I
+found 'parameter' instead.", `say route parameter "id"` says the variables
+`route` and `parameter`, in otterPS 1.0.1 and in otter-net alike. The web
+compiler and the run-time error for both are therefore dead code in both
+implementations. Found by `tools/native-coverage.ps1`: the only NodeKinds no
+program of any corpus contains. Needs a decision: make the forms reachable
+(a lexer change, new behaviour) or drop them from the documented grammar.
+
+### V4-2. `otter run` runs some programs on otterPS's compiled engine
+
+otterPS 1.0.1's `Invoke-OtterSource` first hands a plain run to its compiled
+engine (`src/Otter.Compiler.Native.psm1`, C# 5 compiled with `Add-Type`
+against `src/native/OtterNativeRuntime.cs`); only a program the compiler
+refuses is interpreted. `docs/OTTER_NATIVE_COMPILER_DESIGN.md` describes the
+engine as experimental and not changing `otter run`'s default, but `otter.ps1`
+1.0.1 enables it (`$script:OtterCompiledRunAllowed`; `OTTER_ENGINE_TRACE=1`
+shows "otter engine: compiled"). Its runtime mirrors the interpreter's
+messages, but not everywhere:
+
+- `length of` bytes is refused ("... but this is bytes.");
+- where .NET itself fails (a date moved past year 9999, an empty random
+  range), `otherwise into` keeps .NET's message where the interpreter keeps
+  PowerShell's `Exception calling "AddYears" with "1" argument(s): "..."`, and
+  an uncaught failure ends the program as "Otter's compiled engine hit an
+  internal problem: Exception calling "Invoke" ..." instead of "Otter hit a
+  problem inside itself";
+- numbers become Int32 by C#'s `(int)` cast instead of PowerShell's `[int]`:
+  a random bound or a repeat count beyond Int32 is not an error, and the
+  result depends on the processor and runtime (0x80000000 on Windows
+  PowerShell 5.1's .NET Framework on x64, saturation on .NET 9 and later,
+  so `repeat 3000000000 times` does nothing on 5.1 and runs for ever on
+  PowerShell 7).
+
+otter-net decides as otterPS does whether a run is compiled
+(`OtterPsCompiledEngine.Accepts`, a port of the compiler's refusal rules) and
+reproduces these differences, the .NET Framework x64 casts and the .NET
+Framework message texts (read from the reference source: "Years value must
+be between +/-10000.\r\nParameter name: years"); the texts are to be
+confirmed on Windows by CI (`c4_compiled_engine.ot`, `c4_interpreter_dotnet.ot`).
+Needs a decision: should the compiled engine's differences be part of the
+language, or is the interpreter the specification?
