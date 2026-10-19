@@ -1,0 +1,12 @@
+app is a page
+    name is "app"
+.
+b is a button
+    name is "b"
+.
+put b in app
+to helper
+    when b clicked
+        say "x"
+.
+show app
