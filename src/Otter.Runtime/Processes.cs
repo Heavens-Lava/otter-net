@@ -155,16 +155,29 @@ public static class OtterProcesses
 
     // Wait-OtterProcess: true when the process has ended by the deadline (or
     // was never there to wait for).
-    public static bool Wait(int processId, double timeoutSeconds)
+    // Wait-OtterProcess: [int]$ProcessId and Get-Process inside one try - a
+    // process that cannot be found, or an id [int] cannot hold, has finished;
+    // then [int]([Math]::Max(0, $TimeoutSeconds * 1000)): PowerShell picks
+    // Max(int, int) for an int first argument, so the milliseconds are cast
+    // to [int] first (halves to even), with PowerShell's own error beyond Int32.
+    public static bool Wait(double processId, double timeoutSeconds)
     {
+        if (!Otter.Language.PowerShellInt32.TryCast(processId, out int id, out _)) return true;
         Process process;
-        try { process = Process.GetProcessById(processId); }
+        try { process = Process.GetProcessById(id); }
         catch (ArgumentException) { return true; }
         catch (InvalidOperationException) { return true; }
-        // [int]: the nearest whole number, halves to even.
-        double milliseconds = Math.Round(Math.Max(0, timeoutSeconds * 1000), MidpointRounding.ToEven);
-        int timeout = milliseconds >= int.MaxValue ? int.MaxValue : (int)milliseconds;
+        double milliseconds = timeoutSeconds * 1000;
+        if (!Otter.Language.PowerShellInt32.TryCast(milliseconds, out int whole, out string castError))
+        {
+            string shown = milliseconds.ToString("G15", System.Globalization.CultureInfo.InvariantCulture);
+            throw new ProcessTimeoutCast($"Cannot convert argument \"val2\", with value: \"{shown}\", for \"Max\" to type \"System.Int32\": \"{castError}\"");
+        }
+        int timeout = Math.Max(0, whole);
         try { return process.WaitForExit(timeout); }
         catch (Exception e) when (e is InvalidOperationException or Win32Exception or SystemException) { return true; }
     }
 }
+
+// Wait-OtterProcess's [int] cast of the timeout failed (PowerShell's message).
+public sealed class ProcessTimeoutCast(string message) : Exception(message);

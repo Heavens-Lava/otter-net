@@ -1,0 +1,7 @@
+# Coverage audit (c4): `current route` has no value outside a web page.
+try
+    here is current route
+otherwise into reason
+    say reason
+.
+say "after"

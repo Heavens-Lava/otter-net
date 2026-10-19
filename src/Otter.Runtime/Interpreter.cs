@@ -53,6 +53,10 @@ public sealed partial class Interpreter
     // `otter debug` and `otter profile`. Null on an ordinary run.
     public Action<Stmt, Scope>? StatementHook { get; init; }
 
+    // The program runs as otterPS's compiled engine runs it (CompiledEngine.cs):
+    // set by `otter run` when otterPS would compile this program.
+    public bool CompiledEngine { get; init; }
+
     // otterPS's $script:CallStack: the Otter functions running, innermost last.
     public List<CallFrame> CallStack { get; } = new();
 
@@ -225,7 +229,9 @@ public sealed partial class Interpreter
             case RepeatStmt repeat:
             {
                 double count = RequireNumber(Evaluate(repeat.Count, scope), repeat.Line, "the number of repeats");
-                int whole = (int)Math.Floor(count);
+                // [int][Math]::Floor($count): PowerShell's error beyond Int32; the
+                // compiled engine's C# (int) makes such a count 0x80000000 instead.
+                int whole = CompiledEngine ? OtterPsCompiledEngine.FrameworkInt32(Math.Floor(count)) : PowerShellCastInt(Math.Floor(count));
                 if (LoopHasPasses(repeat)) { RunRepeatWithPasses(repeat, whole, scope); return; }   // D130
                 for (int i = 0; i < whole; i++) Execute(repeat.Body, scope);
                 return;
@@ -287,7 +293,9 @@ public sealed partial class Interpreter
                 {
                     // `return` passes straight through a try; everything else is
                     // a failure. D68: `otherwise into reason` keeps its message.
-                    if (!string.IsNullOrEmpty(tryStmt.ErrorTarget)) scope.Set(tryStmt.ErrorTarget, failure.Message);
+                    // The compiled engine catches .NET's own exception, not PowerShell's wrapping of it.
+                    string message = CompiledEngine ? OtterPsCompiledEngine.RawMessage(failure) : failure.Message;
+                    if (!string.IsNullOrEmpty(tryStmt.ErrorTarget)) scope.Set(tryStmt.ErrorTarget, message);
                     if (tryStmt.OtherwiseBody != null) Execute(tryStmt.OtherwiseBody, scope);
                 }
                 return;
@@ -389,18 +397,30 @@ public sealed partial class Interpreter
                     throw RuntimeError($"I can only add time to a date, but \"{name}\" holds {Values.TypeName(scope.Get(name))}.", adjust.Line);
                 }
                 double amount = RequireNumber(Evaluate(adjust.Amount, scope), adjust.Line, "the amount of time");
-                int whole = (int)Math.Truncate(amount);
-                if (adjust.IsRemoval) whole = -whole;
-                RequireUnitAllowed(current, adjust.Unit, adjust.Line);
-                DateTime moved = adjust.Unit switch
+                double whole;
+                if (CompiledEngine)
                 {
-                    TimeUnit.Year => current.Value.AddYears(whole),
-                    TimeUnit.Month => current.Value.AddMonths(whole),
-                    TimeUnit.Day => current.Value.AddDays(whole),
-                    TimeUnit.Hour => current.Value.AddHours(whole),
-                    TimeUnit.Minute => current.Value.AddMinutes(whole),
-                    _ => current.Value.AddSeconds(whole),
-                };
+                    // R.DateAdjust: C#'s (int) cast and int negation.
+                    int compiledWhole = OtterPsCompiledEngine.FrameworkInt32(Math.Truncate(amount));
+                    whole = adjust.IsRemoval ? unchecked(-compiledWhole) : compiledWhole;
+                }
+                else
+                {
+                    // [int][Math]::Truncate($amount), then -$whole: PowerShell
+                    // turns -[int]::MinValue into a double.
+                    if (!PowerShellInt32.TryCast(Math.Truncate(amount), out int cast, out string castError)) throw new InternalProblem(castError);
+                    whole = adjust.IsRemoval ? -(double)cast : cast;
+                }
+                RequireUnitAllowed(current, adjust.Unit, adjust.Line);
+                // AddYears and AddMonths take an Int32 PowerShell cannot make of 2147483648.
+                if (whole > int.MaxValue && adjust.Unit is TimeUnit.Year or TimeUnit.Month)
+                {
+                    throw new InternalProblem(FrameworkDates.ArgumentConversion(adjust.Unit == TimeUnit.Year ? "AddYears" : "AddMonths", whole));
+                }
+                if (!FrameworkDates.TryAdd(current.Value, adjust.Unit, whole, out DateTime moved, out string method, out string error))
+                {
+                    throw new DotNetCallProblem(method, 1, error);
+                }
                 scope.Set(name, new OtterDate(moved, current.HasTime));
                 return;
             }
@@ -699,7 +719,8 @@ public sealed partial class Interpreter
                 {
                     ServiceEventsDuringWait();
                     double remaining = target - clock.ElapsedMilliseconds;
-                    if (remaining > 0) Thread.Sleep((int)Math.Min(remaining, 20));
+                    // [Math]::Min([int]$remaining, 20): the cast fails beyond Int32 (a wait of about 25 days or more).
+                    if (remaining > 0) Thread.Sleep(Math.Min(PowerShellCastInt(remaining), 20));
                 }
                 ServiceEventsDuringWait();
                 return;
@@ -726,8 +747,22 @@ public sealed partial class Interpreter
                 double to = RequireNumber(toValue, randomNumber.Line, "the highest number");
                 if (from > to) (from, to) = (to, from);
                 // Get-Random -Maximum is exclusive, so one is added to include the top.
-                int picked = random.Next(PowerShellInt(Math.Floor(from), randomNumber.Line), PowerShellInt(Math.Floor(to), randomNumber.Line) + 1);
-                scope.Set(randomNumber.Target, (double)picked);
+                if (CompiledEngine)
+                {
+                    // R.RandomNumber: C#'s (int) casts and int addition, then
+                    // Get-Random -Minimum min -Maximum max+1 through the bridge.
+                    int low = OtterPsCompiledEngine.FrameworkInt32(Math.Floor(from));
+                    int top = unchecked(OtterPsCompiledEngine.FrameworkInt32(Math.Floor(to)) + 1);
+                    if (low >= top) throw new InternalProblem(GetRandomRange(low, top));
+                    scope.Set(randomNumber.Target, (double)random.Next(low, top));
+                    return;
+                }
+                // Get-Random -Minimum ([int][Math]::Floor($from)) -Maximum (([int][Math]::Floor($to)) + 1):
+                // PowerShell's casts, and [int]::MaxValue + 1 is a double, which
+                // makes Get-Random pick a double.
+                int lowest = PowerShellCastInt(Math.Floor(from));
+                int highest = PowerShellCastInt(Math.Floor(to));
+                scope.Set(randomNumber.Target, highest == int.MaxValue ? random.NextDouble(lowest, 2147483648.0) : (double)random.Next(lowest, highest + 1));
                 return;
             }
             case RandomItemStmt randomItem:
@@ -740,7 +775,7 @@ public sealed partial class Interpreter
             case SetRandomSeedStmt setSeed:
             {
                 double seed = RequireNumber(Evaluate(setSeed.Seed, scope), setSeed.Line, "a random seed");
-                random.Seed(PowerShellInt(seed, setSeed.Line));
+                random.Seed(PowerShellCastInt(seed));
                 return;
             }
             // ---- xml (D105) ----
@@ -910,17 +945,18 @@ public sealed partial class Interpreter
         return Environment.GetEnvironmentVariable(name);
     }
 
-    // PowerShell's [int] cast: the nearest whole number, halves to even.
-    // Out of range is an error there too; otter-net names it plainly.
-    int PowerShellInt(double value, int line)
+    // PowerShell's [int] cast: the nearest whole number, halves to even; out
+    // of range is PowerShell's own error (PSInvalidCastException), not an
+    // Otter one.
+    static int PowerShellCastInt(double value)
     {
-        double rounded = Math.Round(value, MidpointRounding.ToEven);
-        if (double.IsNaN(rounded) || rounded < int.MinValue || rounded > int.MaxValue)
-        {
-            throw RuntimeError($"{Values.FormatNumber(value)} is too large for a random number.", line);
-        }
-        return (int)rounded;
+        if (!PowerShellInt32.TryCast(value, out int result, out string message)) throw new InternalProblem(message);
+        return result;
     }
+
+    // Get-Random's refusal of an empty range (GetRandomCommandStrings).
+    static string GetRandomRange(int minimum, int maximum) =>
+        $"The Minimum value ({minimum.ToString(CultureInfo.InvariantCulture)}) cannot be greater than or equal to the Maximum value ({maximum.ToString(CultureInfo.InvariantCulture)}).";
 
     static readonly string[] ConsoleColorNames =
     {
@@ -1347,7 +1383,7 @@ public sealed partial class Interpreter
                     {
                         double index = RequireNumber(Evaluate(select.Selector, scope), select.Line, "a child index");
                         var children = XmlChildren(xml.Node);
-                        int position = PowerShellInt(index, select.Line);
+                        int position = PowerShellCastInt(index);
                         return position < 0 || position >= children.Count ? null : new OtterXml(children[position]);
                     }
                     default:
@@ -1553,7 +1589,8 @@ public sealed partial class Interpreter
             case OfOperation.Length:
                 if (subject is OtterList list) return (double)list.Count;
                 if (subject is string text) return (double)text.Length;
-                if (subject is OtterBytes bytes) return (double)bytes.Value.Length;
+                // R.Length knows only lists and text.
+                if (subject is OtterBytes bytes && !CompiledEngine) return (double)bytes.Value.Length;
                 throw RuntimeError($"I can only measure the length of text, a list, or bytes, but this is {Values.TypeName(subject)}.", operation.Line);
             case OfOperation.Uppercase: return Values.Format(subject).ToUpperInvariant();
             case OfOperation.Lowercase: return Values.Format(subject).ToLowerInvariant();

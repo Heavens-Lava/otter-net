@@ -14,16 +14,49 @@ otter-net is complete only when all of these hold:
 
 | # | Gate | Now |
 |---|---|---|
-| 1 | Every Otter 1.0.1 language feature implemented in C# | yes, except desktop windows (WPF) and remote commands on Windows - decisions pending |
+| 1 | Every Otter 1.0.1 language feature implemented in C# | yes, except desktop windows (WPF) and remote commands on Windows (wave 4, in progress); proved source by source in `docs/NATIVE_COVERAGE.md` |
 | 2 | Every conformance fixture passes | 19 of 19 checked natively; all identical on Windows |
 | 3 | No supported program needs the PowerShell Otter | 0 of 512 for `check`; at run time only desktop windows and remote commands on Windows (decisions pending) |
 | 4 | Syntax and runtime diagnostics independent of PowerShell | for native programs; strict mode: `tools/compare.ps1 -NativeOnly` |
 | 5 | All six platform configurations pass | yes (PR #3 CI) |
 | 6 | No unexplained compatibility differences | yes: Windows 0; elsewhere every difference declared with its reason |
-| 7 | Differential fuzzing passes, coverage documented | 300 programs, 0 differences, all native (CI); `docs/port/fuzz.md` |
+| 7 | Differential fuzzing passes, coverage documented | CI: 300 programs, 0 different; coverage audit: 3,160 programs run, 18,877 parsed, 5,490 pages compiled against otterPS, 0 differences of otter-net's after one fix (`docs/port/fuzz.md`); line coverage 84.3%, branch 78.5% (`docs/coverage/`) |
 | 8 | Native AOT executables run without PowerShell | for native programs |
 | 9 | Packaging and clean-machine installation tests | not started |
 | 10 | Release candidate reviewed and approved | not started |
+
+## Coverage audit - 2026-10-18 (`port/coverage`)
+
+Completeness proved at the source level, and what the tests never exercised
+found and fixed.
+
+| Inventory (`docs/NATIVE_COVERAGE.md`, `tools/native-coverage.ps1`) | Result |
+|---|---|
+| otterPS NodeKinds | 226: 225 have a node class, **225 native**, **223 in a test program**; the other 2 (`route parameter`, `query parameter`) cannot be written in 1.0.1 (SPEC-QUESTIONS V4-1); 1 (`UiLayout`) is an enum value nothing builds |
+| `otter` forms (otter.ps1's parameters and commands, common parameters, environment) | 32: **30 native, all 30 tested**; out of scope: `otter studio`, the compiled engine's own switches |
+| Exported library functions | 95: **92 with a C# counterpart**, 3 wave 4 (remote commands, the WPF dispatcher) |
+| Messages otterPS can show (literal text) | 473: **439 in otter-net's C#**, 34 unreachable or out of scope (each explained), **0 missing** |
+| Places that can still hand a program to PowerShell | 30: 11 bug guards, 7 errors PowerShell renders, 4 `-Verbose` (PowerShell's module messages), 7 wave 4 (remote commands, desktop windows), 1 out of scope |
+
+| Measurement | Result |
+|---|---|
+| Line / branch coverage over the whole corpus (`tools/coverage.ps1`, 1,337 otter processes) | **84.3% / 78.5%**: Language 96.0 / 90.1, Web 97.3 / 92.2, Runtime 76.6 / 71.3 (Windows-only code is not run on macOS), Cli 69.4 / 55.6 (the PowerShell hand-over itself) |
+| Interpreter errors reached | 212 of 256 throw sites; the rest are Windows-only, need a network peer that fails, or are unreachable (`docs/coverage/unshown-errors.md`) |
+| Differential fuzzing, run (`compare.ps1`, macOS) | 3,160 programs (generated, mutated, case variants): 3,062 identical, 97 known PowerShell 7 or nondeterministic differences, 0 of otter-net's |
+| Parsing (`compare-parse.ps1`) | 18,877 programs: identical except 35 mutations of one program quoting .NET's FormatException wording (PowerShell 7) |
+| Web pages (`compare-web-batch.ps1`) | 5,490 mutated and case-varied pages: 10 differences, all one bug (fixed); 0 after the fix |
+| tests/compat, native only (macOS) | 200 programs: the 18 known differences plus `c4_compiled_engine.ot` and `c4_interpreter_dotnet.ot` (.NET Framework's wording, by design) |
+| tests/cli | 259 cases: **0 different** (68 known PowerShell 7 differences) |
+| tests/web, `otter web` byte for byte | 92 programs: **0 different** |
+| tests/network (against `tools/network-test-server.js`) | 4 programs: identical |
+
+Bugs found and fixed (each with a regression program; `docs/port/fuzz.md`):
+`otter run` of a program otterPS compiles now runs as otterPS's compiled
+engine does (SPEC-QUESTIONS V4-2); dates moved beyond DateTime's range,
+random bounds and seeds, repeat counts and waits beyond Int32, process ids
+and wait timeouts give PowerShell's own errors; a websocket closed with an
+application code; a resource property set under a differently-capitalised
+name in a web page.
 
 ## After wave 3 - 2026-10-18 (Windows tasks and printers, the last UI fallbacks, the web compiler for system/network/data programs, JSON reader fixes, PowerShell's own error layout)
 

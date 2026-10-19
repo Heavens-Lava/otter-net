@@ -1,0 +1,18 @@
+app is a page
+    name is "app"
+.
+t is a text box
+    name is "t"
+.
+label is a text
+    text is "x"
+.
+put t, label in app
+when t changed
+    value of label is "typed"
+    width of label is 200
+    height of label is "50%"
+    foreground of label is "red"
+    title of label is "T"
+    tooltip of label is "tip"
+show app

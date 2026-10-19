@@ -1,0 +1,6 @@
+app is a page
+    title is "Spread"
+.
+c4 is a column with spread, align top
+put c4 in app
+show app

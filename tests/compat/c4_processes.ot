@@ -1,0 +1,41 @@
+# Coverage audit (c4): process ids and timeouts that PowerShell's [int]
+# cannot hold. Only this program's own sleeping child is ever touched.
+get environment variable "OS" into os
+sleeper is "sleep 30"
+if os is "Windows_NT"
+    sleeper is "powershell -NoProfile -NonInteractive -Command Start-Sleep -Seconds 30"
+.
+run sleeper into p
+try
+    wait for process p up to 30000000 seconds into finished
+otherwise into reason
+    say "timeout:" reason
+.
+wait for process p up to 0.0004 seconds into finished
+say "finished:" finished
+realId is id of p
+id of p is 30000000000
+wait for process p up to 0 seconds into finished
+say "an id [int] cannot hold has finished:" finished
+try
+    set priority of process p to "normal"
+otherwise into reason
+    say "priority:" reason
+.
+try
+    kill process p
+otherwise into reason
+    say "kill:" reason
+.
+id of p is "abc"
+try
+    wait for process p up to 0 seconds
+otherwise into reason
+    if reason starts with "Cannot process argument transformation on parameter 'ProcessId'."
+        say "text id: refused"
+    .
+.
+id of p is realId
+kill process p
+wait for process p up to 10 seconds into finished
+say "killed:" finished

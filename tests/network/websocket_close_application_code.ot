@@ -1,0 +1,8 @@
+connect to websocket "ws://127.0.0.1:18765/x" and call it socket
+on open of socket
+    say "open"
+    close websocket socket with code 4000 and reason "client done"
+.
+on close of socket
+    say "closed with code" close code "reason:" close reason "clean:" close was clean
+.

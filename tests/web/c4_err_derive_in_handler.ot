@@ -1,0 +1,10 @@
+app is a page
+    name is "app"
+.
+b is a button
+    text is "go"
+.
+put b in app
+when b clicked
+    derive later is 5
+show app

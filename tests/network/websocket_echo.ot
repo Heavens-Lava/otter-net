@@ -1,0 +1,22 @@
+connect to websocket "ws://127.0.0.1:18765/chat" using protocol "chat" and call it socket
+got is 0
+on open of socket
+    say "open; state:" state of socket "protocol:" protocol of socket
+    send "hello" through socket
+    data is bytes from text "raw"
+    send data through socket
+.
+on message from socket
+    say "message:" received message
+    got is got plus 1
+    if got is 2
+        send "bye" through socket
+    .
+.
+on close of socket
+    say "closed with code" close code "reason:" close reason "clean:" close was clean
+    say "state now:" state of socket
+.
+on error of socket
+    say "error:" websocket error
+.

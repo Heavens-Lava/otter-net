@@ -343,14 +343,16 @@ public sealed class WebCompiler
     static bool IsTrueOrText(object? value) => Eq(value, true) || Eq(Of(value), "true");
 
     // The literal properties of `x has ...` / `x is a button with ...` go on
-    // the resource; any other value is set when the page runs.
+    // the resource; any other value is set when the page runs, on the name as
+    // this statement writes it (New-OtterWebRuntimePropertyAssign -ResourceName
+    // $stmt.Name): the resources table ignores case, the page's names do not.
     static void AddProperties(Resource resource, ObjectDefStmt objectDef, List<Stmt> topLevelStatements)
     {
         foreach (AssignStmt p in objectDef.Properties)
         {
             string propKey = p.Target is VariableExpr name ? name.Name.ToLowerInvariant() : "";
             if (p.Value is LiteralExpr literal) resource.Properties[propKey] = literal.Value;
-            else topLevelStatements.Add(new AssignStmt(new PropertyAccessExpr(propKey, new VariableExpr(resource.Name, p.Line), p.Line), p.Value, p.Line));
+            else topLevelStatements.Add(new AssignStmt(new PropertyAccessExpr(propKey, new VariableExpr(objectDef.Name, p.Line), p.Line), p.Value, p.Line));
         }
     }
 

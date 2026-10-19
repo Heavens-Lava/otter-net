@@ -107,6 +107,11 @@ internal static class FileMode
                 StatementHook = debugger?.Hook ?? profiler?.Hook,
                 // Set-OtterApplicationId: secrets are named after the program (D111).
                 ApplicationPath = resolvedPath,
+                // $script:OtterCompiledRunAllowed: a plain run goes to otterPS's
+                // compiled engine when it can compile the program (CompiledEngine.cs).
+                CompiledEngine = debugger == null && profiler == null && !line.DebugAst
+                    && !string.Equals(Environment.GetEnvironmentVariable("OTTER_ENGINE"), "interpreter", StringComparison.Ordinal)
+                    && OtterPsCompiledEngine.Accepts(compiled.Program!),
             };
             debugger?.Attach(interpreter);
             profiler?.Attach(interpreter);
@@ -119,6 +124,9 @@ internal static class FileMode
             {
                 debugger?.Finished();
                 profiler?.Report(sourceLines);
+                // Invoke-OtterCompiledProgram: a failure that is not an Otter
+                // error is the compiled engine's internal problem.
+                if (interpreter.CompiledEngine && failure is not OtterError) failure = OtterPsCompiledEngine.InternalProblem(failure);
                 ShowFailure(failure is OtterError error ? resolved.Remap(error) : failure, line.DebugErrors);
                 throw new CliExit(Cli.ExitRuntimeError);
             }

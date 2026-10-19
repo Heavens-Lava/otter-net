@@ -1,0 +1,84 @@
+# Coverage audit (c4): D130 for `count`, `repeat` and `while` loops - a
+# watcher handler set up in a pass keeps that pass's names (the corpus only
+# had `for each`).
+create folder "c1"
+create folder "c2"
+create folder "r1"
+create folder "r2"
+create folder "w1"
+create folder "w2"
+seen is 0
+all are empty
+count from 1 to 2 as i
+    target is "c2"
+    if i is 1
+        target is "c1"
+    .
+    label is "count pass for " plus target
+    watch folder target and call it watcher
+    add watcher to all
+    on create in watcher
+        say label "saw" changed file name "with i" i
+        seen is seen plus 1
+        stop watching watcher
+    .
+.
+say "after count:" label i
+k is 0
+repeat 2 times
+    k is k plus 1
+    target is "r2"
+    if k is 1
+        target is "r1"
+    .
+    label is "repeat pass for " plus target
+    watch folder target and call it watcher
+    add watcher to all
+    on create in watcher
+        say label "saw" changed file name "with k" k
+        seen is seen plus 1
+        stop watching watcher
+    .
+.
+say "after repeat:" label k
+m is 0
+while m is less than 2
+    m is m plus 1
+    target is "w2"
+    if m is 1
+        target is "w1"
+    .
+    label is "while pass for " plus target
+    watch folder target and call it watcher
+    add watcher to all
+    on create in watcher
+        say label "saw" changed file name "with m" m
+        seen is seen plus 1
+        stop watching watcher
+    .
+.
+say "after while:" label m
+expected is 0
+folders are
+    "c1"
+    "c2"
+    "r1"
+    "r2"
+    "w1"
+    "w2"
+.
+for each f in folders
+    path is f plus "/new.txt"
+    write "x" to path
+    expected is expected plus 1
+    tries is 0
+    while seen is less than expected and tries is less than 100
+        wait 100 milliseconds
+        tries is tries plus 1
+    .
+.
+say "seen" seen
+for each x in all
+    stop watching x
+.
+say "all stopped"

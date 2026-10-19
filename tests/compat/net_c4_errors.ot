@@ -1,0 +1,35 @@
+# Coverage audit (c4): network statements given values they cannot use.
+try
+    if 5 is pending
+        say "never"
+    .
+otherwise into reason
+    say reason
+.
+start get from "http://127.0.0.1:1/" and call it request
+try
+    say colour of request
+otherwise into reason
+    say reason
+.
+try
+    connect securely to tcp "localhost" on port 443 using protocol 7 and call it first
+otherwise into reason
+    say reason
+.
+wanted are
+    "h2"
+    ""
+.
+try
+    connect securely to tcp "localhost" on port 443 using protocol wanted and call it second
+otherwise into reason
+    say reason
+.
+try
+    listen for tcp on "no-such-host.invalid" on port 0 and call it server
+otherwise into reason
+    say reason
+.
+cancel request
+say "state:" state of request
