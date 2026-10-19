@@ -33,6 +33,33 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design and the plan.
 | Compatibility | 0 differences in 86 programs (otterPS's conformance fixtures, examples and tests/compat); 33 run natively |
 | Cold start, `say "Hello"` | about 30 ms (otterPS: about 1.5 s) |
 
+## Platforms
+
+Every commit is built as a native executable and tested on each of these:
+
+| Platform | Runtime | Built and tested on |
+|---|---|---|
+| Windows 10/11, Intel and AMD | `win-x64` | Windows (also compared with otterPS) |
+| Windows 11 on Arm | `win-arm64` | Windows 11 Arm |
+| macOS, Apple silicon | `osx-arm64` | macOS |
+| macOS, Intel | `osx-x64` | macOS Intel |
+| Linux, Intel and AMD | `linux-x64` | Debian 12 |
+| Linux, Arm (Raspberry Pi 4/5, Arm servers) | `linux-arm64` | Debian 12 |
+| Chromebooks | `linux-x64` or `linux-arm64` | Debian 12 |
+
+**Chromebooks** run `otter` in ChromeOS's Linux development environment
+(Settings > Advanced > Developers > Linux development environment), which is
+Debian 12: the Linux executable for the Chromebook's processor runs there
+unchanged. Linux executables are built on Debian 12 so they need nothing
+newer than its C library, and so also run on current distributions. Managed
+(school or work) Chromebooks can have the Linux environment turned off by
+the administrator.
+
+Programs that otter-net does not run natively yet are handed to the
+PowerShell Otter, which needs PowerShell 7 (`pwsh`) on Linux, macOS and
+Chromebooks ([install it](https://aka.ms/install-powershell)); on Windows it
+uses the built-in Windows PowerShell.
+
 ## Building
 
     dotnet build otter-net.sln -c Release

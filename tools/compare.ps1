@@ -17,6 +17,12 @@ written to -ReportPath.
 
 .EXAMPLE
 powershell -NoProfile -File tools\compare.ps1 -OtterPs ..\otter-101 -OtterNet artifacts\otter.exe
+
+.EXAMPLE
+pwsh -NoProfile -File tools/compare.ps1 -OtterPs ../otterPS -OtterNet src/Otter.Cli/bin/Release/net10.0/otter.dll
+
+On Linux and macOS the reference is otterPS on PowerShell 7, which is not
+the certified Windows PowerShell 5.1 reference: CI on Windows decides.
 #>
 [CmdletBinding()]
 param(
@@ -36,10 +42,15 @@ $here = Split-Path -Parent $PSScriptRoot
 $OtterPs = (Resolve-Path $OtterPs).Path
 $OtterNet = (Resolve-Path $OtterNet).Path
 $referenceScript = Join-Path $OtterPs 'otter.ps1'
-if (-not $ReportPath) { $ReportPath = Join-Path $here 'compat-results\report.md' }
+# otterPS runs on Windows PowerShell 5.1 on Windows and on PowerShell 7
+# (pwsh) on Linux and macOS, as its own `otter` launchers do.
+$onWindows = [System.IO.Path]::DirectorySeparatorChar -eq '\'
+$referenceHost = if ($onWindows) { 'powershell.exe' } else { 'pwsh' }
+$referencePrefix = if ($onWindows) { @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File') } else { @('-NoProfile', '-File') }
+if (-not $ReportPath) { $ReportPath = Join-Path $here 'compat-results/report.md' }
 New-Item -ItemType Directory -Force -Path (Split-Path -Parent $ReportPath) | Out-Null
 if ($Corpus.Count -eq 0) {
-    $Corpus = @((Join-Path $OtterPs 'conformance'), (Join-Path $OtterPs 'examples'), (Join-Path $here 'tests\compat'))
+    $Corpus = @((Join-Path $OtterPs 'conformance'), (Join-Path $OtterPs 'examples'), (Join-Path $here 'tests/compat'))
 }
 
 # Programs that open windows, serve the web or wait for events are left out:
@@ -79,7 +90,8 @@ function Invoke-OtterProcess {
     if (-not $finished) {
         # The whole tree: otter-net's PowerShell fallback is a child process
         # that would otherwise keep running and hold the output pipes open.
-        & taskkill.exe /T /F /PID $process.Id 2>&1 | Out-Null
+        if ($onWindows) { & taskkill.exe /T /F /PID $process.Id 2>&1 | Out-Null }
+        else { try { $process.Kill($true) } catch { } }
         [void]$process.WaitForExit(5000)
     }
     [void]$copy.Wait(5000)
@@ -149,7 +161,7 @@ try {
             New-Item -ItemType Directory -Path $folder | Out-Null
             Get-ChildItem -LiteralPath $snapshot -File | Copy-Item -Destination $folder
             if ($side -eq 'reference') {
-                $runs[$side] = Invoke-OtterProcess -FileName 'powershell.exe' -Arguments @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $referenceScript, 'run', $file.Name) `
+                $runs[$side] = Invoke-OtterProcess -FileName $referenceHost -Arguments @($referencePrefix + @($referenceScript, 'run', $file.Name)) `
                     -WorkingDirectory $folder -InputText $inputText -Environment @{}
             }
             else {

@@ -56,46 +56,95 @@ jobs:
             results/
             outputs/
 
-  unix:
-    name: ${{ matrix.os }} - native build
+  other:
+    name: ${{ matrix.name }} - native build
     runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS Apple silicon
+            os: macos-latest
+            rid: osx-arm64
+            exe: otter
+          - name: macOS Intel
+            os: macos-15-intel
+            rid: osx-x64
+            exe: otter
+          - name: Windows on Arm
+            os: windows-11-arm
+            rid: win-arm64
+            exe: otter.exe
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      # The reference output is captured on a UTC machine, and JSON dates
+      # depend on the time zone (docs/CROSS-PLATFORM-CONSISTENCY.md, 8).
+      - name: Time zone UTC, like the reference
+        if: runner.os == 'Windows'
+        run: tzutil /s "UTC"
+      - name: Publish native (AOT)
+        run: dotnet publish src/Otter.Cli/Otter.Cli.csproj -c Release -r ${{ matrix.rid }} -p:UseAppHost=true -o artifacts/${{ matrix.rid }} --nologo
+      - name: Capture output of tests/compat
+        shell: pwsh
+        run: ./tools/capture.ps1 -Otter artifacts/${{ matrix.rid }}/${{ matrix.exe }} -Corpus tests/compat -OutDir outputs/${{ matrix.rid }}
+      - name: Startup and benchmark times
+        shell: pwsh
+        run: ./tools/bench-native.ps1 -Otter artifacts/${{ matrix.rid }}/${{ matrix.exe }} -Title "otter-net on ${{ matrix.name }} (${{ matrix.rid }})" -ReportPath results/bench-${{ matrix.rid }}.md
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ${{ matrix.rid }}
+          path: |
+            results/
+            outputs/
+
+  # Linux is built and tested inside Debian 12, the system a Chromebook's
+  # Linux development environment runs (on Intel and on Arm Chromebooks).
+  # A Native AOT executable needs the C library it was linked against or a
+  # newer one, so building on Debian 12 gives one Linux executable that runs
+  # there and on current distributions alike.
+  linux:
+    name: Linux and Chromebooks (Debian 12, ${{ matrix.rid }}) - native build
+    runs-on: ${{ matrix.os }}
+    container: debian:bookworm
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
             rid: linux-x64
-          - os: macos-latest
-            rid: osx-arm64
+          - os: ubuntu-24.04-arm
+            rid: linux-arm64
+    env:
+      DOTNET_ROOT: /usr/share/dotnet
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      # The PowerShell global tool may target an earlier .NET than the SDK.
+      DOTNET_ROLL_FORWARD: Major
+    defaults:
+      run:
+        shell: bash
     steps:
+      - name: Native AOT prerequisites (clang, zlib) and the .NET 10 SDK
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates curl git clang zlib1g-dev libicu72
+          curl -sSL https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 10.0 --install-dir "$DOTNET_ROOT"
+          echo "$DOTNET_ROOT" >> "$GITHUB_PATH"
+          echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
       - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
+      - name: PowerShell 7, for the test tools
+        run: dotnet tool install --global PowerShell
       - name: Publish native (AOT)
         run: dotnet publish src/Otter.Cli/Otter.Cli.csproj -c Release -r ${{ matrix.rid }} -p:UseAppHost=true -o artifacts/${{ matrix.rid }} --nologo
+      - name: Oldest C library the executable needs
+        run: objdump -T artifacts/${{ matrix.rid }}/otter | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1 | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Capture output of tests/compat
-        shell: pwsh
-        run: ./tools/capture.ps1 -Otter artifacts/${{ matrix.rid }}/otter -Corpus tests/compat -OutDir outputs/${{ matrix.rid }}
+        run: pwsh -NoProfile -File tools/capture.ps1 -Otter artifacts/${{ matrix.rid }}/otter -Corpus tests/compat -OutDir outputs/${{ matrix.rid }}
       - name: Startup and benchmark times
-        shell: pwsh
-        run: |
-          $otter = (Resolve-Path artifacts/${{ matrix.rid }}/otter).Path
-          $env:OTTER_ENGINE = 'native'
-          $lines = @("# otter-net on ${{ matrix.os }} (${{ matrix.rid }})", '', '| Program | Median (ms) | Fastest | Slowest |', '|---|---:|---:|---:|')
-          foreach ($program in Get-ChildItem tools/bench -Filter *.ot | Sort-Object Name) {
-              $times = foreach ($i in 1..11) {
-                  $clock = [Diagnostics.Stopwatch]::StartNew()
-                  & $otter run $program.FullName | Out-Null
-                  if ($LASTEXITCODE -ne 0) { throw "$($program.Name) failed: $LASTEXITCODE" }
-                  $clock.Elapsed.TotalMilliseconds
-              }
-              $sorted = @($times | Sort-Object)
-              $lines += "| $($program.BaseName) | $([int]$sorted[5]) | $([int]$sorted[0]) | $([int]$sorted[-1]) |"
-          }
-          New-Item -ItemType Directory -Force results | Out-Null
-          $lines | Set-Content results/bench-${{ matrix.rid }}.md
-          $lines | Out-File -Append $env:GITHUB_STEP_SUMMARY
+        run: pwsh -NoProfile -File tools/bench-native.ps1 -Otter artifacts/${{ matrix.rid }}/otter -Title "otter-net on Debian 12 (${{ matrix.rid }})" -ReportPath results/bench-${{ matrix.rid }}.md
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -106,7 +155,7 @@ jobs:
 
   cross-platform:
     name: Same output on every platform
-    needs: [windows, unix]
+    needs: [windows, other, linux]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -117,10 +166,18 @@ jobs:
         run: |
           $reference = Get-Item downloaded/windows/outputs/windows-otterps
           $lines = @('# Cross-platform output check', '', "Reference: otterPS 1.0.1 on Windows. Line endings and the temporary folder's path are normalised.", '')
-          $captured = [ordered]@{ 'windows-native' = 'downloaded/windows/outputs/windows-native'; 'linux-x64' = 'downloaded/linux-x64/outputs/linux-x64'; 'osx-arm64' = 'downloaded/osx-arm64/outputs/osx-arm64' }
+          $captured = [ordered]@{ 'windows-native' = 'downloaded/windows/outputs/windows-native' }
+          foreach ($rid in 'osx-arm64', 'osx-x64', 'win-arm64', 'linux-x64', 'linux-arm64') { $captured[$rid] = "downloaded/$rid/outputs/$rid" }
+          # Differences that are expected, with the reason. Any other
+          # difference fails the check.
+          $declared = @(
+              @{ Platforms = 'osx-*', 'linux-*'; Programs = 'commands.ot'; Reason = 'runs cmd.exe and .cmd files: a Windows-only test' }
+              @{ Platforms = 'osx-*', 'linux-*'; Programs = 'files_errors.ot', 'zip.ot'; Reason = 'paths in messages use the platform separator, / (docs/CROSS-PLATFORM-CONSISTENCY.md, 7)' }
+          )
+          $failed = $false
           foreach ($platform in $captured.Keys) {
               $folder = Get-Item $captured[$platform] -ErrorAction SilentlyContinue
-              if (-not $folder) { $lines += "- ${platform}: no output captured"; continue }
+              if (-not $folder) { $lines += "- ${platform}: no output captured"; $failed = $true; continue }
               $different = @()
               foreach ($expected in Get-ChildItem $reference.FullName -Filter *.out) {
                   $actual = Join-Path $folder.FullName $expected.Name
@@ -128,7 +185,15 @@ jobs:
                   if ((Get-Content -Raw $expected.FullName) -cne (Get-Content -Raw $actual)) { $different += $expected.BaseName }
               }
               $total = (Get-ChildItem $reference.FullName -Filter *.out).Count
-              $lines += "- ${platform}: $($total - $different.Count) of $total identical" + $(if ($different) { ". Different: " + ($different -join ', ') } else { '' })
+              $expectedHere = @($different | Where-Object { $program = $_; $declared | Where-Object { $rule = $_; ($rule.Programs -contains $program) -and ($rule.Platforms | Where-Object { $platform -like $_ }) } })
+              $unexpected = @($different | Where-Object { $expectedHere -notcontains $_ })
+              if ($unexpected) { $failed = $true }
+              $lines += "- ${platform}: $($total - $different.Count) of $total identical" +
+                  $(if ($expectedHere) { ". Declared differences: " + ($expectedHere -join ', ') } else { '' }) +
+                  $(if ($unexpected) { ". **Unexpected: " + ($unexpected -join ', ') + "**" } else { '' })
           }
+          $lines += '' ; $lines += 'Declared differences:' ; $lines += @($declared | ForEach-Object { "- $($_.Programs -join ', ') on $($_.Platforms -join ', '): $($_.Reason)" })
           $lines | Out-File -Append $env:GITHUB_STEP_SUMMARY
           $lines | Write-Host
+          # A platform that produced nothing, or an undeclared difference, is a failure.
+          if ($failed) { exit 1 }

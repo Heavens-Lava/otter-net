@@ -32,7 +32,9 @@ $Corpus = (Resolve-Path $Corpus).Path
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 $OutDir = (Resolve-Path $OutDir).Path
 
-if ($Otter.EndsWith('.ps1')) { $file = 'powershell.exe'; $prefix = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $Otter) }
+$onWindows = [System.IO.Path]::DirectorySeparatorChar -eq '\'
+if ($Otter.EndsWith('.ps1') -and $onWindows) { $file = 'powershell.exe'; $prefix = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $Otter) }
+elseif ($Otter.EndsWith('.ps1')) { $file = 'pwsh'; $prefix = @('-NoProfile', '-File', $Otter) }
 elseif ($Otter.EndsWith('.dll')) { $file = 'dotnet'; $prefix = @($Otter) }
 else { $file = $Otter; $prefix = @() }
 
@@ -66,7 +68,9 @@ try {
         [void]$stdout.Wait(5000)
 
         $text = $stdout.Result -replace "`r`n", "`n"
-        $text = $text.Replace($folder, '<work>')
+        # On macOS the temporary folder (/var/...) is a link to /private/var/...,
+        # and messages quote the resolved path.
+        $text = $text.Replace('/private' + $folder, '<work>').Replace($folder, '<work>')
         $relative = $program.FullName.Substring($Corpus.Length).TrimStart('\', '/') -replace '[\\/]', '__'
         $saved = "exit: $exit`n$text"
         [System.IO.File]::WriteAllText((Join-Path $OutDir "$relative.out"), $saved, [System.Text.UTF8Encoding]::new($false))
