@@ -345,6 +345,7 @@ internal static class Program
     sealed class Session(Process process)
     {
         AutomationElement? window;
+        IntPtr windowHandle;
 
         HashSet<int> ProcessTree()
         {
@@ -399,6 +400,7 @@ internal static class Program
                         if (match != null)
                         {
                             window = match;
+                            windowHandle = new IntPtr(match.Current.NativeWindowHandle);
                             // Windows open where Windows places them, which
                             // differs between runs; a part off screen is not
                             // drawn. Every window is moved to the top left.
@@ -471,25 +473,25 @@ internal static class Program
                 case "close":
                 {
                     if (window == null) return "close: no window";
-                    // UI Automation can fail for a moment while a window is
-                    // busy (a COMException): try again; a window that went
-                    // away during a failed attempt was closed by it.
+                    // UI Automation can fail while a window is busy or as it
+                    // goes away under the call (a COMException): a window that
+                    // no longer exists (Win32's IsWindow) is closed; otherwise
+                    // try again.
+                    // After two failures it is closed as Alt+F4 would (WM_CLOSE).
+                    IntPtr hwnd = windowHandle;
                     for (int attempt = 1; ; attempt++)
                     {
                         try
                         {
-                            ((WindowPattern)window.GetCurrentPattern(WindowPattern.Pattern)).Close();
+                            if (attempt > 2) Native.PostMessage(hwnd, 0x0010, IntPtr.Zero, IntPtr.Zero);
+                            else ((WindowPattern)window.GetCurrentPattern(WindowPattern.Pattern)).Close();
                             break;
                         }
-                        catch (ElementNotAvailableException) when (attempt > 1) { break; }
-                        catch (ElementNotAvailableException) { return "close: the window is gone"; }
-                        catch (COMException) when (attempt < 5)
+                        catch (Exception e) when (e is COMException or ElementNotAvailableException or InvalidOperationException)
                         {
-                            // The call can fail as the window goes away under it.
                             Thread.Sleep(500);
-                            int handle;
-                            try { handle = window.Current.NativeWindowHandle; } catch (Exception) { break; }
-                            if (!Windows().Any(w => w.Current.NativeWindowHandle == handle)) break;
+                            if (!Native.IsWindow(hwnd)) break;
+                            if (attempt == 5) return $"close: failed ({e.GetType().Name})";
                         }
                     }
                     Settle();
@@ -640,6 +642,8 @@ static class Native
 {
     [DllImport("user32.dll")] public static extern bool SetCaretBlinkTime(uint milliseconds);
     [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+    [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr hwnd);
+    [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr hwnd, uint message, IntPtr wParam, IntPtr lParam);
     [DllImport("user32.dll")] static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int cx, int cy, uint flags);
 
     // SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE
