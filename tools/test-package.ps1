@@ -61,9 +61,17 @@ function Get-PathWithoutPowerShell {
     ($kept -join ';')
 }
 
+# The installed otter-net products, as Settings > Apps lists them. A per-user
+# MSI is registered with Windows Installer, not under ...\Uninstall in HKCU,
+# so Windows Installer is asked.
 function Get-OtterEntries {
-    @(Get-ChildItem 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall' -ErrorAction SilentlyContinue |
-        ForEach-Object { Get-ItemProperty $_.PSPath } | Where-Object { $_.PSObject.Properties['DisplayName'] -and $_.DisplayName -like 'Otter (otter-net)*' })
+    $msi = New-Object -ComObject WindowsInstaller.Installer
+    @(foreach ($code in $msi.Products) {
+        $name = $msi.ProductInfo($code, 'ProductName')
+        if ($name -like 'Otter (otter-net)*') {
+            [pscustomobject]@{ ProductCode = $code; DisplayName = $name; DisplayVersion = $msi.ProductInfo($code, 'VersionString') }
+        }
+    })
 }
 
 # Runs a program with the PATH without PowerShell; returns exit code and output.
