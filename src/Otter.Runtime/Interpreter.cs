@@ -159,6 +159,12 @@ public sealed partial class Interpreter
             {
                 if (scope.Has(objectDef.Name))
                 {
+                    // D45: `app has title "Hi"` sets a UI resource's properties.
+                    if (scope.Get(objectDef.Name) is UiResource resource)
+                    {
+                        SetUiProperties(resource, objectDef, scope);
+                        return;
+                    }
                     throw RuntimeError($"Otter will not replace existing {Values.TypeName(scope.Get(objectDef.Name))} called \"{objectDef.Name}\" with a new thing.",
                         objectDef.Line, "Use a new name, or assign individual properties instead.");
                 }
@@ -863,6 +869,12 @@ public sealed partial class Interpreter
             case PropertyAccessExpr property:
             {
                 object? owner = Evaluate(property.Target, scope);
+                // text of helloButton is "Say Hello" (D45)
+                if (owner is UiResource resource)
+                {
+                    Ui.SetProperty(resource, property.Property, value, property.Line);
+                    return;
+                }
                 if (owner is not OtterThing thing)
                 {
                     throw RuntimeError($"I can only set properties on a thing, but this is {Values.TypeName(owner)}.", property.Line);
@@ -1453,6 +1465,8 @@ public sealed partial class Interpreter
                 object? target = Evaluate(property.Target, scope);
                 // D32.2: a date answers its own parts.
                 if (target is OtterDate date) return DatePart(date, property.Property, property.Line);
+                // text of helloButton (D45)
+                if (target is UiResource resource) return Ui.GetProperty(resource, property.Property, property.Line);
                 if (target is OtterXml xml) return XmlProperty(xml, property.Property, property.Line);
                 if (TryNetworkProperty(target, property, out object? networkValue)) return networkValue;   // Interpreter.Network.cs
                 if (target is not OtterThing thing)

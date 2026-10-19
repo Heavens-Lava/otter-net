@@ -13,6 +13,8 @@ namespace Otter.Cli;
 //   OTTER_NET_TRACE=1         say on stderr which engine ran and why
 //                             (not OTTER_ENGINE_TRACE: the PowerShell Otter reads that one)
 //   OTTER_POWERSHELL          path of the PowerShell Otter's otter.ps1
+//   OTTER_DESKTOP             path of the otter-desktop host (desktop windows on
+//                             Windows; default: otter-desktop.exe beside otter)
 public static class Program
 {
     public const string Version = "1.0.1";
@@ -27,10 +29,15 @@ public static class Program
     // first, with the error the user would see from otterPS.
     const int StackSize = 256 * 1024 * 1024;
 
-    public static int Main(string[] args)
+    public static int Main(string[] args) => RunOnLargeStack(args, singleThreadedApartment: false);
+
+    // The otter-desktop host runs the same command on a single-threaded
+    // apartment thread, which WPF needs (src/Otter.Desktop).
+    internal static int RunOnLargeStack(string[] args, bool singleThreadedApartment)
     {
         int exitCode = ExitUsageError;
         var worker = new Thread(() => exitCode = Run(args), StackSize);
+        if (singleThreadedApartment && OperatingSystem.IsWindows()) worker.SetApartmentState(ApartmentState.STA);
         worker.Start();
         worker.Join();
         return exitCode;
@@ -65,6 +72,15 @@ public static class Program
                 return ExitRuntimeError;
             }
             return FallbackOrRefuse(args, engine, unsupported.Message);
+        }
+        catch (NeedsDesktop desktop)
+        {
+            if (Host.HasWritten)
+            {
+                Console.Error.WriteLine($"otter-net: internal error, {desktop.Message} after output began.");
+                return ExitRuntimeError;
+            }
+            return Desktop(args, engine, desktop.Message);
         }
         finally
         {
@@ -164,6 +180,45 @@ public static class Program
             process.WaitForExit();
             return process.ExitCode;
         }
+    }
+
+    // Runs the otter-desktop host (src/Otter.Desktop: the same Otter with
+    // otterPS's WPF provider) with the same arguments, the same console and
+    // the same standard input, and returns its exit code. Without the host,
+    // the PowerShell Otter runs the program, as before the host existed.
+    static int Desktop(string[] args, string engine, string reason)
+    {
+        string? host = DesktopHostPath();
+        if (host == null)
+        {
+            Trace($"desktop: otter-desktop.exe is missing next to otter, so the PowerShell Otter runs {reason}");
+            return FallbackOrRefuse(args, engine, $"{reason} needs otter-desktop.exe, which is missing");
+        }
+        Trace($"desktop: {reason} runs in {host}");
+        var start = new ProcessStartInfo(host) { UseShellExecute = false };
+        foreach (string arg in args) start.ArgumentList.Add(arg);
+        Process process;
+        try { process = Process.Start(start)!; }
+        catch (System.ComponentModel.Win32Exception e)
+        {
+            Trace($"desktop: otter-desktop.exe could not start ({e.Message}), so the PowerShell Otter runs {reason}");
+            return FallbackOrRefuse(args, engine, $"{reason} needs otter-desktop.exe, which could not start");
+        }
+        using (process)
+        {
+            process.WaitForExit();
+            return process.ExitCode;
+        }
+    }
+
+    // otter-desktop.exe next to this otter, or OTTER_DESKTOP (a development
+    // build, a test). Null when there is none.
+    internal static string? DesktopHostPath()
+    {
+        string? configured = Environment.GetEnvironmentVariable("OTTER_DESKTOP");
+        if (!string.IsNullOrEmpty(configured)) return File.Exists(configured) ? configured : null;
+        string beside = Path.Combine(AppContext.BaseDirectory, "otter-desktop.exe");
+        return File.Exists(beside) ? beside : null;
     }
 
     internal static string? FindPowerShellOtter()
