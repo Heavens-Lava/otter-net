@@ -120,7 +120,7 @@ public static unsafe partial class OtterEventLog
             double rounded = Math.Round(maxEntries, MidpointRounding.ToEven);
             if (double.IsNaN(rounded) || rounded < int.MinValue || rounded > int.MaxValue)
             {
-                throw new EventLogProblem($"Cannot convert value \"{Values.PowerShellText(maxEntries)}\" to type \"System.Int32\". Error: \"Value was either too large or too small for an Int32.\"");
+                throw new EventLogProblem($"Cannot convert value \"{Otter.Language.UserFormats.Number(maxEntries)}\" to type \"System.Int32\". Error: \"Value was either too large or too small for an Int32.\"");
             }
             int maxEvents = (int)rounded;
             if (maxEvents < 1)
@@ -310,7 +310,7 @@ public static unsafe partial class OtterEventLog
         var entry = new OtterThing("event log entry");
         entry.WriteProperty("source", provider);
         entry.WriteProperty("level", level);
-        entry.WriteProperty("time", created?.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.CurrentCulture));
+        entry.WriteProperty("time", created?.ToString("yyyy-MM-dd HH:mm:ss", Otter.Language.UserFormats.Culture));
         entry.WriteProperty("message", message);
         return entry;
     }

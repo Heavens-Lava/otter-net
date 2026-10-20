@@ -201,7 +201,7 @@ public static class FrameworkDates
     // (AddYears(int value), AddMonths(int months)).
     public static string ArgumentConversion(string method, double value)
     {
-        string shown = value.ToString("G15", CultureInfo.InvariantCulture);
+        string shown = Otter.Language.UserFormats.Number(value);
         string parameter = method == "AddMonths" ? "months" : "value";
         return $"Cannot convert argument \"{parameter}\", with value: \"{shown}\", for \"{method}\" to type \"System.Int32\": \"Cannot convert value \"{shown}\" to type \"System.Int32\". Error: \"Value was either too large or too small for an Int32.\"\"";
     }

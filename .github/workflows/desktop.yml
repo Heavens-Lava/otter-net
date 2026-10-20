@@ -67,6 +67,20 @@ jobs:
       # the Settings app sets it (tools/set-display-scale.ps1). New windows
       # are laid out at 144 dpi; the session's system DPI stays 96 until the
       # next sign-in, which a hosted runner never has (docs/port/desktop.md).
+      # German formats: WPF writes the value it refuses (an infinite width)
+      # with the user's formats (SPEC-QUESTIONS D4-2, W5-4).
+      - name: Desktop windows under German formats
+        if: always()
+        shell: pwsh
+        run: |
+          powershell -NoProfile -Command "Set-Culture de-DE"
+          $failed = 0
+          foreach ($test in 'errors', 'properties', 'quirks') {
+            & artifacts/harness/desktop-harness.exe --otterps otterps/otter.ps1 --otter artifacts/win-x64/otter.exe --tests tests/desktop --out results/desktop-de-DE --summary $env:GITHUB_STEP_SUMMARY --only $test
+            if ($LASTEXITCODE -ne 0) { $failed++ }
+          }
+          powershell -NoProfile -Command "Set-Culture en-US"
+          exit $failed
       - name: Desktop windows at a 150 % display scale
         if: always()
         shell: pwsh

@@ -180,7 +180,7 @@ public static unsafe partial class OtterScheduledTasks
     static string? Time(double date)
     {
         if (date == 0) return null;
-        try { return DateTime.FromOADate(date).ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.CurrentCulture); }
+        try { return DateTime.FromOADate(date).ToString("yyyy-MM-dd HH:mm:ss", Otter.Language.UserFormats.Culture); }
         catch (ArgumentException) { return null; }
     }
 }

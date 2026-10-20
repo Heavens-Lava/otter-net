@@ -502,7 +502,7 @@ public static class PowerShellText
             case null: return 0;
             case bool b: return b ? 1 : 0;
             case int i: return i;
-            case double d: return FromDouble(d, Values.PowerShellText(d));
+            case double d: return FromDouble(d, Otter.Language.UserFormats.Number(d));
             case string s:
             {
                 if (s.Trim().Length == 0) return 0;
