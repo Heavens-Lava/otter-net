@@ -3,11 +3,15 @@
 # software (tools/windows-state.ps1 and tests/windows-state), a German
 # culture, and a 150 % display scale. otterPS 1.0.1 on Windows PowerShell 5.1
 # against otter-net. Reports only are uploaded.
+#
+# Run by hand, to measure again (SPEC-QUESTIONS T3-1, T3-2, W5-*). What
+# keeps running on every change is in ci.yml (the machine state, German and
+# Finnish formats) and desktop.yml (150 %, German formats); this adds the
+# whole corpus under German formats, otterPS on a German display language
+# and the language-pack attempts.
 name: windows machine state
 
 on:
-  push:
-    branches: [port/win-verify]
   workflow_dispatch:
 
 jobs:

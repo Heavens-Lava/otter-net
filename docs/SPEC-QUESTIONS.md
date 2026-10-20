@@ -692,3 +692,109 @@ numbers change from run to run, and the other shapes are .NET runtime
 internals (and differ between Windows PowerShell 5.1 and PowerShell 7), so
 otter-net has not copied them. Needs a decision: refuse these values ("Otter
 cannot turn ... into JSON"), or specify a shape.
+
+## W5 questions (found 2026-10-20, verifying Windows behaviour with real machine state)
+
+Measured on `windows-latest` runners (Windows Server 2025, Windows
+PowerShell 5.1) given printers, scheduled tasks, an event log, services and
+software entries by `tools/windows-state.ps1`, other regional formats, and a
+150 % display scale; otterPS 1.0.1 and otter-net run back to back on the
+same machine (`tests/windows-state`, `.github/workflows/win-verify.yml`, now
+folded into `ci.yml` and `desktop.yml`). Results for T3-1, T3-2 and P2-3 are
+recorded under those questions.
+
+### W5-1. Network interfaces: .NET Framework and .NET list different ones
+
+`get system information "network"` is `NetworkInterface.GetAllNetworkInterfaces()`
+filtered to "up and not loopback". On the runner, Windows PowerShell 5.1
+(.NET Framework) listed one interface ("Ethernet 3"); .NET 10 listed five,
+adding the hidden filter interfaces ("Ethernet 3-WFP Native MAC Layer
+LightWeight Filter-0000", "...-QoS Packet Scheduler-0000", "...-WFP 802.3 MAC
+Layer LightWeight Filter-0000") and "Ethernet 4": .NET 5 and later ask
+GetAdaptersAddresses for all interfaces. otter-net now reads the adapters on
+Windows with .NET Framework's flags (`src/Otter.Runtime/NetworkAdapters.cs`;
+win-verify run 39461167416: identical). otterPS on PowerShell 7 on Windows
+would list the extra ones, a 5.1/7 difference like Q16.
+
+### W5-2. List-valued registry entries in "software"
+
+otterPS keeps `DisplayName`, `DisplayVersion` and `Publisher` as
+Get-ItemProperty returns them. A REG_MULTI_SZ or REG_BINARY value is a
+PowerShell array, not an Otter list: it prints as its items joined by
+spaces (`1 2`, PowerShell's `[string]` of an array; otter-net printed `1, 2`
+before), and counts as false when empty or when it holds one false item
+(`if ($entry.DisplayVersion)`). otter-net now gives that text
+(`SystemInfo.cs` `SoftwareValue`, run 39461167416: identical), so printing
+and truthiness match; `length of` or `for each` over such a value would treat
+the PowerShell array differently from otter-net's text. Numbers (REG_DWORD,
+REG_QWORD) and REG_EXPAND_SZ (expanded) already matched. Needs a decision
+whether software values should be plain text.
+
+### W5-3. An event whose message is empty shows uninitialised characters
+
+An event written with an empty message (`EventLog.WriteEntry(source, "")`)
+comes back from Windows PowerShell 5.1's Get-WinEvent with a `Message` of
+three characters that change from run to run ("エ䕔ǜ", "ⵘ쨦Ƙ" in two runs,
+39461167416): .NET Framework's EventLogRecord formats the empty description
+into a buffer it never initialises. otterPS prints those characters;
+otter-net prints an empty text (what PowerShell 7's .NET returns). It cannot
+be compared, so `tools/windows-state.ps1` writes no such event. Needs a
+decision (empty text is the evident intent).
+
+### W5-4. The user's regional format reaches the output in a few places
+
+With German formats (`Set-Culture de-DE`; display language English) the whole
+of `tests/compat` (209 programs) and the desktop tests (26) were compared
+(run 39459678298). One difference: Windows PowerShell writes the number in
+its conversion errors with the user's formats ("Cannot convert value
+"2147483647,5" to type "System.Int32"", `c4_interpreter_dotnet.ot`), where
+otter-net, running with invariant globalization, wrote "2147483647.5". Task
+and event times (`ToString('yyyy-MM-dd HH:mm:ss')`, whose `:` is the culture's
+time separator) and WPF's refusal of an infinite width ("'∞' is not a valid
+value") depend on it in the same way. otter-net now reads the user's number
+and time symbols from Windows (`Otter.Language.UserFormats`, GetLocaleInfoEx,
+the data .NET Framework uses) and uses them in exactly those places;
+everything else Otter prints stays invariant, as otterPS's own formatting
+does (D32.5). ci.yml compares the system programs and conversions under
+German and Finnish formats (Finnish: time separator "."), desktop.yml the
+error programs under German formats. Needs a decision whether a program's
+output should depend on the user's regional format at all.
+
+### W5-5. On a non-English display language otterPS's PowerShell and .NET texts are translated
+
+otterPS shows some texts that PowerShell and .NET Framework write (C2-6,
+D4-2, every "Cannot convert value", file and event log errors). The runner
+has the German resources of both (`System.Management.Automation.resources`
+and `PresentationFramework.resources`, de). Running otterPS with its thread's
+UI culture set to de-DE (`desktop-harness --reference-ui-culture de-DE`, run
+39459678298) gives, for `tests/desktop/errors.ot` and
+`sync_handler_error.ot`:
+
+    29: Die Eigenschaft "" wurde für dieses Objekt nicht gefunden. Vergewissern Sie sich, dass die Eigenschaft vorhanden ist und festgelegt werden kann.
+    31: Ausnahme beim Festlegen von "Width": ""∞" ist kein gültiger Wert für die Eigenschaft "Width"."
+    caught: Ausnahme beim Festlegen von "Text": "no changes allowed"
+
+where otter-net writes PowerShell's English texts ("The property '' cannot be
+found on this object...", "Exception setting "Width": "'∞' is not a valid
+value for property 'Width'.""). Otter's own messages are English in both.
+What could not be verified: otter-net under a real German display language.
+`Set-WinUILanguageOverride de-DE` succeeds on the runner, but takes effect at
+the next sign-in, which a hosted runner never has (new processes still
+report en-US), and .NET offers no other way to give a process another UI
+language. otter-net does not translate any text, so on a German Windows
+these texts, and every other PowerShell or .NET text otterPS passes on,
+would differ. Needs a decision: is otterPS on an English display language
+the reference (otter-net's position), or should these texts follow the
+display language (a table of PowerShell's and .NET Framework's translations
+for each text otter-net reproduces)?
+
+### W5-6. High DPI: verified at a 150 % monitor scale, not at a 150 % system DPI
+
+`tools/set-display-scale.ps1` sets the runner's display to 1920x1080 at
+150 % without signing out (as the Settings app does): the monitor reports
+144 dpi, while the session's system DPI stays 96 until the next sign-in.
+All 26 desktop tests are identical at that scale (window trees, sizes in
+physical pixels, snapshot pixels; runs 39459678298, 39465229800), so
+powershell.exe and otter-desktop.exe are scaled the same way. A session that
+starts at 150 % (system DPI 144) needs a sign-in, which hosted runners do
+not offer; it remains unverified.
