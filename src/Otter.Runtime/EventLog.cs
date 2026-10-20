@@ -330,14 +330,18 @@ public static unsafe partial class OtterEventLog
         return handle;
     }
 
-    // NativeWrapper.EvtFormatMessageRenderName.
+    // NativeWrapper.EvtFormatMessageRenderName, whose not-found failures
+    // (EventLogNotFoundException: a source whose message file is missing
+    // reports ERROR_FILE_NOT_FOUND here) ProviderMetadataCachedInformation
+    // turns into no level name and no message. Measured on a Windows CI runner
+    // (tests/windows-state/w5_event_log.ot).
     static string? FormatMessage(IntPtr publisher, IntPtr evt, int flag)
     {
         bool ok = EvtFormatMessage(publisher, evt, 0, 0, IntPtr.Zero, flag, 0, null, out int needed);
         int error = Marshal.GetLastPInvokeError();
         if (!ok && error != ErrorEvtUnresolvedValueInsert)
         {
-            if (IsMessageMissing(error)) return null;
+            if (IsMessageMissing(error) || IsNotFound(error)) return null;
             if (error != ErrorInsufficientBuffer) throw Failure(error);
         }
         char[] buffer = new char[Math.Max(needed, 1)];
@@ -348,7 +352,7 @@ public static unsafe partial class OtterEventLog
         error = Marshal.GetLastPInvokeError();
         if (!ok && error != ErrorEvtUnresolvedValueInsert)
         {
-            if (IsMessageMissing(error)) return null;
+            if (IsMessageMissing(error) || IsNotFound(error)) return null;
             throw Failure(error);
         }
         int length = Array.IndexOf(buffer, '\0');
