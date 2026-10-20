@@ -511,20 +511,19 @@ never-run case are to be confirmed against Windows PowerShell 5.1
 
 Get-OtterServerDefinition (src/Otter.Server.psm1) reads a `web server`'s
 `port is X` and the first `listen on port X` with `[int]`. When the cast
-fails (`port is "abc"`, `port is 30000000000`) the error is
-statement-terminating inside a script module, whose $ErrorActionPreference
-is the global `Continue` (modules do not see otter.ps1's `Stop`): PowerShell
-reports it on the error stream and the function goes on, the port keeping
-its value (8080 unless an earlier `port is` set another), and the server
-starts. otter-net (`ServeCommand.CastPort`) writes Windows PowerShell 5.1's
-report of it - the message, `At <otter.ps1's folder>\src\Otter.Server.psm1:24
-char:29` with the whole assignment underlined, `InvalidArgument: (:) [],
-RuntimeException` and `InvalidCastFromStringToInteger` (text) or
-`InvalidCastIConvertible` (a number) - then starts the server. Reasoned from
-PowerShell's error view and scoping rules; it cannot be compared
-automatically (the server never ends) and should be confirmed by hand on
-Windows. The path is the PowerShell Otter's `src` folder, found as in C2-1.
-Needs a decision whether an unreadable port should rather be an Otter error.
+fails (`port is "abc"`, `port is 30000000000`, `listen on port "x"`), the
+function runs with otter.ps1's `$ErrorActionPreference` (Stop) - the earlier
+reasoning that a module sees only the global `Continue` was wrong - so the
+error ends otter.ps1 before the server starts. Measured on Windows
+PowerShell 5.1 (F5): powershell.exe reports "Get-OtterServerDefinition :
+Cannot convert value "abc" to type "System.Int32". Error: "Input string was
+not in a correct format."" at Start-OtterServer's call (`$def =
+Get-OtterServerDefinition -Program $Program`, `src\Otter.Server.psm1` line
+282), `InvalidArgument: (:) [Get-OtterServerDefinition], RuntimeException`,
+`InvalidCastFromStringToInteger` (text) or `InvalidCastIConvertible` (a
+number), exit code 1. otter-net (`ServeCommand.CastPort`) does the same
+(`tests/cli/ps-texts.psd1`). Needs a decision whether an unreadable port
+should rather be an Otter error.
 
 ## D4 questions (found 2026-10-18, porting desktop windows to the WPF host)
 
@@ -735,4 +734,20 @@ two are measured; the third cannot be provoked (the 20 ports follow a port
 the system has just found free) and is rendered the way the measured
 OtterErrors are. Nothing is opened in any of them. Needs a decision: should
 these be Otter errors?
+
+### F5-6. How deep UI resources can be nested in a web page
+
+otterPS's web compiler renders a resource put inside another recursively.
+On Windows PowerShell 5.1 a chain of 1,609 nested resources renders and
+deeper ones end in "Otter hit a problem inside itself ... The script failed
+due to call depth overflow." - but not at a fixed depth: bisecting the same
+programs in CI, a chain of 1,610 rendered in one run and overflowed in the
+next, and `otter build` (which calls more PowerShell functions on the way)
+overflows at the same depth as `otter web`, so the limit is the thread's
+stack, not a count of calls. It may move with the Windows and .NET Framework
+version or a 32-bit PowerShell. otter-net renders up to 1,500 levels natively
+(measured to render in every run) and hands a deeper page to the PowerShell
+Otter, the one case of this batch that cannot be reproduced exactly (a cycle
+is still native: otterPS always overflows). Needs a decision: should such a
+page be an Otter error (or render) at any depth?
 

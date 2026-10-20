@@ -62,7 +62,7 @@ parser bug.
 | Site | Case | Why it stays |
 |---|---|---|
 | `JsCompiler.Statements.cs` ~1081, `JsCompiler.Expressions.cs` ~377, `NodeFields.cs` ~249 | a node class with no case | bug guards: every node otter-net parses has a case (the system, network and data nodes were ported in this batch; the corpus has no web fallback left) |
-| `WebCompiler.cs` ~390 | UI resources nested more than 200 deep without a cycle | whether otterPS overflows its call depth depends on how many PowerShell calls each level takes; a cycle is native ("The script failed due to call depth overflow.") |
+| `WebCompiler.cs` ~398 | UI resources nested more than 1,500 deep without a cycle | on Windows PowerShell 5.1 otterPS overflows its stack at about 1,610 levels, but not at a fixed one (the same program rendered in one CI run and overflowed in the next; SPEC-QUESTIONS F5-6); up to 1,500 is native, and a cycle is native ("The script failed due to call depth overflow.") |
 
 ### CLI (`src/Otter.Cli`)
 
@@ -82,8 +82,10 @@ Native in the ps-texts batch (measured on Windows PowerShell 5.1 by
 `.github/workflows/cli-windows.yml`, SPEC-QUESTIONS F5): `-Verbose` (the
 VERBOSE lines of otterPS's Import-Module calls), `-InformationAction Stop`
 and `Ignore`, `otter serve` of an empty program and of a server that cannot
-start, and `otter desktop`'s import problems, pages that cannot be written and
-bridge that cannot start.
+start, `otter desktop`'s import problems, pages that cannot be written and
+bridge that cannot start, a `serve` port PowerShell cannot convert (which, as
+measured, ends otter.ps1: SPEC-QUESTIONS T3-3), and web pages nested up to
+1,500 levels deep (F5-6).
 
 Native in an earlier batch (CLI): `otter serve`'s port casts (`ServeCommand.CastPort`,
 SPEC-QUESTIONS T3-3), the web compiler's internal problems in `otter web`,
