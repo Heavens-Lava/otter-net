@@ -70,19 +70,22 @@ internal sealed class PowerShellError : Exception
     // A line as the console host writes it to a redirected stream: wrapped
     // at the console width less one, the pieces joined by "\r\n" (VERBOSE
     // lines, measured in CI).
-    public static string HostWrapped(string text) => Wrapped(text, ConsoleWidth - 1).Replace(Environment.NewLine, "\r\n");
+    public static string HostWrapped(string text) => Wrapped(text, ConsoleWidth - 1, fillLongWords: false).Replace(Environment.NewLine, "\r\n");
 
-    // The error view's first line as the console host writes it: wrapped at
-    // the console width less one, word by word, each word keeping the space
-    // after it (a word and its space that do not fit start the next line); a
-    // word longer than a whole line is cut. Measured against Windows
-    // PowerShell 5.1 in CI (otter -Deb, -OutBuffer -1, -ErrorAction 9, ...).
-    internal static string Wrapped(string text, int width)
+    // A line as the console host writes it: wrapped at the console width
+    // less one, word by word, each word keeping the space after it (a word
+    // and its space that do not fit start the next line). A word longer than
+    // a whole line is cut: the error view fills the rest of the current line
+    // with its start (`fillLongWords`), the VERBOSE stream starts it on a
+    // line of its own. Measured against Windows PowerShell 5.1 in CI (otter
+    // -Deb, -OutBuffer -1, -ErrorAction 9; a desktop page with a long path;
+    // a build's VERBOSE line).
+    internal static string Wrapped(string text, int width, bool fillLongWords = true)
     {
         // A line break inside the message starts a new line, counted afresh
         // (measured: -ErrorAction foo's list of names after "try again:").
         string[] paragraphs = text.Replace("\r\n", "\n").Split('\n');
-        if (paragraphs.Length > 1) return string.Join(Environment.NewLine, paragraphs.Select(p => Wrapped(p, width)));
+        if (paragraphs.Length > 1) return string.Join(Environment.NewLine, paragraphs.Select(p => Wrapped(p, width, fillLongWords)));
         var lines = new List<string>();
         var line = new StringBuilder();
         int i = 0;
@@ -93,6 +96,12 @@ internal sealed class PowerShellError : Exception
             i += word.Length;
             if (line.Length > 0 && line.Length + word.Length > width)
             {
+                if (fillLongWords && word.Length > width)
+                {
+                    int room = width - line.Length;
+                    line.Append(word, 0, room);
+                    word = word[room..];
+                }
                 lines.Add(line.ToString());
                 line.Clear();
             }
