@@ -755,9 +755,12 @@ value") depend on it in the same way. otter-net now reads the user's number
 and time symbols from Windows (`Otter.Language.UserFormats`, GetLocaleInfoEx,
 the data .NET Framework uses) and uses them in exactly those places;
 everything else Otter prints stays invariant, as otterPS's own formatting
-does (D32.5). ci.yml compares the system programs and conversions under
-German and Finnish formats (Finnish: time separator "."), desktop.yml the
-error programs under German formats. Needs a decision whether a program's
+does (D32.5). After the change the whole of `tests/compat` is identical
+under German formats (run 39469496133; only `p2_remote_command.ot`, which
+is handed to the PowerShell Otter by design, cannot run natively), and
+ci.yml now compares the machine-state and conversion programs under German
+and Finnish formats (run 39469494984: 11 of 11 identical in each),
+desktop.yml the error programs under German formats (run 39469499072). Needs a decision whether a program's
 output should depend on the user's regional format at all.
 
 ### W5-5. On a non-English display language otterPS's PowerShell and .NET texts are translated

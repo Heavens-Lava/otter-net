@@ -86,8 +86,8 @@ jobs:
           exit $LASTEXITCODE
       # The user's regional format reaches otterPS's output in a few places
       # (a number in a .NET conversion message, the time separator of task
-      # and event times): German (decimal comma) and Finnish (time separator
-      # ".") formats, set as a user sets them, with the same machine state.
+      # and event times; SPEC-QUESTIONS W5-4): German and Finnish formats, set
+      # as a user sets them, with the same machine state.
       - name: System information and conversions under German and Finnish formats
         if: always()
         shell: powershell
