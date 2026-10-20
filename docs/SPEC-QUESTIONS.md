@@ -300,9 +300,8 @@ its error record in the default view on the error stream and exits with 1:
 The first part is otter.ps1's full path, which otter-net, having no
 otter.ps1, takes as `otter.ps1` next to its own executable (where the
 installer puts otterPS's). The two `+` lines are cut into pieces of the
-console width less 6; otter-net assumes the standard 120 columns, and does
-not wrap the message line itself (PowerShell's formatter may, at the
-console's width). Standard output and the exit code are not affected. Needs
+console width less 6; otter-net assumes the standard 120 columns and, as
+measured, wraps every line of the view at that width (F5). Standard output and the exit code are not affected. Needs
 a decision: are these texts part of the behaviour to keep (they are
 PowerShell's, not Otter's)? PowerShell 7 shows them differently again
 ("otter.ps1: Parameter cannot be processed ..."), so every such case in
@@ -345,22 +344,25 @@ other command.
 otter.ps1 is an advanced script, so PowerShell's common parameters apply to
 it. Two of them change what otterPS shows:
 
-- `-Verbose` (or `-vb`): every Import-Module otterPS makes at that point
-  lists the modules and functions it loads ("VERBOSE: Loading module from
-  path '...src\Otter.Profiler.psm1'.", "VERBOSE: Importing function ..."),
-  with otterPS's install path: `otter profile`, `otter debug`, `otter build`,
-  `otter publish`, and `otter run` of a program (its compiled engine).
-- `-InformationAction Ignore` hides everything otterPS writes with
-  Write-Host (all of its output); `Stop` turns the first Write-Host into a
-  PowerShell error; `Inquire` asks before each one.
+- `-Verbose` (or `-vb`): every Import-Module otterPS makes while a command
+  runs lists the modules it loads and the functions it imports and exports
+  ("VERBOSE: Loading module from path '...src\Otter.Profiler.psm1'.",
+  "VERBOSE: Importing function ..."), with otterPS's install path, and its two
+  Write-Verbose calls show ("Otter Web App compiled to: <page>", "Otter web
+  server listening on http://<host>:<port>/"): `otter run` of a program
+  (its compiled engine, unless OTTER_ENGINE=interpreter), `otter profile`,
+  `otter debug`, `otter build` and `otter publish` (the web compiler),
+  `otter web`/`browse`, `otter serve` and `otter desktop`.
+- `-InformationAction Ignore` and `Stop` make every Write-Host of otterPS
+  fail (F5-2); `Inquire` asks before each one (F5-1).
 
-otter-net hands these command lines to the PowerShell Otter (they are the
-only dash arguments it does not take on itself). They are accidents of
-PowerShell, not Otter features; needs a decision whether to keep them
-(then otter-net needs otterPS's module and function lists) or to drop them.
-The other common parameters (-Debug, -ErrorAction, -WarningAction,
--ErrorVariable, -OutVariable, ...) are bound and validated as PowerShell
-does and change nothing visible.
+otter-net now reproduces -Verbose and -InformationAction Stop and Ignore,
+measured on Windows PowerShell 5.1 (F5-2, F5-3); Inquire is still handed to
+the PowerShell Otter (F5-1). They are accidents of PowerShell, not Otter
+features; needs a decision whether to keep them or to drop them. The other
+common parameters (-Debug, -ErrorAction, -WarningAction, -ErrorVariable,
+-OutVariable, ...) are bound and validated as PowerShell does and change
+nothing visible.
 
 ### C2-6. Texts read from PowerShell's and .NET Framework's sources
 
@@ -521,7 +523,7 @@ RuntimeException` and `InvalidCastFromStringToInteger` (text) or
 `InvalidCastIConvertible` (a number) - then starts the server. Reasoned from
 PowerShell's error view and scoping rules; it cannot be compared
 automatically (the server never ends) and should be confirmed by hand on
-Windows. The path assumes otterPS's layout next to otter.exe, as in C2-1.
+Windows. The path is the PowerShell Otter's `src` folder, found as in C2-1.
 Needs a decision whether an unreadable port should rather be an Otter error.
 
 ## D4 questions (found 2026-10-18, porting desktop windows to the WPF host)
@@ -639,3 +641,98 @@ numbers change from run to run, and the other shapes are .NET runtime
 internals (and differ between Windows PowerShell 5.1 and PowerShell 7), so
 otter-net has not copied them. Needs a decision: refuse these values ("Otter
 cannot turn ... into JSON"), or specify a shape.
+
+## F5 questions (found 2026-10-20, measuring the texts PowerShell itself prints)
+
+The last places otter-net handed to the PowerShell Otter because the text
+is PowerShell's own were measured on Windows PowerShell 5.1 in CI
+(`.github/workflows/cli-windows.yml`; `tools/compare-cli.ps1
+-ShowReference` prints the reference's raw output) and reproduced natively;
+`tests/cli/ps-texts.psd1` holds the cases. The positions PowerShell quotes
+are lines of otter.ps1 and its modules (`tools/New-PowerShellSiteTable.ps1`),
+named with the PowerShell Otter's folder as in C2-1. Every line of an error
+view is wrapped at the console width (a word longer than a line fills the
+current line first; a VERBOSE line starts it on a line of its own).
+
+### F5-1. -InformationAction Inquire stays with the PowerShell Otter
+
+Measured with standard input redirected: each Write-Host shows its text,
+then reads a line. Y, A or an empty line goes on (A does not carry over to
+the next Write-Host); H stops ("The running command stopped because the user
+selected the Stop option."); S opens a nested prompt ("PS <folder>>> ") that
+runs PowerShell commands until `exit`; ? and anything else ask again; the
+end of input fails with "Object reference not set to an instance of an
+object.". Each line read is echoed to standard output, but the question
+itself goes to the console, not to standard output, so a redirected run
+cannot show it and a run on a console cannot be measured in CI. The nested
+prompt runs PowerShell, which otter-net cannot do. otter-net therefore hands
+`-InformationAction Inquire` to the PowerShell Otter, as before. Needs a
+decision with C2-5.
+
+### F5-2. -InformationAction Stop and Ignore
+
+Every Write-Host of otterPS fails - otter.ps1's own, its modules' (`otter
+build`'s "Building ...", the profile report, `otter desktop`'s "running"
+line) and the program's `say`: Stop writes the text and then throws "The
+running command stopped because the preference variable
+"InformationPreference" or common parameter is set to Stop: <text>"; Ignore
+writes nothing and throws "The value Ignore is not supported for an
+ActionPreference variable. ... has been replaced by the default value.", and
+PowerShell puts the default back in the scope of that Write-Host. The failure
+then goes where otterPS sends a failure: an `otherwise` of the program, then
+Invoke-OtterFile's catch (Show-OtterFailure, whose first Write-Host fails in
+turn), the catch of `otter new`/`test`/`build`/`publish`, or the end of
+otter.ps1, where powershell.exe reports the Write-Host that failed last (exit
+code 1). Under Ignore the catch of `otter new` shows its message, because the
+Write-Host that failed ran in otter.ps1's own scope. Nothing that runs after
+the first Write-Host happens: no browser opens for `otter web`, a server
+stops at once, `otter desktop` stops after its window opened (as otterPS
+does, the window stays). PowerShell 7 differs: Ignore hides every Write-Host
+silently and Stop's report is its ConciseView (known differences in
+`tests/cli/ps-texts.psd1`). Needs a decision with C2-5.
+
+### F5-3. -Verbose shows the PowerShell Otter's module lists
+
+The VERBOSE lines are measured lists (`src/Otter.Cli/VerboseImports.g.cs`):
+six Import-Module calls (the compiled engine, profiler, debugger, web
+compiler, web server and desktop modules), the same in every case measured,
+with the paths of the PowerShell Otter's files. They are printed where otterPS
+imports (before a run; at the start of `otter build` and of publish's build
+step; before the web page, the server or the desktop app), and the web
+compiler only once. otter-net names the files beside the PowerShell Otter's
+otter.ps1 (C2-1). A build's "Otter Web App compiled to:" names its staging
+folder, whose name is random in both. Needs a decision with C2-5.
+
+### F5-4. `otter serve` of an empty program, and a server that cannot start
+
+An empty program stops at `ConvertTo-OtterTokens -Source ''` outside the
+catch: PowerShell's parameter binding error, as for otter.ps1's own
+parameters (no position, exit code 1; see Q12). A server that cannot start
+ends otter.ps1 with PowerShell's report of the .NET method call at
+`$session = Start-OtterServer ...`, in .NET Framework's words: a prefix
+registered by someone else ("Failed to listen on prefix 'http://localhost:
+8080/' because it conflicts with an existing registration on the machine."),
+Windows' text for any other HTTP.sys error without its full stop ("The
+parameter is incorrect": a host with a space or a colon, port 0, port 70000),
+and `Exception calling "Add"` with "Parameter name: uriPrefix" on a line of
+its own for an empty host. Off Windows otter-net uses .NET's own text (the
+reference there is PowerShell 7, whose view differs anyway). Needs a decision:
+should a server that cannot start be an Otter error?
+
+### F5-5. `otter desktop` failures that end otter.ps1
+
+Start-OtterDesktopApplication runs with otter.ps1's `$ErrorActionPreference`
+(Stop), so three failures end otter.ps1 with powershell.exe's report: an
+import problem from Resolve-OtterModuleSource (missing, cyclic, a folder,
+unreadable, or in other capitals), reported at its `throw` in
+`src\Otter.Module.psm1` with "OperationStopped: (:) [], OtterError" and the
+message as the error id; a page that cannot be written (Set-Content's
+"Access to the path '...' is denied." at `src\Otter.Web.psm1` line 3059 for the
+page, `src\Otter.Desktop.psm1` line 1681 for the session copy); and a bridge
+that finds no free port among the 20 it tries ("Could not bind terminal bridge
+listener on port N.", at its `throw` in `src\Otter.Desktop.psm1`). The first
+two are measured; the third cannot be provoked (the 20 ports follow a port
+the system has just found free) and is rendered the way the measured
+OtterErrors are. Nothing is opened in any of them. Needs a decision: should
+these be Otter errors?
+

@@ -22,6 +22,10 @@ jobs:
       - name: Raw reference output of the probe cases
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File tools/compare-cli.ps1 -OtterPs otterps -ReferenceOnly -Cases tests/cli-probe -ReportPath results/probe.md
+      - name: Nesting depth of the web compiler (bisection)
+        if: ${{ hashFiles('tests/cli-probe/depth.ps1') != '' }}
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tests/cli-probe/depth.ps1 -OtterPs otterps
 
   compare:
     name: otter-net vs otterPS (the new cases)
