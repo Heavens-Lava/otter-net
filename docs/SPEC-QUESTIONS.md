@@ -475,6 +475,17 @@ have `message` gone (and `level` gone when the provider is unknown), not the
 otter-net follows the code. To be confirmed on Windows PowerShell 5.1, whose
 Get-WinEvent may differ from the PowerShell 7 source this was read from.
 
+**Measured (2026-10-20)** on Windows PowerShell 5.1
+(`tests/windows-state/w5_event_log.ot`, win-verify run 39462260477): an
+event from a classic source whose message file is missing, and one whose
+source was removed after writing, both have `level` and `message` gone
+(the source stays). otter-net stopped the program with "The system cannot
+find the file specified." for the first: `EvtFormatMessage` reports
+ERROR_FILE_NOT_FOUND there, which .NET Framework turns into an
+EventLogNotFoundException that Get-WinEvent swallows. Fixed in
+`EventLog.cs` (run 39463793352: identical). Audit events (success and
+failure) have the level "Information" in both. See also W5-3.
+
 ## T3 questions (found 2026-10-18, porting the remaining tail)
 
 ### T3-1. How Win32_Printer turns the spooler's status into PrinterStatus
@@ -494,6 +505,30 @@ combined-flag cases are a reasoned reading, to be confirmed on Windows with
 a paused printer. `Default` is compared with `GetDefaultPrinter`, ignoring
 case.
 
+**Measured (2026-10-20)** on a Windows Server 2025 runner with Windows
+PowerShell 5.1 (`tools/windows-state.ps1`, `tests/windows-state/w5_printers.ot`;
+win-verify runs 39462260477 and 39463793352, now part of ci.yml's Windows
+job). Printers on the "Generic / Text Only" driver, compared with
+Win32_Printer and the spooler's own flags (Get-Printer):
+
+| Printer | Spooler status | Win32_Printer PrinterStatus (Extended) | otterPS | otter-net |
+|---|---|---|---|---|
+| idle, and a second one on the same port | none | 3 (2) | idle | idle |
+| paused (`Pause` through CIM) | Paused | 1 (8) | other | other |
+| paused, with a job waiting | Paused | 1 (8) | other | other |
+| a job that failed (its port's folder removed) | Error | 1 | other | other |
+| a job to an unreachable TCP/IP port | Error | 1 | other | other |
+| "work offline" set (`WorkOffline`, an attribute) | none | 3 (2) | idle | idle |
+| Microsoft Print to PDF | none | 3 | idle | idle |
+
+The default printer (set with `SetDefaultPrinter`) was the only `isDefault`
+true in both, and both listed the printers in the same order (the spooler's,
+newest first, not alphabetical). Not reached on a runner: the spooler's
+OFFLINE flag (7; a port to an unreachable address reports Error, and "work
+offline" is an attribute WMI ignores), printing (4) and warming up (5),
+which need a physical device. The mapping is confirmed for every state a
+runner can produce; those three stay a reasoned reading.
+
 ### T3-2. Which scheduled tasks Get-ScheduledTask lists, and in what order
 
 `get system information "tasks"` (D80) uses `Get-ScheduledTask` and
@@ -504,6 +539,24 @@ a folder's tasks before its subfolders'. A time the Task Scheduler reports as
 its zero date is gone (the provider's empty datetime). The order and the
 never-run case are to be confirmed against Windows PowerShell 5.1
 (`tests/compat/t3_system_tasks_printers.ot` prints every task name).
+
+**Measured (2026-10-20)**, same runs as T3-1 (`tests/windows-state/w5_tasks.ot`):
+223 tasks, including fourteen registered in `\`, `\OtterW5\`,
+`\OtterW5\Deeper\`, `\OtterW5 Another\` and `\otterw5 lower\` (registered
+out of alphabetical order; never run, without and with triggers, a trigger
+only in the past, disabled, hidden, run and succeeded, run and failed,
+still running). otterPS and otter-net printed the same names, states and
+times in the same order: the root's tasks first, then each folder depth
+first (`\OtterW5\Deeper\` before `\OtterW5 Another\`), tasks and folders
+in the Task Scheduler's order, which is alphabetical without regard to case
+("Otter a registered second" before "Otter z registered first"); hidden
+tasks are listed. A task that never ran has `lastRunTime` "1999-11-30
+00:00:00", the Task Scheduler's own "never" date, which the CIM provider
+passes on (LastTaskResult 267011), not gone; a task with no future run has
+`nextRunTime` gone (the COM API's zero date, 1899-12-30); a running task is
+"Running", a disabled one "Disabled". Nothing to change in otter-net.
+Whether a never-run task should rather show gone is a question for the
+specification.
 
 ### T3-3. `otter serve` with a port [int] cannot read
 

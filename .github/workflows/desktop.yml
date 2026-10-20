@@ -63,6 +63,18 @@ jobs:
           if (-not ($output -match 'otter-net desktop: otter-desktop.exe is missing')) { throw 'no trace of the missing host' }
           if (-not ($output -match 'otter-net fallback:')) { throw 'the PowerShell Otter did not run it' }
           if (-not ($output -contains 'made a window')) { throw 'the program did not run' }
+      # Last, because it changes the display: 1920x1080 at a 150 % scale, as
+      # the Settings app sets it (tools/set-display-scale.ps1). New windows
+      # are laid out at 144 dpi; the session's system DPI stays 96 until the
+      # next sign-in, which a hosted runner never has (docs/port/desktop.md).
+      - name: Desktop windows at a 150 % display scale
+        if: always()
+        shell: pwsh
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File tools/set-display-scale.ps1 -Percent 150 -Width 1920 -Height 1080
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & artifacts/harness/desktop-harness.exe --otterps otterps/otter.ps1 --otter artifacts/win-x64/otter.exe --tests tests/desktop --out results/desktop-150 --summary $env:GITHUB_STEP_SUMMARY
+          exit $LASTEXITCODE
       - uses: actions/upload-artifact@v4
         if: always()
         with:

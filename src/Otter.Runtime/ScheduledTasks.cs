@@ -9,13 +9,18 @@ namespace Otter.Runtime;
 // ScheduledTasks module's CIM provider itself reads.
 //
 // Every task in every folder, hidden ones included (Get-ScheduledTask lists
-// them), a folder's own tasks before its subfolders', from the root down.
+// them), a folder's own tasks before its subfolders', from the root down,
+// each folder's tasks and subfolders in the Task Scheduler's order.
 // Each is a "scheduled task" thing: name, state (MSFT_ScheduledTask's
 // StateEnum, whose names are TASK_STATE's), and lastRunTime/nextRunTime as
 // "yyyy-MM-dd HH:mm:ss" text, or gone when the Task Scheduler has no time
 // (its zero DATE, which the CIM provider reports as an empty datetime) or
-// will not answer for that task. If the Task Scheduler cannot be reached at
-// all the list is empty, as otterPS's catch makes it.
+// will not answer for that task. A task that never ran has the Task
+// Scheduler's own "never" time, 1999-11-30 00:00:00, as lastRunTime, in the
+// CIM provider too. If the Task Scheduler cannot be reached at all the list
+// is empty, as otterPS's catch makes it. All of this was compared with
+// Windows PowerShell 5.1 on a Windows runner with tasks in every state
+// (tests/windows-state/w5_tasks.ot, SPEC-QUESTIONS T3-2).
 //
 // No COM interop code is generated: the few calls needed go straight
 // through each interface's vtable (taskschd.h's order; slots 0-6 are
