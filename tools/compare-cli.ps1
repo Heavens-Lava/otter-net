@@ -230,7 +230,8 @@ try {
                     # PowerShell's own errors that name it (SPEC-QUESTIONS C2-1).
                     # OTTER_ENGINE=native still refuses the fallback itself.
                     $candidateEnvironment['OTTER_POWERSHELL'] = $referenceScript
-                    if (-not $AllowFallback) { $candidateEnvironment['OTTER_ENGINE'] = 'native' }
+                    # A case's own OTTER_ENGINE (interpreter: otterPS's engine choice) stays.
+                    if (-not $AllowFallback -and -not $environment.ContainsKey('OTTER_ENGINE')) { $candidateEnvironment['OTTER_ENGINE'] = 'native' }
                     $candidateFile = $OtterNet; $candidateArguments = $arguments
                     if ($OtterNet.EndsWith('.dll')) { $candidateFile = 'dotnet'; $candidateArguments = @($OtterNet) + $arguments }
                     $runs[$side] = Invoke-OtterProcess -FileName $candidateFile -Arguments $candidateArguments -WorkingDirectory $folder `

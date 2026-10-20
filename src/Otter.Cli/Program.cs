@@ -63,6 +63,26 @@ public static class Program
             Trace($"native: exit {exit.Code}");
             return exit.Code;
         }
+        // An error that ends otter.ps1 itself: powershell.exe reports it, exit code 1.
+        catch (PowerShellError error)
+        {
+            Trace("native: PowerShell's own error");
+            error.Write();
+            return ExitUsageError;
+        }
+        catch (WriteHostFailure failure) when (failure.Site.HasPosition)
+        {
+            Trace("native: a Write-Host failed (-InformationAction)");
+            failure.Report().Write();
+            return ExitUsageError;
+        }
+        catch (WriteHostFailure failure)
+        {
+            // A Write-Host that otterPS's own catch would have handled reached
+            // here: a gap in otter-net.
+            Console.Error.WriteLine($"otter-net: internal error, a Write-Host failure was not handled: {failure.Message}");
+            return ExitRuntimeError;
+        }
         catch (NeedsPowerShell unsupported)
         {
             if (Host.HasWritten)

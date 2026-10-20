@@ -70,7 +70,7 @@ internal sealed class Debugger(string fileName, IEnumerable<int> breakpoints)
     // [Console]::Out.WriteLine: the platform's line ending.
     static void WriteEvent(string json)
     {
-        Host.Text(EventPrefix + json + Environment.NewLine);
+        Host.Raw(EventPrefix + json + Environment.NewLine);
         Host.Out.Flush();
     }
 }
@@ -285,7 +285,7 @@ internal sealed class Profiler
             .Select(pair => (Line: pair.Key, Entry: pair.Value, SelfMs: Ms(pair.Value.Ticks)))
             .OrderByDescending(row => row.SelfMs).Take(top).ToList();
 
-        Host.Line("");
+        Host.Line("", site: PsSite.At(@"src\Otter.Profiler.psm1", 307));
         Host.Line(new string('=', 60), ConsoleColor.Cyan);
         Host.Line("Otter profile", ConsoleColor.Cyan);
         Host.Line(new string('=', 60), ConsoleColor.Cyan);

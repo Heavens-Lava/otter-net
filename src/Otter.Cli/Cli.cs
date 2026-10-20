@@ -17,16 +17,24 @@ internal static class Cli
 
     public static int Run(CommandLine line)
     {
-        // -InformationAction Stop, Inquire or Ignore changes what every
-        // Write-Host of otterPS does (an error, a prompt, nothing shown).
-        if (line.InformationAction is 1 or 3 or 4)
+        // -InformationAction Stop or Ignore: every Write-Host of otterPS fails
+        // (InformationAction.cs). Inquire asks on the console before each one.
+        if (line.InformationAction == 3)
         {
-            throw new NeedsPowerShell($"-InformationAction {PowerShellConvert.ActionPreferenceNames[line.InformationAction.Value]} acts on PowerShell's information stream, which carries everything otterPS shows");
+            throw new NeedsPowerShell("-InformationAction Inquire asks on the console before each line otterPS shows, and offers a nested PowerShell prompt (SPEC-QUESTIONS F5-1)");
         }
+        InformationAction.Current = line.InformationAction switch
+        {
+            1 => InformationAction.Mode.Stop,
+            4 => InformationAction.Mode.Ignore,
+            _ => InformationAction.Mode.Continue,
+        };
+        // -Verbose: the VERBOSE lines of otterPS's Import-Module calls (VerboseImports.cs).
+        VerboseImports.Enabled = line.Verbose;
         if (line.Version || Is(line.Path, "--version"))
         {
             Program.Trace("native: --version");
-            Host.Line(VersionText);
+            Host.Line(VersionText, site: PsSite.Otter(692));
             return ExitSuccess;
         }
         if (line.Help || Is(line.Path, "help") || Is(line.Path, "--help"))
@@ -40,7 +48,6 @@ internal static class Cli
         if (Is(command, "test")) return ProjectCommands.Test(line);
         if (Is(command, "build") || Is(command, "publish"))
         {
-            if (line.Verbose) throw VerboseModules();
             return Is(command, "build") ? ProjectCommands.Build(line) : ProjectCommands.Publish(line);
         }
         if (Is(command, "run") || Is(command, "check")) return RunOrCheck(line, Is(command, "check"));
@@ -57,7 +64,7 @@ internal static class Cli
     // Show-OtterHelp. `otter studio` is deliberately not listed (RC3 B14).
     static void ShowHelp()
     {
-        Host.Line(VersionText);
+        Host.Line(VersionText, site: PsSite.Otter(668));
         Host.Line("");
         Host.Line("Usage:");
         Host.Line("  otter <file.ot>        Run an Otter program (shortest form)");
@@ -78,15 +85,10 @@ internal static class Cli
         Host.Line("");
     }
 
-    // -Verbose: otterPS's Import-Module calls then list every module and
-    // function they load (PowerShell's VERBOSE messages, with otterPS's
-    // install path), which otter-net has no modules to reproduce.
-    public static NeedsPowerShell VerboseModules() =>
-        new("-Verbose makes otterPS show PowerShell's module-loading messages");
-
-    static CliExit UsageError(string message)
+    // A message of otter.ps1 (its Write-Host on line `site`), then exit code 1.
+    static CliExit UsageError(string message, int site)
     {
-        Host.Line(message, ConsoleColor.Red);
+        Host.Line(message, ConsoleColor.Red, PsSite.Otter(site));
         return new CliExit(ExitUsageError);
     }
 
@@ -94,7 +96,7 @@ internal static class Cli
     // project folder or manifest (D118B).
     static int RunOrCheck(CommandLine line, bool check)
     {
-        if (!line.HasTarget) throw UsageError($"Usage: otter {line.Path} <file.ot>");
+        if (!line.HasTarget) throw UsageError($"Usage: otter {line.Path} <file.ot>", 829);
         string target = line.Target!;
         string[] arguments = line.RawTrailing(2);
 
@@ -103,27 +105,27 @@ internal static class Cli
             ProjectManifest? manifest = Project.Find(target);
             if (manifest != null)
             {
-                Project project = LoadProjectOrExit(target, ExitCheckError);
+                Project project = LoadProjectOrExit(target, ExitCheckError, 845);
                 return FileMode.Invoke(line, project.ResolvedEntryPoint, check ? FileMode.Kind.Check : FileMode.Kind.Run, arguments, displayTarget: target);
             }
             string? resolvedDirectory = Project.PsResolvePath(target);
             if ((resolvedDirectory != null && Directory.Exists(resolvedDirectory)) || target == ".")
             {
-                throw UsageError($"Otter: I cannot find an otter.json manifest in \"{target}\".");
+                throw UsageError($"Otter: I cannot find an otter.json manifest in \"{target}\".", 856);
             }
-            throw UsageError($"Otter: \"{target}\" is not an Otter file - expected a .ot file.");
+            throw UsageError($"Otter: \"{target}\" is not an Otter file - expected a .ot file.", 861);
         }
         return FileMode.Invoke(line, target, check ? FileMode.Kind.Check : FileMode.Kind.Run, arguments);
     }
 
     // Get-OtterProject's OtterError, shown as otter.ps1 shows it: the
-    // message alone between blank lines.
-    public static Project LoadProjectOrExit(string target, int exitCode)
+    // message alone between blank lines (the catch's Write-Host '' on line `site`).
+    public static Project LoadProjectOrExit(string target, int exitCode, int site)
     {
         try { return Project.Load(target); }
         catch (OtterError error)
         {
-            Host.Line("");
+            Host.Line("", site: PsSite.Otter(site));
             Host.Line(error.Message, ConsoleColor.Red);
             Host.Line("");
             throw new CliExit(exitCode);
@@ -137,7 +139,7 @@ internal static class Cli
         if (Project.Find(path) != null)
         {
             string[] projectArguments = line.RawTrailing(1);
-            Project project = LoadProjectOrExit(path, ExitCheckError);
+            Project project = LoadProjectOrExit(path, ExitCheckError, 1065);
             return FileMode.Invoke(line, project.ResolvedEntryPoint, FileMode.Kind.Run, projectArguments, displayTarget: path);
         }
         if (!path.ToLowerInvariant().EndsWith(".ot", StringComparison.Ordinal))
@@ -145,9 +147,9 @@ internal static class Cli
             string? resolvedDirectory = Project.PsResolvePath(path);
             if ((resolvedDirectory != null && Directory.Exists(resolvedDirectory)) || path == ".")
             {
-                throw UsageError($"Otter: I cannot find an otter.json manifest in \"{path}\".");
+                throw UsageError($"Otter: I cannot find an otter.json manifest in \"{path}\".", 1079);
             }
-            Host.Line($"Otter: I do not recognize the command \"{path}\".", ConsoleColor.Red);
+            Host.Line($"Otter: I do not recognize the command \"{path}\".", ConsoleColor.Red, PsSite.Otter(1083));
             Host.Line("Run 'otter help' to see the available commands.", ConsoleColor.Red);
             throw new CliExit(ExitUsageError);
         }
@@ -156,8 +158,8 @@ internal static class Cli
 
     static int Profile(CommandLine line)
     {
-        if (!line.HasTarget) throw UsageError("Usage: otter profile <file.ot>");
-        if (line.Verbose) throw VerboseModules();
+        if (!line.HasTarget) throw UsageError("Usage: otter profile <file.ot>", 871);
+        VerboseImports.Profiler();
         var profiler = new Profiler();
         return FileMode.Invoke(line, line.Target!, FileMode.Kind.Run, line.RawTrailing(2), profiler: profiler);
     }
@@ -167,7 +169,7 @@ internal static class Cli
 
     static int Debug(CommandLine line)
     {
-        if (!line.HasTarget) throw UsageError("Usage: otter debug <file.ot> -Breakpoints \"5,12\"");
+        if (!line.HasTarget) throw UsageError("Usage: otter debug <file.ot> -Breakpoints \"5,12\"", 885);
         var breakpoints = new List<int>();
         if (!string.IsNullOrEmpty(line.Breakpoints))
         {
@@ -191,7 +193,7 @@ internal static class Cli
                 breakpoints.Add(number);
             }
         }
-        if (line.Verbose) throw VerboseModules();
+        VerboseImports.Debugger();
         string target = line.Target!;
         var debugger = new Debugger(Path.GetFileName(target.Replace('\\', '/').TrimEnd('/')), breakpoints);
         return FileMode.Invoke(line, target, FileMode.Kind.Run, line.RawTrailing(2), debugger: debugger);
@@ -210,24 +212,24 @@ internal static class Cli
             // does not set the exit code of a script run with -File (otterPS's
             // own comment on `otter studio`): the process exits with 0
             // (docs/SPEC-QUESTIONS.md UI2-1).
-            Host.Line($"Usage: otter {command} <script.ot>");
+            Host.Line($"Usage: otter {command} <script.ot>", site: PsSite.Otter(921));
             throw new CliExit(ExitSuccess);
         }
         string scriptFile = line.Target!;
         bool project = Project.Find(scriptFile) != null;
         if (project)
         {
-            scriptFile = LoadProjectOrExit(scriptFile, ExitCheckError).ResolvedEntryPoint;
+            scriptFile = LoadProjectOrExit(scriptFile, ExitCheckError, 930).ResolvedEntryPoint;
         }
         else if (Directory.Exists(scriptFile))
         {
-            throw UsageError($"Otter: I cannot find an otter.json manifest in \"{scriptFile}\".");
+            throw UsageError($"Otter: I cannot find an otter.json manifest in \"{scriptFile}\".", 938);
         }
         scriptFile = FileMode.AssertReadable(scriptFile);
         if (Is(command, "desktop") && !OperatingSystem.IsWindows() && !DesktopCommand.TestMode)
         {
             Program.Trace("native: desktop off Windows");
-            throw UsageError("Otter: desktop windows are only available on Windows. Build this program as a web application instead: otter web <file.ot>");
+            throw UsageError("Otter: desktop windows are only available on Windows. Build this program as a web application instead: otter web <file.ot>", 948);
         }
         // otter web / browse: the web compiler (WebCommand.cs), for a file or
         // a project's entry point, whatever its extension.
