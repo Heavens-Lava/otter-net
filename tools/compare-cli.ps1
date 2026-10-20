@@ -79,6 +79,8 @@ $referencePrefix = if ($onWindows) { @('-NoProfile', '-ExecutionPolicy', 'Bypass
 $referenceIsPwsh7 = -not $onWindows
 if (-not $ReportPath) { $ReportPath = Join-Path $here 'compat-results/cli-report.md' }
 New-Item -ItemType Directory -Force -Path (Split-Path -Parent $ReportPath) | Out-Null
+# -File passes "a.psd1,b.psd1" as one text: split it.
+$Cases = @($Cases | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
 if ($Cases.Count -eq 0) { $Cases = @(Join-Path $here 'tests/cli') }
 
 $caseFiles = foreach ($item in $Cases) {

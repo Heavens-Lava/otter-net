@@ -39,6 +39,8 @@ jobs:
           dotnet-version: '10.0.x'
       - name: Publish native (AOT)
         run: dotnet publish src/Otter.Cli/Otter.Cli.csproj -c Release -r win-x64 -p:UseAppHost=true -o artifacts/win-x64 --nologo
+      - name: Publish otter-desktop beside it
+        run: dotnet publish src/Otter.Desktop/Otter.Desktop.csproj -c Release -r win-x64 --self-contained false -p:UseAppHost=true -o artifacts/win-x64 --nologo
       - name: Command line - the new cases, with the raw reference output
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File tools/compare-cli.ps1 -OtterPs otterps -OtterNet artifacts/win-x64/otter.exe -Cases tests/cli/ps-texts.psd1,tests/cli/binding.psd1 -ShowReference -ReportPath results/cli-ps-texts.md
