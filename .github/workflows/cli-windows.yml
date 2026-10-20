@@ -25,6 +25,8 @@ jobs:
 
   compare:
     name: otter-net vs otterPS (the new cases)
+    # Skipped for a commit whose message says [probe only].
+    if: ${{ !contains(github.event.head_commit.message, '[probe only]') }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
