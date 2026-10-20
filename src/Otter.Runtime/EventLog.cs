@@ -120,7 +120,7 @@ public static unsafe partial class OtterEventLog
             double rounded = Math.Round(maxEntries, MidpointRounding.ToEven);
             if (double.IsNaN(rounded) || rounded < int.MinValue || rounded > int.MaxValue)
             {
-                throw new EventLogProblem($"Cannot convert value \"{Values.PowerShellText(maxEntries)}\" to type \"System.Int32\". Error: \"Value was either too large or too small for an Int32.\"");
+                throw new EventLogProblem($"Cannot convert value \"{Otter.Language.UserFormats.Number(maxEntries)}\" to type \"System.Int32\". Error: \"Value was either too large or too small for an Int32.\"");
             }
             int maxEvents = (int)rounded;
             if (maxEvents < 1)
@@ -310,7 +310,7 @@ public static unsafe partial class OtterEventLog
         var entry = new OtterThing("event log entry");
         entry.WriteProperty("source", provider);
         entry.WriteProperty("level", level);
-        entry.WriteProperty("time", created?.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.CurrentCulture));
+        entry.WriteProperty("time", created?.ToString("yyyy-MM-dd HH:mm:ss", Otter.Language.UserFormats.Culture));
         entry.WriteProperty("message", message);
         return entry;
     }
@@ -330,14 +330,18 @@ public static unsafe partial class OtterEventLog
         return handle;
     }
 
-    // NativeWrapper.EvtFormatMessageRenderName.
+    // NativeWrapper.EvtFormatMessageRenderName, whose not-found failures
+    // (EventLogNotFoundException: a source whose message file is missing
+    // reports ERROR_FILE_NOT_FOUND here) ProviderMetadataCachedInformation
+    // turns into no level name and no message. Measured on a Windows CI runner
+    // (tests/windows-state/w5_event_log.ot).
     static string? FormatMessage(IntPtr publisher, IntPtr evt, int flag)
     {
         bool ok = EvtFormatMessage(publisher, evt, 0, 0, IntPtr.Zero, flag, 0, null, out int needed);
         int error = Marshal.GetLastPInvokeError();
         if (!ok && error != ErrorEvtUnresolvedValueInsert)
         {
-            if (IsMessageMissing(error)) return null;
+            if (IsMessageMissing(error) || IsNotFound(error)) return null;
             if (error != ErrorInsufficientBuffer) throw Failure(error);
         }
         char[] buffer = new char[Math.Max(needed, 1)];
@@ -348,7 +352,7 @@ public static unsafe partial class OtterEventLog
         error = Marshal.GetLastPInvokeError();
         if (!ok && error != ErrorEvtUnresolvedValueInsert)
         {
-            if (IsMessageMissing(error)) return null;
+            if (IsMessageMissing(error) || IsNotFound(error)) return null;
             throw Failure(error);
         }
         int length = Array.IndexOf(buffer, '\0');

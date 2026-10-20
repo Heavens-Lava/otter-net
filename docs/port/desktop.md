@@ -115,8 +115,15 @@ differs between the two WPFs (.NET Framework 4.8 under Windows PowerShell
 Verified: desktop.yml run 39191260698 (26 of 26 programs identical, every step reached its control); the
 otterPS-observed quirks are listed as SPEC-QUESTIONS D4-1 to D4-5.
 
-Not verified on a high-DPI display: powershell.exe and otter-desktop.exe
-may differ in DPI awareness, so at a scale above 100 % one may be drawn
-sharper than the other; both lay out in the same device-independent units.
+High DPI: desktop.yml also runs every test at a 150 % display scale
+(1920x1080, set without signing out by `tools/set-display-scale.ps1`; the
+monitor is at 144 dpi): identical, 26 of 26. A session that starts at 150 %
+(system DPI 144) needs a sign-in, which hosted runners do not offer, and is
+not verified (SPEC-QUESTIONS W5-6).
+
+Other languages: under German formats (decimal comma) the tests are
+identical (desktop.yml runs the error programs so). On a German display
+language otterPS shows PowerShell's and WPF's German texts where otter-net
+shows the English ones (SPEC-QUESTIONS W5-5).
 
 See `tests/desktop/README.md` for the step language.

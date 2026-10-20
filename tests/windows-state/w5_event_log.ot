@@ -1,0 +1,18 @@
+# The event log tools/windows-state.ps1 writes (D79, SPEC-QUESTIONS P2-2,
+# P2-3): every level, a message over two lines, an empty message, an event
+# whose source has no message file, and one whose source was removed.
+get event log entries from "OtterW5" up to 20 into entries
+for each entry in entries
+    say source of entry "|" level of entry "|" time of entry "|" message of entry
+.
+get event log entries from "OtterW5" up to 3 into entries
+say length of entries "of the newest"
+get event log entries from "OtterW5*" up to 50 into entries
+say length of entries "through a wildcard"
+get event log entries from "OtterW5 Empty" up to 5 into entries
+say length of entries "in the empty log"
+try
+    get event log entries from "OtterW5 No Such Log" up to 5 into entries
+otherwise into reason
+    say reason
+.

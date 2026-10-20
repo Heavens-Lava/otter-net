@@ -126,8 +126,11 @@ Recorded in `docs/SPEC-QUESTIONS.md`. In every case otter-net keeps otterPS
 - **Should PowerShell's own behaviour be part of the language at all**: C2-1
   (PowerShell's parameter-binding errors, reproduced character for
   character), C2-5, V4-2 (the compiled engine's differences).
-- **To confirm on a real Windows machine**: T3-1 (paused printers), T3-2
-  (scheduled tasks order).
+- **Confirmed on Windows with real machine state (2026-10-20)**: T3-1
+  (paused and failed printers), T3-2 (scheduled tasks order and times), P2-3
+  (events without a description); four differences found and fixed (W5-1,
+  W5-2, W5-4, P2-3). Open: W5-3 (an empty event message), W5-5 (a
+  non-English display language), W5-6 (a session started at high DPI).
 
 ## 8. Decisions needed before a release
 

@@ -157,7 +157,7 @@ public static class PowerShellInt32
             case double number:
                 if (TryRoundToInt32(number, out result)) return true;
                 // .NET Framework's Double.ToString(): 15 significant digits.
-                message = Cast(number.ToString("G15", CultureInfo.CurrentCulture), "Value was either too large or too small for an Int32.");
+                message = Cast(UserFormats.Number(number), "Value was either too large or too small for an Int32.");
                 errorId = "InvalidCastIConvertible";
                 return false;
             case string text:
@@ -166,7 +166,7 @@ public static class PowerShellInt32
                 errorId = "InvalidCastFromStringToInteger";
                 return false;
             default:
-                message = Cast(Convert.ToString(value, CultureInfo.CurrentCulture) ?? "", "Specified cast is not valid.");
+                message = Cast(Convert.ToString(value, UserFormats.Culture) ?? "", "Specified cast is not valid.");
                 errorId = "InvalidCastIConvertible";
                 return false;
         }

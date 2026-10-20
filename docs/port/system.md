@@ -23,7 +23,7 @@ Parser: `src/Otter.Language/Parser.System.cs` unless noted. Nodes:
 | `start command C and call it J` | StartCommand | `Start`; Start-OtterCommandJob | Parser.cs (Unsupported) | missing | yes | - | needs the event loop (`on output from`, `on exit of`, `cancel`, `is running`) of the Network area |
 | `received output` / `received error output` | JobContext | Read-OtterValue; `JobContext` | Parser.cs (Unsupported) | missing | yes | - | as above |
 | `get system information K into x`: os, cpu, memory, disk, network, user, groups, software, services | GetSystemInfo | `Get`; Get-OtterSystemInfoValue | GetSystemInfoStmt; SystemInfo.cs, Services.cs | native | no | sys_system_info.ot | - |
-| `get system information K into x`: tasks, printers, or a kind that is not written as text | GetSystemInfo | same (Get-ScheduledTask, Win32_Printer) | same; ScheduledTasks.cs (Task Scheduler 2.0 COM through its vtable), Printers.cs (EnumPrinters, GetDefaultPrinter) | native | no | t3_system_tasks_printers.ot, sys_desktop.ot | the order of tasks and the status of paused or failed printers are to be confirmed on Windows (SPEC-QUESTIONS T3-1, T3-2); off Windows empty lists, as otterPS on PowerShell 7 |
+| `get system information K into x`: tasks, printers, or a kind that is not written as text | GetSystemInfo | same (Get-ScheduledTask, Win32_Printer) | same; ScheduledTasks.cs (Task Scheduler 2.0 COM through its vtable), Printers.cs (EnumPrinters, GetDefaultPrinter) | native | no | t3_system_tasks_printers.ot, sys_desktop.ot, tests/windows-state (w5_tasks, w5_printers) | compared on Windows with tasks and printers in every state a runner can reach (SPEC-QUESTIONS T3-1, T3-2); off Windows empty lists, as otterPS on PowerShell 7 |
 | `get processes into x` | GetProcesses | `Get`; Get-OtterProcessList | Processes.cs `List` | native | no | sys_processes.ot | - |
 | `kill process p [and its children]` | KillProcess | `Kill`; Stop-OtterProcess | Processes.cs `Kill` | native | no | sys_processes.ot | tree kill everywhere (SPEC-QUESTIONS Q9) |
 | `set priority of process p to L` | SetProcessPriority | `Set`; Set-OtterProcessPriority | Processes.cs `SetPriority` | native | no | sys_processes.ot | - |
@@ -43,7 +43,7 @@ Parser: `src/Otter.Language/Parser.System.cs` unless noted. Nodes:
 | `set registry value N to D in K` | SetRegistryValue | `Set`; Set-OtterRegistryValue | Registry.cs | native | no | sys_windows.ot | - |
 | `delete registry value N from K` | DeleteRegistryValue | `Delete`; Remove-OtterRegistryValue | Registry.cs | native | no | sys_windows.ot | - |
 | `registry key K exists` (condition) | RegistryKeyExists | Read-OtterConditionPrimary; Test-OtterRegistryKeyExists | Registry.cs | native | no | sys_windows.ot | - |
-| `get event log entries from L up to N into x` | GetEventLogEntries | `Get`; Get-OtterEventLogEntries (Get-WinEvent) | GetEventLogEntriesStmt; EventLog.cs `OtterEventLog` (wevtapi.dll) | native | no | sys_desktop.ot (Windows) | not yet compared on Windows: run sys_desktop.ot there (level names, messages of events without a description) |
+| `get event log entries from L up to N into x` | GetEventLogEntries | `Get`; Get-OtterEventLogEntries (Get-WinEvent) | GetEventLogEntriesStmt; EventLog.cs `OtterEventLog` (wevtapi.dll) | native | no | sys_desktop.ot, tests/windows-state/w5_event_log.ot | compared on Windows (every level, events without a description, a removed source; SPEC-QUESTIONS P2-3, W5-3) |
 | `set credential N to S` / `get credential N into x` / `delete credential N` | SetCredential / GetCredential / DeleteCredential | `Set`/`Get`/`Delete`; DPAPI files in %LOCALAPPDATA%\Otter\Credentials | Credentials.cs `OtterCredentials` (CryptProtectData) | native | no | sys_windows.ot | - |
 | `store secret N with value V` / `delete secret N` | StoreSecret / DeleteSecret | pre-switch check; OtterCredentialApi (CredWrite/CredDelete) | Credentials.cs `OtterVault` | native | no | sys_windows.ot, sys_syntax_errors.ot | - |
 | `secret N` / `secret N exists` | SecretRead / SecretExists | Read-OtterValue; OtterCredentialApi (CredRead) | TryReadSystemValue; `OtterVault` | native | no | sys_windows.ot | - |
@@ -81,6 +81,15 @@ position; `tests/compat/sys_syntax_errors.ot` has one of each kind.
 - A program that uses a form still handed to the PowerShell Otter (on
   Windows: remote commands) runs entirely in the PowerShell Otter,
   decided before anything runs. Everywhere else every form here is native.
+- "network" on Windows reads GetAdaptersAddresses with .NET Framework's
+  flags (`NetworkAdapters.cs`): .NET 10's NetworkInterface also lists hidden
+  filter interfaces that Windows PowerShell 5.1 does not (SPEC-QUESTIONS
+  W5-1).
+- Numbers in PowerShell's conversion messages and task and event times use
+  the user's regional format, read from Windows (`Otter.Language.UserFormats`,
+  SPEC-QUESTIONS W5-4).
+- The machine state these were compared with comes from
+  `tools/windows-state.ps1`, run at the end of ci.yml's Windows job.
 - The event log is read as Get-WinEvent reads it, through the Windows Event
   Log API (`EvtOpenChannelEnum`, `EvtQuery` newest first, `EvtRender`,
   `EvtOpenPublisherMetadata`, `EvtFormatMessage`): `-LogName` wildcards, a
@@ -89,8 +98,10 @@ position; `tests/compat/sys_syntax_errors.ot` has one of each kind.
   message cannot be found (EventLogRecord's own rule; Get-WinEvent's "Cannot
   retrieve event message text." is replaced by that gone), "No events were
   found" as an empty list, and Get-WinEvent's other texts after "I could not
-  read the event log". Written from PowerShell's and .NET's sources on macOS:
-  it still needs a run of `tests/compat/sys_desktop.ot` on Windows.
+  read the event log". Written from PowerShell's and .NET's sources on macOS,
+  then compared on Windows (`tests/windows-state/w5_event_log.ot`): a source
+  whose message file is missing reports ERROR_FILE_NOT_FOUND, which also
+  means no level and no message.
 
 ## Remaining on Windows, and why
 

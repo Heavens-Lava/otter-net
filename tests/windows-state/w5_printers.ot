@@ -1,0 +1,9 @@
+# Every printer with its status and whether it is the default (D83,
+# SPEC-QUESTIONS T3-1). Run after tools/windows-state.ps1 on a CI runner:
+# printers idle, paused, paused with a job, working offline, with a failed
+# job, on an unreachable port, and a default one.
+get system information "printers" into printers
+for each printer in printers
+    say name of printer "|" status of printer "|" isDefault of printer
+.
+say length of printers "printers"
