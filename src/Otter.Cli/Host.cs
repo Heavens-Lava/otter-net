@@ -27,6 +27,7 @@ internal static class Host
     public static void Line(string text = "", ConsoleColor? color = null, PsSite? site = null)
     {
         site ??= DefaultSite;
+        VerboseImports.WritePending();
         InformationAction.Before(text, site);
         HasWritten = true;
         if (color is ConsoleColor c && !Console.IsOutputRedirected)
@@ -61,6 +62,7 @@ internal static class Host
     // [Console]::Out.Write: not a Write-Host, so -InformationAction does not touch it.
     public static void Raw(string text)
     {
+        VerboseImports.WritePending();
         HasWritten = true;
         Out.Write(text);
     }
@@ -69,6 +71,7 @@ internal static class Host
     public static void Text(string text, PsSite? site = null)
     {
         site ??= DefaultSite;
+        VerboseImports.WritePending();
         InformationAction.Before(text, site);
         HasWritten = true;
         Out.Write(text);
@@ -97,7 +100,11 @@ internal static class Host
         Out.Write("\n");
     }
 
-    public static void MarkWritten() => HasWritten = true;
+    public static void MarkWritten()
+    {
+        VerboseImports.WritePending();
+        HasWritten = true;
+    }
 }
 
 // [Environment]::Exit(code) from anywhere in a command.

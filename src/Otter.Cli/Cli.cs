@@ -159,7 +159,7 @@ internal static class Cli
     static int Profile(CommandLine line)
     {
         if (!line.HasTarget) throw UsageError("Usage: otter profile <file.ot>", 871);
-        VerboseImports.Profiler();
+        VerboseImports.ProfilerFirst();
         var profiler = new Profiler();
         return FileMode.Invoke(line, line.Target!, FileMode.Kind.Run, line.RawTrailing(2), profiler: profiler);
     }
@@ -193,7 +193,7 @@ internal static class Cli
                 breakpoints.Add(number);
             }
         }
-        VerboseImports.Debugger();
+        VerboseImports.DebuggerFirst();
         string target = line.Target!;
         var debugger = new Debugger(Path.GetFileName(target.Replace('\\', '/').TrimEnd('/')), breakpoints);
         return FileMode.Invoke(line, target, FileMode.Kind.Run, line.RawTrailing(2), debugger: debugger);

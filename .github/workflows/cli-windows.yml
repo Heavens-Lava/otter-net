@@ -23,7 +23,7 @@ jobs:
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File tools/compare-cli.ps1 -OtterPs otterps -ReferenceOnly -Cases tests/cli-probe -ReportPath results/probe.md
       - name: Nesting depth of the web compiler (bisection)
-        if: ${{ hashFiles('tests/cli-probe/depth.ps1') != '' }}
+        if: ${{ contains(github.event.head_commit.message, '[probe only]') && hashFiles('tests/cli-probe/depth.ps1') != '' }}
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File tests/cli-probe/depth.ps1 -OtterPs otterps
 

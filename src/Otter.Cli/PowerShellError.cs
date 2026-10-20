@@ -131,6 +131,7 @@ internal sealed class PowerShellError : Exception
     // when the error stream is redirected.
     public void Write()
     {
+        VerboseImports.WritePending();
         Host.Out.Flush();
         string text = Render();
         if (!Console.IsErrorRedirected)

@@ -16,6 +16,23 @@ internal static partial class VerboseImports
 {
     public static bool Enabled { get; set; }
 
+    // An import otterPS makes before it checks anything (`otter profile`,
+    // `otter debug`): shown just before the command's first output, so a
+    // program that goes to the PowerShell Otter or to otter-desktop has
+    // shown nothing yet.
+    static string[]? pending;
+
+    public static void ProfilerFirst() => pending = Enabled ? ProfilerLines : null;
+    public static void DebuggerFirst() => pending = Enabled ? DebuggerLines : null;
+
+    public static void WritePending()
+    {
+        if (pending == null) return;
+        string[] block = pending;
+        pending = null;
+        Write(block);
+    }
+
     static void Write(string[] block)
     {
         if (!Enabled) return;
