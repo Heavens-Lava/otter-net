@@ -1,36 +1,20 @@
 # Measures the texts Windows PowerShell 5.1 itself prints for otterPS (the
-# errors and VERBOSE lines otter-net reproduces) and compares otter-net's.
+# errors, -InformationAction failures and VERBOSE lines otter-net reproduces;
+# docs/SPEC-QUESTIONS.md F5) and compares otter-net's, printing the
+# reference's raw output so a text can be read from the log. Run by hand:
+# ci.yml already runs every CLI case on Windows.
 name: cli-windows
 
 on:
-  push:
-    branches: [port/ps-texts]
   workflow_dispatch:
+    inputs:
+      cases:
+        description: 'Case files for tools/compare-cli.ps1 (comma-separated)'
+        default: 'tests/cli/ps-texts.psd1'
 
 jobs:
-  probe:
-    name: Reference texts (otterPS on Windows PowerShell 5.1)
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Check out otterPS 1.0.1 (the reference)
-        uses: actions/checkout@v4
-        with:
-          repository: Heavens-Lava/otterPS
-          ref: v1.0.1
-          path: otterps
-      - name: Raw reference output of the probe cases
-        shell: powershell
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File tools/compare-cli.ps1 -OtterPs otterps -ReferenceOnly -Cases tests/cli-probe -ReportPath results/probe.md
-      - name: Nesting depth of the web compiler (bisection)
-        if: ${{ contains(github.event.head_commit.message, '[probe only]') && hashFiles('tests/cli-probe/depth.ps1') != '' }}
-        shell: powershell
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File tests/cli-probe/depth.ps1 -OtterPs otterps
-
   compare:
-    name: otter-net vs otterPS (the new cases)
-    # Skipped for a commit whose message says [probe only].
-    if: ${{ !contains(github.event.head_commit.message, '[probe only]') }}
+    name: otter-net vs otterPS, with the reference's raw output
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -47,14 +31,9 @@ jobs:
         run: dotnet publish src/Otter.Cli/Otter.Cli.csproj -c Release -r win-x64 -p:UseAppHost=true -o artifacts/win-x64 --nologo
       - name: Publish otter-desktop beside it
         run: dotnet publish src/Otter.Desktop/Otter.Desktop.csproj -c Release -r win-x64 --self-contained false -p:UseAppHost=true -o artifacts/win-x64 --nologo
-      - name: Command line - the new cases, with the raw reference output
+      - name: Command line - the cases, with the raw reference output
         shell: powershell
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File tools/compare-cli.ps1 -OtterPs otterps -OtterNet artifacts/win-x64/otter.exe -Cases tests/cli/ps-texts.psd1,tests/cli/binding.psd1 -ShowReference -ReportPath results/cli-ps-texts.md
-      - name: Command line - every case
-        if: always()
-        continue-on-error: true
-        shell: powershell
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File tools/compare-cli.ps1 -OtterPs otterps -OtterNet artifacts/win-x64/otter.exe -ReportPath results/cli-windows.md
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tools/compare-cli.ps1 -OtterPs otterps -OtterNet artifacts/win-x64/otter.exe -Cases "${{ inputs.cases }}" -ShowReference -ReportPath results/cli-ps-texts.md
       - uses: actions/upload-artifact@v4
         if: always()
         with:

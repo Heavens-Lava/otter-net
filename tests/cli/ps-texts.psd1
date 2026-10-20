@@ -5,7 +5,8 @@
 # serve` and `otter desktop` that end otter.ps1. `otter desktop` runs only on
 # Windows; elsewhere both sides refuse it alike. Nothing here opens a browser
 # or a window: the desktop cases all fail before that, and the servers that
-# start are stopped by the time limit.
+# start are stopped by the time limit (long enough for Windows PowerShell to
+# have started them).
 @{
     Cases = @(
         # -InformationAction Stop and Ignore.
@@ -128,7 +129,7 @@
         @{ Name = 'V: web of a missing import'; Args = @('web', 'i.ot', '-NoOpen', '-Verbose'); Files = @{ 'i.ot' = "use `"m.ot`"`nheading `"x`"" }; KnownOnPwsh7 = 'VERBOSE lines of PowerShell 7' }
         @{ Name = 'V: serve of a syntax error'; Args = @('serve', 'bad.ot', '-Verbose'); Files = @{ 'bad.ot' = 'say (' }; KnownOnPwsh7 = 'VERBOSE lines of PowerShell 7' }
         @{ Name = 'V: serve of an empty program'; Args = @('serve', 'e.ot', '-Verbose'); Files = @{ 'e.ot' = '' }; KnownOnPwsh7 = 'VERBOSE lines of PowerShell 7; error view (5.1 NormalView)' }
-        @{ Name = 'V: serve'; Args = @('serve', 's.ot', '-Port', '18192', '-Verbose'); TimeoutSeconds = 10; Files = @{ 's.ot' = "when api receives GET at `"/hi`"`n    respond with `"hi`"" }; KnownOnPwsh7 = 'VERBOSE lines of PowerShell 7' }
+        @{ Name = 'V: serve'; Args = @('serve', 's.ot', '-Port', '18192', '-Verbose'); TimeoutSeconds = 30; Files = @{ 's.ot' = "when api receives GET at `"/hi`"`n    respond with `"hi`"" }; KnownOnPwsh7 = 'VERBOSE lines of PowerShell 7' }
         @{ Name = 'V: serve on a port in use'; Args = @('serve', 's.ot', '-Port', '18193', '-Verbose'); HoldPort = 18193; Files = @{ 's.ot' = "when api receives GET at `"/hi`"`n    respond with `"hi`"" }; KnownOnPwsh7 = 'VERBOSE lines of PowerShell 7; error view (5.1 NormalView), .NET Framework wording' }
         @{ Name = 'V: desktop of a missing import'; Args = @('desktop', 'imp.ot', '-Verbose'); Files = @{ 'imp.ot' = "use `"missing.ot`"`nheading `"x`"" } }
         @{ Name = 'V: desktop of a syntax error'; Args = @('desktop', 'bad.ot', '-Verbose'); Files = @{ 'bad.ot' = 'say (' } }
@@ -142,7 +143,7 @@
         @{ Name = 'serve: a host with a colon'; Args = @('serve', 's.ot'); TimeoutSeconds = 20; Files = @{ 's.ot' = "api is a web server`n    port is 18189`n    host is `"a:b`"`n.`nwhen api receives GET at `"/hi`"`n    respond with `"hi`"" }; KnownOnPwsh7 = 'error view (5.1 NormalView); .NET Framework wording' }
         @{ Name = 'serve: port 70000'; Args = @('serve', 's.ot', '-Port', '70000'); TimeoutSeconds = 20; Files = @{ 's.ot' = "when api receives GET at `"/hi`"`n    respond with `"hi`"" }; KnownOnPwsh7 = 'error view (5.1 NormalView); .NET Framework wording' }
         @{ Name = 'serve: port 0'; Args = @('serve', 's.ot'); TimeoutSeconds = 20; Files = @{ 's.ot' = "api is a web server`n    port is 0`n.`nwhen api receives GET at `"/hi`"`n    respond with `"hi`"" }; KnownOnPwsh7 = 'error view (5.1 NormalView); .NET Framework wording' }
-        @{ Name = 'serve: only blank lines'; Args = @('serve', 'nl.ot', '-Port', '18194'); TimeoutSeconds = 8; Files = @{ 'nl.ot' = "`n`n" } }
+        @{ Name = 'serve: only blank lines'; Args = @('serve', 'nl.ot', '-Port', '18194'); TimeoutSeconds = 30; Files = @{ 'nl.ot' = "`n`n" } }
         @{ Name = 'serve: a port [int] cannot read'; Args = @('serve', 's.ot'); TimeoutSeconds = 20; Files = @{ 's.ot' = "api is a web server`n    port is `"abc`"`n.`nwhen api receives GET at `"/hi`"`n    respond with `"hi`"" }; KnownOnPwsh7 = 'error view (5.1 NormalView)' }
         @{ Name = 'serve: a port too big for [int]'; Args = @('serve', 's.ot', '-Verbose'); TimeoutSeconds = 20; Files = @{ 's.ot' = "api is a web server`n    port is 30000000000`n.`nwhen api receives GET at `"/hi`"`n    respond with `"hi`"" }; KnownOnPwsh7 = 'error view (5.1 NormalView); VERBOSE lines of PowerShell 7' }
         @{ Name = 'serve: a listen port [int] cannot read'; Args = @('serve', 's.ot'); TimeoutSeconds = 20; Files = @{ 's.ot' = "listen on port `"x`"`nwhen api receives GET at `"/hi`"`n    respond with `"hi`"" }; KnownOnPwsh7 = 'error view (5.1 NormalView)' }
