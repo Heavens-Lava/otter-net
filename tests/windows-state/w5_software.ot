@@ -1,0 +1,8 @@
+# Every installed application (D77), with the entries
+# tools/windows-state.ps1 adds: no version, an empty publisher, a blank or
+# missing name, numbers, an expandable name, a list as version, brackets in
+# the key's name.
+get system information "software" into software
+for each app in software
+    say name of app "|" version of app "|" publisher of app
+.

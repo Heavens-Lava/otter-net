@@ -1,0 +1,184 @@
+# Windows behaviour that needs machine state a plain runner does not have:
+# printers in several states, scheduled tasks, event log entries, services,
+# software (tools/windows-state.ps1 and tests/windows-state), a German
+# culture, and a 150 % display scale. otterPS 1.0.1 on Windows PowerShell 5.1
+# against otter-net. Reports only are uploaded.
+name: windows machine state
+
+on:
+  push:
+    branches: [port/win-verify]
+  workflow_dispatch:
+
+jobs:
+  system:
+    name: System information with richer machine state
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check out otterPS 1.0.1 (the reference)
+        uses: actions/checkout@v4
+        with:
+          repository: Heavens-Lava/otterPS
+          ref: v1.0.1
+          path: otterps
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Publish native (AOT)
+        run: dotnet publish src/Otter.Cli/Otter.Cli.csproj -c Release -r win-x64 -p:UseAppHost=true -o artifacts/win-x64 --nologo
+      - name: Machine state
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tools/windows-state.ps1
+      - name: Compare - tests/windows-state and the system programs of tests/compat
+        shell: powershell
+        run: |
+          $corpus = @(Get-ChildItem tests/windows-state -Filter *.ot) + @(Get-ChildItem tests/compat -Filter *.ot | Where-Object Name -match '^(sys|t3|c4)_')
+          & tools/compare.ps1 -OtterPs otterps -OtterNet artifacts/win-x64/otter.exe -Corpus @($corpus | ForEach-Object FullName) -NativeOnly -ReportPath results/system-state.md
+          exit $LASTEXITCODE
+      - name: Output of both, for the record
+        if: always()
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force results/outputs | Out-Null
+          foreach ($program in Get-ChildItem tests/windows-state -Filter *.ot) {
+            Push-Location tests/windows-state
+            powershell -NoProfile -ExecutionPolicy Bypass -File ../../otterps/otter.ps1 run $program.Name *> "../../results/outputs/$($program.BaseName).otterps.txt"
+            $env:OTTER_ENGINE = 'native'
+            & ../../artifacts/win-x64/otter.exe run $program.Name *> "../../results/outputs/$($program.BaseName).otter-net.txt"
+            Remove-Item Env:OTTER_ENGINE
+            Pop-Location
+          }
+          Get-ChildItem results/outputs | ForEach-Object { "---- $($_.Name)"; Get-Content $_.FullName }
+      - name: What Windows reports, afterwards
+        if: always()
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tools/windows-state.ps1 -Dump
+      - name: Summary
+        if: always()
+        shell: powershell
+        run: Get-ChildItem results -Filter *.md -ErrorAction SilentlyContinue | ForEach-Object { Get-Content $_.FullName; '' } | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: system-state
+          path: results/
+
+  culture:
+    name: A German culture (formats, and the display language where possible)
+    runs-on: windows-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check out otterPS 1.0.1 (the reference)
+        uses: actions/checkout@v4
+        with:
+          repository: Heavens-Lava/otterPS
+          ref: v1.0.1
+          path: otterps
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Publish otter (native AOT), otter-desktop, the UI test harness
+        run: |
+          dotnet publish src/Otter.Cli/Otter.Cli.csproj -c Release -r win-x64 -p:UseAppHost=true -o artifacts/win-x64 --nologo
+          dotnet publish src/Otter.Desktop/Otter.Desktop.csproj -c Release -r win-x64 --self-contained false -p:UseAppHost=true -o artifacts/win-x64 --nologo
+          dotnet build tests/desktop/Harness/Harness.csproj -c Release -o artifacts/harness --nologo
+      - name: German formats (Set-Culture de-DE)
+        shell: powershell
+        run: |
+          Set-Culture de-DE
+          powershell -NoProfile -Command "'formats: ' + (Get-Culture).Name + ', display language: ' + (Get-UICulture).Name + ', 1.5 shows as ' + (1.5).ToString() + ', infinity ' + [double]::PositiveInfinity.ToString()"
+      - name: German display language (Install-Language, Set-WinUILanguageOverride)
+        continue-on-error: true
+        timeout-minutes: 45
+        shell: powershell
+        run: |
+          Get-Command Install-Language -ErrorAction SilentlyContinue | Format-List Name, Source
+          try { Install-Language -Language de-DE -ErrorAction Stop | Format-List } catch { "Install-Language: $($_.Exception.Message)" }
+          try { Set-WinUILanguageOverride -Language de-DE -ErrorAction Stop; 'override set' } catch { "Set-WinUILanguageOverride: $($_.Exception.Message)" }
+          powershell -NoProfile -Command "'new process: display language ' + (Get-UICulture).Name"
+          'German .NET Framework resources:'
+          Get-ChildItem C:\Windows\Microsoft.NET\assembly\GAC_MSIL\PresentationFramework.resources, C:\Windows\Microsoft.NET\assembly\GAC_MSIL\System.Management.Automation.resources -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
+          Get-ChildItem C:\Windows\System32\WindowsPowerShell\v1.0 -Directory | Select-Object -ExpandProperty Name
+      - name: .NET Framework 4.8.1 German language pack
+        continue-on-error: true
+        timeout-minutes: 20
+        shell: powershell
+        run: |
+          Invoke-WebRequest -UseBasicParsing 'https://go.microsoft.com/fwlink/?LinkId=2203215&clcid=0x407' -OutFile $env:RUNNER_TEMP\ndp481-deu.exe
+          $p = Start-Process -Wait -PassThru "$env:RUNNER_TEMP\ndp481-deu.exe" -ArgumentList '/q', '/norestart', '/log', "$env:RUNNER_TEMP\ndp481-deu.log"
+          "language pack installer exit code: $($p.ExitCode)"
+          Get-ChildItem C:\Windows\Microsoft.NET\assembly\GAC_MSIL\PresentationFramework.resources -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
+          Get-ChildItem "$env:RUNNER_TEMP\ndp481-deu*.log*" -ErrorAction SilentlyContinue | Select-Object -First 3 | ForEach-Object { Get-Content $_.FullName -Tail 20 }
+      - name: tests/compat under German formats
+        continue-on-error: true
+        shell: powershell
+        run: |
+          & tools/compare.ps1 -OtterPs otterps -OtterNet artifacts/win-x64/otter.exe -Corpus @((Resolve-Path tests/compat).Path) -NativeOnly -ReportPath results/compat-de-DE.md
+          exit $LASTEXITCODE
+      - name: Desktop windows under German formats
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          & artifacts/harness/desktop-harness.exe --otterps otterps/otter.ps1 --otter artifacts/win-x64/otter.exe --tests tests/desktop --out results/desktop-de-DE --summary results/desktop-de-DE.md
+          exit $LASTEXITCODE
+      - name: Desktop windows, otterPS with a German display language
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $failed = 0
+          foreach ($test in 'errors', 'quirks', 'sync_handler_error', 'properties') {
+            & artifacts/harness/desktop-harness.exe --otterps otterps/otter.ps1 --otter artifacts/win-x64/otter.exe --tests tests/desktop --out results/desktop-de-DE-ui --summary results/desktop-de-DE-ui.md --only $test --reference-ui-culture de-DE
+            if ($LASTEXITCODE -ne 0) { $failed++ }
+          }
+          exit $failed
+      - name: Summary
+        if: always()
+        shell: powershell
+        run: Get-ChildItem results -Filter *.md -ErrorAction SilentlyContinue | ForEach-Object { Get-Content $_.FullName; '' } | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: culture
+          path: results/
+
+  dpi:
+    name: Desktop windows at 150 % scale
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check out otterPS 1.0.1 (the reference)
+        uses: actions/checkout@v4
+        with:
+          repository: Heavens-Lava/otterPS
+          ref: v1.0.1
+          path: otterps
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Publish otter (native AOT), otter-desktop, the UI test harness
+        run: |
+          dotnet publish src/Otter.Cli/Otter.Cli.csproj -c Release -r win-x64 -p:UseAppHost=true -o artifacts/win-x64 --nologo
+          dotnet publish src/Otter.Desktop/Otter.Desktop.csproj -c Release -r win-x64 --self-contained false -p:UseAppHost=true -o artifacts/win-x64 --nologo
+          dotnet build tests/desktop/Harness/Harness.csproj -c Release -o artifacts/harness --nologo
+      - name: Display at 150 %
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tools/set-display-scale.ps1 -Percent 150 -Width 1920 -Height 1080
+      - name: Desktop windows at 150 %
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          & artifacts/harness/desktop-harness.exe --otterps otterps/otter.ps1 --otter artifacts/win-x64/otter.exe --tests tests/desktop --out results/desktop-150 --summary results/desktop-150.md
+          exit $LASTEXITCODE
+      - name: Summary
+        if: always()
+        shell: powershell
+        run: Get-ChildItem results -Filter *.md -ErrorAction SilentlyContinue | ForEach-Object { Get-Content $_.FullName; '' } | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dpi
+          path: results/

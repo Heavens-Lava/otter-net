@@ -1,0 +1,13 @@
+# Every scheduled task in Get-ScheduledTask's order with its state, and every
+# detail of the tasks tools/windows-state.ps1 registers (D80,
+# SPEC-QUESTIONS T3-2): folders, never run, disabled, hidden, ran, failed,
+# running, a trigger in the future and one in the past.
+get system information "tasks" into tasks
+for each task in tasks
+    say name of task "-" state of task
+.
+for each task in tasks
+    if name of task starts with "Otter" or name of task starts with "otter"
+        say name of task "|" state of task "|" lastRunTime of task "|" nextRunTime of task
+    .
+.

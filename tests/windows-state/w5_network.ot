@@ -1,0 +1,5 @@
+# Every network interface that is up (D69), with its first IPv4 address.
+get system information "network" into network
+for each face in network
+    say name of face "|" address of face
+.
