@@ -50,7 +50,7 @@
         @{ Name = 'IA lowercase stop'; Args = @('--version', '-informationaction', 'stop') }
         @{ Name = 'IA numeric 1'; Args = @('--version', '-infa', '1') }
         @{ Name = 'IA colon Ignore'; Args = @('--version', '-InformationAction:Ignore') }
-        @{ Name = 'IA long line Stop'; Args = @('a.ot', '-InformationAction', 'Stop'); Files = @{ 'a.ot' = "say `"$('x' * 150)`"" } }
+        @{ Name = 'IA long line Stop'; Args = @('a.ot', '-InformationAction', 'Stop'); Files = @{ 'a.ot' = "say `"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`"" } }
         # -Verbose, more paths
         @{ Name = 'V serve runs'; Args = @('serve', 's.ot', '-Port', '18092', '-Verbose'); TimeoutSeconds = 15; Files = @{ 's.ot' = "when api receives GET at `"/hi`"`n    respond with `"hi`"" } }
         @{ Name = 'V serve empty'; Args = @('serve', 'e.ot', '-Verbose'); Files = @{ 'e.ot' = '' } }
@@ -96,6 +96,7 @@
         @{ Name = 'D import not ot'; Args = @('desktop', 'a.ot'); Files = @{ 'a.ot' = "use `"b.txt`"`nheading `"x`""; 'b.txt' = 'x' } }
         @{ Name = 'D import outside'; Args = @('desktop', 'sub/a.ot'); Files = @{ 'sub/a.ot' = "use `"../b.ot`"`nheading `"x`""; 'b.ot' = 'to f`n    say 1' } }
         @{ Name = 'D long name page folder'; Args = @('desktop', 'a-much-longer-application-file-name-to-wrap.ot'); Files = @{ 'a-much-longer-application-file-name-to-wrap.ot' = 'heading "x"'; 'a-much-longer-application-file-name-to-wrap.html/' = '' } }
+        @{ Name = 'D import case mismatch'; Args = @('desktop', 'a.ot'); Files = @{ 'a.ot' = "use `"B.ot`"`nheading `"x`""; 'b.ot' = "to f`n    say 1" } }
         @{ Name = 'D project import missing'; Args = @('desktop', '.'); Files = @{ 'otter.json' = '{ "entryPoint": "a.ot", "target": "desktop" }'; 'a.ot' = "use `"m.ot`"`nheading `"x`"" } }
     )
 }

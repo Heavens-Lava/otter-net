@@ -47,25 +47,37 @@ internal sealed class PowerShellError : Exception
     public static PowerShellError Binding(string message, string errorId, string category = "InvalidArgument") =>
         new($"{ScriptPath} : ", message, null, category, "otter.ps1", "ParentContainsErrorRecordException", $"{errorId},otter.ps1");
 
+    // The console host wraps every line of the view (measured: an error id
+    // longer than the console, `otter desktop`'s import errors).
     public string Render()
     {
         string newLine = Environment.NewLine;
         int width = ConsoleWidth - 4 - 2;
         var text = new StringBuilder();
-        text.Append(Wrapped(Prefix + Message, ConsoleWidth - 1));
+        text.Append(Prefix + Message);
         if (Position != null) text.Append(newLine).Append(Position);
         text.Append(newLine).Append(Indented($"+ CategoryInfo          : {Category}: (:) [{Activity}], {Reason}", width));
         text.Append(newLine).Append(Indented($"+ FullyQualifiedErrorId : {ErrorId}", width));
         text.Append(newLine).Append(' ');
-        return text.ToString();
+        return Wrapped(text.ToString(), ConsoleWidth - 1);
     }
+
+    // A file of the PowerShell Otter, beside its otter.ps1 (ScriptPath):
+    // the files PowerShell's positions name.
+    public static string OtterPsFile(string relative) =>
+        Path.Combine(Path.GetDirectoryName(ScriptPath) ?? "", relative.Replace('\\', Path.DirectorySeparatorChar));
+
+    // A line as the console host writes it to a redirected stream: wrapped
+    // at the console width less one, the pieces joined by "\r\n" (VERBOSE
+    // lines, measured in CI).
+    public static string HostWrapped(string text) => Wrapped(text, ConsoleWidth - 1).Replace(Environment.NewLine, "\r\n");
 
     // The error view's first line as the console host writes it: wrapped at
     // the console width less one, word by word, each word keeping the space
     // after it (a word and its space that do not fit start the next line); a
     // word longer than a whole line is cut. Measured against Windows
     // PowerShell 5.1 in CI (otter -Deb, -OutBuffer -1, -ErrorAction 9, ...).
-    static string Wrapped(string text, int width)
+    internal static string Wrapped(string text, int width)
     {
         // A line break inside the message starts a new line, counted afresh
         // (measured: -ErrorAction foo's list of names after "try again:").
