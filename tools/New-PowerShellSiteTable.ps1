@@ -33,6 +33,7 @@ $statements = [ordered]@{
     'src\Otter.Module.psm1' = @(127, 128, 129, 130, 208, 218, 236, 242, 261)
     'src\Otter.Desktop.psm1' = @(1075, 1681)
     'src\Otter.Web.psm1' = @(3059)
+    'src\Otter.Server.psm1' = @(282)
 }
 
 $entries = [System.Collections.Generic.SortedDictionary[string, string]]::new([System.StringComparer]::Ordinal)

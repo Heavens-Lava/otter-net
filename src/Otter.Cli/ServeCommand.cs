@@ -73,7 +73,7 @@ static class ServeCommand
                     string propertyName = property.Target is VariableExpr variable ? variable.Name : NodeText(property.Target);
                     if (string.Equals(propertyName, "port", StringComparison.OrdinalIgnoreCase) && property.Value is LiteralExpr portLiteral)
                     {
-                        port = CastPort(portLiteral.Value, port, 24, "                            $port = [int]$prop.Value.Value");
+                        port = CastPort(portLiteral.Value);
                     }
                     else if (string.Equals(propertyName, "host", StringComparison.OrdinalIgnoreCase) && property.Value is LiteralExpr hostLiteral)
                     {
@@ -95,7 +95,7 @@ static class ServeCommand
             int defaultPort = 8080;
             if (listens.Count > 0 && listens[0].Port is LiteralExpr listenPort)
             {
-                defaultPort = CastPort(listenPort.Value, defaultPort, 49, "            $defaultPort = [int]$listenServers[0].Port.Value");
+                defaultPort = CastPort(listenPort.Value);
             }
             servers.Add(new ServerDefinition("server", defaultPort, "localhost"));
         }
@@ -295,20 +295,17 @@ static class ServeCommand
     }
 
     // Get-OtterServerDefinition's `$port = [int]...` (Otter.Server.psm1 line
-    // 24) and `$defaultPort = [int]...` (line 49). A value [int] refuses is a
-    // statement-terminating error inside a script module, where
-    // $ErrorActionPreference is the global Continue (a module does not see
-    // otter.ps1's Stop): PowerShell reports it and goes on, and the port
-    // keeps the value it had. Windows PowerShell 5.1's report: the message,
-    // the statement's position, and the RuntimeException's category
-    // (docs/SPEC-QUESTIONS.md T3-3).
-    static int CastPort(object? value, int current, int moduleLine, string moduleText)
+    // 24) and `$defaultPort = [int]...` (line 49). A value [int] refuses ends
+    // otter.ps1: the module function runs with otter.ps1's
+    // $ErrorActionPreference (Stop), and powershell.exe reports the
+    // conversion at Start-OtterServer's call of Get-OtterServerDefinition,
+    // exit code 1 (measured on Windows PowerShell 5.1; SPEC-QUESTIONS T3-3).
+    static int CastPort(object? value)
     {
         if (PowerShellInt32.TryCast(value, out int port, out string message, out string errorId)) return port;
-        int start = moduleText.Length - moduleText.TrimStart().Length + 1;
-        string file = PowerShellError.OtterPsFile(@"src\Otter.Server.psm1");
-        new PowerShellError("", message, PowerShellError.PositionMessage(file, moduleLine, moduleText, start, moduleText.Length - start + 1),
-            "InvalidArgument", "", "RuntimeException", errorId).Write();
-        return current;
+        Program.Trace("native: serve (a port [int] cannot read)");
+        throw new PowerShellError("Get-OtterServerDefinition : ", message,
+            PsSite.At(@"src\Otter.Server.psm1", 282, "Get-OtterServerDefinition").Position,
+            "InvalidArgument", "Get-OtterServerDefinition", "RuntimeException", $"{errorId},Get-OtterServerDefinition");
     }
 }

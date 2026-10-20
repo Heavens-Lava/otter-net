@@ -242,6 +242,7 @@ internal static partial class PowerShellSites
         [@"src\Otter.Project.psm1:963"] = @"                Write-Host """"",
         [@"src\Otter.Project.psm1:975"] = @"            Write-Host ""Building application...""",
         [@"src\Otter.Server.psm1:253"] = @"            Write-Host ""Otter: a $($request.HttpMethod) request to $($request.Url.AbsolutePath) could not be completed and was skipped. The server is still running."" -ForegroundColor DarkYellow",
+        [@"src\Otter.Server.psm1:282"] = @"    $def = Get-OtterServerDefinition -Program $Program",
         [@"src\Otter.Web.psm1:3041"] = @"        Write-Host ''",
         [@"src\Otter.Web.psm1:3042"] = @"        Write-Host $err.FormatDetailed() -ForegroundColor Red",
         [@"src\Otter.Web.psm1:3043"] = @"        Write-Host ''",
