@@ -12,10 +12,13 @@ internal static partial class ProjectCommands
 {
     static readonly string[] Archetypes = { "console", "desktop", "web", "automation", "game" };
 
-    static int ReportProjectFailure(Exception failure)
+    // otter.ps1's two catches of a project command: `catch [OtterError]`
+    // with its Write-Host '' on line `otterErrorSite`, and `catch` on line
+    // `otherSite`.
+    static int ReportProjectFailure(Exception failure, int otterErrorSite, int otherSite)
     {
         if (failure is NeedsPowerShell or CliExit) throw failure;
-        Host.Line("");
+        Host.Line("", site: PsSite.Otter(failure is OtterError ? otterErrorSite : otherSite));
         Host.Line(failure.Message, ConsoleColor.Red);
         Host.Line("");
         return Cli.ExitUsageError;
@@ -46,14 +49,14 @@ internal static partial class ProjectCommands
     {
         if (!line.HasTarget)
         {
-            Host.Line("Usage: otter new <archetype> <name>", ConsoleColor.Red);
+            Host.Line("Usage: otter new <archetype> <name>", ConsoleColor.Red, PsSite.Otter(704));
             Host.Line("Supported archetypes: console, desktop, web, automation, game.", ConsoleColor.Red);
             throw new CliExit(Cli.ExitUsageError);
         }
         string target = line.Target!;
         if (!Archetypes.Contains(target.ToLowerInvariant()))
         {
-            Host.Line($"Otter: Unknown archetype \"{target}\".", ConsoleColor.Red);
+            Host.Line($"Otter: Unknown archetype \"{target}\".", ConsoleColor.Red, PsSite.Otter(710));
             Host.Line("Usage: otter new <archetype> <name>", ConsoleColor.Red);
             Host.Line("Supported archetypes: console, desktop, web, automation, game.", ConsoleColor.Red);
             throw new CliExit(Cli.ExitUsageError);
@@ -64,7 +67,7 @@ internal static partial class ProjectCommands
         string? projectName = CommandLine.IsTrue(raw) ? raw[0] : CommandLine.IsTrue(line.Arguments) ? line.Arguments![0] : null;
         if (string.IsNullOrEmpty(projectName))
         {
-            Host.Line($"Usage: otter new {archetype} <name>", ConsoleColor.Red);
+            Host.Line($"Usage: otter new {archetype} <name>", ConsoleColor.Red, PsSite.Otter(721));
             throw new CliExit(Cli.ExitUsageError);
         }
         Program.Trace("native: new");
@@ -75,16 +78,27 @@ internal static partial class ProjectCommands
         }
         catch (Exception failure) when (failure is not OutOfMemoryException)
         {
-            throw new CliExit(ReportProjectFailure(failure));
+            throw new CliExit(ReportProjectFailure(failure, 741, 747));
         }
-        Host.Line($"Created new Otter {archetype} project in \"{created.RootDirectory}\".", ConsoleColor.Green);
-        Host.Line("");
-        Host.Line("To get started:");
-        Host.Line($"  cd {projectName}");
-        Host.Line("  otter check .");
-        Host.Line("  otter test .");
-        Host.Line($"  {(created.Scripts.TryGetValue("start", out string? start) ? start : "")}");
-        Host.Line("");
+        // Still inside otter.ps1's try: a Write-Host that fails here
+        // (-InformationAction) goes to its catch. Under Ignore PowerShell has
+        // put the default back in otter.ps1's scope, so the catch's lines show.
+        try
+        {
+            Host.Line($"Created new Otter {archetype} project in \"{created.RootDirectory}\".", ConsoleColor.Green, PsSite.Handled);
+            Host.Line("");
+            Host.Line("To get started:");
+            Host.Line($"  cd {projectName}");
+            Host.Line("  otter check .");
+            Host.Line("  otter test .");
+            Host.Line($"  {(created.Scripts.TryGetValue("start", out string? start) ? start : "")}");
+            Host.Line("");
+        }
+        catch (WriteHostFailure failure)
+        {
+            if (failure.Mode == InformationAction.Mode.Ignore) InformationAction.Replaced = true;
+            throw new CliExit(ReportProjectFailure(failure, 741, 747));
+        }
         return Cli.ExitSuccess;
     }
 
@@ -193,11 +207,11 @@ internal static partial class ProjectCommands
         string target = line.HasTarget ? line.Target! : ".";
         try
         {
-            return RunTests(target);
+            return Host.InModule(() => RunTests(target));
         }
         catch (Exception failure) when (failure is not OutOfMemoryException and not CliExit and not NeedsPowerShell)
         {
-            return ReportProjectFailure(failure);
+            return ReportProjectFailure(failure, 761, 767);
         }
     }
 

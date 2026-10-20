@@ -16,12 +16,12 @@ internal static class FileMode
         string? resolved = Project.PsResolvePath(scriptPath);
         if (resolved == null)
         {
-            Host.Line($"Otter: I cannot find a file called \"{scriptPath}\".", ConsoleColor.Red);
+            Host.Line($"Otter: I cannot find a file called \"{scriptPath}\".", ConsoleColor.Red, PsSite.Otter(471));
             throw new CliExit(Cli.ExitUsageError);
         }
         if (Directory.Exists(resolved))
         {
-            Host.Line($"Otter: \"{scriptPath}\" is a folder, not an Otter file.", ConsoleColor.Red);
+            Host.Line($"Otter: \"{scriptPath}\" is a folder, not an Otter file.", ConsoleColor.Red, PsSite.Otter(475));
             throw new CliExit(Cli.ExitUsageError);
         }
         try
@@ -30,7 +30,7 @@ internal static class FileMode
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
-            Host.Line($"Otter: I could not read \"{scriptPath}\": {Modules.FileAccessReason(e)}.", ConsoleColor.Red);
+            Host.Line($"Otter: I could not read \"{scriptPath}\": {Modules.FileAccessReason(e)}.", ConsoleColor.Red, PsSite.Otter(483));
             throw new CliExit(Cli.ExitUsageError);
         }
         return resolved;
@@ -41,7 +41,7 @@ internal static class FileMode
     {
         if (!scriptPath.ToLowerInvariant().EndsWith(".ot", StringComparison.Ordinal))
         {
-            Host.Line($"Otter: \"{scriptPath}\" is not an Otter file - expected a .ot file.", ConsoleColor.Red);
+            Host.Line($"Otter: \"{scriptPath}\" is not an Otter file - expected a .ot file.", ConsoleColor.Red, PsSite.Otter(514));
             throw new CliExit(Cli.ExitUsageError);
         }
         string resolvedPath = AssertReadable(scriptPath);
@@ -69,18 +69,11 @@ internal static class FileMode
         if (compiled.Failure != null)
         {
             Program.Trace("native: check failed");
-            compiled.WriteTokens();
+            WriteTokensInTry(compiled, debugger, profiler, sourceLines, line.DebugErrors);
             debugger?.Finished();
             profiler?.Report(sourceLines);
             ShowFailure(compiled.Failure is OtterError otterError ? resolved.Remap(otterError) : compiled.Failure, line.DebugErrors);
             throw new CliExit(Cli.ExitCheckError);
-        }
-        // A run tries otterPS's compiled engine first, whose Import-Module
-        // shows PowerShell's VERBOSE messages under -Verbose.
-        if (line.Verbose && !line.ParseOnly && !checkOnly && !line.DebugAst && debugger == null && profiler == null
-            && !string.Equals(Environment.GetEnvironmentVariable("OTTER_ENGINE"), "interpreter", StringComparison.Ordinal))
-        {
-            throw Cli.VerboseModules();
         }
         // Desktop windows: otterPS opens WPF for `create`, which Native AOT
         // cannot host (docs/port/desktop.md). On Windows such a program runs
@@ -93,15 +86,33 @@ internal static class FileMode
         }
         // -DebugAst: the tree, after the tokens, when the program will run.
         List<string>? ast = line.DebugAst && !line.ParseOnly && !checkOnly ? AstDump.Lines(compiled.Program!) : null;
-        compiled.WriteTokens();
-        if (ast != null) WriteAst(ast);
+        WriteTokensInTry(compiled, debugger, profiler, sourceLines, line.DebugErrors);
+        if (ast != null)
+        {
+            try { WriteAst(ast); }
+            catch (WriteHostFailure failure) when (!failure.Site.HasPosition) { InvokeFileCatch(failure, debugger, profiler, sourceLines, line.DebugErrors); }
+        }
+        // $script:OtterCompiledRunAllowed: Invoke-OtterCompiledProgram imports
+        // the compiled engine's module before a plain run (-Verbose shows it).
+        if (!line.ParseOnly && !checkOnly && !line.DebugAst && debugger == null && profiler == null
+            && !string.Equals(Environment.GetEnvironmentVariable("OTTER_ENGINE"), "interpreter", StringComparison.Ordinal))
+        {
+            VerboseImports.CompilerNative();
+        }
 
         if (!line.ParseOnly && !checkOnly)
         {
             Program.Trace("native: run");
-            var interpreter = new Interpreter(Host.Out, Host.In, source, arguments, echoInput: Console.IsInputRedirected)
+            // Under -InformationAction each `say` is a Write-Host that fails.
+            TextWriter programOutput = InformationAction.Active ? new InformationWriter(Host.Out) : Host.Out;
+            var interpreter = new Interpreter(programOutput, Host.In, source, arguments, echoInput: Console.IsInputRedirected)
             {
-                WriteColoredLine = Console.IsOutputRedirected ? null : (text, color) => Program.WriteInColor(Host.Out, text, color),
+                WriteColoredLine = Console.IsOutputRedirected ? null : (text, color) =>
+                {
+                    InformationAction.Before(text, PsSite.Handled);
+                    Program.WriteInColor(Host.Out, text, color);
+                    InformationAction.After(text, PsSite.Handled);
+                },
                 ReadSecretLine = Console.IsInputRedirected ? null : () => Program.ReadSecretLine(Host.Out),
                 MoveCursor = Console.IsOutputRedirected ? null : (column, row) => { Host.Out.Flush(); Console.SetCursorPosition(column, row); },
                 StatementHook = debugger?.Hook ?? profiler?.Hook,
@@ -140,19 +151,38 @@ internal static class FileMode
         profiler?.Report(sourceLines);
         if (checkOnly)
         {
-            Host.Line($"Otter: {displayTarget ?? scriptPath} is valid.", ConsoleColor.Green);
+            Host.Line($"Otter: {displayTarget ?? scriptPath} is valid.", ConsoleColor.Green, PsSite.Otter(575));
         }
         else if (line.ParseOnly)
         {
-            Host.Line($"ok: {scriptPath}");
+            Host.Line($"ok: {scriptPath}", site: PsSite.Otter(579));
         }
         return Cli.ExitSuccess;
+    }
+
+    // -DebugTokens inside Invoke-OtterSource's try: a Write-Host that fails
+    // there (-InformationAction) goes to Invoke-OtterFile's catch.
+    static void WriteTokensInTry(Compiled compiled, Debugger? debugger, Profiler? profiler, string[] sourceLines, bool debugErrors)
+    {
+        try { compiled.WriteTokens(); }
+        catch (WriteHostFailure failure) when (!failure.Site.HasPosition) { InvokeFileCatch(failure, debugger, profiler, sourceLines, debugErrors); }
+    }
+
+    // Invoke-OtterFile's catch for a failing Write-Host: the debugger's last
+    // event, the profile, then Show-OtterFailure, whose own first Write-Host
+    // fails again and ends otter.ps1.
+    static void InvokeFileCatch(WriteHostFailure failure, Debugger? debugger, Profiler? profiler, string[] sourceLines, bool debugErrors)
+    {
+        debugger?.Finished();
+        profiler?.Report(sourceLines);
+        ShowFailure(failure, debugErrors);
+        throw new CliExit(Cli.ExitRuntimeError);
     }
 
     // Invoke-OtterSource's -DebugAst block.
     public static void WriteAst(List<string> lines)
     {
-        Host.Line("--- ast ---", ConsoleColor.DarkCyan);
+        Host.Line("--- ast ---", ConsoleColor.DarkCyan, PsSite.Handled);
         foreach (string text in lines) Host.Line(text, ConsoleColor.DarkGray);
         Host.Line("");
     }
@@ -169,7 +199,7 @@ internal static class FileMode
         public void WriteTokens()
         {
             if (!ShowTokens || Tokens == null) return;
-            Host.Line("--- tokens ---", ConsoleColor.DarkCyan);
+            Host.Line("--- tokens ---", ConsoleColor.DarkCyan, PsSite.Handled);
             foreach (Token token in Tokens) Host.Line($"  {token}", ConsoleColor.DarkGray);
             Host.Line("");
             ShowTokens = false;
@@ -245,12 +275,12 @@ internal static class FileMode
     {
         if (failure is OtterError error)
         {
-            Host.Line("");
+            Host.Line("", site: PsSite.Otter(221));
             Host.Line(error.FormatDetailed(), ConsoleColor.Red);
             Host.Line("");
             return;
         }
-        Host.Line("");
+        Host.Line("", site: PsSite.Otter(230));
         Host.Line("Otter hit a problem inside itself, which means this is a bug in Otter.", ConsoleColor.Red);
         Host.Line($"  {failure.Message}", ConsoleColor.DarkGray);
         if (debugErrors)

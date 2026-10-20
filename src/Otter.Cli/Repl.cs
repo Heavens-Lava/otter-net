@@ -51,7 +51,7 @@ internal static class Repl
             throw new NeedsDesktop("the REPL can open desktop windows (create, WPF)");
         }
         Program.Trace("native: repl");
-        Host.Line(Cli.VersionText);
+        Host.Line(Cli.VersionText, site: PsSite.Otter(614));
         Host.Line("Readable like English. Precise like code.");
         Host.Line("");
 

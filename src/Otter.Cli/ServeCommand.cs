@@ -24,27 +24,39 @@ static class ServeCommand
         string resolvedPath = Path.GetFullPath(scriptFile);
         ResolvedProgram? resolved = null;
         ProgramNode program;
+        FileMode.Compiled? compiled = null;
+        OtterError? problem = null;
         try
         {
             resolved = Modules.Resolve(resolvedPath);
             string source = resolved.CombinedSource;
             string[] sourceLines = source.Replace("\r\n", "\n").Split('\n');
-            FileMode.Compiled compiled = FileMode.Compile(source, sourceLines, showTokens: false);
-            if (compiled.Failure is OtterError failure) throw failure;
-            // Not an Otter error (an empty program's parameter binding error):
-            // PowerShell's own error text.
-            if (compiled.Failure != null) throw new NeedsPowerShell("otter serve of a program that fails inside Otter");
-            program = compiled.Program!;
+            compiled = FileMode.Compile(source, sourceLines, showTokens: false);
+            if (compiled.Failure is OtterError failure) problem = failure;
         }
-        catch (OtterError error)
+        catch (OtterError error) { problem = error; }
+        // otter.ps1's Import-Module of the server module came first (-Verbose
+        // shows it); printed once nothing can go to the PowerShell Otter.
+        VerboseImports.Server();
+        if (problem != null)
         {
             Program.Trace("native: serve (errors)");
-            OtterError shown = resolved != null ? resolved.Remap(error) : error;
-            Host.Line("");
+            OtterError shown = resolved != null ? resolved.Remap(problem) : problem;
+            Host.Line("", site: PsSite.Otter(1030));
             Host.Line(shown.FormatDetailed(), ConsoleColor.Red);
             Host.Line("");
             throw new CliExit(Cli.ExitCheckError);
         }
+        // Not an Otter error: an empty program, whose `ConvertTo-OtterTokens
+        // -Source ''` fails PowerShell's parameter binding outside the catch
+        // (measured on Windows PowerShell 5.1: no position, exit code 1).
+        if (compiled!.Failure != null)
+        {
+            Program.Trace("native: serve (empty program)");
+            throw new PowerShellError($"{PowerShellError.ScriptPath} : ", "Cannot bind argument to parameter 'Source' because it is an empty string.", null,
+                "InvalidData", "otter.ps1", "ParameterBindingValidationException", "ParameterArgumentValidationErrorEmptyStringNotAllowed,otter.ps1");
+        }
+        program = compiled.Program!;
 
         // Start-OtterServer: what the program declares, then -Port.
         var servers = new List<ServerDefinition>();
@@ -61,7 +73,7 @@ static class ServeCommand
                     string propertyName = property.Target is VariableExpr variable ? variable.Name : NodeText(property.Target);
                     if (string.Equals(propertyName, "port", StringComparison.OrdinalIgnoreCase) && property.Value is LiteralExpr portLiteral)
                     {
-                        port = CastPort(portLiteral.Value, port, 24, "                            $port = [int]$prop.Value.Value");
+                        port = CastPort(portLiteral.Value);
                     }
                     else if (string.Equals(propertyName, "host", StringComparison.OrdinalIgnoreCase) && property.Value is LiteralExpr hostLiteral)
                     {
@@ -83,29 +95,18 @@ static class ServeCommand
             int defaultPort = 8080;
             if (listens.Count > 0 && listens[0].Port is LiteralExpr listenPort)
             {
-                defaultPort = CastPort(listenPort.Value, defaultPort, 49, "            $defaultPort = [int]$listenServers[0].Port.Value");
+                defaultPort = CastPort(listenPort.Value);
             }
             servers.Add(new ServerDefinition("server", defaultPort, "localhost"));
         }
         int targetPort = line.Port > 0 ? line.Port : servers.Count > 0 ? servers[0].Port : 8080;
         string targetHost = servers.Count > 0 ? servers[0].Host : "localhost";
 
-        // A server that cannot start fails with PowerShell's own error text;
-        // nothing has been written yet, so the PowerShell Otter says it.
-        var listener = new HttpListener();
-        try
-        {
-            listener.Prefixes.Add($"http://{targetHost}:{targetPort.ToString(CultureInfo.InvariantCulture)}/");
-            listener.Start();
-        }
-        catch (Exception e) when (e is HttpListenerException or ArgumentException or ObjectDisposedException or InvalidOperationException)
-        {
-            listener.Close();
-            throw new NeedsPowerShell("the web server could not start (PowerShell's error)");
-        }
+        HttpListener listener = StartListener(targetHost, targetPort);
+        VerboseImports.ServerListening(targetHost, targetPort);
 
         Program.Trace("native: serve");
-        Host.Line($"Otter Web Server running on port {targetPort.ToString(CultureInfo.InvariantCulture)}. Press Ctrl+C to stop.");
+        Host.Line($"Otter Web Server running on port {targetPort.ToString(CultureInfo.InvariantCulture)}. Press Ctrl+C to stop.", site: PsSite.Otter(1036));
         try
         {
             while (true) HandleNextRequest(listener, routes);
@@ -115,6 +116,57 @@ static class ServeCommand
             listener.Stop();
             listener.Close();
         }
+    }
+
+    // OtterServerSession.Start: `$this.Listener.Prefixes.Add($prefix)`, then
+    // `$this.Listener.Start()`. A failure ends otter.ps1 with PowerShell's
+    // report of the method call (measured on Windows PowerShell 5.1, whose
+    // .NET Framework words it): "Exception calling "Start" with "0"
+    // argument(s): ..." at `$session = Start-OtterServer ...`, exit code 1.
+    static HttpListener StartListener(string host, int port)
+    {
+        string prefix = $"http://{host}:{port.ToString(CultureInfo.InvariantCulture)}/";
+        var listener = new HttpListener();
+        string method = "Add", arguments = "1";
+        try
+        {
+            listener.Prefixes.Add(prefix);
+            method = "Start"; arguments = "0";
+            listener.Start();
+            return listener;
+        }
+        catch (Exception e) when (e is HttpListenerException or ArgumentException or ObjectDisposedException or InvalidOperationException)
+        {
+            try { listener.Close(); } catch (ObjectDisposedException) { }
+            Program.Trace($"native: serve could not start ({e.GetType().Name})");
+            throw new PowerShellError("Start-OtterServer : ", $"Exception calling \"{method}\" with \"{arguments}\" argument(s): \"{FrameworkMessage(e, prefix)}\"",
+                PsSite.At("otter.ps1", 1035, "Start-OtterServer").Position, "NotSpecified", "Start-OtterServer", "MethodInvocationException",
+                $"{e.GetType().Name},Start-OtterServer");
+        }
+    }
+
+    // The message .NET Framework's HttpListener gives (Windows PowerShell 5.1):
+    // a prefix someone else registered names it; any other HTTP.sys error is
+    // Windows' text for the code without its final full stop ("The parameter
+    // is incorrect", Win32Exception's trimming); an argument error has
+    // "Parameter name:" on a line of its own.
+    static string FrameworkMessage(Exception e, string prefix)
+    {
+        if (e is HttpListenerException listenerError && OperatingSystem.IsWindows())
+        {
+            if (listenerError.ErrorCode == 183) return $"Failed to listen on prefix '{prefix}' because it conflicts with an existing registration on the machine.";
+            string text = new System.ComponentModel.Win32Exception(listenerError.ErrorCode).Message;
+            int end = text.Length;
+            while (end > 0 && (text[end - 1] <= ' ' || text[end - 1] == '.')) end--;
+            return text[..end];
+        }
+        if (e is ArgumentException argument && !string.IsNullOrEmpty(argument.ParamName))
+        {
+            string suffix = $" (Parameter '{argument.ParamName}')";
+            string message = argument.Message.EndsWith(suffix, StringComparison.Ordinal) ? argument.Message[..^suffix.Length] : argument.Message;
+            return $"{message}\r\nParameter name: {argument.ParamName}";
+        }
+        return e.Message;
     }
 
     // OtterServerSession.HandleNextRequest
@@ -160,7 +212,8 @@ static class ServeCommand
         catch (Exception e) when (e is not OutOfMemoryException)
         {
             Program.Trace($"serve: {e.GetType().Name}: {e.Message}");
-            Host.Line($"Otter: a {request.HttpMethod} request to {request.Url?.AbsolutePath} could not be completed and was skipped. The server is still running.", ConsoleColor.DarkYellow);
+            Host.Line($"Otter: a {request.HttpMethod} request to {request.Url?.AbsolutePath} could not be completed and was skipped. The server is still running.", ConsoleColor.DarkYellow,
+                PsSite.At(@"src\Otter.Server.psm1", 253));
             try { SendText(response, 500, "Internal Server Error"); }
             catch (Exception)
             {
@@ -242,20 +295,17 @@ static class ServeCommand
     }
 
     // Get-OtterServerDefinition's `$port = [int]...` (Otter.Server.psm1 line
-    // 24) and `$defaultPort = [int]...` (line 49). A value [int] refuses is a
-    // statement-terminating error inside a script module, where
-    // $ErrorActionPreference is the global Continue (a module does not see
-    // otter.ps1's Stop): PowerShell reports it and goes on, and the port
-    // keeps the value it had. Windows PowerShell 5.1's report: the message,
-    // the statement's position, and the RuntimeException's category
-    // (docs/SPEC-QUESTIONS.md T3-3).
-    static int CastPort(object? value, int current, int moduleLine, string moduleText)
+    // 24) and `$defaultPort = [int]...` (line 49). A value [int] refuses ends
+    // otter.ps1: the module function runs with otter.ps1's
+    // $ErrorActionPreference (Stop), and powershell.exe reports the
+    // conversion at Start-OtterServer's call of Get-OtterServerDefinition,
+    // exit code 1 (measured on Windows PowerShell 5.1; SPEC-QUESTIONS T3-3).
+    static int CastPort(object? value)
     {
         if (PowerShellInt32.TryCast(value, out int port, out string message, out string errorId)) return port;
-        int start = moduleText.Length - moduleText.TrimStart().Length + 1;
-        string file = Path.Combine(AppContext.BaseDirectory, "src", "Otter.Server.psm1");
-        new PowerShellError("", message, PowerShellError.PositionMessage(file, moduleLine, moduleText, start, moduleText.Length - start + 1),
-            "InvalidArgument", "", "RuntimeException", errorId).Write();
-        return current;
+        Program.Trace("native: serve (a port [int] cannot read)");
+        throw new PowerShellError("Get-OtterServerDefinition : ", message,
+            PsSite.At(@"src\Otter.Server.psm1", 282, "Get-OtterServerDefinition").Position,
+            "InvalidArgument", "Get-OtterServerDefinition", "RuntimeException", $"{errorId},Get-OtterServerDefinition");
     }
 }
