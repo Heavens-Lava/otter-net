@@ -193,10 +193,22 @@ public static partial class OtterSystemInfo
     }
 
     // One "network interface" for each interface that is up and not loopback,
-    // with its first IPv4 address.
+    // with its first IPv4 address. On Windows as .NET Framework lists them
+    // (NetworkAdapters.cs); elsewhere as PowerShell 7's .NET does.
     static OtterList Network()
     {
         var list = new OtterList();
+        if (OperatingSystem.IsWindows())
+        {
+            foreach (var (name, address) in OtterNetworkAdapters.List() ?? new())
+            {
+                var entry = new OtterThing("network interface");
+                entry.WriteProperty("name", name);
+                entry.WriteProperty("address", address);
+                list.Add(entry);
+            }
+            return list;
+        }
         try
         {
             foreach (NetworkInterface face in NetworkInterface.GetAllNetworkInterfaces())
@@ -291,12 +303,12 @@ public static partial class OtterSystemInfo
                 {
                     using RegistryKey? entry = uninstall.OpenSubKey(name);
                     if (entry == null) continue;
-                    object? displayName = OtterRegistry.ToOtter(entry.GetValue("DisplayName"));
+                    object? displayName = SoftwareValue(entry.GetValue("DisplayName"));
                     if (displayName == null || string.IsNullOrWhiteSpace(Values.Format(displayName))) continue;
                     var software = new OtterThing("software");
                     software.WriteProperty("name", displayName);
-                    software.WriteProperty("version", TruthyOrGone(OtterRegistry.ToOtter(entry.GetValue("DisplayVersion"))));
-                    software.WriteProperty("publisher", TruthyOrGone(OtterRegistry.ToOtter(entry.GetValue("Publisher"))));
+                    software.WriteProperty("version", TruthyOrGone(SoftwareValue(entry.GetValue("DisplayVersion"))));
+                    software.WriteProperty("publisher", TruthyOrGone(SoftwareValue(entry.GetValue("Publisher"))));
                     list.Add(software);
                 }
             }
@@ -309,4 +321,24 @@ public static partial class OtterSystemInfo
     }
 
     static object? TruthyOrGone(object? value) => Values.IsTruthy(value) ? value : null;
+
+    // A registry value as Get-ItemProperty gives it to otterPS, which keeps
+    // it as it is. A list value (REG_MULTI_SZ, REG_BINARY) stays a
+    // PowerShell array there, which prints as its items joined by spaces
+    // ([string] of an array) and is false when it is empty or holds one false
+    // item; otter-net keeps that text (SPEC-QUESTIONS W5-2). Measured on a
+    // Windows CI runner.
+    [SupportedOSPlatform("windows")]
+    static object? SoftwareValue(object? raw)
+    {
+        object?[]? items = raw switch
+        {
+            string[] texts => texts.Select(t => (object?)t).ToArray(),
+            byte[] bytes => bytes.Select(b => (object?)(double)b).ToArray(),
+            _ => null,
+        };
+        if (items == null) return OtterRegistry.ToOtter(raw);
+        if (items.Length == 0 || (items.Length == 1 && !Values.IsTruthy(items[0]))) return null;
+        return string.Join(" ", items.Select(Values.Format));
+    }
 }

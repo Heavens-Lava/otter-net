@@ -49,21 +49,22 @@ if (-not $Dump) {
     $driver = $script:driver
     $folder = 'C:\otter-w5'
     New-Item -ItemType Directory -Force -Path $folder | Out-Null
-    Step 'ports' {
-        foreach ($port in "$folder\idle.prn", "$folder\paused.prn", "$folder\offline.prn", 'C:\otter-w5-missing-folder\error.prn') {
-            if (-not (Get-PrinterPort -Name $port -ErrorAction SilentlyContinue)) { Add-PrinterPort -Name $port -ErrorAction Stop }
-        }
-        if (-not (Get-PrinterPort -Name 'OtterW5_unreachable' -ErrorAction SilentlyContinue)) {
-            # TEST-NET-1: nothing answers there.
-            Add-PrinterPort -Name 'OtterW5_unreachable' -PrinterHostAddress '192.0.2.1' -ErrorAction Stop
-        }
+    # The error printer's port is a file in a folder that is removed once
+    # the printer exists, so its job fails.
+    New-Item -ItemType Directory -Force -Path 'C:\otter-w5-gone' | Out-Null
+    foreach ($port in "$folder\idle.prn", "$folder\paused.prn", "$folder\offline.prn", 'C:\otter-w5-gone\error.prn') {
+        Step "port $port" { if (-not (Get-PrinterPort -Name $port -ErrorAction SilentlyContinue)) { Add-PrinterPort -Name $port -ErrorAction Stop } }
+    }
+    Step 'port OtterW5_unreachable' {
+        # TEST-NET-1: nothing answers there.
+        if (-not (Get-PrinterPort -Name 'OtterW5_unreachable' -ErrorAction SilentlyContinue)) { Add-PrinterPort -Name 'OtterW5_unreachable' -PrinterHostAddress '192.0.2.1' -ErrorAction Stop }
     }
     $printers = [ordered]@{
         'Otter W5 Idle' = "$folder\idle.prn"
         'Otter W5 Paused' = "$folder\paused.prn"
         'Otter W5 Paused With Job' = "$folder\paused.prn"
         'Otter W5 Work Offline' = "$folder\offline.prn"
-        'Otter W5 Error' = 'C:\otter-w5-missing-folder\error.prn'
+        'Otter W5 Error' = 'C:\otter-w5-gone\error.prn'
         'Otter W5 Unreachable' = 'OtterW5_unreachable'
         'otter w5 lower case' = "$folder\idle.prn"
     }
@@ -77,6 +78,7 @@ if (-not $Dump) {
     }
     Step 'a job on a paused printer' { 'a page' | Out-Printer -Name 'Otter W5 Paused With Job' }
     Step 'work offline' { Get-CimInstance Win32_Printer -Filter "Name='Otter W5 Work Offline'" | Set-CimInstance -Property @{ WorkOffline = $true } }
+    Step 'remove the error printer''s folder' { Remove-Item -Recurse -Force 'C:\otter-w5-gone' }
     Step 'a job that fails' { 'a page' | Out-Printer -Name 'Otter W5 Error' }
     Step 'a job to nowhere' { 'a page' | Out-Printer -Name 'Otter W5 Unreachable' }
     Step 'default printer' { Get-CimInstance Win32_Printer -Filter "Name='Otter W5 Paused'" | Invoke-CimMethod -MethodName SetDefaultPrinter | Out-Null }
@@ -126,7 +128,7 @@ if (-not $Dump) {
         Write-EventLog -LogName 'OtterW5' -Source 'OtterW5 Source' -EventId 3 -EntryType Error -Message 'An error with "quotes" and %1 and 100%.'
         Write-EventLog -LogName 'OtterW5' -Source 'OtterW5 Source' -EventId 4 -EntryType SuccessAudit -Message 'A success audit.'
         Write-EventLog -LogName 'OtterW5' -Source 'OtterW5 Source' -EventId 5 -EntryType FailureAudit -Message 'A failure audit.'
-        Write-EventLog -LogName 'OtterW5' -Source 'OtterW5 Source' -EventId 6 -EntryType Information -Message ''
+        [System.Diagnostics.EventLog]::WriteEntry('OtterW5 Source', '', [System.Diagnostics.EventLogEntryType]::Information, 6)
         Write-EventLog -LogName 'OtterW5' -Source 'OtterW5 Source' -EventId 70000 -EntryType Information -Message 'An event id above 65535.'
         # A source whose message file does not exist: the event has no description.
         $key = 'HKLM:\SYSTEM\CurrentControlSet\Services\EventLog\OtterW5\OtterW5 No Text'
@@ -182,6 +184,18 @@ if (-not $Dump) {
         New-Item -Force -Path $k | Out-Null
         New-ItemProperty -LiteralPath $k -Name DisplayName -Value 'Otter W5 %OS%' -PropertyType ExpandString -Force | Out-Null
         New-ItemProperty -LiteralPath $k -Name DisplayVersion -Value @('1', '2') -PropertyType MultiString -Force | Out-Null
+        New-ItemProperty -LiteralPath $k -Name Publisher -Value ([byte[]](1, 0, 255)) -PropertyType Binary -Force | Out-Null
+        $k = $root + '\OtterW5 J lists of one'
+        New-Item -Force -Path $k | Out-Null
+        New-ItemProperty -LiteralPath $k -Name DisplayName -Value @('Otter W5 a list of one name') -PropertyType MultiString -Force | Out-Null
+        New-ItemProperty -LiteralPath $k -Name DisplayVersion -Value @('') -PropertyType MultiString -Force | Out-Null
+        New-ItemProperty -LiteralPath $k -Name Publisher -Value ([byte[]](0)) -PropertyType Binary -Force | Out-Null
+        $k = $root + '\OtterW5 K empty lists'
+        New-Item -Force -Path $k | Out-Null
+        New-ItemProperty -LiteralPath $k -Name DisplayName -Value 'Otter W5 empty lists' -PropertyType String -Force | Out-Null
+        New-ItemProperty -LiteralPath $k -Name DisplayVersion -Value @('', '') -PropertyType MultiString -Force | Out-Null
+        New-ItemProperty -LiteralPath $k -Name Publisher -Value ([byte[]]@()) -PropertyType Binary -Force | Out-Null
+        New-ItemProperty -LiteralPath $k -Name QuietDisplayName -Value 1 -PropertyType QWord -Force | Out-Null
     }
 }
 
