@@ -1,0 +1,54 @@
+# Measures the texts Windows PowerShell 5.1 itself prints for otterPS (the
+# errors and VERBOSE lines otter-net reproduces) and compares otter-net's.
+name: cli-windows
+
+on:
+  push:
+    branches: [port/ps-texts]
+  workflow_dispatch:
+
+jobs:
+  probe:
+    name: Reference texts (otterPS on Windows PowerShell 5.1)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check out otterPS 1.0.1 (the reference)
+        uses: actions/checkout@v4
+        with:
+          repository: Heavens-Lava/otterPS
+          ref: v1.0.1
+          path: otterps
+      - name: Raw reference output of the probe cases
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tools/compare-cli.ps1 -OtterPs otterps -ReferenceOnly -Cases tests/cli-probe -ReportPath results/probe.md
+
+  compare:
+    name: otter-net vs otterPS (the new cases)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check out otterPS 1.0.1 (the reference)
+        uses: actions/checkout@v4
+        with:
+          repository: Heavens-Lava/otterPS
+          ref: v1.0.1
+          path: otterps
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Publish native (AOT)
+        run: dotnet publish src/Otter.Cli/Otter.Cli.csproj -c Release -r win-x64 -p:UseAppHost=true -o artifacts/win-x64 --nologo
+      - name: Command line - the new cases, with the raw reference output
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tools/compare-cli.ps1 -OtterPs otterps -OtterNet artifacts/win-x64/otter.exe -Cases tests/cli/ps-texts.psd1,tests/cli/binding.psd1 -ShowReference -ReportPath results/cli-ps-texts.md
+      - name: Command line - every case
+        if: always()
+        continue-on-error: true
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tools/compare-cli.ps1 -OtterPs otterps -OtterNet artifacts/win-x64/otter.exe -ReportPath results/cli-windows.md
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cli-windows
+          path: results/

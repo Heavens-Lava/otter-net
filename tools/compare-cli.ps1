@@ -26,6 +26,9 @@ A case file is a PowerShell data file:
            Env = @{ NAME = 'value' }                       # optional, both sides
            Mask = @('\d+ ms')                              # optional: regexes replaced in stdout before comparing
            IgnoreFiles = @('publish/*.zip')                # optional: -like patterns left out of the file comparison
+           StderrMask = @('PID: \d+')                     # optional: regexes replaced in stderr before comparing
+           TimeoutSeconds = 60                             # optional: this case's own time limit (then the tree is killed)
+           HoldPort = 18085                                # optional: an HttpListener holds http://localhost:<port>/ during each run
            KnownOnPwsh7 = 'why PowerShell 7 differs from 5.1' }  # optional
     ) }
 
@@ -36,6 +39,11 @@ Exit code 0 when every case matched (or differed only as KnownOnPwsh7 says,
 on a PowerShell 7 reference), 1 otherwise. Runs on Windows PowerShell 5.1
 and PowerShell 7.
 
+-ShowReference also prints each case's raw reference output (exit code,
+standard output and standard error, with \r made visible): how the texts
+PowerShell itself prints are measured on Windows. -ReferenceOnly runs only
+the reference (no -OtterNet needed) and implies -ShowReference.
+
 .EXAMPLE
 pwsh -NoProfile -File tools/compare-cli.ps1 -OtterPs ../otterPS-1.0.1 -OtterNet src/Otter.Cli/bin/Release/net10.0/otter.dll
 
@@ -45,20 +53,24 @@ powershell -NoProfile -File tools\compare-cli.ps1 -OtterPs ..\otterPS-1.0.1 -Ott
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][string]$OtterPs,
-    [Parameter(Mandatory)][string]$OtterNet,
+    [string]$OtterNet = '',
     # Case files or folders of them; default: tests/cli.
     [string[]]$Cases = @(),
     # Only cases whose name matches this -like pattern.
     [string]$Filter = '*',
     [switch]$AllowFallback,
     [string]$ReportPath = '',
-    [int]$TimeoutSeconds = 120
+    [int]$TimeoutSeconds = 120,
+    [switch]$ShowReference,
+    [switch]$ReferenceOnly
 )
 
 $ErrorActionPreference = 'Stop'
 $here = Split-Path -Parent $PSScriptRoot
 $OtterPs = (Resolve-Path $OtterPs).Path
-$OtterNet = (Resolve-Path $OtterNet).Path
+if ($ReferenceOnly) { $ShowReference = $true }
+elseif (-not $OtterNet) { throw '-OtterNet is required (or -ReferenceOnly).' }
+else { $OtterNet = (Resolve-Path $OtterNet).Path }
 $referenceScript = Join-Path $OtterPs 'otter.ps1'
 $onWindows = [System.IO.Path]::DirectorySeparatorChar -eq '\'
 $referenceHost = if ($onWindows) { 'powershell.exe' } else { 'pwsh' }
@@ -93,7 +105,7 @@ function ConvertTo-ArgumentString {
 }
 
 function Invoke-OtterProcess {
-    param([string]$FileName, [string[]]$Arguments, [string]$WorkingDirectory, [string]$InputText, [hashtable]$Environment)
+    param([string]$FileName, [string[]]$Arguments, [string]$WorkingDirectory, [string]$InputText, [hashtable]$Environment, [int]$Timeout = $TimeoutSeconds)
     $psi = [System.Diagnostics.ProcessStartInfo]::new()
     $psi.FileName = $FileName
     $psi.Arguments = ConvertTo-ArgumentString $Arguments
@@ -108,7 +120,7 @@ function Invoke-OtterProcess {
     $copy = $process.StandardOutput.BaseStream.CopyToAsync($stdout)
     $stderr = $process.StandardError.ReadToEndAsync()
     try { $process.StandardInput.Write($InputText); $process.StandardInput.Close() } catch { }
-    $finished = $process.WaitForExit($TimeoutSeconds * 1000)
+    $finished = $process.WaitForExit($Timeout * 1000)
     if (-not $finished) {
         if ($onWindows) { & taskkill.exe /T /F /PID $process.Id 2>&1 | Out-Null }
         else { try { $process.Kill($true) } catch { } }
@@ -182,12 +194,32 @@ try {
             if ($case.Env) { foreach ($key in $case.Env.Keys) { $environment[$key] = [string]$case.Env[$key] } }
             $ignore = @(); if ($case.IgnoreFiles) { $ignore = @($case.IgnoreFiles) }
 
+            $caseTimeout = if ($case.TimeoutSeconds) { [int]$case.TimeoutSeconds } else { $TimeoutSeconds }
+
             $runs = @{}
-            foreach ($side in @('reference', 'candidate')) {
+            $sides = if ($ReferenceOnly) { @('reference') } else { @('reference', 'candidate') }
+            foreach ($side in $sides) {
                 New-CaseFolder -Folder $folder -Case $case
+                $holder = $null
+                if ($case.HoldPort) {
+                    $holder = [System.Net.HttpListener]::new()
+                    $holder.Prefixes.Add("http://localhost:$([int]$case.HoldPort)/")
+                    $holder.Start()
+                }
+                try {
                 if ($side -eq 'reference') {
                     $runs[$side] = Invoke-OtterProcess -FileName $referenceHost -Arguments @($referencePrefix + @($referenceScript) + $arguments) `
-                        -WorkingDirectory $folder -InputText $stdin -Environment $environment
+                        -WorkingDirectory $folder -InputText $stdin -Environment $environment -Timeout $caseTimeout
+                    if ($ShowReference) {
+                        $visible = { param($t) $t.Replace("`r", '\r').Replace("`n", "\n`n") }
+                        Write-Host "==== $caseName | otter $($arguments -join ' ')"
+                        Write-Host "exit: $($runs[$side].ExitCode)"
+                        Write-Host '--- stdout ---'
+                        Write-Host (& $visible $runs[$side].Stdout)
+                        Write-Host '--- stderr ---'
+                        Write-Host (& $visible $runs[$side].Stderr)
+                        Write-Host '==== end'
+                    }
                 }
                 else {
                     $candidateEnvironment = $environment.Clone()
@@ -200,10 +232,13 @@ try {
                     $candidateFile = $OtterNet; $candidateArguments = $arguments
                     if ($OtterNet.EndsWith('.dll')) { $candidateFile = 'dotnet'; $candidateArguments = @($OtterNet) + $arguments }
                     $runs[$side] = Invoke-OtterProcess -FileName $candidateFile -Arguments $candidateArguments -WorkingDirectory $folder `
-                        -InputText $stdin -Environment $candidateEnvironment
+                        -InputText $stdin -Environment $candidateEnvironment -Timeout $caseTimeout
                 }
+                }
+                finally { if ($holder) { $holder.Stop(); $holder.Close() } }
                 $runs[$side] | Add-Member -NotePropertyName Files -NotePropertyValue (Get-FolderSnapshot -Folder $folder -Ignore $ignore)
             }
+            if ($ReferenceOnly) { continue }
             $reference = $runs['reference']; $candidate = $runs['candidate']
             $traceLines = @(($candidate.Stderr -split "`r?`n") | Where-Object { $_ -like 'otter-net *' })
             $engine = if ($traceLines | Where-Object { $_ -like 'otter-net native*' }) { 'native' }
@@ -240,6 +275,12 @@ try {
             # errors name the real script (SPEC-QUESTIONS C2-1): both become <otter.ps1>.
             $referenceStderr = $referenceStderr.Replace($referenceScript, '<otter.ps1>')
             $candidateStderr = $candidateStderr.Replace($referenceScript, '<otter.ps1>').Replace((Join-Path (Split-Path -Parent $OtterNet) 'otter.ps1'), '<otter.ps1>')
+            if ($case.StderrMask) {
+                foreach ($pattern in @($case.StderrMask)) {
+                    $referenceStderr = [regex]::Replace($referenceStderr, $pattern, '<masked>')
+                    $candidateStderr = [regex]::Replace($candidateStderr, $pattern, '<masked>')
+                }
+            }
             if ($referenceStderr.Trim() -ne $candidateStderr.Trim()) {
                 $refErr = $referenceStderr.Trim(); $candErr = $candidateStderr.Trim()
                 $at = Get-FirstDifference $refErr $candErr
