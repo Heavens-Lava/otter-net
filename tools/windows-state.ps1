@@ -128,8 +128,7 @@ if (-not $Dump) {
         Write-EventLog -LogName 'OtterW5' -Source 'OtterW5 Source' -EventId 3 -EntryType Error -Message 'An error with "quotes" and %1 and 100%.'
         Write-EventLog -LogName 'OtterW5' -Source 'OtterW5 Source' -EventId 4 -EntryType SuccessAudit -Message 'A success audit.'
         Write-EventLog -LogName 'OtterW5' -Source 'OtterW5 Source' -EventId 5 -EntryType FailureAudit -Message 'A failure audit.'
-        [System.Diagnostics.EventLog]::WriteEntry('OtterW5 Source', '', [System.Diagnostics.EventLogEntryType]::Information, 6)
-        Write-EventLog -LogName 'OtterW5' -Source 'OtterW5 Source' -EventId 70000 -EntryType Information -Message 'An event id above 65535.'
+        Write-EventLog -LogName 'OtterW5' -Source 'OtterW5 Source' -EventId 65535 -EntryType Information -Message 'The highest event id.'
         # A source whose message file does not exist: the event has no description.
         $key = 'HKLM:\SYSTEM\CurrentControlSet\Services\EventLog\OtterW5\OtterW5 No Text'
         Set-ItemProperty -Path $key -Name EventMessageFile -Value 'C:\otter-w5-missing-folder\messages.dll'
