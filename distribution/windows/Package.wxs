@@ -3,25 +3,26 @@
   through otter-net.wixproj (WiX 5, SDK-style).
 
   - Installs for the current user only, no administrator rights, into
-    %LOCALAPPDATA%\Programs\otter-net: exactly the files of the release ZIP
-    (otter.exe, otter-desktop.exe when it is built, LICENSE, README.md,
-    VERSION, THIRD-PARTY-NOTICES.txt, SHA256SUMS).
+    %LOCALAPPDATA%\Programs\otter-net: exactly the files of the ZIP
+    (otter.exe; otter-desktop.exe, self-contained, with WPF's *_cor3.dll;
+    LICENSE, README.md, VERSION, THIRD-PARTY-NOTICES.txt, SHA256SUMS).
+    Nothing else is needed on the machine: no .NET, no PowerShell.
   - Puts that folder first on the user's PATH, so a new terminal's `otter` is
-    otter-net's, also when the PowerShell Otter (otterPS) is on the PATH
-    too. otter-net still finds otterPS where Install-Otter.ps1 put it
-    (%LOCALAPPDATA%\Otter\1.0.1) for what it hands over.
+    otter-net's, also when the PowerShell Otter (otterPS) is on the PATH too.
   - Uninstalling (Settings > Apps) removes the files, the folder, the PATH
     entry and HKCU\Software\otter-net.
-  - Its own UpgradeCode, distinct from otterPS's MSI
-    (F2065F2E-9E7A-405C-810C-3826A1DAAE39): a newer otter-net MSI replaces an
-    older one (same version too: release candidates share 1.0.1), and the two
-    products never replace each other. Whether otter-net's installer should
-    take over otterPS's identity is a decision for publishing
-    (docs/PACKAGING.md).
+  - Its own identity, distinct from every otterPS identity
+    (docs/PREVIEW_RELEASE.md): UpgradeCode B6DDDF92-... (otterPS's MSI:
+    F2065F2E-9E7A-405C-810C-3826A1DAAE39), folder Programs\otter-net
+    (otterPS: Programs\Otter, or Otter\<v> from its ZIP), HKCU\Software\otter-net
+    (otterPS: HKCU\Software\Otter). A newer otter-net MSI replaces an older
+    one (the same numeric version too: previews of one version share it), a
+    downgrade is refused, and the two products never replace each other.
 
-  Variables (from tools\package.ps1):
-    ProductVersion  numbers only, for Windows Installer (1.0.1)
-    PackageVersion  the full version from VERSION (1.0.1-rc.1)
+  Variables (from tools\package.ps1, all from VERSION):
+    ProductVersion  numbers only, for Windows Installer (0.9.0)
+    PackageVersion  the full version (0.9.0-preview.1)
+    Channel         what the version says this is (internal preview)
   The files' components come from a fragment tools\package.ps1 generates
   (ComponentGroup OtterNetFiles).
 -->
@@ -33,15 +34,15 @@
            Scope="perUser"
            Language="1033">
 
-    <SummaryInformation Description="Otter (otter-net) $(var.PackageVersion) - unsigned release candidate" />
+    <SummaryInformation Description="Otter (otter-net) $(var.PackageVersion) - unsigned $(var.Channel)" />
     <MajorUpgrade AllowSameVersionUpgrades="yes"
                   DowngradeErrorMessage="A newer version of otter-net is already installed." />
-    <MediaTemplate EmbedCab="yes" />
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
 
     <!-- What Settings > Apps shows. -->
     <Property Id="ARPURLINFOABOUT" Value="https://otterprogramming.com" />
     <Property Id="ARPHELPLINK" Value="https://github.com/Heavens-Lava/otter-net/issues" />
-    <Property Id="ARPCOMMENTS" Value="Otter, native implementation - release candidate $(var.PackageVersion), unsigned." />
+    <Property Id="ARPCOMMENTS" Value="Otter 1.0.1, native implementation (otter-net) - $(var.Channel) $(var.PackageVersion), unsigned. Not an Otter release." />
     <Property Id="ARPNOMODIFY" Value="1" />
 
     <StandardDirectory Id="LocalAppDataFolder">
