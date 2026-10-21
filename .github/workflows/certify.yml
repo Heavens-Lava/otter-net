@@ -42,13 +42,18 @@ jobs:
           - os: windows-11-arm
             rid: win-arm64
     steps:
-      # The sources byte for byte as on every other platform (no CRLF).
-      - name: Line endings as committed
+      # otter-net's sources as committed; otterPS's with CRLF line endings,
+      # as its release (built on Windows) has them: its modules' here-strings
+      # become the pages and project files it writes. The same on every
+      # platform, so each runs byte-identical programs.
+      - name: otter-net's line endings as committed
         run: git config --global core.autocrlf false
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.CANDIDATE }}
           path: otter-net
+      - name: otterPS's line endings as released (CRLF)
+        run: git config --global core.autocrlf true
       - name: Check out otterPS 1.0.1 (the reference)
         uses: actions/checkout@v4
         with:
@@ -90,10 +95,14 @@ jobs:
     env:
       TZ: UTC
     steps:
+      - name: otter-net's line endings as committed
+        run: git config --global core.autocrlf false
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.CANDIDATE }}
           path: otter-net
+      - name: otterPS's line endings as released (CRLF), as on Windows
+        run: git config --global core.autocrlf true
       - name: Check out otterPS 1.0.1 (the reference)
         uses: actions/checkout@v4
         with:
@@ -150,10 +159,13 @@ jobs:
           echo "$DOTNET_ROOT" >> "$GITHUB_PATH"
           echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
           git config --global --add safe.directory '*'
+          git config --global core.autocrlf false
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.CANDIDATE }}
           path: otter-net
+      - name: otterPS's line endings as released (CRLF), as on Windows
+        run: git config --global core.autocrlf true
       - name: Check out otterPS 1.0.1 (the reference)
         uses: actions/checkout@v4
         with:
