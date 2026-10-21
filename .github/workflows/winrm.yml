@@ -72,12 +72,7 @@ jobs:
           $name = Invoke-Command -ComputerName localhost -Credential $cred -ScriptBlock { hostname } -ErrorAction Stop
           Write-Host "Invoke-Command as otterwinrm works: $name"
 
-      - name: Probe - which option set does WinRM accept for a PowerShell shell
-        shell: pwsh
-        run: |
-          dotnet run --project tests/winrm/Probe -c Release -- localhost otterwinrm $env:OTTER_WINRM_PASSWORD
-          exit 0
-      - name: The full output of each implementation for two cases
+      - name: The full output of each implementation for four cases
         shell: powershell
         run: |
           foreach ($case in 'r4_hostname', 'r4_wrong_password', 'r4_notfound', 'r4_unknown_host') {
@@ -100,6 +95,21 @@ jobs:
           if ($after -gt $before) { Write-Host 'Shells were left open'; $code = 1 }
           exit $code
 
+      - name: Remote commands to a host that does not resolve and one that never answers
+        # Trusted only for this step, so WinRM really tries to connect: a DNS
+        # failure (.invalid) and a connection timeout (TEST-NET-1, 192.0.2.1),
+        # instead of the TrustedHosts refusal both implementations give first.
+        if: always()
+        shell: powershell
+        run: |
+          $trusted = (Get-Item WSMan:\localhost\Client\TrustedHosts).Value
+          Set-Item WSMan:\localhost\Client\TrustedHosts -Value "$trusted,otter-nowhere.invalid,192.0.2.1" -Force
+          $clock = [Diagnostics.Stopwatch]::StartNew()
+          & ./tools/compare.ps1 -OtterPs otterps -OtterNet artifacts/win-x64/otter.exe -Corpus @('tests/winrm/r4_unknown_host.ot', 'tests/winrm/r4_unreachable.ot') -NativeOnly -TimeoutSeconds 600 -ReportPath results/winrm-connect.md
+          $code = $LASTEXITCODE
+          Set-Item WSMan:\localhost\Client\TrustedHosts -Value $trusted -Force
+          "", "Both implementations, both programs: $([int]$clock.Elapsed.TotalSeconds) s" | Out-File -Append -Encoding utf8 results/winrm-connect.md
+          exit $code
       - name: Remote commands with the WinRM service stopped
         if: always()
         shell: powershell
