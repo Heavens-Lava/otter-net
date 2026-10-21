@@ -50,10 +50,11 @@ Change shared files (`Parser.cs`, `Interpreter.cs`, `Lexer.cs`,
 `TokenKind.cs`, `Syntax.cs`, `Values.cs`) only where unavoidable, in
 small, separate edits: other areas are being ported at the same time.
 
-When a feature is ported, remove the `throw Unsupported(...)` that sent it
-to the PowerShell Otter. A form that is still not ported must keep
-throwing `Unsupported` *before anything runs*: never start natively and
-fail halfway.
+Every feature is ported (2026-10-20) and the hand-over to the PowerShell
+Otter is gone. A form otter-net does not know is a gap in otter-net: the
+parser or compiler throws `NotSupportedYet`, the CLI `OtterNetGap`, and the
+`otter` command reports it as Otter's own internal error. Fix the gap; never
+reintroduce a hand-over.
 
 ## Rules the build enforces
 

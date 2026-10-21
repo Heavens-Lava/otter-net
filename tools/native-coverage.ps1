@@ -28,7 +28,8 @@ Four inventories, each read from the sources rather than written by hand:
      counterpart (found by the otterPS name otter-net's code cites, or by
      the table below for the ones it does not cite).
   4. Every place otter-net can still hand a program to the PowerShell Otter
-     (`Unsupported(`, `NotSupportedYet(`, `NeedsPowerShell`), with its reason.
+     (`NotSupportedYet(`, `OtterNetGap`), with its reason: since 2026-10-20
+     none hands anything to PowerShell; each is reported as Otter's internal error.
 
 With -Cobertura (the report tools/coverage.ps1 measures), each otter-net
 interpreter, web compiler and library location also says whether a corpus
@@ -640,17 +641,13 @@ foreach ($module in ($psModules.Keys | Sort-Object)) {
 $siteRules = @(
     @{ File = 'Parser\.cs$'; Text = 'class NotSupportedYet|NotSupportedYet Unsupported'; Category = 'definition'; Why = 'the mechanism itself (the exception and its helper), not a site' }
     @{ File = 'JsCompiler\.(Statements|Expressions)\.cs$|NodeFields\.cs$'; Text = 'compiling'; Category = 'bug guard'; Why = 'a node class with no web compiler case; every node otter-net parses has one (the census above: every kind the parser builds is compiled or refused with otterPS''s own error)' }
-    @{ File = 'WebCompiler\.cs$'; Text = 'nested more than'; Category = 'PowerShell-rendered error'; Why = 'UI resources nested more than 1,500 deep without a cycle: on Windows PowerShell 5.1 otterPS overflows its stack at about 1,610 levels, but not at a fixed one - the same program rendered in one run and overflowed in the next (measured in CI; SPEC-QUESTIONS F5-6)' }
+    @{ File = 'WebCompiler\.cs$'; Text = 'nested more than'; Category = 'n/a'; Why = 'UI resources nested more than 1,500 deep without a cycle: on Windows PowerShell 5.1 otterPS overflows its stack at about 1,610 levels, but not at a fixed one - the same program rendered in one run and overflowed in the next (measured in CI; SPEC-QUESTIONS F5-6)' }
     @{ File = '(FileMode|ProjectBuild|DesktopCommand|WebCommand)\.cs$'; Text = 'is not native yet'; Category = 'bug guard'; Why = 'passes on the parser''s or web compiler''s NotSupportedYet: no form throws it any more (every form is native)' }
     @{ File = '(FileMode|ProjectBuild|DesktopCommand|WebCommand)\.cs$'; Text = 'stopped unexpectedly'; Category = 'bug guard'; Why = 'a crash of otter-net''s lexer, parser or web compiler is handed over instead of shown' }
     @{ File = 'AstDump\.cs$'; Text = '.'; Category = 'bug guard'; Why = '-DebugAst of a node class with no table entry; every class has one (tools/NodeCensus maps every node of the corpus)' }
     @{ File = 'Project\.cs$'; Text = 'refused by the JSON reader'; Category = 'bug guard'; Why = 'the two manifest readers disagree; they agree on 2.4 million fuzzed inputs' }
-    @{ File = 'FileMode\.cs$'; Text = 'desktop window'; Category = 'otter-desktop.exe missing'; Why = 'a WPF window (`create`) in `otter run` on Windows when otter-desktop.exe is missing (otter-desktop runs it otherwise)' }
-    @{ File = 'Cli\.cs$'; Text = 'InformationAction Inquire'; Category = 'PowerShell-rendered error'; Why = '-InformationAction Inquire: PowerShell asks on the console before every Write-Host and offers a nested PowerShell prompt that runs PowerShell commands; Stop and Ignore are native (SPEC-QUESTIONS F5-1)' }
     @{ File = 'InformationAction\.cs$'; Text = 'position'; Category = 'bug guard'; Why = 'a Write-Host failing first under -InformationAction Stop/Ignore whose otterPS position otter-net lacks; every first Write-Host of a command carries one (tests/cli/ps-texts.psd1)' }
-    @{ File = 'Cli\.cs$'; Text = 'studio'; Category = 'out of scope'; Why = '`otter studio`: the IDE is developed separately' }
     @{ File = 'Cli\.cs$'; Text = 'webReason'; Category = 'bug guard'; Why = 'passes on WebCommand''s reason: the web compiler''s NotSupportedYet (no form throws it any more) or a crash' }
-    @{ File = 'Program\.cs$'; Text = '.'; Category = 'owner decision'; Why = 'OTTER_ENGINE=powershell and the hand-over itself: removed last (phase D)' }
 )
 $siteRows = New-Object System.Collections.Generic.List[string]
 $siteCounts = [ordered]@{}
@@ -659,7 +656,7 @@ foreach ($file in ($csFiles.Keys | Sort-Object)) {
     for ($i = 0; $i -lt $lines.Count; $i++) {
         $l = $lines[$i]
         if ($l -match '^\s*//') { continue }
-        if ($l -notmatch 'Unsupported\(|NotSupportedYet\(|new NeedsPowerShell\(|throw (Cli\.)?VerboseModules\(\)|\?\? throw new NeedsPowerShell') { continue }
+        if ($l -notmatch 'Unsupported\(|NotSupportedYet\(|new OtterNetGap\(|\?\? throw new OtterNetGap') { continue }
         $rule = $siteRules | Where-Object { $file -match $_.File -and $l -match $_.Text } | Select-Object -First 1
         $category = if ($rule) { $rule.Category } else { '**unclassified**' }
         $why = if ($rule) { $rule.Why } else { '' }
@@ -711,7 +708,8 @@ $out.Add("| ... with a C# counterpart found | **$($libStats.Mapped)** |")
 if ($Cobertura) { $out.Add("| ... whose counterpart a corpus run reached (of those measured) | $($libStats.Reached) of $($libStats.Measured) |") }
 $out.Add("| Messages in otterPS's modules (errors and refusals, by their literal text) | $($messageStats.Total) |")
 $out.Add("| ... found in otter-net's C# / not reachable or out of scope (explained below) / missing | **$($messageStats.Found)** / $($messageStats.Explained) / **$($messageStats.Missing)** |")
-$out.Add("| Places that can still hand a program to PowerShell | $($siteRows.Count) |")
+$out.Add("| Places that can still hand a program to PowerShell | **0** (the hand-over was removed on 2026-10-20) |")
+$out.Add("| Gaps in otter-net, reported as Otter's internal error (none reached by the corpus or the fuzzing) | $($siteRows.Count) |")
 foreach ($c in $siteCounts.Keys) { $out.Add("| ... $c | $($siteCounts[$c]) |") }
 $out.Add('')
 $untested = @($stats.Untested) + @($cliStats.Untested | ForEach-Object { "CLI: $_" })
@@ -719,9 +717,9 @@ $out.Add('Untested: ' + $(if ($untested.Count) { ($untested | ForEach-Object { F
 if ($stats.Missing.Count) { $out.Add(''); $out.Add('**Missing in otter-net:** ' + (($stats.Missing | ForEach-Object { Format-Code $_ }) -join ', ')) }
 if ($libStats.Unmapped.Count) { $out.Add(''); $out.Add('**Library functions without a counterpart:** ' + (($libStats.Unmapped | ForEach-Object { Format-Code $_ }) -join ', ')) }
 $out.Add('')
-$out.Add('## What is not native, and why')
+$out.Add('## Gaps in otter-net, and why')
 $out.Add('')
-$out.Add('Every `Unsupported(`, `NotSupportedYet(` and `NeedsPowerShell` in `src` (the')
+$out.Add('Every `NotSupportedYet(` and `OtterNetGap` in `src`. None hands anything to PowerShell any more: each is reported as Otter''s own internal error (')
 $out.Add('parser refuses before anything runs; the web compiler before a page is written;')
 $out.Add('the CLI hands the whole command line to otterPS).')
 $out.Add('')
@@ -770,4 +768,4 @@ $out.Add('| Function | Defined | Called from | otter-net | Status |')
 $out.Add('|---|---|---|---|---|')
 foreach ($r in $libraryRows) { $out.Add($r) }
 [System.IO.File]::WriteAllText($OutFile, (($out -join "`n") + "`n"), $utf8)
-Write-Host "Node kinds: $($stats.Native) native, $($stats.Tested) tested of $($kinds.Count) ($($stats.NotNode) not a node). CLI: $($cliStats.Native) native, $($cliStats.Tested) tested of $($cliStats.Forms). Library: $($libStats.Mapped) of $($libStats.Functions) mapped. Fallback sites: $($siteRows.Count). -> $OutFile"
+Write-Host "Node kinds: $($stats.Native) native, $($stats.Tested) tested of $($kinds.Count) ($($stats.NotNode) not a node). CLI: $($cliStats.Native) native, $($cliStats.Tested) tested of $($cliStats.Forms). Library: $($libStats.Mapped) of $($libStats.Functions) mapped. Gaps (internal errors, no PowerShell): $($siteRows.Count). -> $OutFile"

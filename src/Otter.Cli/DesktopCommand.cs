@@ -45,7 +45,7 @@ static partial class DesktopCommand
             }
             catch (NotSupportedYet unsupported)
             {
-                throw new NeedsPowerShell($"{unsupported.Feature} (line {unsupported.Line}) is not native yet");
+                throw new OtterNetGap($"otter-net cannot handle {unsupported.Feature} (line {unsupported.Line}).", unsupported);
             }
             catch (Exception failure) when (failure is WebInternalProblem or OtterError)
             {
@@ -53,7 +53,7 @@ static partial class DesktopCommand
             }
             catch (Exception unexpected) when (unexpected is not OutOfMemoryException)
             {
-                throw new NeedsPowerShell($"the web compiler stopped unexpectedly ({unexpected.GetType().Name})");
+                throw new OtterNetGap($"the web compiler stopped unexpectedly: {unexpected.GetType().Name}: {unexpected.Message}", unexpected);
             }
         }
 

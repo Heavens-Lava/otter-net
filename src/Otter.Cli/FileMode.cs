@@ -206,9 +206,9 @@ internal static class FileMode
         }
     }
 
-    // Lex, parse and the D-2 reserved-name check. A failure is returned (an
-    // OtterError, or an unexpected exception: a bug in Otter); something not
-    // native yet throws NeedsPowerShell.
+    // Lex, parse and the D-2 reserved-name check. A failure is returned: an
+    // OtterError, or an unexpected exception (a bug in otter-net, shown as
+    // Otter's internal error with its own message, exit code 2).
     public static Compiled Compile(string source, string[] sourceLines, bool showTokens)
     {
         var result = new Compiled { ShowTokens = showTokens };
@@ -226,7 +226,9 @@ internal static class FileMode
         }
         catch (NotSupportedYet unsupported)
         {
-            throw new NeedsPowerShell($"{unsupported.Feature} (line {unsupported.Line}) is not native yet");
+            // A gap in otter-net: Otter's internal error, as for any bug (D14).
+            result.Failure = new InvalidOperationException($"otter-net cannot handle {unsupported.Feature} (line {unsupported.Line}).", unsupported);
+            return result;
         }
         catch (OtterError error)
         {
@@ -235,7 +237,10 @@ internal static class FileMode
         }
         catch (Exception unexpected) when (unexpected is not OutOfMemoryException)
         {
-            throw new NeedsPowerShell($"the lexer stopped unexpectedly ({unexpected.GetType().Name})");
+            // A bug in otter-net's lexer: shown as what it is, with its own
+            // message (and its stack under -DebugErrors), exit code 2.
+            result.Failure = unexpected;
+            return result;
         }
         try
         {
@@ -243,7 +248,9 @@ internal static class FileMode
         }
         catch (NotSupportedYet unsupported)
         {
-            throw new NeedsPowerShell($"{unsupported.Feature} (line {unsupported.Line}) is not native yet");
+            // A gap in otter-net: Otter's internal error, as for any bug (D14).
+            result.Failure = new InvalidOperationException($"otter-net cannot handle {unsupported.Feature} (line {unsupported.Line}).", unsupported);
+            return result;
         }
         catch (OtterError error)
         {
@@ -252,8 +259,9 @@ internal static class FileMode
         }
         catch (Exception unexpected) when (unexpected is not OutOfMemoryException)
         {
-            // A parser bug must not change what the user sees.
-            throw new NeedsPowerShell($"the parser stopped unexpectedly ({unexpected.GetType().Name})");
+            // A bug in otter-net's parser, likewise.
+            result.Failure = unexpected;
+            return result;
         }
         // D-2: names the grammar would misread are refused before anything runs.
         List<OtterError> reserved = ReservedWords.Diagnostics(result.Program, sourceLines);

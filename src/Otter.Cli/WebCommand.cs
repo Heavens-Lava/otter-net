@@ -38,7 +38,7 @@ static class WebCommand
         }
         catch (NotSupportedYet unsupported)
         {
-            reason = $"{unsupported.Feature} (line {unsupported.Line}) is not native yet";
+            reason = $"otter-net cannot handle {unsupported.Feature} (line {unsupported.Line}).";
             return null;
         }
         catch (OtterError error)
@@ -55,7 +55,7 @@ static class WebCommand
         }
         catch (Exception unexpected) when (unexpected is not OutOfMemoryException)
         {
-            reason = $"the web compiler stopped unexpectedly ({unexpected.GetType().Name})";
+            reason = $"the web compiler stopped unexpectedly: {unexpected.GetType().Name}: {unexpected.Message}";
             return null;
         }
 

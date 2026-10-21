@@ -4,8 +4,8 @@ using Otter.Language;
 
 namespace Otter.Cli;
 
-// -DebugAst's NeedsPowerShell (src/Otter.Cli/Host.cs), for AstDump.cs.
-internal sealed class NeedsPowerShell(string reason) : Exception(reason);
+// -DebugAst's OtterNetGap (src/Otter.Cli/Host.cs), for AstDump.cs.
+internal sealed class OtterNetGap(string reason) : Exception(reason);
 
 // Every syntax node otter-net's parser builds for a program, by otterPS
 // NodeKind: the parser's tree is walked through every public property (not
@@ -98,7 +98,7 @@ internal static partial class AstDump
         {
             string kind;
             try { kind = KindOf(node); }
-            catch (NeedsPowerShell) { kind = "?" + node.GetType().Name; }
+            catch (OtterNetGap) { kind = "?" + node.GetType().Name; }
             counts[kind] = counts.TryGetValue(kind, out int n) ? n + 1 : 1;
             if (!classes.TryGetValue(node.GetType().Name, out var kinds)) classes[node.GetType().Name] = kinds = new SortedSet<string>(StringComparer.Ordinal);
             kinds.Add(kind);

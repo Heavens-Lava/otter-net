@@ -3,21 +3,23 @@ using System.Text;
 
 namespace Otter.Cli;
 
-// The `otter` command. It runs a program itself when otter-net supports
-// everything the program uses, and otherwise hands the whole command, before
-// anything has run, to the PowerShell Otter - so the user always gets Otter's
-// behaviour, and gets it fast where otter-net is ready.
+// The `otter` command: the whole of Otter 1.0.1 in C#. It never hands a
+// command to the PowerShell Otter; a gap in otter-net is reported as Otter's
+// own internal error.
 //
-//   OTTER_ENGINE=powershell   always use the PowerShell Otter
-//   OTTER_ENGINE=native       never fall back (for tests); say why instead
-//   OTTER_NET_TRACE=1         say on stderr which engine ran and why
-//                             (not OTTER_ENGINE_TRACE: the PowerShell Otter reads that one)
-//   OTTER_POWERSHELL          path of the PowerShell Otter's otter.ps1
+//   OTTER_NET_TRACE=1         say on stderr what otter-net did
+//   OTTER_POWERSHELL          where the PowerShell Otter's otter.ps1 is: only
+//                             named in PowerShell's own error texts, which
+//                             otterPS's users saw (SPEC-QUESTIONS C2-1)
 //   OTTER_DESKTOP             path of the otter-desktop host (desktop windows on
 //                             Windows; default: otter-desktop.exe beside otter)
+//   OTTER_ENGINE=interpreter  never run as otterPS's compiled engine (V4-2)
 public static class Program
 {
     public const string Version = "1.0.1";
+
+    // -DebugErrors of this command line (set once it is bound).
+    internal static bool DebugErrors;
 
     // otterPS's exit codes.
     const int ExitUsageError = 1, ExitRuntimeError = 3;
@@ -46,11 +48,6 @@ public static class Program
     static int Run(string[] args)
     {
         Console.OutputEncoding = new UTF8Encoding(false);
-        string engine = Environment.GetEnvironmentVariable("OTTER_ENGINE") ?? "";
-        if (string.Equals(engine, "powershell", StringComparison.OrdinalIgnoreCase))
-        {
-            return Fallback(args, "OTTER_ENGINE=powershell");
-        }
         try
         {
             CommandLine line = CommandLine.Bind(args);
@@ -83,15 +80,14 @@ public static class Program
             Console.Error.WriteLine($"otter-net: internal error, a Write-Host failure was not handled: {failure.Message}");
             return ExitRuntimeError;
         }
-        catch (NeedsPowerShell unsupported)
+        // A gap in otter-net: Otter's own internal error (D14).
+        catch (OtterNetGap gap)
         {
-            if (Host.HasWritten)
-            {
-                // A command that has started must never start again elsewhere.
-                Console.Error.WriteLine($"otter-net: internal error, {unsupported.Message} after output began.");
-                return ExitRuntimeError;
-            }
-            return FallbackOrRefuse(args, engine, unsupported.Message);
+            Trace($"native: a gap in otter-net: {gap.Message}");
+            // The gap's message; under -DebugErrors also the stack of its cause.
+            FileMode.ShowFailure(new InvalidOperationException(gap.Message), DebugErrors);
+            if (DebugErrors && gap.InnerException != null) Console.Error.WriteLine(gap.InnerException.ToString());
+            return ExitRuntimeError;
         }
         catch (NeedsDesktop desktop)
         {
@@ -100,7 +96,7 @@ public static class Program
                 Console.Error.WriteLine($"otter-net: internal error, {desktop.Message} after output began.");
                 return ExitRuntimeError;
             }
-            return Desktop(args, engine, desktop.Message);
+            return Desktop(args, desktop.Message);
         }
         finally
         {
@@ -156,63 +152,17 @@ public static class Program
         if (Environment.GetEnvironmentVariable("OTTER_NET_TRACE") == "1") Console.Error.WriteLine($"otter-net {text}");
     }
 
-    static int FallbackOrRefuse(string[] args, string engine, string reason)
-    {
-        if (string.Equals(engine, "native", StringComparison.OrdinalIgnoreCase))
-        {
-            Console.Error.WriteLine($"otter-net: OTTER_ENGINE=native, but {reason}.");
-            return ExitUsageError;
-        }
-        return Fallback(args, reason);
-    }
-
-    // Runs the PowerShell Otter with the same arguments, the same console and
-    // the same standard input, and returns its exit code.
-    static int Fallback(string[] args, string reason)
-    {
-        Trace($"fallback: {reason}");
-        string? otterPs1 = FindPowerShellOtter();
-        if (otterPs1 == null)
-        {
-            Console.Error.WriteLine("Otter: this program needs the PowerShell Otter, which is not installed. Set OTTER_POWERSHELL to its otter.ps1.");
-            return ExitUsageError;
-        }
-        bool windows = OperatingSystem.IsWindows();
-        var start = new ProcessStartInfo(windows ? "powershell.exe" : "pwsh") { UseShellExecute = false };
-        start.ArgumentList.Add("-NoProfile");
-        if (windows) { start.ArgumentList.Add("-ExecutionPolicy"); start.ArgumentList.Add("Bypass"); }
-        start.ArgumentList.Add("-File");
-        start.ArgumentList.Add(otterPs1);
-        foreach (string arg in args) start.ArgumentList.Add(arg);
-        Process process;
-        try { process = Process.Start(start)!; }
-        catch (System.ComponentModel.Win32Exception)
-        {
-            // Linux, macOS and a Chromebook's Linux need PowerShell 7 for the
-            // PowerShell Otter, and it may not be installed.
-            Console.Error.WriteLine(windows
-                ? "Otter: this program needs the PowerShell Otter, but Windows PowerShell (powershell.exe) could not be started."
-                : "Otter: this program needs the PowerShell Otter, which runs on PowerShell 7 (pwsh). Install it from https://aka.ms/install-powershell.");
-            return ExitUsageError;
-        }
-        using (process)
-        {
-            process.WaitForExit();
-            return process.ExitCode;
-        }
-    }
-
     // Runs the otter-desktop host (src/Otter.Desktop: the same Otter with
     // otterPS's WPF provider) with the same arguments, the same console and
-    // the same standard input, and returns its exit code. Without the host,
-    // the PowerShell Otter runs the program, as before the host existed.
-    static int Desktop(string[] args, string engine, string reason)
+    // the same standard input, and returns its exit code.
+    static int Desktop(string[] args, string reason)
     {
         string? host = DesktopHostPath();
         if (host == null)
         {
-            Trace($"desktop: otter-desktop.exe is missing next to otter, so the PowerShell Otter runs {reason}");
-            return FallbackOrRefuse(args, engine, $"{reason} needs otter-desktop.exe, which is missing");
+            Trace($"desktop: otter-desktop.exe is missing next to otter");
+            Console.Error.WriteLine("Otter: desktop windows need otter-desktop.exe, which is missing from this installation. Reinstall Otter.");
+            return ExitUsageError;
         }
         Trace($"desktop: {reason} runs in {host}");
         var start = new ProcessStartInfo(host) { UseShellExecute = false };
@@ -221,8 +171,9 @@ public static class Program
         try { process = Process.Start(start)!; }
         catch (System.ComponentModel.Win32Exception e)
         {
-            Trace($"desktop: otter-desktop.exe could not start ({e.Message}), so the PowerShell Otter runs {reason}");
-            return FallbackOrRefuse(args, engine, $"{reason} needs otter-desktop.exe, which could not start");
+            Trace($"desktop: otter-desktop.exe could not start ({e.Message})");
+            Console.Error.WriteLine($"Otter: desktop windows need otter-desktop.exe, which could not start: {e.Message}");
+            return ExitUsageError;
         }
         using (process)
         {

@@ -40,7 +40,7 @@ internal static class InformationAction
             // Every Write-Host that can fail first carries its position; one
             // that does not is a gap in otter-net, handed over while nothing
             // has been written.
-            if (!Host.HasWritten) throw new NeedsPowerShell("-InformationAction reached a Write-Host whose otterPS position otter-net does not know");
+            if (!Host.HasWritten) throw new OtterNetGap("-InformationAction reached a Write-Host whose otterPS position otter-net does not know");
             throw new InvalidOperationException("otter-net: a Write-Host without its otterPS position failed under -InformationAction.");
         }
         if (Current == Mode.Ignore) throw new WriteHostFailure(Mode.Ignore, text, site);

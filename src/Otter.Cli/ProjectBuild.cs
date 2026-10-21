@@ -24,7 +24,7 @@ internal static partial class ProjectCommands
         {
             return Host.InModule(() => BuildProject(target, quiet: false, forceClean: false, alreadyChecked: false));
         }
-        catch (Exception failure) when (failure is not OutOfMemoryException and not CliExit and not NeedsPowerShell)
+        catch (Exception failure) when (failure is not OutOfMemoryException and not CliExit and not OtterNetGap)
         {
             // Invoke-OtterProjectBuild imported the web compiler first (-Verbose).
             VerboseImports.Web();
@@ -36,7 +36,7 @@ internal static partial class ProjectCommands
 
     // What the build's "Checking project..." step finds: nothing (null), an
     // Otter error, or Otter's own bug. Something not native yet throws
-    // NeedsPowerShell, before anything is written or printed.
+    // OtterNetGap, before anything is written or printed.
     static Exception? CheckProgram(Project project, out ResolvedProgram? resolved)
     {
         resolved = null;
@@ -74,7 +74,7 @@ internal static partial class ProjectCommands
         }
         catch (NotSupportedYet unsupported)
         {
-            throw new NeedsPowerShell($"{unsupported.Feature} (line {unsupported.Line}) is not native yet");
+            throw new OtterNetGap($"otter-net cannot handle {unsupported.Feature} (line {unsupported.Line}).", unsupported);
         }
         catch (Exception error) when (error is OtterError or WebInternalProblem)
         {
@@ -83,7 +83,7 @@ internal static partial class ProjectCommands
         }
         catch (Exception unexpected) when (unexpected is not OutOfMemoryException)
         {
-            throw new NeedsPowerShell($"the web compiler stopped unexpectedly ({unexpected.GetType().Name})");
+            throw new OtterNetGap($"the web compiler stopped unexpectedly: {unexpected.GetType().Name}: {unexpected.Message}", unexpected);
         }
     }
 
@@ -379,7 +379,7 @@ internal static partial class ProjectCommands
         {
             return Host.InModule(() => PublishProject(target, outputDir));
         }
-        catch (Exception failure) when (failure is not OutOfMemoryException and not CliExit and not NeedsPowerShell)
+        catch (Exception failure) when (failure is not OutOfMemoryException and not CliExit and not OtterNetGap)
         {
             return ReportProjectFailure(failure, 814, 820);
         }
@@ -543,7 +543,7 @@ internal static partial class ProjectCommands
         {
             return PublishFailed(error.Message);
         }
-        catch (Exception failure) when (failure is not OutOfMemoryException and not CliExit and not NeedsPowerShell)
+        catch (Exception failure) when (failure is not OutOfMemoryException and not CliExit and not OtterNetGap)
         {
             return PublishFailed($"Otter hit a problem while publishing: {failure.Message}");
         }

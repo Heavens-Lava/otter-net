@@ -28,41 +28,37 @@ otter-net decides the same (`CompiledEngine.cs`).
 | ... with a C# counterpart found | **95** |
 | Messages in otterPS's modules (errors and refusals, by their literal text) | 473 |
 | ... found in otter-net's C# / not reachable or out of scope (explained below) / missing | **441** / 32 / **0** |
-| Places that can still hand a program to PowerShell | 20 |
+| Places that can still hand a program to PowerShell | **0** (the hand-over was removed on 2026-10-20) |
+| Gaps in otter-net, reported as Otter's internal error (none reached by the corpus or the fuzzing) | 17 |
 | ... bug guard | 17 |
-| ... PowerShell-rendered error | 2 |
-| ... out of scope | 1 |
 
 Untested: nothing.
 
-## What is not native, and why
+## Gaps in otter-net, and why
 
-Every `Unsupported(`, `NotSupportedYet(` and `NeedsPowerShell` in `src` (the
+Every `NotSupportedYet(` and `OtterNetGap` in `src`. None hands anything to PowerShell any more: each is reported as Otter's own internal error (
 parser refuses before anything runs; the web compiler before a page is written;
 the CLI hands the whole command line to otterPS).
 
 | Site | Code | Category | Why |
 |---|---|---|---|
-| Otter.Cli/AstDump.cs:68 | `throw new NeedsPowerShell($"-DebugAst does not know how otterPS shows a {node.GetType().Name}");` | bug guard | -DebugAst of a node class with no table entry; every class has one (tools/NodeCensus maps every node of the corpus) |
-| Otter.Cli/AstDump.cs:108 | `: throw new NeedsPowerShell($"-DebugAst does not know how otterPS shows a {node.GetType().Name}");` | bug guard | -DebugAst of a node class with no table entry; every class has one (tools/NodeCensus maps every node of the corpus) |
-| Otter.Cli/AstDump.cs:157 | `?? throw new NeedsPowerShell($"-DebugAst: otter-net's {node.GetType().Name} has no {name}");` | bug guard | -DebugAst of a node class with no table entry; every class has one (tools/NodeCensus maps every node of the corpus) |
-| Otter.Cli/Cli.cs:24 | `throw new NeedsPowerShell("-InformationAction Inquire asks on the console before each line otterPS shows, a...` | PowerShell-rendered error | -InformationAction Inquire: PowerShell asks on the console before every Write-Host and offers a nested PowerShell prompt that runs PowerShell commands; Stop and Ignore are native (SPEC-QUESTIONS F5-1) |
-| Otter.Cli/Cli.cs:208 | `if (Is(command, "studio")) throw new NeedsPowerShell("otter studio is not native");` | out of scope | `otter studio`: the IDE is developed separately |
-| Otter.Cli/Cli.cs:238 | `return WebCommand.Run(scriptFile, line.Target!, line.NoOpen, Program.Trace, out string webReason) ?? throw ...` | bug guard | passes on WebCommand's reason: the web compiler's NotSupportedYet (no form throws it any more) or a crash |
-| Otter.Cli/DesktopCommand.cs:48 | `throw new NeedsPowerShell($"{unsupported.Feature} (line {unsupported.Line}) is not native yet");` | bug guard | passes on the parser's or web compiler's NotSupportedYet: no form throws it any more (every form is native) |
-| Otter.Cli/DesktopCommand.cs:56 | `throw new NeedsPowerShell($"the web compiler stopped unexpectedly ({unexpected.GetType().Name})");` | bug guard | a crash of otter-net's lexer, parser or web compiler is handed over instead of shown |
-| Otter.Cli/FileMode.cs:229 | `throw new NeedsPowerShell($"{unsupported.Feature} (line {unsupported.Line}) is not native yet");` | bug guard | passes on the parser's or web compiler's NotSupportedYet: no form throws it any more (every form is native) |
-| Otter.Cli/FileMode.cs:238 | `throw new NeedsPowerShell($"the lexer stopped unexpectedly ({unexpected.GetType().Name})");` | bug guard | a crash of otter-net's lexer, parser or web compiler is handed over instead of shown |
-| Otter.Cli/FileMode.cs:246 | `throw new NeedsPowerShell($"{unsupported.Feature} (line {unsupported.Line}) is not native yet");` | bug guard | passes on the parser's or web compiler's NotSupportedYet: no form throws it any more (every form is native) |
-| Otter.Cli/FileMode.cs:256 | `throw new NeedsPowerShell($"the parser stopped unexpectedly ({unexpected.GetType().Name})");` | bug guard | a crash of otter-net's lexer, parser or web compiler is handed over instead of shown |
-| Otter.Cli/InformationAction.cs:43 | `if (!Host.HasWritten) throw new NeedsPowerShell("-InformationAction reached a Write-Host whose otterPS posi...` | bug guard | a Write-Host failing first under -InformationAction Stop/Ignore whose otterPS position otter-net lacks; every first Write-Host of a command carries one (tests/cli/ps-texts.psd1) |
-| Otter.Cli/Project.cs:171 | `?? throw new NeedsPowerShell($"{manifestName} is refused by the JSON reader but no message was found");` | bug guard | the two manifest readers disagree; they agree on 2.4 million fuzzed inputs |
-| Otter.Cli/ProjectBuild.cs:77 | `throw new NeedsPowerShell($"{unsupported.Feature} (line {unsupported.Line}) is not native yet");` | bug guard | passes on the parser's or web compiler's NotSupportedYet: no form throws it any more (every form is native) |
-| Otter.Cli/ProjectBuild.cs:86 | `throw new NeedsPowerShell($"the web compiler stopped unexpectedly ({unexpected.GetType().Name})");` | bug guard | a crash of otter-net's lexer, parser or web compiler is handed over instead of shown |
+| Otter.Cli/AstDump.cs:68 | `throw new OtterNetGap($"-DebugAst does not know how otterPS shows a {node.GetType().Name}");` | bug guard | -DebugAst of a node class with no table entry; every class has one (tools/NodeCensus maps every node of the corpus) |
+| Otter.Cli/AstDump.cs:108 | `: throw new OtterNetGap($"-DebugAst does not know how otterPS shows a {node.GetType().Name}");` | bug guard | -DebugAst of a node class with no table entry; every class has one (tools/NodeCensus maps every node of the corpus) |
+| Otter.Cli/AstDump.cs:157 | `?? throw new OtterNetGap($"-DebugAst: otter-net's {node.GetType().Name} has no {name}");` | bug guard | -DebugAst of a node class with no table entry; every class has one (tools/NodeCensus maps every node of the corpus) |
+| Otter.Cli/Cli.cs:247 | `return WebCommand.Run(scriptFile, line.Target!, line.NoOpen, Program.Trace, out string webReason) ?? throw ...` | bug guard | passes on WebCommand's reason: the web compiler's NotSupportedYet (no form throws it any more) or a crash |
+| Otter.Cli/DesktopCommand.cs:48 | `throw new OtterNetGap($"{unsupported.Feature} (line {unsupported.Line}) is not native yet");` | bug guard | passes on the parser's or web compiler's NotSupportedYet: no form throws it any more (every form is native) |
+| Otter.Cli/DesktopCommand.cs:56 | `throw new OtterNetGap($"the web compiler stopped unexpectedly ({unexpected.GetType().Name})");` | bug guard | a crash of otter-net's lexer, parser or web compiler is handed over instead of shown |
+| Otter.Cli/FileMode.cs:229 | `throw new OtterNetGap($"{unsupported.Feature} (line {unsupported.Line}) is not native yet");` | bug guard | passes on the parser's or web compiler's NotSupportedYet: no form throws it any more (every form is native) |
+| Otter.Cli/FileMode.cs:238 | `throw new OtterNetGap($"the lexer stopped unexpectedly ({unexpected.GetType().Name})");` | bug guard | a crash of otter-net's lexer, parser or web compiler is handed over instead of shown |
+| Otter.Cli/FileMode.cs:246 | `throw new OtterNetGap($"{unsupported.Feature} (line {unsupported.Line}) is not native yet");` | bug guard | passes on the parser's or web compiler's NotSupportedYet: no form throws it any more (every form is native) |
+| Otter.Cli/FileMode.cs:256 | `throw new OtterNetGap($"the parser stopped unexpectedly ({unexpected.GetType().Name})");` | bug guard | a crash of otter-net's lexer, parser or web compiler is handed over instead of shown |
+| Otter.Cli/InformationAction.cs:43 | `if (!Host.HasWritten) throw new OtterNetGap("-InformationAction reached a Write-Host whose otterPS position...` | bug guard | a Write-Host failing first under -InformationAction Stop/Ignore whose otterPS position otter-net lacks; every first Write-Host of a command carries one (tests/cli/ps-texts.psd1) |
+| Otter.Cli/Project.cs:171 | `?? throw new OtterNetGap($"{manifestName} is refused by the JSON reader but no message was found");` | bug guard | the two manifest readers disagree; they agree on 2.4 million fuzzed inputs |
+| Otter.Cli/ProjectBuild.cs:77 | `throw new OtterNetGap($"{unsupported.Feature} (line {unsupported.Line}) is not native yet");` | bug guard | passes on the parser's or web compiler's NotSupportedYet: no form throws it any more (every form is native) |
+| Otter.Cli/ProjectBuild.cs:86 | `throw new OtterNetGap($"the web compiler stopped unexpectedly ({unexpected.GetType().Name})");` | bug guard | a crash of otter-net's lexer, parser or web compiler is handed over instead of shown |
 | Otter.Web/JsCompiler.Expressions.cs:377 | `throw new NotSupportedYet($"compiling {expr.GetType().Name} for the web", expr.Line);` | bug guard | a node class with no web compiler case; every node otter-net parses has one (the census above: every kind the parser builds is compiled or refused with otterPS's own error) |
 | Otter.Web/JsCompiler.Statements.cs:1081 | `throw new NotSupportedYet($"compiling {stmt.GetType().Name} for the web", stmt.Line);` | bug guard | a node class with no web compiler case; every node otter-net parses has one (the census above: every kind the parser builds is compiled or refused with otterPS's own error) |
 | Otter.Web/NodeFields.cs:249 | `_ => throw new NotSupportedYet($"compiling {node.GetType().Name} for the web", node is Node { } known ? kno...` | bug guard | a node class with no web compiler case; every node otter-net parses has one (the census above: every kind the parser builds is compiled or refused with otterPS's own error) |
-| Otter.Web/WebCompiler.cs:398 | `throw new NotSupportedYet($"UI resources nested more than {MaxNativeRenderDepth} deep", 0);` | PowerShell-rendered error | UI resources nested more than 1,500 deep without a cycle: on Windows PowerShell 5.1 otterPS overflows its stack at about 1,610 levels, but not at a fixed one - the same program rendered in one run and overflowed in the next (measured in CI; SPEC-QUESTIONS F5-6) |
 
 ## Messages not found in otter-net's source
 
@@ -346,26 +342,26 @@ otter.ps1's parameters: `Path`, `Target`, `Open`, `NoOpen`, `Port`, `DebugTokens
 
 | Form | otterPS | otter-net | tests/cli cases | Status |
 |---|---|---|---|---|
-| otter (REPL) | otter.ps1:612 | Otter.Cli/Repl.cs:45 | 5<br>`interactive: repl: a block until a blank line`<br>`interactive: repl: ask reads the next line`<br>`interactive: repl: end of input` | native |
-| REPL `exit`, `reset`, multi-line blocks | otter.ps1:626 | Otter.Cli/Repl.cs:66 | 3<br>`interactive: repl: a block until a blank line`<br>`interactive: repl: errors are short and the session goes on`<br>`interactive: repl: variables persist` | native |
-| otter <file.ot> (shortest form) | otter.ps1:1073 | Otter.Cli/Cli.cs:136 | 90<br>`basics: --help after a file`<br>`basics: shortest form: missing file`<br>`binding: -- matches every parameter` | native |
-| otter <folder or otter.json> (project) | otter.ps1:1049 | Otter.Cli/Cli.cs:136 | 55<br>`basics: dot without a manifest`<br>`binding: publish -Output outside the project`<br>`binding: publish . --output out` | native |
-| otter <unknown command> | otter.ps1:1083 | Otter.Cli/Cli.cs:152 | 8<br>`basics: a folder without a manifest`<br>`basics: unknown command`<br>`basics: version is not a command` | native |
-| otter run <file.ot|project> [args] | otter.ps1:827 | Otter.Cli/Cli.cs:97 | 50<br>`basics: run without a file`<br>`basics: run: a folder named like a program`<br>`basics: run: a missing name without .ot` | native |
-| otter check <file.ot|project> | otter.ps1:827 | Otter.Cli/Cli.cs:97 | 32<br>`basics: check without a file`<br>`basics: check: missing file`<br>`binding: -Verbose with check` | native |
+| otter (REPL) | otter.ps1:612 | Otter.Cli/Repl.cs:43 | 5<br>`interactive: repl: a block until a blank line`<br>`interactive: repl: ask reads the next line`<br>`interactive: repl: end of input` | native |
+| REPL `exit`, `reset`, multi-line blocks | otter.ps1:626 | Otter.Cli/Repl.cs:64 | 3<br>`interactive: repl: a block until a blank line`<br>`interactive: repl: errors are short and the session goes on`<br>`interactive: repl: variables persist` | native |
+| otter <file.ot> (shortest form) | otter.ps1:1073 | Otter.Cli/Cli.cs:139 | 90<br>`basics: --help after a file`<br>`basics: shortest form: missing file`<br>`binding: -- matches every parameter` | native |
+| otter <folder or otter.json> (project) | otter.ps1:1049 | Otter.Cli/Cli.cs:139 | 55<br>`basics: dot without a manifest`<br>`binding: publish -Output outside the project`<br>`binding: publish . --output out` | native |
+| otter <unknown command> | otter.ps1:1083 | Otter.Cli/Cli.cs:155 | 8<br>`basics: a folder without a manifest`<br>`basics: unknown command`<br>`basics: version is not a command` | native |
+| otter run <file.ot|project> [args] | otter.ps1:827 | Otter.Cli/Cli.cs:100 | 50<br>`basics: run without a file`<br>`basics: run: a folder named like a program`<br>`basics: run: a missing name without .ot` | native |
+| otter check <file.ot|project> | otter.ps1:827 | Otter.Cli/Cli.cs:100 | 32<br>`basics: check without a file`<br>`basics: check: missing file`<br>`binding: -Verbose with check` | native |
 | otter new <archetype> <name> | otter.ps1:701 | Otter.Cli/ProjectCommands.cs:48 | 21<br>`basics: new without anything`<br>`binding: -Verbose with new`<br>`new: a folder that is not empty` | native |
 | otter test [target] | otter.ps1:754 | Otter.Cli/ProjectCommands.cs:205 | 15<br>`ps-texts: IA: test with no tests, Stop`<br>`ps-texts: IA: test, Ignore`<br>`ps-texts: IA: test, Stop` | native |
 | otter build [target] | otter.ps1:774 | Otter.Cli/ProjectBuild.cs:20 | 30<br>`build: build`<br>`build: build a project folder`<br>`build: build: a server project` | native |
 | otter publish [target] [--output|-Output dir] | otter.ps1:794 | Otter.Cli/ProjectBuild.cs:358 | 20<br>`binding: publish --output out: the binder swallows both`<br>`binding: publish -Output outside the project`<br>`binding: publish -Target:--output: the folder from $Arguments` | native |
-| otter profile <file.ot> | otter.ps1:869 | Otter.Cli/Cli.cs:159 | 10<br>`basics: profile without a file`<br>`basics: profile: not a .ot file`<br>`c4: profile: a recursive function` | native |
-| otter debug <file.ot> [-Breakpoints] | otter.ps1:883 | Otter.Cli/Cli.cs:170 | 17<br>`basics: debug without a file`<br>`binding: -Breakpoints -Port`<br>`binding: -Breakpoints without a value` | native |
+| otter profile <file.ot> | otter.ps1:869 | Otter.Cli/Cli.cs:162 | 10<br>`basics: profile without a file`<br>`basics: profile: not a .ot file`<br>`c4: profile: a recursive function` | native |
+| otter debug <file.ot> [-Breakpoints] | otter.ps1:883 | Otter.Cli/Cli.cs:173 | 17<br>`basics: debug without a file`<br>`binding: -Breakpoints -Port`<br>`binding: -Breakpoints without a value` | native |
 | otter web <file.ot> [-NoOpen] | otter.ps1:955 | Otter.Cli/WebCommand.cs:22 | 17<br>`basics: web without a file`<br>`basics: web: missing file`<br>`ps-texts: IA: web of a missing import, Stop` | native |
-| otter browse <file.ot> | otter.ps1:955 | Otter.Cli/Cli.cs:56 | 3<br>`basics: browse without a file`<br>`ps-texts: IA: browse, Ignore`<br>`ui: browse: a manifest` | native |
+| otter browse <file.ot> | otter.ps1:955 | Otter.Cli/Cli.cs:59 | 3<br>`basics: browse without a file`<br>`ps-texts: IA: browse, Ignore`<br>`ui: browse: a manifest` | native |
 | otter serve <file.ot> [-Port N] | otter.ps1:1014 | Otter.Cli/ServeCommand.cs:22 | 26<br>`basics: serve without a file`<br>`basics: serve: folder without a manifest`<br>`ps-texts: IA: serve of a syntax error, Stop` | native |
 | otter desktop <file.ot> | otter.ps1:945 | Otter.Cli/DesktopCommand.cs:29 | 14<br>`basics: desktop: missing file`<br>`ps-texts: desktop: a missing import`<br>`ps-texts: desktop: a project with a missing import` | native |
-| otter studio | otter.ps1:904 | Otter.Cli/Cli.cs:208 | 0<br>- | out of scope (the IDE is developed separately) |
-| otter help / --help / -help | otter.ps1:696 | Otter.Cli/Cli.cs:65 | 7<br>`basics: --help`<br>`basics: --help after a file`<br>`basics: -help` | native |
-| otter --version / -version / -v | otter.ps1:691 | Otter.Cli/Cli.cs:34 | 53<br>`basics: --version`<br>`basics: -version`<br>`basics: -Version, other capitals` | native |
+| otter studio | otter.ps1:904 | - | 0<br>- | out of scope (the IDE is developed separately) |
+| otter help / --help / -help | otter.ps1:696 | Otter.Cli/Cli.cs:68 | 7<br>`basics: --help`<br>`basics: --help after a file`<br>`basics: -help` | native |
+| otter --version / -version / -v | otter.ps1:691 | Otter.Cli/Cli.cs:37 | 53<br>`basics: --version`<br>`basics: -version`<br>`basics: -Version, other capitals` | native |
 | -Open | otter.ps1:47 | Otter.Cli/CommandLine.cs:81 | 2<br>`binding: -Port followed by a parameter`<br>`run: own flags are not program arguments` | native |
 | -NoOpen | otter.ps1:48 | Otter.Cli/CommandLine.cs:82 | 18<br>`ps-texts: IA: browse, Ignore`<br>`ps-texts: IA: web of a missing import, Stop`<br>`ps-texts: IA: web of a syntax error, Ignore` | native |
 | -Port N | otter.ps1:49 | Otter.Cli/CommandLine.cs:83 | 20<br>`binding: -Breakpoints -Port`<br>`binding: -Port 0x-1`<br>`binding: -Port 1,000` | native |
@@ -377,7 +373,7 @@ otter.ps1's parameters: `Path`, `Target`, `Open`, `NoOpen`, `Port`, `DebugTokens
 | trailing program arguments (D94) | otter.ps1:149 | Otter.Cli/CommandLine.cs:40 | 143<br>`basics: --help after a file`<br>`binding: -- matches every parameter`<br>`binding: -? after a command` | native |
 | PowerShell common parameters (-Verbose, -Debug, -ErrorAction, -OutVariable, ...) | otter.ps1:146 | Otter.Cli/CommandLine.cs:92 | 129<br>`binding: -Debug does nothing visible`<br>`binding: -ErrorAction 9`<br>`binding: -ErrorAction foo` | native |
 | parameter-binding errors (unknown or ambiguous flag, bad -Port) | otter.ps1:37 | Otter.Cli/CommandLine.cs:36 | 4<br>`binding: -Port abc`<br>`binding: -Port blank`<br>`binding: -Port followed by a parameter` | native |
-| OTTER_ENGINE=interpreter / compiled, OTTER_ENGINE_TRACE, OTTER_COMPILED_CACHE (otterPS's compiled engine) | otter.ps1:343 | Otter.Cli/Program.cs:49 | 4<br>`ps-texts: IA: say Ignore, interpreter`<br>`ps-texts: IA: say Stop, interpreter`<br>`ps-texts: IA: try catches a say, Ignore, interpreter` | out of scope: otterPS's run-time C# compiler (Add-Type) gives the interpreter's output faster; Native AOT cannot generate code and otter-net does not need it (docs/port/cli.md). OTTER_ENGINE means native/powershell to otter-net |
+| OTTER_ENGINE=interpreter / compiled, OTTER_ENGINE_TRACE, OTTER_COMPILED_CACHE (otterPS's compiled engine) | otter.ps1:343 | - | 4<br>`ps-texts: IA: say Ignore, interpreter`<br>`ps-texts: IA: say Stop, interpreter`<br>`ps-texts: IA: try catches a say, Ignore, interpreter` | out of scope: otterPS's run-time C# compiler (Add-Type) gives the interpreter's output faster; Native AOT cannot generate code and otter-net does not need it (docs/port/cli.md). OTTER_ENGINE means native/powershell to otter-net |
 
 ## Library functions
 

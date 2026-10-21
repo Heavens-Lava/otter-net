@@ -7,12 +7,10 @@ namespace Otter.Cli;
 // lives for the whole session; a line that opens a block keeps collecting
 // lines ("..... ") until a blank one. Errors are shown in their short form.
 //
-// A REPL cannot be handed to the PowerShell Otter halfway through a session
-// without losing what was typed before, so a line that uses something
-// otter-net does not have yet is refused on its own, and the session goes on
-// (OTTER_ENGINE=powershell starts the PowerShell Otter's REPL instead). On
-// Windows the REPL runs in the otter-desktop host, where desktop windows
-// work; without that host a line that creates one is refused.
+// A line that reaches a gap in otter-net is reported as Otter's internal
+// error on its own, and the session goes on. On Windows the REPL runs in the
+// otter-desktop host, where desktop windows work; without that host (a
+// damaged installation) a line that creates one is refused.
 internal static class Repl
 {
     static readonly string[] BlockOpeners = { "if", "while", "repeat", "count", "for", "to", "otherwise" };
@@ -98,23 +96,23 @@ internal static class Repl
         {
             compiled = FileMode.Compile(source, sourceLines, line.DebugTokens);
         }
-        catch (NeedsPowerShell unsupported)
+        catch (OtterNetGap unsupported)
         {
-            Host.Line($"Otter: otter-net cannot run this yet: {unsupported.Message}. Start the REPL with OTTER_ENGINE=powershell to use it.", ConsoleColor.Red);
+            Host.Line($"Otter hit a problem inside itself, which means this is a bug in Otter: {unsupported.Message}", ConsoleColor.Red);
             return;
         }
         if (compiled.CreatesUiResources && OperatingSystem.IsWindows() && !line.ParseOnly && UiProviders.Current == null)
         {
-            Host.Line("Otter: otter-net cannot run this yet: a desktop window (create, WPF) is not native. Start the REPL with OTTER_ENGINE=powershell to use it.", ConsoleColor.Red);
+            Host.Line("Otter: desktop windows need otter-desktop.exe, which is missing from this installation. Reinstall Otter.", ConsoleColor.Red);
             return;
         }
         List<string>? ast = null;
         if (compiled.Failure == null && line.DebugAst && !line.ParseOnly)
         {
             try { ast = AstDump.Lines(compiled.Program!); }
-            catch (NeedsPowerShell unsupported)
+            catch (OtterNetGap unsupported)
             {
-                Host.Line($"Otter: otter-net cannot run this yet: {unsupported.Message}. Start the REPL with OTTER_ENGINE=powershell to use it.", ConsoleColor.Red);
+                Host.Line($"Otter hit a problem inside itself, which means this is a bug in Otter: {unsupported.Message}", ConsoleColor.Red);
                 return;
             }
         }

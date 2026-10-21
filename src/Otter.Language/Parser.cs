@@ -1,12 +1,12 @@
 namespace Otter.Language;
 
-// Thrown when a program uses something otter-net has not ported yet. The
-// `otter` command then hands the whole program to the PowerShell Otter, so
-// the user gets exactly today's behaviour - before anything has run.
 // An attempted reading of a line that does not fit, so the parser goes back
 // and reads it another way (otterPS's try/catch backtracking).
 sealed class NotThisForm() : Exception("not this form");
 
+// A node otter-net does not know how to handle: a gap in otter-net (every
+// form of Otter 1.0.1 is native, so nothing in the language reaches it). The
+// `otter` command reports it as Otter's own internal error.
 public sealed class NotSupportedYet(string feature, int line) : Exception($"line {line}: {feature}")
 {
     public string Feature { get; } = feature;
