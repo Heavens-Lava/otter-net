@@ -58,7 +58,10 @@ public static unsafe partial class OtterRemoteCommands
             Check(WSManInitialize(WSMAN_FLAG_REQUESTED_API_VERSION_1_1, out api), hostName);
             var credentials = new WSMAN_AUTHENTICATION_CREDENTIALS
             {
-                authenticationMechanism = WSMAN_FLAG_AUTH_NEGOTIATE,
+                // Invoke-Command's default (AuthenticationMechanism.Default):
+                // WinRM picks Negotiate or Kerberos itself and applies its
+                // TrustedHosts rule, as for otterPS.
+                authenticationMechanism = WSMAN_FLAG_DEFAULT_AUTHENTICATION,
                 username = strings.Add(userName),
                 password = strings.Add(password),
             };
@@ -121,6 +124,13 @@ public static unsafe partial class OtterRemoteCommands
                 foreach (Psrp.Received message in pipelineMessages.Add(data))
                 {
                     if (message.Type == Psrp.PipelineOutput) output.Append(Psrp.OutputText(message.Clixml));
+                    else if (message.Type == Psrp.ErrorRecord)
+                    {
+                        // Invoke-Command -ErrorAction Stop: the remote pipeline's first
+                        // error ends the command with that error's message.
+                        failure = Psrp.ErrorRecordText(message.Clixml);
+                        return false;
+                    }
                     else if (message.Type == Psrp.PipelineState)
                     {
                         (int state, string? error) = Psrp.State(message.Clixml, "PipelineState");
@@ -325,7 +335,7 @@ public static unsafe partial class OtterRemoteCommands
     // ---- wsman.h --------------------------------------------------------------------------
 
     const uint WSMAN_FLAG_REQUESTED_API_VERSION_1_1 = 0x1;
-    const uint WSMAN_FLAG_AUTH_NEGOTIATE = 0x4;
+    const uint WSMAN_FLAG_DEFAULT_AUTHENTICATION = 0x0;
     const uint WSMAN_FLAG_CALLBACK_END_OF_OPERATION = 0x1;
     const int WSMAN_DATA_TYPE_TEXT = 1;
     const int WSMAN_DATA_TYPE_BINARY = 2;
