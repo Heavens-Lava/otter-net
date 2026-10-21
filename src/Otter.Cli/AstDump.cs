@@ -25,7 +25,7 @@ namespace Otter.Cli;
 // parses has a table entry (through PsClass) and every property the entry
 // names (through Read); the dumps of all of tests/compat, tests/web and
 // otterPS 1.0.1's programs, and tests/cli/run.psd1's -DebugAst cases, match
-// otterPS's line for line. The NeedsPowerShell throws below only guard a
+// otterPS's line for line. The OtterNetGap throws below only guard a
 // node class added later without an entry.
 internal static partial class AstDump
 {
@@ -65,7 +65,7 @@ internal static partial class AstDump
         string psClass = PsClass(node);
         if (!Table.TryGetValue(psClass, out var entry))
         {
-            throw new NeedsPowerShell($"-DebugAst does not know how otterPS shows a {node.GetType().Name}");
+            throw new OtterNetGap($"-DebugAst does not know how otterPS shows a {node.GetType().Name}");
         }
         string label = entry.Kind;
         foreach (string property in entry.Labels)
@@ -105,7 +105,7 @@ internal static partial class AstDump
 
     static string KindOf(Node node) =>
         Table.TryGetValue(PsClass(node), out var entry) ? entry.Kind
-            : throw new NeedsPowerShell($"-DebugAst does not know how otterPS shows a {node.GetType().Name}");
+            : throw new OtterNetGap($"-DebugAst does not know how otterPS shows a {node.GetType().Name}");
 
     // otterPS's class for an otter-net node: the same name, except where
     // otter-net has one class for several of otterPS's.
@@ -154,7 +154,7 @@ internal static partial class AstDump
             _ => psProperty,
         };
         var property = node.GetType().GetProperty(name)
-            ?? throw new NeedsPowerShell($"-DebugAst: otter-net's {node.GetType().Name} has no {name}");
+            ?? throw new OtterNetGap($"-DebugAst: otter-net's {node.GetType().Name} has no {name}");
         return property.GetValue(node);
     }
 }

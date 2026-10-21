@@ -132,26 +132,23 @@ exactly. Nothing else may reach the user: the entry point catches everything
 else and reports an internal error politely (D14), with a stack trace only
 under `--debug`.
 
-## 3. The `otter` command and the PowerShell fallback
+## 3. The `otter` command, without PowerShell
 
-otter-net replaces otterPS feature by feature, never all at once:
+otter-net replaced otterPS feature by feature: until a feature was native,
+`otter` handed the whole program, before anything ran, to the PowerShell
+Otter. Since 2026-10-20 every feature of Otter 1.0.1 is native and that
+hand-over is gone: `otter` never starts PowerShell, and nothing looks for
+an installed otterPS except to name its otter.ps1 in the texts of
+PowerShell's own errors that otterPS's users saw (SPEC-QUESTIONS C2-1).
 
-1. Parse and bind the program. If the program uses anything otter-net does
-   not implement yet (desktop windows, a library area not ported yet), the
-   binder says so **before anything runs**.
-2. Then `otter` hands the whole program, unchanged, to the PowerShell Otter
-   (`otter.ps1` from the installed release) - the user gets exactly today's
-   behaviour. A program never starts natively and falls back halfway.
-3. Commands not implemented yet (`web`, `desktop`, `serve`, building web
-   projects, ...) are passed through the same way; `docs/port/cli.md`
-   lists what the `otter` command does natively.
-
-`OTTER_ENGINE=powershell` forces the old path; `OTTER_ENGINE=native` refuses
-to fall back (for tests). Every release moves more programs onto the native
-path and loses nothing.
-
-Native AOT cannot host WPF, so desktop windows stay on the PowerShell Otter;
-a separate non-AOT desktop host is a later decision, not part of this plan.
+- A node or command otter-net does not know (a gap in otter-net; nothing in
+  the test corpus or the fuzzing reaches one) is reported as Otter's own
+  internal error (D14).
+- Desktop windows run in the companion `otter-desktop.exe` on Windows
+  (WPF; Native AOT cannot host it; `docs/port/desktop.md`).
+- `otter studio` prints the message of an Otter release without Studio.
+- `OTTER_ENGINE=interpreter` keeps otterPS's switch away from its compiled
+  engine (SPEC-QUESTIONS V4-2).
 
 ## 4. Compatibility harness
 
@@ -202,7 +199,7 @@ decision; nothing in the first phases depends on it.
     src/Otter.Language    Lexer, syntax tree, parser, binder,
                           bound tree, diagnostics
     src/Otter.Runtime     Values, scopes, evaluator, formatting, OtterError
-    src/Otter.Cli         The `otter` command (Native AOT), fallback
+    src/Otter.Cli         The `otter` command (Native AOT)
     tests/Otter.Tests     Unit tests (lexer, parser, binder, evaluator)
     tools/compare         Compatibility harness (both implementations)
     tools/bench           Benchmarks

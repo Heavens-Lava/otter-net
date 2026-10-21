@@ -376,11 +376,11 @@ public sealed class WebCompiler
 
     static readonly Regex ExternalUrl = new("^(?i)https?://", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
-    // The deepest nesting rendered natively: otterPS renders 1,609 levels
-    // (and sometimes 1,610) on Windows PowerShell 5.1 before "The script
-    // failed due to call depth overflow." (measured in CI, `otter web` and
-    // `otter build` alike); 1,500 leaves a margin for its other callers.
-    public const int MaxNativeRenderDepth = 1500;
+    // The deepest nesting rendered: otterPS renders 1,609 levels on Windows
+    // PowerShell 5.1 before "The script failed due to call depth overflow."
+    // (measured in CI, `otter web` and `otter build` alike; at 1,610 it
+    // sometimes still renders - SPEC-QUESTIONS F5-6).
+    public const int MaxNativeRenderDepth = 1609;
 
     // Render-OtterElementCore
     string RenderElementCore(string resName, bool hidden = false)
@@ -392,10 +392,9 @@ public sealed class WebCompiler
         if (rendering.Contains(resName)) throw new WebInternalProblem("The script failed due to call depth overflow.");
         if (++renderDepth > MaxNativeRenderDepth)
         {
-            // Nested deeper without a cycle: on Windows PowerShell 5.1 otterPS
-            // runs out of stack at about 1,610 levels, but not at a fixed one
-            // (SPEC-QUESTIONS F5-6), so otter-net cannot know the outcome.
-            throw new NotSupportedYet($"UI resources nested more than {MaxNativeRenderDepth} deep", 0);
+            // Nested deeper without a cycle: otterPS runs out of PowerShell's
+            // call depth, reported as the cycle is.
+            throw new WebInternalProblem("The script failed due to call depth overflow.");
         }
         rendering.Add(resName);
         try { return RenderResource(resName, r, hidden); }

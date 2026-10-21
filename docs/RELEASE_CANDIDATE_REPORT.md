@@ -183,4 +183,12 @@ comparison is CI on Windows (`.github/workflows/ci.yml`, `desktop.yml`,
 - Places that can still reach the PowerShell Otter: **20** - 17 bug guards, 2
   PowerShell outputs that cannot be reproduced (F5-1 `-InformationAction
   Inquire`, F5-6 nesting beyond 1,500 levels), `otter studio`. No feature.
+- **The PowerShell fallback is removed** (owner, 2026-10-20). `otter` never
+  starts PowerShell. The 17 places that handed a command over are now gaps
+  in otter-net reported as Otter's own internal error (none reached by the
+  corpus or the fuzzing); `-InformationAction Inquire` is refused with a
+  message (F5-1); web pages nested more than 1,609 levels give otterPS's
+  "call depth overflow" (F5-6); `otter studio` prints the message of an
+  Otter release without Studio; a missing `otter-desktop.exe` asks for a
+  reinstall.
 

@@ -113,9 +113,10 @@ internal sealed class CliExit(int code) : Exception("exit")
     public int Code { get; } = code;
 }
 
-// Something otter-net does not do natively yet, found before anything ran:
-// the whole command goes to the PowerShell Otter.
-internal sealed class NeedsPowerShell(string reason) : Exception(reason);
+// Something otter-net cannot do (a gap in otter-net, never reached by the
+// test corpus or the fuzzing): reported as Otter's own internal error. There
+// is no PowerShell Otter to hand it to any more.
+internal sealed class OtterNetGap(string reason, Exception? cause = null) : Exception(reason, cause);
 
 // A program that opens desktop windows (WPF), found before anything ran: on
 // Windows the whole command goes to the otter-desktop host (Program.cs).

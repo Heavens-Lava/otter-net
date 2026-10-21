@@ -28,20 +28,13 @@ Without a program run: `tools/port-progress.ps1` finds every one of the 512
 programs in otterPS's repository and `tests/` taken on natively by `otter
 check`.
 
-## Still handed to the PowerShell Otter
+## PowerShell
 
-Decided before anything runs, so a program never starts natively and falls
-back halfway:
-
-- Desktop windows (WPF) in `otter run` on Windows: Native AOT cannot host
-  WPF. Needs a decision: `docs/port/desktop-options.md`.
-- Remote commands on Windows (PowerShell remoting). Needs a decision.
-- `-InformationAction Inquire` and web pages nested more than 1,500 levels
-  deep (SPEC-QUESTIONS F5-1, F5-6). The other texts PowerShell itself prints
-  (`-Verbose`, `-InformationAction Stop`/`Ignore`, `otter serve` and `otter
-  desktop` failures) are native since 2026-10-20, measured on Windows
-  PowerShell 5.1.
-- `otter studio` (the IDE is developed separately).
+Not needed (2026-10-20). Every feature runs in C#: desktop windows through
+`otter-desktop.exe` (WPF), remote commands through WinRM, PowerShell's own
+texts measured and reproduced. A gap in otter-net would be reported as
+Otter's internal error; `-InformationAction Inquire` (F5-1) is refused with
+a message; `otter studio` prints the message of a release without Studio.
 
 ## Speed and memory (Windows, CI; median of 7 runs, ms)
 

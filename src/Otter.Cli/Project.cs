@@ -168,7 +168,7 @@ internal sealed class Project
         {
             // "invalid JSON syntax: " is followed by JavaScriptSerializer's own message.
             string message = JsonSyntaxError.Describe(raw)
-                ?? throw new NeedsPowerShell($"{manifestName} is refused by the JSON reader but no message was found");
+                ?? throw new OtterNetGap($"{manifestName} is refused by the JSON reader but no message was found");
             throw Problem($"{manifestName}: invalid JSON syntax: {message}");
         }
     }

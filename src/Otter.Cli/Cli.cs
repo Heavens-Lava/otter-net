@@ -17,11 +17,15 @@ internal static class Cli
 
     public static int Run(CommandLine line)
     {
+        Program.DebugErrors = line.DebugErrors;
         // -InformationAction Stop or Ignore: every Write-Host of otterPS fails
         // (InformationAction.cs). Inquire asks on the console before each one.
         if (line.InformationAction == 3)
         {
-            throw new NeedsPowerShell("-InformationAction Inquire asks on the console before each line otterPS shows, and offers a nested PowerShell prompt (SPEC-QUESTIONS F5-1)");
+            // otterPS's PowerShell asks on the console before each line it
+            // shows and offers a nested PowerShell prompt (SPEC-QUESTIONS F5-1).
+            Console.Error.WriteLine("Otter: -InformationAction Inquire is not supported (it asks a PowerShell question before every line).");
+            throw new CliExit(ExitUsageError);
         }
         InformationAction.Current = line.InformationAction switch
         {
@@ -205,7 +209,13 @@ internal static class Cli
     static int UiCommand(CommandLine line)
     {
         string command = line.Path!;
-        if (Is(command, "studio")) throw new NeedsPowerShell("otter studio is not native");
+        // Otter Studio lives in otterPS's otter-studio folder, which is not
+        // part of an Otter release: otter.ps1's message for that case.
+        if (Is(command, "studio"))
+        {
+            Host.Line("Otter Studio is not part of this Otter release.", ConsoleColor.Red, site: PsSite.Otter(911));
+            throw new CliExit(ExitUsageError);
+        }
         if (!line.HasTarget)
         {
             // otter.ps1 ends this with a plain `exit 1`, and a plain `exit`
@@ -235,7 +245,7 @@ internal static class Cli
         // a project's entry point, whatever its extension.
         if (Is(command, "web") || Is(command, "browse"))
         {
-            return WebCommand.Run(scriptFile, line.Target!, line.NoOpen, Program.Trace, out string webReason) ?? throw new NeedsPowerShell(webReason);
+            return WebCommand.Run(scriptFile, line.Target!, line.NoOpen, Program.Trace, out string webReason) ?? throw new OtterNetGap(webReason);
         }
         if (Is(command, "serve")) return ServeCommand.Run(line, scriptFile);
         return DesktopCommand.Run(scriptFile);

@@ -17,7 +17,7 @@ internal static partial class ProjectCommands
     // `otherSite`.
     static int ReportProjectFailure(Exception failure, int otterErrorSite, int otherSite)
     {
-        if (failure is NeedsPowerShell or CliExit) throw failure;
+        if (failure is OtterNetGap or CliExit) throw failure;
         Host.Line("", site: PsSite.Otter(failure is OtterError ? otterErrorSite : otherSite));
         Host.Line(failure.Message, ConsoleColor.Red);
         Host.Line("");
@@ -209,7 +209,7 @@ internal static partial class ProjectCommands
         {
             return Host.InModule(() => RunTests(target));
         }
-        catch (Exception failure) when (failure is not OutOfMemoryException and not CliExit and not NeedsPowerShell)
+        catch (Exception failure) when (failure is not OutOfMemoryException and not CliExit and not OtterNetGap)
         {
             return ReportProjectFailure(failure, 761, 767);
         }
