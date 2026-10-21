@@ -16,7 +16,7 @@ the site shell, is compiled on its own with `otter web site.ot -NoOpen`.
 Reference: that script, unchanged except that each compiled page is also
 copied to a raw/ folder before it is post-processed, run by Windows
 PowerShell 5.1 (PowerShell 7 elsewhere) in a copy of otterPS (src/, otter.ps1,
-VERSION, otter-docs/).
+its top-level files, otter-docs/).
 
 Candidate: the same script with its one Export-OtterWebApplication call
 replaced by `otter web <page> -NoOpen` of otter-net (the page it writes beside
@@ -187,8 +187,9 @@ try {
         Copy-Item -LiteralPath (Join-Path $OtterPs 'VERSION') -Destination $root
         Copy-Tree -From (Join-Path $OtterPs 'otter-docs') -To (Join-Path $root 'otter-docs')
         if ($side -eq 'reference') {
+            # otter.ps1, its modules beside it (Otter.Contract.psm1) and src/.
             Copy-Tree -From (Join-Path $OtterPs 'src') -To (Join-Path $root 'src')
-            Copy-Item -LiteralPath (Join-Path $OtterPs 'otter.ps1') -Destination $root
+            Get-ChildItem -LiteralPath $OtterPs -File | Copy-Item -Destination $root -Force
         }
         $script = Join-Path $root 'otter-docs/scripts/build-site-certification.ps1'
         $text = $referenceScriptText

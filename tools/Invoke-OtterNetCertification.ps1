@@ -82,7 +82,7 @@ param(
     # The candidate commit (a SHA or anything git rev-parse takes).
     [string]$Commit = 'HEAD',
     # A checkout of otterPS 1.0.1, the reference.
-    [Parameter(Mandatory)][string]$OtterPs,
+    [string]$OtterPs = '',
     [string]$OutputDirectory = '',
     # A runtime identifier: win-x64, win-arm64, osx-arm64, osx-x64, linux-x64, linux-arm64.
     [string]$Platform = '',
@@ -98,7 +98,10 @@ param(
     [switch]$SkipDesktop,
     [string]$WorkDirectory = '',
     # Combine the platform records of -Commit under -OutputDirectory.
-    [switch]$Combine
+    [switch]$Combine,
+    # Development only (a machine that cannot link Native AOT): publish otter
+    # framework-dependent instead. The run is then a development run.
+    [switch]$FrameworkDependent
 )
 
 $ErrorActionPreference = 'Stop'
@@ -231,7 +234,6 @@ $sha = $sha.Trim()
 if (-not $sha) { throw "Not a commit here: $Commit" }
 if (-not $OutputDirectory) { $OutputDirectory = Join-Path $repoRoot 'release/certification' }
 $OutputDirectory = [System.IO.Path]::GetFullPath($OutputDirectory)
-$OtterPs = (Resolve-Path $OtterPs).Path
 
 # --------------------------------------------------------------------------
 # -Combine: every platform's record, and each platform's capture against the
@@ -318,6 +320,8 @@ if ($Combine) {
     exit 1
 }
 
+if (-not $OtterPs) { throw '-OtterPs (a checkout of otterPS 1.0.1, the reference) is required.' }
+$OtterPs = (Resolve-Path $OtterPs).Path
 $head = ([string](Invoke-Git $repoRoot @('rev-parse', 'HEAD'))).Trim()
 $detached = $null -eq (Invoke-Git $repoRoot @('symbolic-ref', '-q', 'HEAD'))
 $porcelainBefore = Get-Porcelain $repoRoot
@@ -341,6 +345,7 @@ if (-not ($head -eq $sha -and $detached -and $clean)) {
         if ($Only.Count -gt 0) { $forward += @('-Only', (($Only | ForEach-Object { $_ -split ',' }) -join ',')) }
         if ($IncludeMachineState) { $forward += '-IncludeMachineState' }
         if ($SkipDesktop) { $forward += '-SkipDesktop' }
+        if ($FrameworkDependent) { $forward += '-FrameworkDependent' }
         & $hostExe @hostArgs -File $script @forward
         $code = $LASTEXITCODE
     }
@@ -444,9 +449,12 @@ $gates['build'] = {
     $counts['solution.exit'] = $build.ExitCode
     if ($build.ExitCode -ne 0) { $failures += "dotnet build otter-net.sln: exit $($build.ExitCode)" }
     if (Test-Path -LiteralPath $bin) { Remove-Item -LiteralPath $bin -Recurse -Force }
-    $publish = Invoke-Logged -FileName 'dotnet' -Arguments @('publish', 'src/Otter.Cli/Otter.Cli.csproj', '-c', 'Release', '-r', $Platform, '-p:UseAppHost=true', '-p:TreatWarningsAsErrors=false', '-o', $bin, '--nologo') -Log $log
+    $publishArguments = @('publish', 'src/Otter.Cli/Otter.Cli.csproj', '-c', 'Release', '-r', $Platform, '-p:UseAppHost=true', '-p:TreatWarningsAsErrors=false', '-o', $bin, '--nologo')
+    if ($FrameworkDependent) { $publishArguments += @('-p:PublishAot=false', '--self-contained', 'false') }
+    $publish = Invoke-Logged -FileName 'dotnet' -Arguments $publishArguments -Log $log
     $publishWarnings = @([regex]::Matches($publish.Stdout, '(?m): warning [A-Z]+[0-9]+[^\r\n]*') | ForEach-Object { $_.Value.Trim() } | Sort-Object -Unique)
     $counts['aot.warnings'] = $publishWarnings.Count
+    if ($FrameworkDependent) { $counts['aot'] = 'no: -FrameworkDependent (development run)' }
     $counts['aot.exit'] = $publish.ExitCode
     if ($publish.ExitCode -ne 0) { $failures += "dotnet publish (Native AOT, $Platform): exit $($publish.ExitCode)" }
     $warnings += $publishWarnings
@@ -977,7 +985,7 @@ Write-Host "[$(Get-Date -Format HH:mm:ss)] repository-clean ... $(if ($changed.C
 $allRun = ($Only.Count -eq 0)
 $allPassed = (@($records | Where-Object { -not $_.passed }).Count -eq 0)
 $kind = 'development-run'
-if ($allRun) { $kind = 'release-certification' }
+if ($allRun -and -not $FrameworkDependent) { $kind = 'release-certification' }
 $dotnetVersion = ''
 try { $dotnetVersion = ((& dotnet --version) | Out-String).Trim() } catch { }
 $platformRecord = [ordered]@{
