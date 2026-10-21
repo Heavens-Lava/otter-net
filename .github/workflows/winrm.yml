@@ -33,8 +33,12 @@ jobs:
         run: dotnet publish src/Otter.Cli/Otter.Cli.csproj -c Release -r win-x64 -p:UseAppHost=true -o artifacts/win-x64 --nologo
 
       - name: An isolated WinRM endpoint and throwaway accounts
-        shell: pwsh
+        # Windows PowerShell 5.1: its Enable-PSRemoting registers the
+        # Microsoft.PowerShell endpoint, which Invoke-Command (otterPS) and
+        # otter-net use; PowerShell 7's registers only its own.
+        shell: powershell
         run: |
+          $ErrorActionPreference = 'Stop'
           Enable-PSRemoting -Force -SkipNetworkProfileCheck | Out-Null
           # Nothing outside this machine can reach it.
           Get-NetFirewallRule -Name 'WINRM-HTTP-In-TCP*' -ErrorAction SilentlyContinue | Disable-NetFirewallRule
@@ -80,7 +84,7 @@ jobs:
         shell: powershell
         run: |
           Stop-Service WinRM -Force
-          powershell -NoProfile -ExecutionPolicy Bypass -File tools/compare.ps1 -OtterPs otterps -OtterNet artifacts/win-x64/otter.exe -Corpus tests/winrm/r4_hostname.ot, tests/winrm/r4_unknown_host.ot -NativeOnly -TimeoutSeconds 400 -ReportPath results/winrm-stopped.md
+          & ./tools/compare.ps1 -OtterPs otterps -OtterNet artifacts/win-x64/otter.exe -Corpus @('tests/winrm/r4_hostname.ot', 'tests/winrm/r4_unknown_host.ot') -NativeOnly -TimeoutSeconds 400 -ReportPath results/winrm-stopped.md
           $code = $LASTEXITCODE
           Start-Service WinRM
           exit $code
