@@ -10,7 +10,8 @@ PowerShell 5.1, the certified behaviour.
 ## Verdict
 
 otter-net runs the whole of Otter 1.0.1 in C#, without PowerShell, on six
-platforms, and produces otterPS 1.0.1's output byte for byte - with **one
+platforms, and produces otterPS 1.0.1's output byte for byte - with no feature left to PowerShell (remote commands on Windows were
+made native on 2026-10-20 - see below); originally with **one
 documented exception**: remote commands on Windows (`run command ... on
 remote ... using credential`, D84), which for this release candidate are
 still run by Windows' built-in PowerShell, exactly as Otter 1.0.1 runs them
@@ -97,7 +98,6 @@ PowerShell Otter (21), from `docs/NATIVE_COVERAGE.md`:
 
 | Count | Category | What |
 |---:|---|---|
-| 6 | **Remote commands on Windows** (D84) | The one feature not native. The owner approved a native WinRM client; the attempt was stopped by an automated safety review before any code was written, and it was not retried. For this release candidate the statement is handed to the PowerShell Otter, which uses Windows' built-in PowerShell remoting, as Otter 1.0.1 does. **Owner decision:** keep this, implement it under direct supervision, or decide the statement's future as a specification question. |
 | 2 | PowerShell-rendered errors | `-InformationAction Inquire` (PowerShell asks on the console before each line and offers a nested PowerShell prompt; SPEC-QUESTIONS F5-1) and a web page nested more than 1,500 levels deep (otterPS overflows its stack at about 1,610, not at a fixed depth; F5-6) |
 | 12 | Bug guards | Reached only if otter-net itself crashes or lacks a table entry (none in 1,337 corpus runs and the fuzzing) |
 | 1 | Out of scope | `otter studio` - the IDE is developed separately |
@@ -171,3 +171,16 @@ Recorded in `docs/SPEC-QUESTIONS.md`. In every case otter-net keeps otterPS
 On macOS and Linux the reference runs on PowerShell 7; the authoritative
 comparison is CI on Windows (`.github/workflows/ci.yml`, `desktop.yml`,
 `package.yml`).
+
+## Addendum - 2026-10-20
+
+- **Remote commands are native** (owner: "fully C#"): the PowerShell Remoting
+  Protocol over Windows' WinRM client, `src/Otter.Runtime/RemoteCommands.cs`
+  and `Psrp.cs`. Local tests cover the protocol encoding (messages,
+  fragments, CLIXML, state and error decoding); a run against a real WinRM
+  endpoint on Windows is still to be observed.
+- **W5-5 decided:** English everywhere.
+- Places that can still reach the PowerShell Otter: **20** - 17 bug guards, 2
+  PowerShell outputs that cannot be reproduced (F5-1 `-InformationAction
+  Inquire`, F5-6 nesting beyond 1,500 levels), `otter studio`. No feature.
+

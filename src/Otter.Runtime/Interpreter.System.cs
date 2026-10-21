@@ -42,22 +42,36 @@ public sealed partial class Interpreter
                 if (runSsh.ResultTarget != null) scope.Set(runSsh.ResultTarget, output);
                 return true;
             }
-            // Off Windows only (the parser hands Windows' to the PowerShell Otter).
+            // run command "..." on remote "host" using credential "n" (D84):
+            // Invoke-OtterRemoteCommand. On Windows through WinRM and PowerShell
+            // remoting (RemoteCommands.cs); elsewhere otterPS's own failure.
             case RunRemoteCommandStmt runRemote:
             {
                 string command = Values.Format(Evaluate(runRemote.Command, scope));
                 string hostName = Values.Format(Evaluate(runRemote.HostName, scope));
                 string credentialName = Values.Format(Evaluate(runRemote.CredentialName, scope));
-                _ = command; _ = hostName;   // evaluated, as otterPS does, before the credential
                 string? password;
-                try { password = OtterRemoteCredentials.ReadOffWindows(credentialName); }
+                try { password = OperatingSystem.IsWindows() ? OtterCredentials.Get(credentialName) : OtterRemoteCredentials.ReadOffWindows(credentialName); }
                 catch (CredentialProblem problem) { throw RuntimeError(problem.Message, runRemote.Line, problem.Suggestion); }
                 if (password == null)
                 {
                     throw RuntimeError($"I do not have a credential called \"{credentialName}\" - use set credential \"{credentialName}\" to \"...\" to store one first.", runRemote.Line);
                 }
-                // Not reached: no credential can be decrypted outside Windows.
-                throw new InternalProblem("Remote commands need Windows PowerShell remoting.");
+                // Not reached off Windows: no credential can be decrypted there.
+                if (!OperatingSystem.IsWindows()) throw new InternalProblem("Remote commands need Windows PowerShell remoting.");
+                // ConvertTo-SecureString -String $password refuses an empty one.
+                if (password.Length == 0)
+                {
+                    throw RuntimeError($"I could not build a credential for \"{credentialName}\". Cannot bind argument to parameter 'String' because it is an empty string.", runRemote.Line);
+                }
+                string output;
+                try { output = OtterRemoteCommands.Run(command, hostName, credentialName, password); }
+                catch (Exception failure) when (failure is RemoteCommandProblem or DllNotFoundException or EntryPointNotFoundException or System.ComponentModel.Win32Exception)
+                {
+                    throw RuntimeError($"I could not run that command on \"{hostName}\". {failure.Message}", runRemote.Line);
+                }
+                if (runRemote.ResultTarget != null) scope.Set(runRemote.ResultTarget, output);
+                return true;
             }
             case GetProcessesStmt getProcesses:
                 scope.Set(getProcesses.Target, OtterProcesses.List());

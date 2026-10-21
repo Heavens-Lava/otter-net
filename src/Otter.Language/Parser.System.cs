@@ -495,11 +495,8 @@ public sealed partial class Parser
             ExpectWord("credential", "I expected \"credential\" after \"using\".", example);
             Expr credentialName = ReadValue();
             string? remoteResult = ReadRunResultTarget();
-            // On Windows otterPS runs the command through PowerShell remoting
-            // (Invoke-Command over WinRM), which has no equivalent outside
-            // PowerShell: the PowerShell Otter runs these there (see
-            // docs/port/system.md). Elsewhere it never reaches remoting.
-            if (OperatingSystem.IsWindows()) throw Unsupported("remote commands");
+            // Run natively everywhere: on Windows through WinRM and PowerShell
+            // remoting, as Invoke-Command does (Otter.Runtime/RemoteCommands.cs).
             return new RunRemoteCommandStmt(target, hostName, credentialName, remoteResult, start.Line);
         }
         if (isCommand && after.Kind == TokenKind.Identifier && Same(after.Text, "over"))
