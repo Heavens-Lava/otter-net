@@ -1,0 +1,10 @@
+# Several commands in one program (each its own session).
+lines are
+    "cmd /c echo one"
+    "cmd /c echo two"
+    "cmd /c echo three"
+.
+for each line in lines
+    run command line on remote "localhost" using credential "otterwinrm" into result
+    say result
+.

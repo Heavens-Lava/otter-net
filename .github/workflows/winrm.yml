@@ -1,0 +1,107 @@
+# Remote commands (D84) on a real WinRM endpoint: otter-net's native client
+# against otterPS 1.0.1's Invoke-Command, on one isolated runner.
+#
+# Isolation: the runner talks only to itself. WinRM is enabled for the run,
+# its firewall rules for remote addresses are disabled (loopback is never
+# filtered), and TrustedHosts names only this machine. The accounts are
+# throwaway local users with random passwords made in the run and masked in
+# the log; nothing else is touched, and everything is removed at the end.
+# Reports only are uploaded - no binaries, no secrets.
+name: winrm
+
+on:
+  push:
+    branches: [cert/winrm]
+  workflow_dispatch:
+
+jobs:
+  winrm:
+    name: Remote commands on a loopback WinRM endpoint vs otterPS 1.0.1
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check out otterPS 1.0.1 (the reference)
+        uses: actions/checkout@v4
+        with:
+          repository: Heavens-Lava/otterPS
+          ref: v1.0.1
+          path: otterps
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Publish otter (Native AOT)
+        run: dotnet publish src/Otter.Cli/Otter.Cli.csproj -c Release -r win-x64 -p:UseAppHost=true -o artifacts/win-x64 --nologo
+
+      - name: An isolated WinRM endpoint and throwaway accounts
+        shell: pwsh
+        run: |
+          Enable-PSRemoting -Force -SkipNetworkProfileCheck | Out-Null
+          # Nothing outside this machine can reach it.
+          Get-NetFirewallRule -Name 'WINRM-HTTP-In-TCP*' -ErrorAction SilentlyContinue | Disable-NetFirewallRule
+          # NTLM to this machine only (a workgroup runner has no Kerberos).
+          Set-Item WSMan:\localhost\Client\TrustedHosts -Value "localhost,127.0.0.1,$env:COMPUTERNAME" -Force
+          function New-Password { (-join ((48..57) + (65..90) + (97..122) | Get-Random -Count 24 | ForEach-Object { [char]$_ })) + 'a1!A' }
+          $good = New-Password; $bad = New-Password; $other = New-Password
+          foreach ($secret in $good, $bad, $other) { Write-Host "::add-mask::$secret" }
+          # otterwinrm: the right password is stored. otterwinrmbad: a wrong one.
+          New-LocalUser otterwinrm -Password (ConvertTo-SecureString $good -AsPlainText -Force) -PasswordNeverExpires | Out-Null
+          New-LocalUser otterwinrmbad -Password (ConvertTo-SecureString $other -AsPlainText -Force) -PasswordNeverExpires | Out-Null
+          Add-LocalGroupMember -Group 'Remote Management Users' -Member otterwinrm, otterwinrmbad
+          # Otter's credential vault, which both implementations read (D81).
+          $program = 'get environment variable "OTTER_GOOD" into good', 'get environment variable "OTTER_BAD" into bad',
+                     'set credential "otterwinrm" to good', 'set credential "otterwinrmbad" to bad', 'say "stored"'
+          Set-Content -Path "$env:RUNNER_TEMP\store.ot" -Value $program
+          $env:OTTER_GOOD = $good; $env:OTTER_BAD = $bad
+          & ./artifacts/win-x64/otter.exe run "$env:RUNNER_TEMP\store.ot"
+          if ($LASTEXITCODE -ne 0) { throw 'storing the credentials failed' }
+          Remove-Item "$env:RUNNER_TEMP\store.ot"
+          # The environment works for PowerShell itself before anything is compared.
+          $cred = [pscredential]::new('otterwinrm', (ConvertTo-SecureString $good -AsPlainText -Force))
+          $name = Invoke-Command -ComputerName localhost -Credential $cred -ScriptBlock { hostname } -ErrorAction Stop
+          Write-Host "Invoke-Command as otterwinrm works: $name"
+
+      - name: Remote commands - otter-net against otterPS 1.0.1
+        shell: powershell
+        run: |
+          $before = @(Get-WSManInstance -ResourceURI shell -Enumerate -ErrorAction SilentlyContinue).Count
+          powershell -NoProfile -ExecutionPolicy Bypass -File tools/compare.ps1 -OtterPs otterps -OtterNet artifacts/win-x64/otter.exe -Corpus tests/winrm -NativeOnly -TimeoutSeconds 400 -ReportPath results/winrm.md
+          $code = $LASTEXITCODE
+          Start-Sleep -Seconds 5
+          $after = @(Get-WSManInstance -ResourceURI shell -Enumerate -ErrorAction SilentlyContinue).Count
+          $hosts = @(Get-Process wsmprovhost -ErrorAction SilentlyContinue).Count
+          $line = "Open WinRM shells: $before before, $after after the comparison; wsmprovhost processes left: $hosts"
+          Write-Host $line
+          "", $line | Out-File -Append -Encoding utf8 results/winrm.md
+          if ($after -gt $before) { Write-Host 'Shells were left open'; $code = 1 }
+          exit $code
+
+      - name: Remote commands with the WinRM service stopped
+        if: always()
+        shell: powershell
+        run: |
+          Stop-Service WinRM -Force
+          powershell -NoProfile -ExecutionPolicy Bypass -File tools/compare.ps1 -OtterPs otterps -OtterNet artifacts/win-x64/otter.exe -Corpus tests/winrm/r4_hostname.ot, tests/winrm/r4_unknown_host.ot -NativeOnly -TimeoutSeconds 400 -ReportPath results/winrm-stopped.md
+          $code = $LASTEXITCODE
+          Start-Service WinRM
+          exit $code
+
+      - name: Clean up the accounts, the credentials and WinRM
+        if: always()
+        shell: pwsh
+        run: |
+          Set-Content -Path "$env:RUNNER_TEMP\forget.ot" -Value 'delete credential "otterwinrm"', 'delete credential "otterwinrmbad"'
+          & ./artifacts/win-x64/otter.exe run "$env:RUNNER_TEMP\forget.ot"
+          Remove-LocalUser otterwinrm, otterwinrmbad -ErrorAction SilentlyContinue
+          Disable-PSRemoting -Force -WarningAction SilentlyContinue
+          exit 0
+
+      - name: Summary
+        if: always()
+        shell: pwsh
+        run: Get-ChildItem results -Filter *.md -ErrorAction SilentlyContinue | ForEach-Object { Get-Content $_.FullName; '' } | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: winrm-results
+          path: results/
+          retention-days: 30

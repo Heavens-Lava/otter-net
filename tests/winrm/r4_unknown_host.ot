@@ -1,0 +1,6 @@
+# A host name that does not resolve.
+try
+    run command "hostname" on remote "otter-nowhere.invalid" using credential "otterwinrm" into result
+otherwise into reason
+    say reason
+.

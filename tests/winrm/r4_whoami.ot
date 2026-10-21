@@ -1,0 +1,3 @@
+# Runs as the stored credential's account.
+run command "whoami" on remote "127.0.0.1" using credential "otterwinrm" into result
+say result

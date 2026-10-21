@@ -1,0 +1,3 @@
+# A command that succeeds: the remote machine's name (D84).
+run command "hostname" on remote "localhost" using credential "otterwinrm" into result
+say result

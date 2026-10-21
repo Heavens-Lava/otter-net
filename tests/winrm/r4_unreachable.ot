@@ -1,0 +1,6 @@
+# A host that never answers (TEST-NET-1): the connection times out.
+try
+    run command "hostname" on remote "192.0.2.1" using credential "otterwinrm" into result
+otherwise into reason
+    say reason
+.

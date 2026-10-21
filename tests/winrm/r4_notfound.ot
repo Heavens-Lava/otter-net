@@ -1,0 +1,3 @@
+# A program that does not exist on the remote machine: PowerShell's error record, formatted remotely.
+run command "definitely-not-a-program-xyz" on remote "localhost" using credential "otterwinrm" into result
+say result

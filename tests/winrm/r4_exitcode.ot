@@ -1,0 +1,3 @@
+# A non-zero exit code is not an error; there is no output.
+run command "cmd /c exit 3" on remote "localhost" using credential "otterwinrm" into result
+say "[" result "]"

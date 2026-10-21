@@ -1,0 +1,3 @@
+# Standard error is merged into the output (2>&1), then Out-String.
+run command "cmd /c echo to stdout & echo to stderr 1>&2" on remote "localhost" using credential "otterwinrm" into result
+say result
