@@ -59,7 +59,13 @@ $here = Split-Path -Parent $PSScriptRoot
 $OtterPs = (Resolve-Path $OtterPs).Path
 $OtterNet = (Resolve-Path $OtterNet).Path
 $onWindows = [System.IO.Path]::DirectorySeparatorChar -eq '\'
+# This PowerShell's own executable: powershell.exe, or pwsh (which can be a
+# .NET global tool, whose process is dotnet).
 $hostExe = (Get-Process -Id $PID).Path
+if ($PSVersionTable.PSEdition -eq 'Core' -and [System.IO.Path]::GetFileNameWithoutExtension($hostExe) -ne 'pwsh') {
+    $pwshCommand = Get-Command pwsh -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($pwshCommand) { $hostExe = $pwshCommand.Source }
+}
 $hostArgs = @('-NoProfile')
 if ($onWindows) { $hostArgs += @('-ExecutionPolicy', 'Bypass') }
 if (-not $ReportPath) { $ReportPath = Join-Path $here 'compat-results/site-report.md' }

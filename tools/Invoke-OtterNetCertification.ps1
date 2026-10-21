@@ -107,7 +107,13 @@ param(
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+# This PowerShell's own executable: powershell.exe, or pwsh (which can be a
+# .NET global tool, whose process is dotnet).
 $hostExe = (Get-Process -Id $PID).Path
+if ($PSVersionTable.PSEdition -eq 'Core' -and [System.IO.Path]::GetFileNameWithoutExtension($hostExe) -ne 'pwsh') {
+    $pwshCommand = Get-Command pwsh -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($pwshCommand) { $hostExe = $pwshCommand.Source }
+}
 $onWindows = [System.IO.Path]::DirectorySeparatorChar -eq '\'
 $hostArgs = @('-NoProfile')
 if ($onWindows) { $hostArgs += @('-ExecutionPolicy', 'Bypass') }
@@ -867,7 +873,7 @@ $gates['native-coverage'] = {
         $lines = [System.IO.File]::ReadAllLines($file.FullName)
         $relative = Get-RelativePath $file.FullName $repoRoot
         for ($i = 0; $i -lt $lines.Count; $i++) {
-            if ($lines[$i] -notmatch 'Process\.Start\(|new ProcessStartInfo|\.Start\(\);' -or $lines[$i].TrimStart().StartsWith('//')) { continue }
+            if ($lines[$i] -notmatch '\b[Pp]rocess\.Start\(|new ProcessStartInfo' -or $lines[$i].TrimStart().StartsWith('//')) { continue }
             $from = [Math]::Max(0, $i - 25); $to = [Math]::Min($lines.Count - 1, $i + 10)
             $context = ($lines[$from..$to] | Where-Object { -not $_.TrimStart().StartsWith('//') }) -join "`n"
             $mentions = $context -match '(?i)powershell|pwsh|OTTER_POWERSHELL|otter\.ps1'
