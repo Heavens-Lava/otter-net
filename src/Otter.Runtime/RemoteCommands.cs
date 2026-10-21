@@ -72,7 +72,10 @@ public static unsafe partial class OtterRemoteCommands
             var outputSet = new WSMAN_STREAM_ID_SET { streamIDsCount = 1, streamIDs = (IntPtr)(&streamOut) };
             var startup = new WSMAN_SHELL_STARTUP_INFO { inputStreamSet = (IntPtr)(&inputSet), outputStreamSet = (IntPtr)(&outputSet) };
             var protocolOption = new WSMAN_OPTION { name = strings.Add("protocolversion"), value = strings.Add("2.3"), mustComply = 1 };
-            var options = new WSMAN_OPTION_SET { optionsCount = 1, options = (IntPtr)(&protocolOption) };
+            // optionsMustUnderstand: WinRM refuses the PowerShell plugin's option set
+            // without it ("invalid WS-Management OptionSet element"), measured on a
+            // real endpoint (certification run 39643406248).
+            var options = new WSMAN_OPTION_SET { optionsCount = 1, options = (IntPtr)(&protocolOption), optionsMustUnderstand = 1 };
             string creationXml = "<creationXml xmlns=\"http://schemas.microsoft.com/powershell\">" + Convert.ToBase64String(creation) + "</creationXml>";
             var createData = WSMAN_DATA.Text(strings.Add(creationXml), creationXml.Length);
             using (var creating = new Operation())
