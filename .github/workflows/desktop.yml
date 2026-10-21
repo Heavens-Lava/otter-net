@@ -62,6 +62,8 @@ jobs:
           if (-not ($output -match 'otter-desktop.exe, which is missing from this installation')) { throw 'no reinstall message' }
           if ($output -match 'fallback') { throw 'a fallback ran' }
           if ($output -contains 'made a window') { throw 'the program ran without the desktop host' }
+          # The expected exit code 1 is otter's; the step itself passed.
+          exit 0
       # Last, because it changes the display: 1920x1080 at a 150 % scale, as
       # the Settings app sets it (tools/set-display-scale.ps1). New windows
       # are laid out at 144 dpi; the session's system DPI stays 96 until the
