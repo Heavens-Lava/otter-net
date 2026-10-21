@@ -122,7 +122,10 @@ foreach ($gateFolder in @(Get-ChildItem -LiteralPath $ReferenceRoot -Directory |
                 if ($x -ceq $y) { continue }
                 if ($part -in @('stdout', 'stderr') -and (Test-SameUnwrapped $a[$part] $b[$part])) { $script:unwrapped++; continue }
                 if ($part -eq 'files') {
-                    $xl = @($x -split "`n" | Where-Object { $_ }); $yl = @($y -split "`n" | Where-Object { $_ })
+                    # In ordinal order (captures before it were in culture order).
+                    $xl = [string[]]@($x -split "`n" | Where-Object { $_ }); $yl = [string[]]@($y -split "`n" | Where-Object { $_ })
+                    [System.Array]::Sort($xl, [System.StringComparer]::Ordinal); [System.Array]::Sort($yl, [System.StringComparer]::Ordinal)
+                    if (($xl -join "`n") -ceq ($yl -join "`n")) { continue }
                     $diff = @(Compare-Object $xl $yl -CaseSensitive)
                     # Same content once CRLF is LF: say so.
                     $lfOnly = ($xl.Count -eq $yl.Count)

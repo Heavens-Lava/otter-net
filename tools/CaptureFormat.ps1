@@ -46,6 +46,8 @@ function ConvertTo-CaptureText {
         # On macOS the temporary folder (/var/...) is a link to /private/var/...,
         # and messages quote the resolved path.
         $result = $result.Replace('/private' + $path, '<work>').Replace($path, '<work>')
+        # Windows paths are sometimes written with / (Otter's own suggestions).
+        if ($path.Contains('\')) { $result = $result.Replace($path.Replace('\', '/'), '<work>') }
     }
     return $result
 }
@@ -73,7 +75,10 @@ function Get-CaptureFileLines {
             }
             catch { "$relative unreadable" }
         }
-        return @(@($lines) | Sort-Object)
+        # Ordinal: Sort-Object orders by culture, and differently in 5.1 and 7.
+        $sorted = [string[]]@($lines)
+        [System.Array]::Sort($sorted, [System.StringComparer]::Ordinal)
+        return $sorted
     }
     finally { $sha.Dispose() }
 }
