@@ -4,23 +4,31 @@ Tests otter-net's Windows packages the way a user gets them, as on a machine
 without PowerShell: installs the MSI (after an older one, to test the
 upgrade), runs the installed `otter` from a new terminal's PATH with every
 folder holding powershell.exe or pwsh.exe removed, uninstalls it and checks
-that nothing is left behind; then runs the ZIP in place.
+that nothing is left behind; checks that a downgrade is refused (with
+-NewerMsi); then runs the ZIP in place.
 
 .DESCRIPTION
 Runs on a disposable Windows (CI): it installs and uninstalls for the current
 user. The script itself needs Windows PowerShell 5.1 or PowerShell 7; every
 `otter` it starts gets the PATH without PowerShell, so a program that needed
 the PowerShell Otter would say so ("needs the PowerShell Otter") instead of
-running. Desktop windows and remote commands still go to the PowerShell Otter
-on Windows; their programs are the only ones allowed to say so.
+running. (otter-net no longer hands anything to PowerShell; the check stays
+so that a regression would show.) Desktop windows run in the installed
+otter-desktop.exe; tools\test-desktop-nodotnet.ps1 runs them without .NET.
+
+"A new terminal" is checked two ways: where.exe with the PATH Windows builds
+from the registry, and where.exe in a new process Task Scheduler starts in
+the user's session with a fresh environment (tools\package-test-common.ps1).
 
 .EXAMPLE
-powershell -NoProfile -File tools\test-package.ps1 -Msi artifacts\packages\otter-net-1.0.1-rc.1-win-x64.msi -OlderMsi older\otter-net-0.9.0-win-x64.msi -Zip artifacts\packages\otter-net-1.0.1-rc.1-win-x64.zip
+powershell -NoProfile -File tools\test-package.ps1 -Msi artifacts\packages\otter-net-0.9.0-preview.1-win-x64.msi -OlderMsi older\otter-net-0.8.0-win-x64.msi -NewerMsi newer\otter-net-0.9.1-win-x64.msi -Zip artifacts\packages\otter-net-0.9.0-preview.1-win-x64.zip
 #>
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][string]$Msi,
     [string]$OlderMsi = '',
+    # A newer version of the same MSI: installing -Msi over it must be refused.
+    [string]$NewerMsi = '',
     [string]$Zip = '',
     [string]$LogDirectory = 'msi-logs'
 )
@@ -29,6 +37,8 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $Msi = (Resolve-Path $Msi).Path
 if ($OlderMsi) { $OlderMsi = (Resolve-Path $OlderMsi).Path }
+if ($NewerMsi) { $NewerMsi = (Resolve-Path $NewerMsi).Path }
+. (Join-Path $PSScriptRoot 'package-test-common.ps1')
 if ($Zip) { $Zip = (Resolve-Path $Zip).Path }
 New-Item -ItemType Directory -Force -Path $LogDirectory | Out-Null
 $LogDirectory = (Resolve-Path $LogDirectory).Path
@@ -46,8 +56,9 @@ function Fail([string]$Text) { Write-Host "FAIL: $Text"; $script:failures++ }
 function Note([string]$Text) { Write-Host $Text; $script:summary += $Text }
 
 function Invoke-Msiexec {
-    param([string[]]$Arguments, [string]$Log)
+    param([string[]]$Arguments, [string]$Log, [switch]$MayFail)
     $process = Start-Process msiexec.exe -ArgumentList (@($Arguments) + @('/qn', '/norestart', '/l*v', "`"$Log`"")) -Wait -PassThru
+    if ($MayFail) { return $process.ExitCode }
     if ($process.ExitCode -ne 0 -and $process.ExitCode -ne 3010) { throw "msiexec $($Arguments -join ' ') failed ($($process.ExitCode)); see $Log" }
 }
 
@@ -172,7 +183,9 @@ try {
     if (Test-Path (Join-Path $installDir 'otter.exe')) { Pass "$installDir\otter.exe" } else { Fail "no $installDir\otter.exe" }
     $userPath = @(([Environment]::GetEnvironmentVariable('Path', 'User') -split ';') | Where-Object { $_ })
     $mine = @($userPath | Where-Object { $_.TrimEnd('\') -eq $installDir })
-    if ($mine.Count -eq 1 -and $userPath[0].TrimEnd('\') -eq $installDir) { Pass 'user PATH: the install folder, once, first' } else { Fail "user PATH: $($userPath -join ';')" }
+    if ($mine.Count -eq 1 -and $userPath[0].TrimEnd('\') -eq $installDir) { Pass 'user PATH: the install folder, once, first'; Note '- msi: user PATH has the install folder once, first (no duplicate after the upgrade)' } else { Fail "user PATH: $($userPath -join ';')" }
+    $machinePath = @(([Environment]::GetEnvironmentVariable('Path', 'Machine') -split ';') | Where-Object { $_.TrimEnd('\') -eq $installDir })
+    if (-not $machinePath) { Pass 'machine PATH untouched' } else { Fail "the machine PATH has $installDir" }
     $registered = (Get-ItemProperty 'HKCU:\Software\otter-net' -ErrorAction SilentlyContinue)
     if ($registered -and $registered.Version -eq $packageVersion) { Pass "HKCU\Software\otter-net: $($registered.Version)" } else { Fail 'HKCU\Software\otter-net has no Version' }
 
@@ -181,6 +194,10 @@ try {
     $where = Invoke-Clean "$env:SystemRoot\System32\where.exe" @('otter') $scratch
     $first = ($where.Out -split "`r?`n" | Where-Object { $_ } | Select-Object -First 1)
     if ($first -eq (Join-Path $installDir 'otter.exe')) { Pass "a new terminal's otter: $first" } else { Fail "a new terminal's otter is '$first'" }
+    $terminal = Get-NewTerminalOtter
+    if ($null -eq $terminal.Session) { Note '- msi: (Task Scheduler could not start a new-session process; the PATH from the registry was checked)' }
+    elseif ($terminal.Session.Count -ge 1 -and $terminal.Session[0] -eq (Join-Path $installDir 'otter.exe')) { Pass "a new session's otter (Task Scheduler, fresh environment): $($terminal.Session[0])"; Note "- msi: a new terminal (a fresh process from Task Scheduler) finds $($terminal.Session[0])" }
+    else { Fail "a new session's otter: $($terminal.Session -join ', ')" }
     foreach ($shell in 'powershell.exe', 'pwsh.exe') {
         $found = Invoke-Clean "$env:SystemRoot\System32\where.exe" @($shell) $scratch
         if ($found.Code -eq 0) { throw "$shell is still found on the test PATH: $($found.Out)" }
@@ -198,8 +215,25 @@ try {
     $script:cleanPath = Get-PathWithoutPowerShell
     $where = Invoke-Clean "$env:SystemRoot\System32\where.exe" @('otter') $scratch
     if ($where.Code -eq 0) { $left += "otter on a new terminal's PATH ($($where.Out.Trim()))" }
-    if (-not $left) { Pass 'uninstall: nothing left behind'; Note '- msi uninstall: files, folder, PATH entry, registry key and Apps entry removed' }
+    $terminal = Get-NewTerminalOtter
+    if ($terminal.Session) { $left += "otter in a new session ($($terminal.Session -join ', '))" }
+    if (-not $left) { Pass 'uninstall: nothing left behind'; Note '- msi uninstall: files, folder, PATH entry, registry key and Apps entry removed; a new terminal finds no otter' }
     else { Fail "uninstall left behind: $($left -join ', ')" }
+
+    # ---- Downgrade: a newer otter-net MSI is installed; this one is refused ----
+    if ($NewerMsi) {
+        Invoke-Msiexec @('/i', "`"$NewerMsi`"") (Join-Path $LogDirectory 'install-newer.log')
+        $newer = @(Get-OtterEntries)
+        $code = Invoke-Msiexec @('/i', "`"$Msi`"") (Join-Path $LogDirectory 'downgrade.log') -MayFail
+        $after = @(Get-OtterEntries)
+        $message = Select-String -Path (Join-Path $LogDirectory 'downgrade.log') -Pattern 'A newer version of otter-net is already installed' -SimpleMatch -Quiet
+        if ($code -ne 0 -and $after.Count -eq 1 -and $newer.Count -eq 1 -and $after[0].DisplayVersion -eq $newer[0].DisplayVersion -and (Test-Path (Join-Path $installDir 'otter.exe'))) {
+            Pass "downgrade refused (msiexec $code$(if ($message) { ', "A newer version of otter-net is already installed."' })); $($after[0].DisplayName) stays"
+            Note "- msi: a downgrade (over $($newer[0].DisplayVersion)) is refused (msiexec exit $code$(if ($message) { ', with the message "A newer version of otter-net is already installed."' })); the newer one stays installed"
+        } else { Fail "downgrade: msiexec $code; entries now: $(($after | ForEach-Object { "$($_.DisplayName) $($_.DisplayVersion)" }) -join '; ')" }
+        Invoke-Msiexec @('/x', "`"$NewerMsi`"") (Join-Path $LogDirectory 'uninstall-newer.log')
+        if ((Test-Path $installDir) -or (Get-OtterEntries)) { Fail 'the newer MSI left files or an Apps entry' } else { Pass 'the newer MSI uninstalled cleanly' }
+    }
 
     # ---- The ZIP, run in place ----
     if ($Zip) {
