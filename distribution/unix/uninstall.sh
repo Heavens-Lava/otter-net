@@ -40,9 +40,20 @@ if [ -f "$shim" ]; then
     case "$second" in
         "$launcher_marker"*)
             if grep -qF "$dest/otter" "$shim"; then
+                # The otterPS launcher install.sh kept runs
+                # exec '<its folder>/otter' "$@"; it goes back only while that
+                # installation still exists (otterPS may have been uninstalled
+                # since, which leaves otter-net's launcher in place).
+                otterps_target=""
                 if [ -f "$root/otterps-launcher" ]; then
+                    otterps_target=$(sed -n "3s/^exec '\\(.*\\)' \"\\\$@\"\$/\\1/p" "$root/otterps-launcher" | sed "s/'\\\\''/'/g")
+                fi
+                if [ -f "$root/otterps-launcher" ] && { [ -z "$otterps_target" ] || [ -e "$otterps_target" ]; }; then
                     mv -f "$root/otterps-launcher" "$shim"
                     echo "Put back the PowerShell Otter's otter command in $bin_dir."
+                elif [ -f "$root/otterps-launcher" ]; then
+                    rm -f "$root/otterps-launcher" "$shim"
+                    echo "Removed the otter command from $bin_dir (the PowerShell Otter it replaced, $otterps_target, is no longer installed)."
                 else
                     rm -f "$shim"
                     echo "Removed the otter command from $bin_dir."
