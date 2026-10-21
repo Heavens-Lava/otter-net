@@ -44,6 +44,15 @@ function Invoke-InNewSession {
     }
 }
 
+# Only what a terminal can run: where.exe also lists files without an
+# extension (otterPS's folder has `otter`, its launcher for macOS and Linux,
+# beside otter.cmd), which cmd and PowerShell never start for `otter`.
+function Select-Runnable {
+    param([string[]]$Paths)
+    $extensions = @(($env:PATHEXT, '.COM;.EXE;.BAT;.CMD' | Where-Object { $_ } | Select-Object -First 1) -split ';' | Where-Object { $_ } | ForEach-Object { $_.ToLowerInvariant() })
+    @($Paths | Where-Object { $_ -and $extensions -contains [System.IO.Path]::GetExtension($_).ToLowerInvariant() })
+}
+
 # Every `otter` a new terminal finds, in order (where.exe), checked two ways:
 # where.exe with the PATH composed from the registry, and where.exe in a new
 # process started by Task Scheduler. Returns an object with Found (the list),
@@ -60,9 +69,9 @@ function Get-NewTerminalOtter {
     $process = [System.Diagnostics.Process]::Start($psi)
     $text = $process.StandardOutput.ReadToEnd()
     $process.WaitForExit()
-    $found = @($text -split "`r?`n" | Where-Object { $_ })
+    $found = @(Select-Runnable @($text -split "`r?`n" | Where-Object { $_ }))
     $session = Invoke-InNewSession 'where otter'
-    if ($null -ne $session) { $session = @($session | Where-Object { $_ -and $_ -notmatch '^INFO:' }) }
+    if ($null -ne $session) { $session = @(Select-Runnable @($session | Where-Object { $_ -and $_ -notmatch '^INFO:' })) }
     [pscustomobject]@{ Found = $found; Session = $session }
 }
 

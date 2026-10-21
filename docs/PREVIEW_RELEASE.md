@@ -107,8 +107,8 @@ RESULTS_PLACEHOLDER
    it framework-dependent and require the .NET 10 Desktop Runtime, or make
    desktop windows an optional MSI feature/download.
 5. **WPF resource languages**: the preview carries English WPF resources
-   only (as verified so far); including WPF's other languages (about
-   +5 MB) would show WPF's own texts in the user's display language, as
+   only (as verified so far); including WPF's other languages (measured
+   for win-x64: +9.0 MB installed, +3.0 MB in the ZIP) would show WPF's own texts in the user's display language, as
    otterPS on Windows PowerShell does (SPEC-QUESTIONS W5-5).
 6. **Public artifacts**: this repository is public, so anyone signed in to
    GitHub can download the preview artifact for 30 days. If that is not
