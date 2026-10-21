@@ -68,8 +68,10 @@ and macOS; on Linux and Chromebooks install it with `sudo apt install
 libsqlite3-0` if a program says SQLite could not be loaded.
 
 No PowerShell is needed on any platform. On Windows, desktop windows run in
-`otter-desktop.exe`, installed beside `otter`, which needs the .NET 10
-Desktop Runtime.
+`otter-desktop.exe`, installed beside `otter`; the packages publish it
+self-contained, so no .NET runtime is needed either (a development build
+from `tools/publish.ps1` is framework-dependent and needs the .NET 10
+Desktop Runtime).
 
 ## Building
 
@@ -77,8 +79,10 @@ Desktop Runtime.
     dotnet src/Otter.Cli/bin/Release/net10.0/otter.dll run hello.ot
 
 `tools/publish.ps1` makes the native executable; `tools/package.ps1` makes
-the (unsigned, unpublished) release-candidate packages and installers - see
-[docs/PACKAGING.md](docs/PACKAGING.md). `tools/compare.ps1
+the (unsigned, unpublished) packages and installers - the current internal
+preview is `0.9.0-preview.1`, see [docs/PACKAGING.md](docs/PACKAGING.md),
+[docs/PREVIEW_RELEASE.md](docs/PREVIEW_RELEASE.md) and
+[docs/SIGNING.md](docs/SIGNING.md). `tools/compare.ps1
 -OtterPs <otterPS checkout> -OtterNet <otter.dll or otter.exe>` compares the
 two implementations.
 

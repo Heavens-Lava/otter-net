@@ -1,13 +1,17 @@
-# Packaging otter-net (release candidates)
+# Packaging otter-net
 
-Status (2026-10-18): **built and tested, not published.** The packages below
-are unsigned release candidates for review. Nothing has been released,
-tagged, uploaded to a package registry or submitted to winget or the
-Microsoft Store, and the current Otter release (otterPS 1.0.1) is unchanged.
+Status (2026-10-21): **built and tested, not published.** The current
+packages are an unsigned **internal preview**, `0.9.0-preview.1`: its
+identity, version, results and the owner's decisions are in
+[PREVIEW_RELEASE.md](PREVIEW_RELEASE.md); the signing plan is in
+[SIGNING.md](SIGNING.md). Nothing has been released, tagged, uploaded to a
+package registry or submitted to winget or the Microsoft Store, and the
+current Otter release (otterPS 1.0.1) is unchanged.
 
 ## Version
 
-`VERSION` at the root of the repository is the one source: `1.0.1-rc.1`.
+`VERSION` at the root of the repository is the one source: `0.9.0-preview.1`
+(why: [PREVIEW_RELEASE.md](PREVIEW_RELEASE.md#version)).
 MSBuild reads it (`Directory.Build.props`: assembly and file version,
 company, product), and `tools/package.ps1` reads it for every file name and
 installer. `otter --version` keeps printing the Otter **language** version,
@@ -16,9 +20,13 @@ checks that it does.
 
 | Format | Version as written |
 |---|---|
-| file names, `VERSION` in a package, `.pkg` | `1.0.1-rc.1` |
-| MSI ProductVersion (numbers only) | `1.0.1`; release candidates of one version upgrade each other (`AllowSameVersionUpgrades`) |
-| `.deb` | `1.0.1~rc.1` (sorts before `1.0.1`) |
+| file names, `VERSION` in a package, `.pkg` | `0.9.0-preview.1` |
+| MSI ProductVersion (numbers only) | `0.9.0`; previews of one version upgrade each other (`AllowSameVersionUpgrades`) |
+| `.deb` | `0.9.0~preview.1` (sorts before `0.9.0`) |
+
+What the version says it is (`preview` -> "internal preview", `rc` ->
+"release candidate") is shown by every installer (`package.ps1`'s
+`$channel`).
 
 ## The packages
 
@@ -43,15 +51,22 @@ the .NET runtime's own third-party notices, taken from the Native AOT
 compiler package the build used (`microsoft.dotnet.ilcompiler/<version>/THIRD-PARTY-NOTICES.TXT`).
 otter-net has no NuGet dependencies of its own.
 
-On Windows, `otter-desktop.exe` is added to the zip and the MSI when
-`src/Otter.Desktop/*.csproj` exists (being built separately): `package.ps1`
-publishes that project for the same runtime and includes its files (not
-`.pdb`), and refuses to build if it does not produce `otter-desktop.exe`.
+On Windows, `otter-desktop.exe` (desktop windows, WPF) is in the zip and the
+MSI, **self-contained**: `package.ps1` publishes `src/Otter.Desktop` for the
+same runtime with `--self-contained true -p:PublishSingleFile=true`, not
+trimmed (WPF does not support trimming), not compressed, English resources
+only; WPF's five native libraries (`D3DCompiler_47_cor3.dll`,
+`PenImc_cor3.dll`, `PresentationNative_cor3.dll`, `vcruntime140_cor3.dll`,
+`wpfgfx_cor3.dll`) stay beside it, where its host loads them (nothing is
+extracted to `%TEMP%`). No .NET runtime is needed on the machine. It
+refuses a framework-dependent result, and adds the Windows Desktop
+runtime's license to `THIRD-PARTY-NOTICES.txt`. Size: see
+[PREVIEW_RELEASE.md](PREVIEW_RELEASE.md#the-packages).
 
 ### Windows: `.zip` and `.msi`
 
-- **zip**: `otter-net-<v>-<rid>/` with `otter.exe` and the documents; run in
-  place, no installation.
+- **zip**: `otter-net-<v>-<rid>/` with `otter.exe`, `otter-desktop.exe` and
+  its `*_cor3.dll`, and the documents; run in place, no installation.
 - **msi** (`distribution/windows/Package.wxs`, `otter-net.wixproj`, WiX 5 SDK
   from NuGet; not in `otter-net.sln`):
   - per user, no administrator rights: `%LOCALAPPDATA%\Programs\otter-net`;
@@ -63,7 +78,9 @@ publishes that project for the same runtime and includes its files (not
   - uninstall removes the files, the folder, the PATH entry, the registry
     key and the Apps entry;
   - upgrade: its own UpgradeCode `B6DDDF92-EF9A-4FC0-ACA2-E1E3B3413E9B`; a
-    newer otter-net MSI replaces the older one, a downgrade is refused.
+    newer otter-net MSI replaces the older one, a downgrade is refused
+    ("A newer version of otter-net is already installed.");
+  - the cabinet is compressed with `CompressionLevel="high"`.
   - Windows Installer validation (ICE) runs with every build; ICE91 (per-user
     files on a per-machine install, not applicable) and ICE61 (same-version
     upgrades, on purpose) are suppressed.
@@ -115,7 +132,11 @@ publishes that project for the same runtime and includes its files (not
   - installing a newer version removes the older otter-net versions (marked
     folders only); the same version again needs `--force`;
   - `uninstall.sh` removes the folder, the launcher (when it is otter-net's)
-    and `~/.local/share/otter-net` when empty.
+    and `~/.local/share/otter-net` when empty; it puts otterPS's launcher
+    back only while the otterPS installation it runs still exists (otherwise
+    it would leave a dangling `otter`);
+  - installing an older version over a newer one is allowed and leaves only
+    the one installed (no downgrade check).
 
 ## How this relates to otterPS's installers and identities
 
@@ -129,12 +150,13 @@ publishes that project for the same runtime and includes its files (not
 | macOS / Debian identifiers | none | `com.otterprogramming.otter-net` (.pkg), `otter-net` (.deb) |
 
 The two can be installed side by side: otter-net's installers never touch
-otterPS's folders, registry key or upgrade code. With both on the PATH,
-otter-net's MSI comes first; the tarball takes `~/.local/bin/otter` only
-when asked. otter-net hands programs it cannot run natively yet (desktop
-windows and remote commands on Windows) to the PowerShell Otter it finds at
-`%LOCALAPPDATA%\Otter\1.0.1\otter.ps1` or `~/.local/share/otter/1.0.1/otter.ps1`
-(the release ZIP's places), or `OTTER_POWERSHELL`.
+otterPS's folders, registry key or upgrade code, and otter-net never starts
+PowerShell (since `c474ab8`). With both on the PATH, otter-net's MSI comes
+first; the tarball takes `~/.local/bin/otter` only when asked; the `.deb`
+(`/usr/bin`) and `.pkg` (`/usr/local/bin`) come after otterPS's
+`~/.local/bin/otter` whenever that folder is on the PATH. The coexistence
+tests (`tools/test-coexistence.*`) check every case in both install and
+uninstall orders; results in [PREVIEW_RELEASE.md](PREVIEW_RELEASE.md).
 
 ## To decide before publishing
 
@@ -156,23 +178,21 @@ windows and remote commands on Windows) to the PowerShell Otter it finds at
    winget `JeffreyMacy.Otter`, the Store package - or under new ones as
    here. The release candidates deliberately use new identities so nothing
    published is replaced by accident.
-3. **The PowerShell Otter for what is still handed over.** If otter-net
-   replaces otterPS, desktop windows and remote commands on Windows still
-   need otterPS's files: ship them inside the MSI (and point
-   `FindPowerShellOtter` there), keep requiring a separate otterPS install,
-   or finish `otter-desktop.exe`. otterPS's own MSI installs to
-   `%LOCALAPPDATA%\Programs\Otter`, where otter-net does not look today.
+3. ~~The PowerShell Otter for what is still handed over~~ - resolved:
+   otter-net runs everything natively (desktop windows in the
+   self-contained `otter-desktop.exe`, remote commands in C#).
 4. **The version** otter-net is released as, and what `otter --version`
-   prints then (today the language version, `Otter 1.0.1`).
+   prints then (today the language version, `Otter 1.0.1`); the preview's
+   proposal is in [PREVIEW_RELEASE.md](PREVIEW_RELEASE.md).
 5. **macOS package identifier** `com.otterprogramming.otter-net` and the
    `.deb` maintainer address (the GitHub no-reply address) - placeholders to
    confirm.
 6. **Workflow artifacts on a public repository.** This repository is public:
    anyone signed in to GitHub can download the release-candidate artifacts
-   during their 14 days. otterPS's MSI workflow kept only logs for that
-   reason. If that is not wanted, make the repository private, shorten or
-   drop the package upload (keep the clean-install tests), or delete the
-   runs' artifacts after review.
+   while they are kept (now: only manual and `cert/preview` runs keep the
+   preview artifact, 30 days; others one day between jobs). otterPS's MSI
+   workflow kept only logs for that reason. If that is not wanted, make the
+   repository private or delete the run's artifact after review.
 
 ## Building locally
 
@@ -199,8 +219,16 @@ Testing (`tools/test-package.sh`, POSIX `sh`, no PowerShell;
 
     sh tools/test-package.sh tarball artifacts/packages/otter-net-*.tar.gz   # temporary HOME, safe anywhere
     sh tools/test-package.sh pkg-payload artifacts/packages/otter-net-*.pkg   # no installation
-    sh tools/test-package.sh deb <deb> [<older deb>]                          # root, disposable container
-    sh tools/test-package.sh pkg <pkg> [<older pkg>]                          # sudo, disposable Mac
+    sh tools/test-package.sh deb <deb> [<older deb> [<newer deb>]]            # root, disposable container
+    sh tools/test-package.sh pkg <pkg> [<older pkg> [<newer pkg>]]            # sudo, disposable Mac
+    sh tools/test-coexistence.sh tarball|deb|pkg <package> <otter-1.0.1.zip>   # beside otterPS; disposable machine
+
+On Windows (disposable runner): `tools/test-package.ps1 -Msi -OlderMsi
+-NewerMsi -Zip` (install, upgrade, PATH, a new terminal through a fresh Task
+Scheduler process, uninstall, downgrade refused, the ZIP),
+`tools/test-desktop-nodotnet.ps1` (desktop windows from the installed
+package with no .NET findable) and `tools/test-coexistence.ps1` (beside
+otterPS).
 
 Each runs the installed `otter` with `PATH=/usr/bin:/bin:/usr/sbin:/sbin`
 plus its own folder, and fails if `pwsh` or `powershell` is found there:
@@ -212,7 +240,12 @@ compares each program's output.
 
 ## Test results
 
-### CI: `.github/workflows/package.yml`
+The preview's results (run ids, sizes, checksums) are in
+[PREVIEW_RELEASE.md](PREVIEW_RELEASE.md). The release-candidate results
+below (`1.0.1-rc.1`, framework-dependent `otter-desktop`) are kept for
+history.
+
+### CI: `.github/workflows/package.yml` (1.0.1-rc.1)
 
 Run **39183118927** (2026-10-19, commit "tools: test-package.ps1 counts one
 Apps entry in Windows PowerShell 5.1 too"): all 12 jobs passed - 6 builds,
