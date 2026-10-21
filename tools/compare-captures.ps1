@@ -56,7 +56,7 @@ function ConvertTo-Comparable {
     # module paths), differs from machine to machine.
     $Text = [regex]::Replace($Text, '(?:[A-Za-z]:\\|/)[^\s''"<>|]*?[\\/]otterps(?=[\\/])', '<otterps>')
     # A path below the case's folder or otterPS's: the platform's separator.
-    return [regex]::Replace($Text, '<(work|otterps)>((?:\\[^\\\r\n"''<>|*?\s]+)+\\?)', { param($match) '<' + $match.Groups[1].Value + '>' + $match.Groups[2].Value.Replace('\', '/') })
+    return [regex]::Replace($Text, '<(work|otterps)>[^\s"''|*?]*', { param($match) $match.Value.Replace('\', '/') })
 }
 
 # PowerShell's console view wraps its own texts at 120 columns, so a

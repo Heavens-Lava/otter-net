@@ -79,13 +79,13 @@ separator after it are normalised; every other difference fails unless
 `tests/cross-platform.psd1` declares it with its reason, as `ci.yml`'s
 cross-platform check does.
 
-otter-net is checked out with the line endings as committed and otterPS
-with CRLF line endings, on every platform, so every platform runs
-byte-identical programs. otterPS gets CRLF because its release archive (built
-on Windows) has it, and its modules' here-strings become the web pages and
-project files it writes: with an LF checkout of otterPS, its pages end lines
-with LF where the released otterPS (and otter-net) write CRLF - found by the
-first certification run, a property of the reference checkout, not of either
+Both repositories are checked out as Windows checks them out
+(`core.autocrlf true`) on every platform, so every platform runs
+byte-identical programs, and otterPS is as released: its release archive is
+built on Windows, and its modules' here-strings become the web pages and
+project files it writes, so an LF checkout of otterPS ends their lines with LF
+where the released otterPS (and otter-net) write CRLF - found by the first
+certification run, a property of the reference checkout, not of either
 Otter.
 
 Only records, reports and captured output are uploaded, never a binary.
