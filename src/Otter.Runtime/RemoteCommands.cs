@@ -58,7 +58,10 @@ public static unsafe partial class OtterRemoteCommands
             Check(WSManInitialize(WSMAN_FLAG_REQUESTED_API_VERSION_1_1, out api), hostName);
             var credentials = new WSMAN_AUTHENTICATION_CREDENTIALS
             {
-                authenticationMechanism = WSMAN_FLAG_AUTH_NEGOTIATE,
+                // Invoke-Command's default (AuthenticationMechanism.Default):
+                // WinRM picks Negotiate or Kerberos itself and applies its
+                // TrustedHosts rule, as for otterPS.
+                authenticationMechanism = WSMAN_FLAG_DEFAULT_AUTHENTICATION,
                 username = strings.Add(userName),
                 password = strings.Add(password),
             };
@@ -72,7 +75,10 @@ public static unsafe partial class OtterRemoteCommands
             var outputSet = new WSMAN_STREAM_ID_SET { streamIDsCount = 1, streamIDs = (IntPtr)(&streamOut) };
             var startup = new WSMAN_SHELL_STARTUP_INFO { inputStreamSet = (IntPtr)(&inputSet), outputStreamSet = (IntPtr)(&outputSet) };
             var protocolOption = new WSMAN_OPTION { name = strings.Add("protocolversion"), value = strings.Add("2.3"), mustComply = 1 };
-            var options = new WSMAN_OPTION_SET { optionsCount = 1, options = (IntPtr)(&protocolOption) };
+            // optionsMustUnderstand: WinRM refuses the PowerShell plugin's option set
+            // without it ("invalid WS-Management OptionSet element"), measured on a
+            // real endpoint (certification run 39643406248).
+            var options = new WSMAN_OPTION_SET { optionsCount = 1, options = (IntPtr)(&protocolOption), optionsMustUnderstand = 1 };
             string creationXml = "<creationXml xmlns=\"http://schemas.microsoft.com/powershell\">" + Convert.ToBase64String(creation) + "</creationXml>";
             var createData = WSMAN_DATA.Text(strings.Add(creationXml), creationXml.Length);
             using (var creating = new Operation())
@@ -118,6 +124,13 @@ public static unsafe partial class OtterRemoteCommands
                 foreach (Psrp.Received message in pipelineMessages.Add(data))
                 {
                     if (message.Type == Psrp.PipelineOutput) output.Append(Psrp.OutputText(message.Clixml));
+                    else if (message.Type == Psrp.ErrorRecord)
+                    {
+                        // Invoke-Command -ErrorAction Stop: the remote pipeline's first
+                        // error ends the command with that error's message.
+                        failure = Psrp.ErrorRecordText(message.Clixml);
+                        return false;
+                    }
                     else if (message.Type == Psrp.PipelineState)
                     {
                         (int state, string? error) = Psrp.State(message.Clixml, "PipelineState");
@@ -148,12 +161,14 @@ public static unsafe partial class OtterRemoteCommands
     }
 
     // Reads the stream data of the shell (command zero) or of a command until
-    // `more` returns false or the command is done.
+    // `more` returns false or the command is done. A receive that is still
+    // running then is cancelled, and its final callback awaited, before its
+    // context goes away.
     static void Receive(IntPtr shell, IntPtr command, WSMAN_STREAM_ID_SET streams, string hostName, Func<byte[], bool> more)
     {
         while (true)
         {
-            using var receiving = new Operation(receive: true);
+            var receiving = new Operation(receive: true);
             var async = receiving.Async;
             WSManReceiveShellOutput(shell, command, 0, &streams, &async, out IntPtr operation);
             bool keepGoing = true;
@@ -162,14 +177,19 @@ public static unsafe partial class OtterRemoteCommands
             {
                 foreach (Operation.Chunk chunk in receiving.Chunks())
                 {
-                    if (chunk.Data.Length > 0 && keepGoing) keepGoing = more(chunk.Data);
+                    if (chunk.Data.Length > 0) keepGoing = more(chunk.Data);
                     if (chunk.CommandState == CommandStateDone) done = true;
+                    if (!keepGoing || done) break;
                 }
-                receiving.ThrowIfFailed(hostName, connecting: false);
+                if (keepGoing && !done) receiving.ThrowIfFailed(hostName, connecting: false);
             }
             finally
             {
+                bool cancelled = !receiving.Finished;
                 if (operation != IntPtr.Zero) WSManCloseOperation(operation, 0);
+                // Cancelling ends with one more callback (ERROR_OPERATION_ABORTED).
+                if (cancelled) receiving.Wait(TimeSpan.FromSeconds(30));
+                receiving.Dispose();
             }
             if (!keepGoing || done) return;
         }
@@ -228,9 +248,24 @@ public static unsafe partial class OtterRemoteCommands
 
         public WSMAN_SHELL_ASYNC Async => new() { operationContext = GCHandle.ToIntPtr(self), completionFunction = (IntPtr)(delegate* unmanaged<IntPtr, uint, WSMAN_ERROR*, IntPtr, IntPtr, IntPtr, WSMAN_RESPONSE_DATA*, void>)&Completed };
 
+        public bool Finished { get { lock (gate) return finished; } }
+
         public void Wait()
         {
             lock (gate) { while (!finished) Monitor.Wait(gate); }
+        }
+
+        public void Wait(TimeSpan limit)
+        {
+            DateTime end = DateTime.UtcNow + limit;
+            lock (gate)
+            {
+                while (!finished)
+                {
+                    TimeSpan left = end - DateTime.UtcNow;
+                    if (left <= TimeSpan.Zero || !Monitor.Wait(gate, left)) return;
+                }
+            }
         }
 
         public IEnumerable<Chunk> Chunks()
@@ -280,9 +315,12 @@ public static unsafe partial class OtterRemoteCommands
             }
         }
 
+        // The context is freed only once WinRM has made its last callback: a
+        // callback into a freed handle would crash the process. An operation
+        // that never finished keeps its (small) context for the process's life.
         public void Dispose()
         {
-            if (self.IsAllocated) self.Free();
+            if (Finished && self.IsAllocated) self.Free();
         }
     }
 
@@ -297,7 +335,7 @@ public static unsafe partial class OtterRemoteCommands
     // ---- wsman.h --------------------------------------------------------------------------
 
     const uint WSMAN_FLAG_REQUESTED_API_VERSION_1_1 = 0x1;
-    const uint WSMAN_FLAG_AUTH_NEGOTIATE = 0x4;
+    const uint WSMAN_FLAG_DEFAULT_AUTHENTICATION = 0x0;
     const uint WSMAN_FLAG_CALLBACK_END_OF_OPERATION = 0x1;
     const int WSMAN_DATA_TYPE_TEXT = 1;
     const int WSMAN_DATA_TYPE_BINARY = 2;
@@ -313,6 +351,10 @@ public static unsafe partial class OtterRemoteCommands
     [StructLayout(LayoutKind.Sequential)]
     struct WSMAN_STREAM_ID_SET { public uint streamIDsCount; public IntPtr streamIDs; }
 
+    // WSMAN_SHELL_STARTUP_INFO_V11 - the layout WsmSvc.dll reads when the API
+    // is initialized for version 1.1 (its last field, the shell's name, was
+    // missing: WinRM read past the structure and the process crashed with an
+    // access violation, found on a real WinRM endpoint in CI).
     [StructLayout(LayoutKind.Sequential)]
     struct WSMAN_SHELL_STARTUP_INFO
     {
@@ -321,6 +363,7 @@ public static unsafe partial class OtterRemoteCommands
         public uint idleTimeoutMs;
         public IntPtr workingDirectory;
         public IntPtr variableSet;
+        public IntPtr name;
     }
 
     [StructLayout(LayoutKind.Sequential)]

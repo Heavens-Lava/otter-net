@@ -1,0 +1,3 @@
+# Without "into", the output is not shown.
+run command "hostname" on remote "localhost" using credential "otterwinrm"
+say "done"

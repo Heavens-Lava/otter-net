@@ -1,0 +1,3 @@
+# A program with arguments; the text after the program is one argument, as otterPS's script block passes it.
+run command "cmd /c echo hello remote world" on remote "localhost" using credential "otterwinrm" into result
+say result
