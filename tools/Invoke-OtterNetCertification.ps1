@@ -43,7 +43,7 @@ Gates (each passes or fails, with counts and the paths of its evidence):
                         projects, fuzz, site) with fake pwsh/powershell/powershell.exe first on
                         otter-net's PATH logging every launch; only a program that runs a .ps1
                         file itself may start one. On Windows, as administrator, also every
-                        powershell.exe/pwsh.exe whose parent is otter (WMI process trace).
+                        powershell.exe/pwsh.exe whose parent is otter (Windows' process-creation audit).
   native-coverage       tools/native-coverage.ps1: 0 places that hand anything to PowerShell,
                         and every process otter-net's source starts, accounted for
   desktop               (Windows) tests/desktop: real windows driven by UI Automation against otterPS
@@ -779,24 +779,26 @@ $gates['no-powershell'] = {
     New-PowerShellShims $log
     $shims = $state.ShimDirectory
     # On Windows a full path (C:\Windows\System32\...\powershell.exe) passes
-    # the shims by: as administrator, every PowerShell started on the
-    # machine is traced too, and kept when otter is its parent.
-    $trace = $null
-    $traced = New-Object System.Collections.ArrayList
+    # the shims by: as administrator, Windows' own process-creation audit
+    # (event 4688, with the command line and the parent's name) records every
+    # process started meanwhile, and each PowerShell whose parent is otter is
+    # kept.
+    $auditStart = $null
+    $traced = @()
     if ($onWindows) {
         try {
-            $query = "SELECT * FROM Win32_ProcessStartTrace WHERE ProcessName = 'powershell.exe' OR ProcessName = 'pwsh.exe'"
-            $trace = Register-CimIndicationEvent -Query $query -SourceIdentifier 'OtterNetPowerShellTrace' -MessageData $traced -Action {
-                $e = $Event.SourceEventArgs.NewEvent
-                $parent = $null
-                try { $parent = (Get-Process -Id $e.ParentProcessID -ErrorAction Stop).ProcessName } catch { $parent = '?' }
-                $line = $null
-                try { $line = (Get-CimInstance Win32_Process -Filter "ProcessId = $($e.ProcessID)" -ErrorAction Stop).CommandLine } catch { }
-                [void]$Event.MessageData.Add("$($e.ProcessName) (pid $($e.ProcessID)) parent $parent (pid $($e.ParentProcessID)): $line")
-            }
-            $counts['processTrace'] = 'on'
+            $auditLog = Join-Path $WorkDirectory 'audit.log'
+            [System.IO.File]::WriteAllText($auditLog, '')
+            [void](Invoke-Logged -FileName 'auditpol.exe' -Arguments @('/set', '/subcategory:{0CCE922B-69AE-11D9-BED3-505054503030}', '/success:enable') -Log $auditLog)
+            New-Item -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Audit' -Force -ErrorAction Stop | Out-Null
+            Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Audit' -Name 'ProcessCreationIncludeCmdLine_Enabled' -Value 1 -Type DWord -ErrorAction Stop
+            [void](Invoke-Logged -FileName 'wevtutil.exe' -Arguments @('sl', 'Security', '/ms:1073741824') -Log $auditLog)
+            $check = Invoke-Logged -FileName 'auditpol.exe' -Arguments @('/get', '/subcategory:{0CCE922B-69AE-11D9-BED3-505054503030}') -Log $auditLog
+            if ($check.Stdout -notmatch 'Success') { throw "process-creation auditing did not turn on: $($check.Stdout.Trim())" }
+            $auditStart = Get-Date
+            $counts['processAudit'] = 'on'
         }
-        catch { $counts['processTrace'] = "unavailable: $($_.Exception.Message)" }
+        catch { $counts['processAudit'] = "unavailable: $($_.Exception.Message)" }
     }
     $runs = @()
     try {
@@ -814,7 +816,20 @@ $gates['no-powershell'] = {
         $runs += Invoke-Tool 'compare-site.ps1' $p $log
     }
     finally {
-        if ($trace) { Start-Sleep -Seconds 3; Unregister-Event -SourceIdentifier 'OtterNetPowerShellTrace' -ErrorAction SilentlyContinue; Remove-Job -Name 'OtterNetPowerShellTrace' -Force -ErrorAction SilentlyContinue }
+        if ($auditStart) {
+            try {
+                $events = @(Get-WinEvent -FilterHashtable @{ LogName = 'Security'; Id = 4688; StartTime = $auditStart } -ErrorAction Stop)
+                $counts['processAudit.events'] = $events.Count
+                foreach ($e in $events) {
+                    $data = @{}
+                    foreach ($d in ([xml]$e.ToXml()).Event.EventData.Data) { $data[$d.Name] = [string]$d.'#text' }
+                    $newName = [System.IO.Path]::GetFileName($data['NewProcessName'])
+                    if ($newName -notin @('powershell.exe', 'pwsh.exe')) { continue }
+                    $traced += "$newName, parent $([System.IO.Path]::GetFileName($data['ParentProcessName'])): $($data['CommandLine'])"
+                }
+            }
+            catch { $counts['processAudit'] = "unreadable: $($_.Exception.Message)" }
+        }
     }
     $total = 0
     foreach ($run in $runs) { if ($run.Summary) { $total += [int]$run.Summary.total } }
@@ -822,10 +837,10 @@ $gates['no-powershell'] = {
     $launchLines = @([System.IO.File]::ReadAllLines($state.ShimLog) | Where-Object { $_.Trim() })
     # Allowed: a program running a .ps1 file of its own (Commands.cs: the
     # PowerShell that runs otterPS, -NoProfile -File <file>.ps1), never otter.ps1.
-    $allowed = @($launchLines | Where-Object { $_ -match ' -File \S*\.ps1\b' -and $_ -notmatch '[\\/ ]otter\.ps1\b' })
+    $allowed = @($launchLines | Where-Object { $_ -match ' -File "?[^"]*\.ps1\b' -and $_ -notmatch '[\\/ ]otter\.ps1\b' })
     $implicit = @($launchLines | Where-Object { $allowed -notcontains $_ })
-    $tracedByOtter = @($traced | Where-Object { $_ -match 'parent otter(-desktop)? ' })
-    $tracedImplicit = @($tracedByOtter | Where-Object { -not ($_ -match ' -File \S*\.ps1\b' -and $_ -notmatch '[\\/ ]otter\.ps1\b') })
+    $tracedByOtter = @($traced | Where-Object { $_ -match ', parent otter(-desktop)?\.exe: ' })
+    $tracedImplicit = @($tracedByOtter | Where-Object { -not ($_ -match ' -File "?[^"]*\.ps1\b' -and $_ -notmatch '[\\/ ]otter\.ps1\b') })
     $counts['launches'] = $launchLines.Count
     $counts['launches.allowed'] = $allowed.Count
     $counts['launches.implicit'] = $implicit.Count
@@ -833,14 +848,14 @@ $gates['no-powershell'] = {
     $launchReport = Join-Path $reports 'no-powershell-launches.md'
     $text = @('# PowerShell launches under the fake pwsh/powershell', '', "$total runs (programs with event programs, web pages, CLI cases, projects, fuzz, the site). Launches: $($launchLines.Count); a program running its own .ps1: $($allowed.Count); implicit: **$($implicit.Count)**.", '')
     $text += @($launchLines | ForEach-Object { "- $_" })
-    if ($onWindows) { $text += @('', "## Process trace (WMI, Windows): $($counts['processTrace'])", ''); $text += @($traced | ForEach-Object { "- $_" }) }
+    if ($onWindows) { $text += @('', "## Every PowerShell started meanwhile (process-creation audit, event 4688): $($counts['processAudit'])", ''); $text += @($traced | ForEach-Object { "- $_" }) }
     [System.IO.File]::WriteAllText($launchReport, ($text -join "`n") + "`n", $utf8)
     foreach ($l in $implicit) { $failures += "implicit PowerShell launch: $l" }
     foreach ($l in $tracedImplicit) { $failures += "PowerShell started by otter (process trace): $l" }
     foreach ($run in $runs) { if (-not $run.Summary -or [int]$run.Summary.failed -gt 0) { $failures += @($run.Summary.failures | Where-Object { $_ }) } }
     if ($total -eq 0) { $failures += 'nothing ran' }
     return New-GateResult -Passed ($failures.Count -eq 0) -Counts $counts -Evidence @($log, $launchReport) -Failures $failures `
-        -Note 'Fake pwsh/powershell/powershell.exe first on otter-net''s PATH; a launch is allowed only for a program''s own .ps1 file (-File <file>.ps1, never otter.ps1).'
+        -Note 'Fake pwsh/powershell/powershell.exe first on otter-net''s PATH (and on Windows the process-creation audit, for a PowerShell started by its full path); a launch is allowed only for a program''s own .ps1 file (-File <file>.ps1, never otter.ps1).'
 }
 
 $gates['native-coverage'] = {
