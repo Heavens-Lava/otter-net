@@ -837,10 +837,26 @@ $gates['no-powershell'] = {
     $launchLines = @([System.IO.File]::ReadAllLines($state.ShimLog) | Where-Object { $_.Trim() })
     # Allowed: a program running a .ps1 file of its own (Commands.cs: the
     # PowerShell that runs otterPS, -NoProfile -File <file>.ps1), never otter.ps1.
-    $allowed = @($launchLines | Where-Object { $_ -match ' -File "?[^"]*\.ps1\b' -and $_ -notmatch '[\\/ ]otter\.ps1\b' })
+    # A program that names PowerShell itself as the command it runs
+    # (`run command "powershell -NoProfile -Command ..."`): its arguments are
+    # in the program's source, next to the word powershell or pwsh.
+    $askedFor = @()
+    foreach ($folder in @((Join-Path $repoRoot 'tests'), (Join-Path $OtterPs 'examples'), (Join-Path $OtterPs 'conformance'), $generated)) {
+        foreach ($f in @(Get-ChildItem -LiteralPath $folder -Recurse -Include '*.ot', '*.psd1' -File -ErrorAction SilentlyContinue)) {
+            foreach ($m in [regex]::Matches([System.IO.File]::ReadAllText($f.FullName), '(?i)\b(?:powershell|pwsh)(?:\.exe)?\s+([^"\r\n]+)')) { $askedFor += $m.Groups[1].Value.Trim() }
+        }
+    }
+    $askedFor = @($askedFor | Where-Object { $_.Length -ge 8 } | Sort-Object -Unique)
+    $isAllowed = {
+        param([string]$Line)
+        if ($Line -match ' -File "?[^"]*\.ps1\b' -and $Line -notmatch '[\\/ ]otter\.ps1\b') { return $true }
+        foreach ($a in $askedFor) { if ($Line.EndsWith(' ' + $a) -or $Line.EndsWith('" ' + $a)) { return $true } }
+        return $false
+    }
+    $allowed = @($launchLines | Where-Object { & $isAllowed $_ })
     $implicit = @($launchLines | Where-Object { $allowed -notcontains $_ })
     $tracedByOtter = @($traced | Where-Object { $_ -match ', parent otter(-desktop)?\.exe: ' })
-    $tracedImplicit = @($tracedByOtter | Where-Object { -not ($_ -match ' -File "?[^"]*\.ps1\b' -and $_ -notmatch '[\\/ ]otter\.ps1\b') })
+    $tracedImplicit = @($tracedByOtter | Where-Object { -not (& $isAllowed $_) })
     $counts['launches'] = $launchLines.Count
     $counts['launches.allowed'] = $allowed.Count
     $counts['launches.implicit'] = $implicit.Count
@@ -855,7 +871,7 @@ $gates['no-powershell'] = {
     foreach ($run in $runs) { if (-not $run.Summary -or [int]$run.Summary.failed -gt 0) { $failures += @($run.Summary.failures | Where-Object { $_ }) } }
     if ($total -eq 0) { $failures += 'nothing ran' }
     return New-GateResult -Passed ($failures.Count -eq 0) -Counts $counts -Evidence @($log, $launchReport) -Failures $failures `
-        -Note 'Fake pwsh/powershell/powershell.exe first on otter-net''s PATH (and on Windows the process-creation audit, for a PowerShell started by its full path); a launch is allowed only for a program''s own .ps1 file (-File <file>.ps1, never otter.ps1).'
+        -Note 'Fake pwsh/powershell/powershell.exe first on otter-net''s PATH (and on Windows the process-creation audit, for a PowerShell started by its full path); a launch is allowed only for a program''s own .ps1 file (-File <file>.ps1, never otter.ps1) or a program that names PowerShell itself as its command (its arguments are in the program''s source).'
 }
 
 $gates['native-coverage'] = {
