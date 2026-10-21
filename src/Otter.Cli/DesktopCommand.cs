@@ -29,48 +29,70 @@ static partial class DesktopCommand
     public static int Run(string scriptFile)
     {
         string primarySource = Path.GetFullPath(scriptFile);
-        // Export-OtterWebApplication, before anything is started or printed.
-        ResolvedProgram resolved;
+        // Export-OtterWebApplication's work, before anything is started or
+        // printed: what cannot be done here goes to the PowerShell Otter.
+        ResolvedProgram? resolved = null;
+        OtterError? importProblem = null;
+        string? html = null;
+        Exception? compileFailure = null;
         try { resolved = Modules.Resolve(primarySource); }
-        // Raised outside Export's own error handling: PowerShell's error text.
-        catch (OtterError) { throw new NeedsPowerShell("an import problem in otter desktop is reported by PowerShell"); }
-        string html;
-        try
+        catch (OtterError problem) { importProblem = problem; }
+        if (resolved != null)
         {
-            html = WebCommand.CompilePage(resolved, primarySource);
-        }
-        catch (NotSupportedYet unsupported)
-        {
-            throw new NeedsPowerShell($"{unsupported.Feature} (line {unsupported.Line}) is not native yet");
-        }
-        catch (WebInternalProblem problem)
-        {
-            Program.Trace("native: desktop (internal problem)");
-            return WebCommand.ReportInternalProblem(problem);
-        }
-        catch (OtterError error)
-        {
-            Program.Trace("native: desktop (errors)");
-            Host.Line("");
-            Host.Line(resolved.Remap(error).FormatDetailed(), ConsoleColor.Red);
-            Host.Line("");
-            throw new CliExit(Cli.ExitCheckError);
-        }
-        catch (Exception unexpected) when (unexpected is not OutOfMemoryException)
-        {
-            throw new NeedsPowerShell($"the web compiler stopped unexpectedly ({unexpected.GetType().Name})");
+            try
+            {
+                html = WebCommand.CompilePage(resolved, primarySource);
+            }
+            catch (NotSupportedYet unsupported)
+            {
+                throw new NeedsPowerShell($"{unsupported.Feature} (line {unsupported.Line}) is not native yet");
+            }
+            catch (Exception failure) when (failure is WebInternalProblem or OtterError)
+            {
+                compileFailure = failure;
+            }
+            catch (Exception unexpected) when (unexpected is not OutOfMemoryException)
+            {
+                throw new NeedsPowerShell($"the web compiler stopped unexpectedly ({unexpected.GetType().Name})");
+            }
         }
 
+        // Start-OtterDesktopApplication: the module (-Verbose lists it), the
+        // bridge, then Export-OtterWebApplication.
+        VerboseImports.Desktop();
         string projectRoot = ProjectRoot(primarySource);
-        Bridge bridge = Bridge.Start(projectRoot) ?? throw new NeedsPowerShell("the desktop bridge could not start (PowerShell's error)");
+        Bridge bridge = Bridge.Start(projectRoot, out int firstPort) ?? throw BridgeFailure(firstPort);
+        if (importProblem != null)
+        {
+            // Raised by Resolve-OtterModuleSource outside Export's own error
+            // handling: it ends otter.ps1, and powershell.exe reports it.
+            Program.Trace("native: desktop (import error)");
+            bridge.Stop();
+            throw ImportFailure(importProblem);
+        }
+        if (compileFailure is WebInternalProblem internalProblem)
+        {
+            Program.Trace("native: desktop (internal problem)");
+            bridge.Stop();
+            return WebCommand.ReportInternalProblem(internalProblem);
+        }
+        if (compileFailure is OtterError compileError)
+        {
+            Program.Trace("native: desktop (errors)");
+            bridge.Stop();
+            WebCommand.ReportError(resolved!.Remap(compileError), PsSite.At(@"src\Otter.Web.psm1", 3041));
+            throw new CliExit(Cli.ExitCheckError);
+        }
 
         // The page next to the program, then a copy for this session with the
         // bridge's port and token in it.
         string htmlPath = Path.ChangeExtension(primarySource, ".html");
         string instancePath = Path.ChangeExtension(htmlPath, ".desktop.html");
+        PsSite writing = PsSite.At(@"src\Otter.Web.psm1", 3059, "Set-Content");
         try
         {
             File.WriteAllText(htmlPath, html + "\r\n", new UTF8Encoding(true));
+            VerboseImports.PageWritten(htmlPath);
             string rawHtml = File.ReadAllText(htmlPath, Encoding.UTF8);
             string injection = DesktopTemplates.InjectionScript.Replace("\r\n", "\n").Replace("\n", "\r\n")
                 .Replace("{{PORT}}", bridge.Port.ToString(CultureInfo.InvariantCulture))
@@ -78,18 +100,25 @@ static partial class DesktopCommand
             string instanceHtml = HeadClose().IsMatch(rawHtml)
                 ? HeadClose().Replace(rawHtml, _ => injection + "\n</head>")
                 : injection + "\n" + rawHtml;
+            writing = PsSite.At(@"src\Otter.Desktop.psm1", 1681, "Set-Content");
             File.WriteAllText(instancePath, instanceHtml + "\r\n", new UTF8Encoding(true));
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
+            // Set-Content's error ends otter.ps1 (the function runs with
+            // otter.ps1's $ErrorActionPreference, Stop): measured on Windows
+            // PowerShell 5.1, a folder where the page goes.
+            Program.Trace("native: desktop (page not written)");
             bridge.Stop();
-            throw new NeedsPowerShell("the desktop page could not be written (PowerShell's error)");
+            throw new PowerShellError("Set-Content : ", e.Message, writing.Position, "NotSpecified", "Set-Content", e.GetType().Name,
+                $"{e.GetType().FullName},Microsoft.PowerShell.Commands.SetContentCommand");
         }
 
         Process? window = TestMode ? null : OpenWindow(instancePath);
         Program.Trace("native: desktop");
         string pid = window != null ? window.Id.ToString(CultureInfo.InvariantCulture) : "";
-        Host.Line($"Otter Desktop Application running (PID: {pid}, Bridge Port: {bridge.Port.ToString(CultureInfo.InvariantCulture)}).", ConsoleColor.Green);
+        Host.Line($"Otter Desktop Application running (PID: {pid}, Bridge Port: {bridge.Port.ToString(CultureInfo.InvariantCulture)}).", ConsoleColor.Green,
+            PsSite.At(@"src\Otter.Desktop.psm1", 1725));
 
         bool interrupted = false;
         ConsoleCancelEventHandler onCancel = (_, e) => { e.Cancel = true; interrupted = true; };
@@ -110,6 +139,33 @@ static partial class DesktopCommand
         }
         return Cli.ExitSuccess;
     }
+
+    // An OtterError thrown inside Start-OtterDesktopApplication ends otter.ps1:
+    // powershell.exe reports it at its `throw` (measured on Windows PowerShell
+    // 5.1): the message, the position, "OperationStopped: (:) [], OtterError",
+    // and the message again as the error id.
+    static PowerShellError Thrown(string message, PsSite site) =>
+        new("", message, site.Position, "OperationStopped", "", "OtterError", message);
+
+    // Resolve-OtterModuleSource's throws (src/Otter.Module.psm1), told apart
+    // by their fixed wording.
+    static PowerShellError ImportFailure(OtterError problem)
+    {
+        string message = problem.Message;
+        const string module = @"src\Otter.Module.psm1";
+        PsSite site =
+            message.StartsWith("Cannot find imported Otter file ", StringComparison.Ordinal) ? PsSite.At(module, 261, "throw")
+            : message.StartsWith("Circular import detected: ", StringComparison.Ordinal) ? PsSite.At(module, 218, "throw")
+            : message.EndsWith("\" is a folder, not an Otter file.", StringComparison.Ordinal) ? PsSite.At(module, 236, "throw")
+            : message.StartsWith("I could not read ", StringComparison.Ordinal) ? PsSite.At(module, 242, "throw")
+            : message.StartsWith("Cannot find Otter source file ", StringComparison.Ordinal) ? PsSite.At(module, 208, "throw")
+            : PsSite.At(module, 127, "throw");
+        return Thrown(message, site);
+    }
+
+    // Start-OtterTerminalBridge found no port among the 20 it tries.
+    static PowerShellError BridgeFailure(int firstPort) =>
+        Thrown($"Could not bind terminal bridge listener on port {firstPort.ToString(CultureInfo.InvariantCulture)}.", PsSite.At(@"src\Otter.Desktop.psm1", 1075, "throw"));
 
     [GeneratedRegex("</head>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex HeadClose();
@@ -176,7 +232,7 @@ static partial class DesktopCommand
             allowedOrigins = new List<string> { $"http://127.0.0.1:{port}", $"http://localhost:{port}", "null" };
         }
 
-        public static Bridge? Start(string cwd)
+        public static Bridge? Start(string cwd, out int firstPort)
         {
             // New-OtterSessionToken: 256 random bits, base64url.
             string token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)).Replace('+', '-').Replace('/', '_').TrimEnd('=');
@@ -184,6 +240,7 @@ static partial class DesktopCommand
             probe.Start();
             int chosen = ((IPEndPoint)probe.LocalEndpoint).Port;
             probe.Stop();
+            firstPort = chosen;
             for (int attempt = 0; attempt < 20; attempt++)
             {
                 int port = chosen + attempt;

@@ -300,9 +300,8 @@ its error record in the default view on the error stream and exits with 1:
 The first part is otter.ps1's full path, which otter-net, having no
 otter.ps1, takes as `otter.ps1` next to its own executable (where the
 installer puts otterPS's). The two `+` lines are cut into pieces of the
-console width less 6; otter-net assumes the standard 120 columns, and does
-not wrap the message line itself (PowerShell's formatter may, at the
-console's width). Standard output and the exit code are not affected. Needs
+console width less 6; otter-net assumes the standard 120 columns and, as
+measured, wraps every line of the view at that width (F5). Standard output and the exit code are not affected. Needs
 a decision: are these texts part of the behaviour to keep (they are
 PowerShell's, not Otter's)? PowerShell 7 shows them differently again
 ("otter.ps1: Parameter cannot be processed ..."), so every such case in
@@ -345,22 +344,25 @@ other command.
 otter.ps1 is an advanced script, so PowerShell's common parameters apply to
 it. Two of them change what otterPS shows:
 
-- `-Verbose` (or `-vb`): every Import-Module otterPS makes at that point
-  lists the modules and functions it loads ("VERBOSE: Loading module from
-  path '...src\Otter.Profiler.psm1'.", "VERBOSE: Importing function ..."),
-  with otterPS's install path: `otter profile`, `otter debug`, `otter build`,
-  `otter publish`, and `otter run` of a program (its compiled engine).
-- `-InformationAction Ignore` hides everything otterPS writes with
-  Write-Host (all of its output); `Stop` turns the first Write-Host into a
-  PowerShell error; `Inquire` asks before each one.
+- `-Verbose` (or `-vb`): every Import-Module otterPS makes while a command
+  runs lists the modules it loads and the functions it imports and exports
+  ("VERBOSE: Loading module from path '...src\Otter.Profiler.psm1'.",
+  "VERBOSE: Importing function ..."), with otterPS's install path, and its two
+  Write-Verbose calls show ("Otter Web App compiled to: <page>", "Otter web
+  server listening on http://<host>:<port>/"): `otter run` of a program
+  (its compiled engine, unless OTTER_ENGINE=interpreter), `otter profile`,
+  `otter debug`, `otter build` and `otter publish` (the web compiler),
+  `otter web`/`browse`, `otter serve` and `otter desktop`.
+- `-InformationAction Ignore` and `Stop` make every Write-Host of otterPS
+  fail (F5-2); `Inquire` asks before each one (F5-1).
 
-otter-net hands these command lines to the PowerShell Otter (they are the
-only dash arguments it does not take on itself). They are accidents of
-PowerShell, not Otter features; needs a decision whether to keep them
-(then otter-net needs otterPS's module and function lists) or to drop them.
-The other common parameters (-Debug, -ErrorAction, -WarningAction,
--ErrorVariable, -OutVariable, ...) are bound and validated as PowerShell
-does and change nothing visible.
+otter-net now reproduces -Verbose and -InformationAction Stop and Ignore,
+measured on Windows PowerShell 5.1 (F5-2, F5-3); Inquire is still handed to
+the PowerShell Otter (F5-1). They are accidents of PowerShell, not Otter
+features; needs a decision whether to keep them or to drop them. The other
+common parameters (-Debug, -ErrorAction, -WarningAction, -ErrorVariable,
+-OutVariable, ...) are bound and validated as PowerShell does and change
+nothing visible.
 
 ### C2-6. Texts read from PowerShell's and .NET Framework's sources
 
@@ -475,6 +477,17 @@ have `message` gone (and `level` gone when the provider is unknown), not the
 otter-net follows the code. To be confirmed on Windows PowerShell 5.1, whose
 Get-WinEvent may differ from the PowerShell 7 source this was read from.
 
+**Measured (2026-10-20)** on Windows PowerShell 5.1
+(`tests/windows-state/w5_event_log.ot`, win-verify run 39462260477): an
+event from a classic source whose message file is missing, and one whose
+source was removed after writing, both have `level` and `message` gone
+(the source stays). otter-net stopped the program with "The system cannot
+find the file specified." for the first: `EvtFormatMessage` reports
+ERROR_FILE_NOT_FOUND there, which .NET Framework turns into an
+EventLogNotFoundException that Get-WinEvent swallows. Fixed in
+`EventLog.cs` (run 39463793352: identical). Audit events (success and
+failure) have the level "Information" in both. See also W5-3.
+
 ## T3 questions (found 2026-10-18, porting the remaining tail)
 
 ### T3-1. How Win32_Printer turns the spooler's status into PrinterStatus
@@ -494,6 +507,30 @@ combined-flag cases are a reasoned reading, to be confirmed on Windows with
 a paused printer. `Default` is compared with `GetDefaultPrinter`, ignoring
 case.
 
+**Measured (2026-10-20)** on a Windows Server 2025 runner with Windows
+PowerShell 5.1 (`tools/windows-state.ps1`, `tests/windows-state/w5_printers.ot`;
+win-verify runs 39462260477 and 39463793352, now part of ci.yml's Windows
+job). Printers on the "Generic / Text Only" driver, compared with
+Win32_Printer and the spooler's own flags (Get-Printer):
+
+| Printer | Spooler status | Win32_Printer PrinterStatus (Extended) | otterPS | otter-net |
+|---|---|---|---|---|
+| idle, and a second one on the same port | none | 3 (2) | idle | idle |
+| paused (`Pause` through CIM) | Paused | 1 (8) | other | other |
+| paused, with a job waiting | Paused | 1 (8) | other | other |
+| a job that failed (its port's folder removed) | Error | 1 | other | other |
+| a job to an unreachable TCP/IP port | Error | 1 | other | other |
+| "work offline" set (`WorkOffline`, an attribute) | none | 3 (2) | idle | idle |
+| Microsoft Print to PDF | none | 3 | idle | idle |
+
+The default printer (set with `SetDefaultPrinter`) was the only `isDefault`
+true in both, and both listed the printers in the same order (the spooler's,
+newest first, not alphabetical). Not reached on a runner: the spooler's
+OFFLINE flag (7; a port to an unreachable address reports Error, and "work
+offline" is an attribute WMI ignores), printing (4) and warming up (5),
+which need a physical device. The mapping is confirmed for every state a
+runner can produce; those three stay a reasoned reading.
+
 ### T3-2. Which scheduled tasks Get-ScheduledTask lists, and in what order
 
 `get system information "tasks"` (D80) uses `Get-ScheduledTask` and
@@ -505,24 +542,41 @@ its zero date is gone (the provider's empty datetime). The order and the
 never-run case are to be confirmed against Windows PowerShell 5.1
 (`tests/compat/t3_system_tasks_printers.ot` prints every task name).
 
+**Measured (2026-10-20)**, same runs as T3-1 (`tests/windows-state/w5_tasks.ot`):
+223 tasks, including fourteen registered in `\`, `\OtterW5\`,
+`\OtterW5\Deeper\`, `\OtterW5 Another\` and `\otterw5 lower\` (registered
+out of alphabetical order; never run, without and with triggers, a trigger
+only in the past, disabled, hidden, run and succeeded, run and failed,
+still running). otterPS and otter-net printed the same names, states and
+times in the same order: the root's tasks first, then each folder depth
+first (`\OtterW5\Deeper\` before `\OtterW5 Another\`), tasks and folders
+in the Task Scheduler's order, which is alphabetical without regard to case
+("Otter a registered second" before "Otter z registered first"); hidden
+tasks are listed. A task that never ran has `lastRunTime` "1999-11-30
+00:00:00", the Task Scheduler's own "never" date, which the CIM provider
+passes on (LastTaskResult 267011), not gone; a task with no future run has
+`nextRunTime` gone (the COM API's zero date, 1899-12-30); a running task is
+"Running", a disabled one "Disabled". Nothing to change in otter-net.
+Whether a never-run task should rather show gone is a question for the
+specification.
+
 ### T3-3. `otter serve` with a port [int] cannot read
 
 Get-OtterServerDefinition (src/Otter.Server.psm1) reads a `web server`'s
 `port is X` and the first `listen on port X` with `[int]`. When the cast
-fails (`port is "abc"`, `port is 30000000000`) the error is
-statement-terminating inside a script module, whose $ErrorActionPreference
-is the global `Continue` (modules do not see otter.ps1's `Stop`): PowerShell
-reports it on the error stream and the function goes on, the port keeping
-its value (8080 unless an earlier `port is` set another), and the server
-starts. otter-net (`ServeCommand.CastPort`) writes Windows PowerShell 5.1's
-report of it - the message, `At <otter.ps1's folder>\src\Otter.Server.psm1:24
-char:29` with the whole assignment underlined, `InvalidArgument: (:) [],
-RuntimeException` and `InvalidCastFromStringToInteger` (text) or
-`InvalidCastIConvertible` (a number) - then starts the server. Reasoned from
-PowerShell's error view and scoping rules; it cannot be compared
-automatically (the server never ends) and should be confirmed by hand on
-Windows. The path assumes otterPS's layout next to otter.exe, as in C2-1.
-Needs a decision whether an unreadable port should rather be an Otter error.
+fails (`port is "abc"`, `port is 30000000000`, `listen on port "x"`), the
+function runs with otter.ps1's `$ErrorActionPreference` (Stop) - the earlier
+reasoning that a module sees only the global `Continue` was wrong - so the
+error ends otter.ps1 before the server starts. Measured on Windows
+PowerShell 5.1 (F5): powershell.exe reports "Get-OtterServerDefinition :
+Cannot convert value "abc" to type "System.Int32". Error: "Input string was
+not in a correct format."" at Start-OtterServer's call (`$def =
+Get-OtterServerDefinition -Program $Program`, `src\Otter.Server.psm1` line
+282), `InvalidArgument: (:) [Get-OtterServerDefinition], RuntimeException`,
+`InvalidCastFromStringToInteger` (text) or `InvalidCastIConvertible` (a
+number), exit code 1. otter-net (`ServeCommand.CastPort`) does the same
+(`tests/cli/ps-texts.psd1`). Needs a decision whether an unreadable port
+should rather be an Otter error.
 
 ## D4 questions (found 2026-10-18, porting desktop windows to the WPF host)
 
@@ -639,3 +693,223 @@ numbers change from run to run, and the other shapes are .NET runtime
 internals (and differ between Windows PowerShell 5.1 and PowerShell 7), so
 otter-net has not copied them. Needs a decision: refuse these values ("Otter
 cannot turn ... into JSON"), or specify a shape.
+
+## W5 questions (found 2026-10-20, verifying Windows behaviour with real machine state)
+
+Measured on `windows-latest` runners (Windows Server 2025, Windows
+PowerShell 5.1) given printers, scheduled tasks, an event log, services and
+software entries by `tools/windows-state.ps1`, other regional formats, and a
+150 % display scale; otterPS 1.0.1 and otter-net run back to back on the
+same machine (`tests/windows-state`, `.github/workflows/win-verify.yml`, now
+folded into `ci.yml` and `desktop.yml`). Results for T3-1, T3-2 and P2-3 are
+recorded under those questions.
+
+### W5-1. Network interfaces: .NET Framework and .NET list different ones
+
+`get system information "network"` is `NetworkInterface.GetAllNetworkInterfaces()`
+filtered to "up and not loopback". On the runner, Windows PowerShell 5.1
+(.NET Framework) listed one interface ("Ethernet 3"); .NET 10 listed five,
+adding the hidden filter interfaces ("Ethernet 3-WFP Native MAC Layer
+LightWeight Filter-0000", "...-QoS Packet Scheduler-0000", "...-WFP 802.3 MAC
+Layer LightWeight Filter-0000") and "Ethernet 4": .NET 5 and later ask
+GetAdaptersAddresses for all interfaces. otter-net now reads the adapters on
+Windows with .NET Framework's flags (`src/Otter.Runtime/NetworkAdapters.cs`;
+win-verify run 39461167416: identical). otterPS on PowerShell 7 on Windows
+would list the extra ones, a 5.1/7 difference like Q16.
+
+### W5-2. List-valued registry entries in "software"
+
+otterPS keeps `DisplayName`, `DisplayVersion` and `Publisher` as
+Get-ItemProperty returns them. A REG_MULTI_SZ or REG_BINARY value is a
+PowerShell array, not an Otter list: it prints as its items joined by
+spaces (`1 2`, PowerShell's `[string]` of an array; otter-net printed `1, 2`
+before), and counts as false when empty or when it holds one false item
+(`if ($entry.DisplayVersion)`). otter-net now gives that text
+(`SystemInfo.cs` `SoftwareValue`, run 39461167416: identical), so printing
+and truthiness match; `length of` or `for each` over such a value would treat
+the PowerShell array differently from otter-net's text. Numbers (REG_DWORD,
+REG_QWORD) and REG_EXPAND_SZ (expanded) already matched. Needs a decision
+whether software values should be plain text.
+
+### W5-3. An event whose message is empty shows uninitialised characters
+
+An event written with an empty message (`EventLog.WriteEntry(source, "")`)
+comes back from Windows PowerShell 5.1's Get-WinEvent with a `Message` of
+three characters that change from run to run ("エ䕔ǜ", "ⵘ쨦Ƙ" in two runs,
+39461167416): .NET Framework's EventLogRecord formats the empty description
+into a buffer it never initialises. otterPS prints those characters;
+otter-net prints an empty text (what PowerShell 7's .NET returns). It cannot
+be compared, so `tools/windows-state.ps1` writes no such event. Needs a
+decision (empty text is the evident intent).
+
+### W5-4. The user's regional format reaches the output in a few places
+
+With German formats (`Set-Culture de-DE`; display language English) the whole
+of `tests/compat` (209 programs) and the desktop tests (26) were compared
+(run 39459678298). One difference: Windows PowerShell writes the number in
+its conversion errors with the user's formats ("Cannot convert value
+"2147483647,5" to type "System.Int32"", `c4_interpreter_dotnet.ot`), where
+otter-net, running with invariant globalization, wrote "2147483647.5". Task
+and event times (`ToString('yyyy-MM-dd HH:mm:ss')`, whose `:` is the culture's
+time separator) and WPF's refusal of an infinite width ("'∞' is not a valid
+value") depend on it in the same way. otter-net now reads the user's number
+and time symbols from Windows (`Otter.Language.UserFormats`, GetLocaleInfoEx,
+the data .NET Framework uses) and uses them in exactly those places;
+everything else Otter prints stays invariant, as otterPS's own formatting
+does (D32.5). After the change the whole of `tests/compat` is identical
+under German formats (run 39469496133; only `p2_remote_command.ot`, which
+is handed to the PowerShell Otter by design, cannot run natively), and
+ci.yml now compares the machine-state and conversion programs under German
+and Finnish formats (run 39469494984: 11 of 11 identical in each),
+desktop.yml the error programs under German formats (run 39469499072). Needs a decision whether a program's
+output should depend on the user's regional format at all.
+
+### W5-5. On a non-English display language otterPS's PowerShell and .NET texts are translated
+
+otterPS shows some texts that PowerShell and .NET Framework write (C2-6,
+D4-2, every "Cannot convert value", file and event log errors). The runner
+has the German resources of both (`System.Management.Automation.resources`
+and `PresentationFramework.resources`, de). Running otterPS with its thread's
+UI culture set to de-DE (`desktop-harness --reference-ui-culture de-DE`, run
+39459678298) gives, for `tests/desktop/errors.ot` and
+`sync_handler_error.ot`:
+
+    29: Die Eigenschaft "" wurde für dieses Objekt nicht gefunden. Vergewissern Sie sich, dass die Eigenschaft vorhanden ist und festgelegt werden kann.
+    31: Ausnahme beim Festlegen von "Width": ""∞" ist kein gültiger Wert für die Eigenschaft "Width"."
+    caught: Ausnahme beim Festlegen von "Text": "no changes allowed"
+
+where otter-net writes PowerShell's English texts ("The property '' cannot be
+found on this object...", "Exception setting "Width": "'∞' is not a valid
+value for property 'Width'.""). Otter's own messages are English in both.
+What could not be verified: otter-net under a real German display language.
+`Set-WinUILanguageOverride de-DE` succeeds on the runner, but takes effect at
+the next sign-in, which a hosted runner never has (new processes still
+report en-US), and .NET offers no other way to give a process another UI
+language. otter-net does not translate any text, so on a German Windows
+these texts, and every other PowerShell or .NET text otterPS passes on,
+would differ. Needs a decision: is otterPS on an English display language
+the reference (otter-net's position), or should these texts follow the
+display language (a table of PowerShell's and .NET Framework's translations
+for each text otter-net reproduces)?
+
+### W5-6. High DPI: verified at a 150 % monitor scale, not at a 150 % system DPI
+
+`tools/set-display-scale.ps1` sets the runner's display to 1920x1080 at
+150 % without signing out (as the Settings app does): the monitor reports
+144 dpi, while the session's system DPI stays 96 until the next sign-in.
+All 26 desktop tests are identical at that scale (window trees, sizes in
+physical pixels, snapshot pixels; runs 39459678298, 39465229800), so
+powershell.exe and otter-desktop.exe are scaled the same way. A session that
+starts at 150 % (system DPI 144) needs a sign-in, which hosted runners do
+not offer; it remains unverified.
+
+## F5 questions (found 2026-10-20, measuring the texts PowerShell itself prints)
+
+The last places otter-net handed to the PowerShell Otter because the text
+is PowerShell's own were measured on Windows PowerShell 5.1 in CI
+(`.github/workflows/cli-windows.yml`; `tools/compare-cli.ps1
+-ShowReference` prints the reference's raw output) and reproduced natively;
+`tests/cli/ps-texts.psd1` holds the cases. The positions PowerShell quotes
+are lines of otter.ps1 and its modules (`tools/New-PowerShellSiteTable.ps1`),
+named with the PowerShell Otter's folder as in C2-1. Every line of an error
+view is wrapped at the console width (a word longer than a line fills the
+current line first; a VERBOSE line starts it on a line of its own).
+
+### F5-1. -InformationAction Inquire stays with the PowerShell Otter
+
+Measured with standard input redirected: each Write-Host shows its text,
+then reads a line. Y, A or an empty line goes on (A does not carry over to
+the next Write-Host); H stops ("The running command stopped because the user
+selected the Stop option."); S opens a nested prompt ("PS <folder>>> ") that
+runs PowerShell commands until `exit`; ? and anything else ask again; the
+end of input fails with "Object reference not set to an instance of an
+object.". Each line read is echoed to standard output, but the question
+itself goes to the console, not to standard output, so a redirected run
+cannot show it and a run on a console cannot be measured in CI. The nested
+prompt runs PowerShell, which otter-net cannot do. otter-net therefore hands
+`-InformationAction Inquire` to the PowerShell Otter, as before. Needs a
+decision with C2-5.
+
+### F5-2. -InformationAction Stop and Ignore
+
+Every Write-Host of otterPS fails - otter.ps1's own, its modules' (`otter
+build`'s "Building ...", the profile report, `otter desktop`'s "running"
+line) and the program's `say`: Stop writes the text and then throws "The
+running command stopped because the preference variable
+"InformationPreference" or common parameter is set to Stop: <text>"; Ignore
+writes nothing and throws "The value Ignore is not supported for an
+ActionPreference variable. ... has been replaced by the default value.", and
+PowerShell puts the default back in the scope of that Write-Host. The failure
+then goes where otterPS sends a failure: an `otherwise` of the program, then
+Invoke-OtterFile's catch (Show-OtterFailure, whose first Write-Host fails in
+turn), the catch of `otter new`/`test`/`build`/`publish`, or the end of
+otter.ps1, where powershell.exe reports the Write-Host that failed last (exit
+code 1). Under Ignore the catch of `otter new` shows its message, because the
+Write-Host that failed ran in otter.ps1's own scope. Nothing that runs after
+the first Write-Host happens: no browser opens for `otter web`, a server
+stops at once, `otter desktop` stops after its window opened (as otterPS
+does, the window stays). PowerShell 7 differs: Ignore hides every Write-Host
+silently and Stop's report is its ConciseView (known differences in
+`tests/cli/ps-texts.psd1`). Needs a decision with C2-5.
+
+### F5-3. -Verbose shows the PowerShell Otter's module lists
+
+The VERBOSE lines are measured lists (`src/Otter.Cli/VerboseImports.g.cs`):
+six Import-Module calls (the compiled engine, profiler, debugger, web
+compiler, web server and desktop modules), the same in every case measured,
+with the paths of the PowerShell Otter's files. They are printed where otterPS
+imports (before a run; at the start of `otter build` and of publish's build
+step; before the web page, the server or the desktop app), and the web
+compiler only once. otter-net names the files beside the PowerShell Otter's
+otter.ps1 (C2-1). A build's "Otter Web App compiled to:" names its staging
+folder, whose name is random in both. Needs a decision with C2-5.
+
+### F5-4. `otter serve` of an empty program, and a server that cannot start
+
+An empty program stops at `ConvertTo-OtterTokens -Source ''` outside the
+catch: PowerShell's parameter binding error, as for otter.ps1's own
+parameters (no position, exit code 1; see Q12). A server that cannot start
+ends otter.ps1 with PowerShell's report of the .NET method call at
+`$session = Start-OtterServer ...`, in .NET Framework's words: a prefix
+registered by someone else ("Failed to listen on prefix 'http://localhost:
+8080/' because it conflicts with an existing registration on the machine."),
+Windows' text for any other HTTP.sys error without its full stop ("The
+parameter is incorrect": a host with a space or a colon, port 0, port 70000),
+and `Exception calling "Add"` with "Parameter name: uriPrefix" on a line of
+its own for an empty host. Off Windows otter-net uses .NET's own text (the
+reference there is PowerShell 7, whose view differs anyway). Needs a decision:
+should a server that cannot start be an Otter error?
+
+### F5-5. `otter desktop` failures that end otter.ps1
+
+Start-OtterDesktopApplication runs with otter.ps1's `$ErrorActionPreference`
+(Stop), so three failures end otter.ps1 with powershell.exe's report: an
+import problem from Resolve-OtterModuleSource (missing, cyclic, a folder,
+unreadable, or in other capitals), reported at its `throw` in
+`src\Otter.Module.psm1` with "OperationStopped: (:) [], OtterError" and the
+message as the error id; a page that cannot be written (Set-Content's
+"Access to the path '...' is denied." at `src\Otter.Web.psm1` line 3059 for the
+page, `src\Otter.Desktop.psm1` line 1681 for the session copy); and a bridge
+that finds no free port among the 20 it tries ("Could not bind terminal bridge
+listener on port N.", at its `throw` in `src\Otter.Desktop.psm1`). The first
+two are measured; the third cannot be provoked (the 20 ports follow a port
+the system has just found free) and is rendered the way the measured
+OtterErrors are. Nothing is opened in any of them. Needs a decision: should
+these be Otter errors?
+
+### F5-6. How deep UI resources can be nested in a web page
+
+otterPS's web compiler renders a resource put inside another recursively.
+On Windows PowerShell 5.1 a chain of 1,609 nested resources renders and
+deeper ones end in "Otter hit a problem inside itself ... The script failed
+due to call depth overflow." - but not at a fixed depth: bisecting the same
+programs in CI, a chain of 1,610 rendered in one run and overflowed in the
+next, and `otter build` (which calls more PowerShell functions on the way)
+overflows at the same depth as `otter web`, so the limit is the thread's
+stack, not a count of calls. It may move with the Windows and .NET Framework
+version or a 32-bit PowerShell. otter-net renders up to 1,500 levels natively
+(measured to render in every run) and hands a deeper page to the PowerShell
+Otter, the one case of this batch that cannot be reproduced exactly (a cycle
+is still native: otterPS always overflows). Needs a decision: should such a
+page be an Otter error (or render) at any depth?
+

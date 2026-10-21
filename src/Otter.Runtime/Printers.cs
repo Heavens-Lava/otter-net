@@ -17,7 +17,10 @@ namespace Otter.Runtime;
 // CIM's PrinterStatus values is that value (offline 7, printing 4, warming
 // up 5); any other flag is an ExtendedPrinterStatus beyond PrinterStatus's
 // range (paused, error, busy, ...), which PrinterStatus reports as other (1).
-// See docs/SPEC-QUESTIONS.md T3-1 for the order the flags are tried in.
+// Compared with Windows PowerShell 5.1 on a Windows runner: idle, paused,
+// paused with a job waiting, in error (a failed job) and "work offline"
+// printers, and the default (tests/windows-state/w5_printers.ot; see
+// docs/SPEC-QUESTIONS.md T3-1 for what was and was not reached).
 //
 // If the spooler cannot be asked (it is stopped), the list is empty, as
 // otterPS's catch makes it.

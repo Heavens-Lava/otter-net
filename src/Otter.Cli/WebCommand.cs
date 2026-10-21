@@ -28,7 +28,8 @@ static class WebCommand
         catch (OtterError problem)
         {
             trace("native: web (import error)");
-            return ReportError(problem);
+            VerboseImports.Web();
+            return ReportError(problem, PsSite.Otter(965));
         }
         string html;
         try
@@ -43,11 +44,13 @@ static class WebCommand
         catch (OtterError error)
         {
             trace("native: web (errors)");
-            return ReportError(resolved.Remap(error));
+            VerboseImports.Web();
+            return ReportError(resolved.Remap(error), PsSite.At(@"src\Otter.Web.psm1", 3041));
         }
         catch (WebInternalProblem problem)
         {
             trace("native: web (internal problem)");
+            VerboseImports.Web();
             return ReportInternalProblem(problem);
         }
         catch (Exception unexpected) when (unexpected is not OutOfMemoryException)
@@ -56,6 +59,9 @@ static class WebCommand
             return null;
         }
 
+        // otter.ps1's Import-Module of the web compiler (-Verbose shows it):
+        // only now, once nothing can go to the PowerShell Otter any more.
+        VerboseImports.Web();
         // Set-Content -Encoding UTF8 on Windows PowerShell 5.1: a byte order
         // mark, the page and a line ending.
         string htmlPath = Path.ChangeExtension(primarySource, ".html");
@@ -66,18 +72,19 @@ static class WebCommand
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             trace("native: web (page not written)");
-            Host.Line($"Otter: I could not write the web page for \"{target}\": {Modules.FileAccessReason(e)}.", ConsoleColor.Red);
+            Host.Line($"Otter: I could not write the web page for \"{target}\": {Modules.FileAccessReason(e)}.", ConsoleColor.Red, PsSite.Otter(971));
             return ExitUsageError;
         }
+        VerboseImports.PageWritten(htmlPath);
         trace("native: web");
-        Host.Line($"Otter Web application compiled to: {htmlPath}");
+        Host.Line($"Otter Web application compiled to: {htmlPath}", site: PsSite.Otter(974));
         if (noOpen) return ExitSuccess;
         if (OpenInBrowser(htmlPath))
         {
-            Host.Line("Opened in your default browser.");
+            Host.Line("Opened in your default browser.", site: PsSite.Otter(1005));
             return ExitSuccess;
         }
-        Host.Line($"Otter: I could not open a browser. The page is at {htmlPath} - open it yourself, or use -NoOpen to skip this step.", ConsoleColor.Red);
+        Host.Line($"Otter: I could not open a browser. The page is at {htmlPath} - open it yourself, or use -NoOpen to skip this step.", ConsoleColor.Red, PsSite.Otter(1008));
         return ExitUsageError;
     }
 
@@ -109,16 +116,17 @@ static class WebCommand
     // under -File leaves the process's exit code at 0 (as UI2-1).
     internal static int ReportInternalProblem(WebInternalProblem problem)
     {
-        Host.Line("");
+        Host.Line("", site: PsSite.At(@"src\Otter.Web.psm1", 3048));
         Host.Line("Otter hit a problem inside itself, which means this is a bug in Otter.", ConsoleColor.Red);
         Host.Line($"  {problem.Message}", ConsoleColor.DarkGray);
         Host.Line("");
         return Cli.ExitSuccess;
     }
 
-    static int ReportError(OtterError error)
+    // Write-Host '' on line `site`, the error, Write-Host ''.
+    internal static int ReportError(OtterError error, PsSite site)
     {
-        Host.Line("");
+        Host.Line("", site: site);
         Host.Line(error.FormatDetailed(), ConsoleColor.Red);
         Host.Line("");
         return ExitCheckError;

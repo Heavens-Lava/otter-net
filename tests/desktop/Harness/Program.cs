@@ -19,7 +19,7 @@ namespace Otter.DesktopHarness;
 internal static class Program
 {
     static string otterPs = "", otterNet = "", testsDir = "", outDir = "";
-    static string? summaryPath, only;
+    static string? summaryPath, only, referenceUiCulture;
 
     static int Main(string[] args)
     {
@@ -33,11 +33,16 @@ internal static class Program
                 case "--out": outDir = Path.GetFullPath(args[i + 1]); break;
                 case "--summary": summaryPath = Path.GetFullPath(args[i + 1]); break;
                 case "--only": only = args[i + 1]; break;
+                // Runs otterPS with this UI culture (its thread's
+                // CurrentUICulture and CurrentCulture), as on a Windows
+                // whose display language it is; otter-net reads the
+                // system's. For measuring, not for the comparison in CI.
+                case "--reference-ui-culture": referenceUiCulture = args[i + 1]; break;
             }
         }
         if (otterPs == "" || otterNet == "" || testsDir == "" || outDir == "")
         {
-            Console.Error.WriteLine("usage: desktop-harness --otterps otter.ps1 --otter otter.exe --tests dir --out dir [--summary file.md] [--only name]");
+            Console.Error.WriteLine("usage: desktop-harness --otterps otter.ps1 --otter otter.exe --tests dir --out dir [--summary file.md] [--only name] [--reference-ui-culture de-DE]");
             return 2;
         }
         Directory.CreateDirectory(outDir);
@@ -170,8 +175,20 @@ internal static class Program
         if (side == "otterps")
         {
             start = new ProcessStartInfo("powershell.exe");
-            foreach (string a in new[] { "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", otterPs }) start.ArgumentList.Add(a);
             start.Environment.Remove("OTTER_ENGINE");
+            if (referenceUiCulture != null)
+            {
+                string quoted = string.Join(" ", arguments.Select(a => "'" + a.Replace("'", "''") + "'"));
+                string command = $"& {{ $c = [System.Globalization.CultureInfo]::GetCultureInfo('{referenceUiCulture}'); " +
+                    "[System.Threading.Thread]::CurrentThread.CurrentUICulture = $c; [System.Threading.Thread]::CurrentThread.CurrentCulture = $c; " +
+                    $"& '{otterPs.Replace("'", "''")}' {quoted}; exit $LASTEXITCODE }}";
+                foreach (string a in new[] { "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", command }) start.ArgumentList.Add(a);
+                arguments = Array.Empty<string>();
+            }
+            else
+            {
+                foreach (string a in new[] { "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", otterPs }) start.ArgumentList.Add(a);
+            }
         }
         else
         {

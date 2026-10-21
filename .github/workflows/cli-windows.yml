@@ -1,0 +1,41 @@
+# Measures the texts Windows PowerShell 5.1 itself prints for otterPS (the
+# errors, -InformationAction failures and VERBOSE lines otter-net reproduces;
+# docs/SPEC-QUESTIONS.md F5) and compares otter-net's, printing the
+# reference's raw output so a text can be read from the log. Run by hand:
+# ci.yml already runs every CLI case on Windows.
+name: cli-windows
+
+on:
+  workflow_dispatch:
+    inputs:
+      cases:
+        description: 'Case files for tools/compare-cli.ps1 (comma-separated)'
+        default: 'tests/cli/ps-texts.psd1'
+
+jobs:
+  compare:
+    name: otter-net vs otterPS, with the reference's raw output
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check out otterPS 1.0.1 (the reference)
+        uses: actions/checkout@v4
+        with:
+          repository: Heavens-Lava/otterPS
+          ref: v1.0.1
+          path: otterps
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Publish native (AOT)
+        run: dotnet publish src/Otter.Cli/Otter.Cli.csproj -c Release -r win-x64 -p:UseAppHost=true -o artifacts/win-x64 --nologo
+      - name: Publish otter-desktop beside it
+        run: dotnet publish src/Otter.Desktop/Otter.Desktop.csproj -c Release -r win-x64 --self-contained false -p:UseAppHost=true -o artifacts/win-x64 --nologo
+      - name: Command line - the cases, with the raw reference output
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tools/compare-cli.ps1 -OtterPs otterps -OtterNet artifacts/win-x64/otter.exe -Cases "${{ inputs.cases }}" -ShowReference -ReportPath results/cli-ps-texts.md
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cli-windows
+          path: results/

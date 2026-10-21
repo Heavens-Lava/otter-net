@@ -68,6 +68,39 @@ jobs:
         run: |
           powershell -NoProfile -ExecutionPolicy Bypass -File tools/capture.ps1 -Otter otterps/otter.ps1 -Corpus tests/compat -OutDir outputs/windows-otterps
           powershell -NoProfile -ExecutionPolicy Bypass -File tools/capture.ps1 -Otter artifacts/win-x64/otter.exe -Corpus tests/compat -OutDir outputs/windows-native
+      # Last, because it changes the machine: printers in several states (and
+      # the default printer), scheduled tasks in several folders and states,
+      # an event log with and without descriptions, services and software
+      # entries (tools/windows-state.ps1), then tests/windows-state and the
+      # system programs of tests/compat against otterPS on that machine.
+      - name: Machine state for the system information checks
+        if: always()
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tools/windows-state.ps1
+      - name: System information with that machine state
+        if: always()
+        shell: powershell
+        run: |
+          $corpus = @(Get-ChildItem tests/windows-state -Filter *.ot) + @(Get-ChildItem tests/compat -Filter *.ot | Where-Object Name -match '^(sys|t3|c4)_')
+          & tools/compare.ps1 -OtterPs otterps -OtterNet artifacts/win-x64/otter.exe -Corpus @($corpus | ForEach-Object FullName) -NativeOnly -ReportPath results/windows-state.md
+          exit $LASTEXITCODE
+      # The user's regional format reaches otterPS's output in a few places
+      # (a number in a .NET conversion message, the time separator of task
+      # and event times; SPEC-QUESTIONS W5-4): German and Finnish formats, set
+      # as a user sets them, with the same machine state.
+      - name: System information and conversions under German and Finnish formats
+        if: always()
+        shell: powershell
+        run: |
+          $corpus = @(Get-ChildItem tests/windows-state -Filter *.ot) + @(Get-ChildItem tests/compat -Filter *.ot | Where-Object Name -in 'c4_interpreter_dotnet.ot', 'c4_bytes.ot', 'sys_desktop.ot', 't3_system_tasks_printers.ot', 'numbers.ot')
+          $failed = 0
+          foreach ($culture in 'de-DE', 'fi-FI') {
+            Set-Culture $culture
+            & tools/compare.ps1 -OtterPs otterps -OtterNet artifacts/win-x64/otter.exe -Corpus @($corpus | ForEach-Object FullName) -NativeOnly -ReportPath "results/windows-state-$culture.md"
+            if ($LASTEXITCODE -ne 0) { $failed++ }
+          }
+          Set-Culture en-US
+          exit $failed
       - name: Summary
         if: always()
         shell: powershell

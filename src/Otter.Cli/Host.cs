@@ -22,8 +22,13 @@ internal static class Host
     // talking must never be handed to the PowerShell Otter afterwards.
     public static bool HasWritten { get; private set; }
 
-    public static void Line(string text = "", ConsoleColor? color = null)
+    // `site`: where otterPS's Write-Host is, which PowerShell names when that
+    // Write-Host fails under -InformationAction (InformationAction.cs).
+    public static void Line(string text = "", ConsoleColor? color = null, PsSite? site = null)
     {
+        site ??= DefaultSite;
+        VerboseImports.WritePending();
+        InformationAction.Before(text, site);
         HasWritten = true;
         if (color is ConsoleColor c && !Console.IsOutputRedirected)
         {
@@ -33,20 +38,73 @@ internal static class Host
             try { Out.Write(text); Out.Flush(); }
             finally { Console.ForegroundColor = previous; }
             Out.Write("\n");
-            return;
         }
-        Out.Write(text);
-        Out.Write("\n");
+        else
+        {
+            Out.Write(text);
+            Out.Write("\n");
+        }
+        InformationAction.After(text, site);
     }
 
-    // Write-Host -NoNewline.
-    public static void Text(string text)
+    // Inside a function of otterPS's modules that otter.ps1 calls in a try
+    // (the project commands): its Write-Host failures go to that catch.
+    public static PsSite? DefaultSite { get; private set; }
+
+    public static T InModule<T>(Func<T> work)
     {
+        PsSite? previous = DefaultSite;
+        DefaultSite = PsSite.Handled;
+        try { return work(); }
+        finally { DefaultSite = previous; }
+    }
+
+    // [Console]::Out.Write: not a Write-Host, so -InformationAction does not touch it.
+    public static void Raw(string text)
+    {
+        VerboseImports.WritePending();
         HasWritten = true;
         Out.Write(text);
     }
 
-    public static void MarkWritten() => HasWritten = true;
+    // Write-Host -NoNewline.
+    public static void Text(string text, PsSite? site = null)
+    {
+        site ??= DefaultSite;
+        VerboseImports.WritePending();
+        InformationAction.Before(text, site);
+        HasWritten = true;
+        Out.Write(text);
+        InformationAction.After(text, site);
+    }
+
+    // A line of PowerShell's VERBOSE stream (-Verbose), as the console host
+    // writes it to standard output: "VERBOSE: ", wrapped at the console
+    // width, ended by "\n". Not a Write-Host: -InformationAction does not
+    // touch it.
+    public static void Verbose(string message)
+    {
+        HasWritten = true;
+        if (!Console.IsOutputRedirected)
+        {
+            // A console wraps the line itself; the host's verbose colour is yellow.
+            Out.Flush();
+            ConsoleColor previous = Console.ForegroundColor;
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            try { Out.Write("VERBOSE: " + message); Out.Flush(); }
+            finally { Console.ForegroundColor = previous; }
+            Out.Write("\n");
+            return;
+        }
+        Out.Write(PowerShellError.HostWrapped("VERBOSE: " + message));
+        Out.Write("\n");
+    }
+
+    public static void MarkWritten()
+    {
+        VerboseImports.WritePending();
+        HasWritten = true;
+    }
 }
 
 // [Environment]::Exit(code) from anywhere in a command.

@@ -1,0 +1,11 @@
+# The services tools/windows-state.ps1 adds (D86): manual, disabled,
+# automatic, delayed automatic, a display name beyond ASCII, a lower-case
+# name; and where they fall in the list of every service.
+get system information "services" into services
+position is 0
+for each service in services
+    increase position
+    if name of service starts with "OtterW5" or name of service starts with "otterw5"
+        say position name of service "|" displayName of service "|" status of service "|" startType of service
+    .
+.

@@ -93,20 +93,27 @@ Windows, CI, median of 7 runs (`tools/bench.ps1`):
 ## 6. What is not native
 
 Every place in otter-net's source that can still hand a program to the
-PowerShell Otter (29), from `docs/NATIVE_COVERAGE.md`:
+PowerShell Otter (21), from `docs/NATIVE_COVERAGE.md`:
 
 | Count | Category | What |
 |---:|---|---|
 | 6 | **Remote commands on Windows** (D84) | The one feature not native. The owner approved a native WinRM client; the attempt was stopped by an automated safety review before any code was written, and it was not retried. For this release candidate the statement is handed to the PowerShell Otter, which uses Windows' built-in PowerShell remoting, as Otter 1.0.1 does. **Owner decision:** keep this, implement it under direct supervision, or decide the statement's future as a specification question. |
-| 7 | PowerShell-rendered errors | Failures PowerShell itself prints on Windows: `-InformationAction Stop/Inquire/Ignore`, `otter serve` of an empty program or a server that cannot start, three `otter desktop` (browser app window) failures |
-| 4 | PowerShell-rendered output | `-Verbose`, under which otterPS lists the PowerShell modules it loads (SPEC-QUESTIONS C2-5) |
-| 11 | Bug guards | Reached only if otter-net itself crashes or lacks a table entry (none in 1,337 corpus runs and the fuzzing) |
+| 2 | PowerShell-rendered errors | `-InformationAction Inquire` (PowerShell asks on the console before each line and offers a nested PowerShell prompt; SPEC-QUESTIONS F5-1) and a web page nested more than 1,500 levels deep (otterPS overflows its stack at about 1,610, not at a fixed depth; F5-6) |
+| 12 | Bug guards | Reached only if otter-net itself crashes or lacks a table entry (none in 1,337 corpus runs and the fuzzing) |
 | 1 | Out of scope | `otter studio` - the IDE is developed separately |
+
+Native since the release candidate was first written, measured on Windows
+PowerShell 5.1 in CI (`.github/workflows/cli-windows.yml`, SPEC-QUESTIONS F5):
+`-Verbose` (PowerShell's VERBOSE lines for otterPS's module imports),
+`-InformationAction Stop` and `Ignore`, `otter serve` of an empty program,
+of a server that cannot start and of a port PowerShell cannot convert, and
+`otter desktop`'s import problems, pages that cannot be written and bridge
+that cannot start.
 
 `otter-desktop.exe` also falls back to the PowerShell Otter if it is missing
 from the installation.
 
-## 7. Open specification questions (48)
+## 7. Open specification questions (54)
 
 Recorded in `docs/SPEC-QUESTIONS.md`. In every case otter-net keeps otterPS
 1.0.1's behaviour until the owner decides; none was changed. They fall into:
@@ -125,9 +132,15 @@ Recorded in `docs/SPEC-QUESTIONS.md`. In every case otter-net keeps otterPS
   Q15.
 - **Should PowerShell's own behaviour be part of the language at all**: C2-1
   (PowerShell's parameter-binding errors, reproduced character for
-  character), C2-5, V4-2 (the compiled engine's differences).
-- **To confirm on a real Windows machine**: T3-1 (paused printers), T3-2
-  (scheduled tasks order).
+  character), C2-5, F5-1 to F5-6 (-Verbose, -InformationAction, the `serve`
+  and `desktop` failures PowerShell reports, measured and reproduced; the
+  nesting depth at which otterPS overflows), V4-2 (the compiled engine's
+  differences).
+- **Confirmed on Windows with real machine state (2026-10-20)**: T3-1
+  (paused and failed printers), T3-2 (scheduled tasks order and times), P2-3
+  (events without a description); four differences found and fixed (W5-1,
+  W5-2, W5-4, P2-3). Open: W5-3 (an empty event message), W5-5 (a
+  non-English display language), W5-6 (a session started at high DPI).
 
 ## 8. Decisions needed before a release
 

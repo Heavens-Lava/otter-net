@@ -25,6 +25,19 @@ otter-net is complete only when all of these hold:
 | 9 | Packaging and clean-machine installation tests | yes: MSI/ZIP, pkg/tarball, deb/tarball, installed and removed on clean machines (`docs/PACKAGING.md`) |
 | 10 | Release candidate reviewed and approved | **ready for review** - `docs/RELEASE_CANDIDATE_REPORT.md` |
 
+## PowerShell's own texts - 2026-10-20 (`port/ps-texts`)
+
+The texts Windows PowerShell 5.1 itself prints for otterPS, measured in CI
+(`.github/workflows/cli-windows.yml`: `tools/compare-cli.ps1 -ShowReference`
+prints the reference's raw output) and reproduced natively; SPEC-QUESTIONS F5.
+
+| What | Result |
+|---|---|
+| Made native | `-Verbose` (the VERBOSE lines of otterPS's six Import-Module calls and its two Write-Verbose lines), `-InformationAction Stop` and `Ignore` (every Write-Host fails, at its position in otter.ps1 or a module), `otter serve` of an empty program, of a server that cannot start and of a port [int] cannot read (T3-3, corrected: it ends otter.ps1), `otter desktop`'s import problems, pages that cannot be written and bridge that cannot start, web pages nested up to 1,500 deep |
+| Still handed over | `-InformationAction Inquire` (F5-1); pages nested more than 1,500 deep (otterPS overflows at about 1,610, not at a fixed depth: F5-6) |
+| `tests/cli/ps-texts.psd1` on Windows PowerShell 5.1 | 139 cases, run with `tests/cli/binding.psd1` and every other CLI case (`tools/compare-cli.ps1`) |
+| Places that can still hand a program to PowerShell | 21 (from 29): 12 bug guards, 6 remote commands, 2 PowerShell-rendered, 1 out of scope |
+
 ## Coverage audit - 2026-10-18 (`port/coverage`)
 
 Completeness proved at the source level, and what the tests never exercised

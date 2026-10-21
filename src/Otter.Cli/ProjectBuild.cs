@@ -22,11 +22,13 @@ internal static partial class ProjectCommands
         string target = line.HasTarget ? line.Target! : ".";
         try
         {
-            return BuildProject(target, quiet: false, forceClean: false, alreadyChecked: false);
+            return Host.InModule(() => BuildProject(target, quiet: false, forceClean: false, alreadyChecked: false));
         }
         catch (Exception failure) when (failure is not OutOfMemoryException and not CliExit and not NeedsPowerShell)
         {
-            return ReportProjectFailure(failure);
+            // Invoke-OtterProjectBuild imported the web compiler first (-Verbose).
+            VerboseImports.Web();
+            return ReportProjectFailure(failure, 781, 787);
         }
     }
 
@@ -97,12 +99,17 @@ internal static partial class ProjectCommands
     static int BuildProject(string target, bool quiet, bool forceClean, bool alreadyChecked)
     {
         if (string.IsNullOrWhiteSpace(target)) target = ".";
+        // Invoke-OtterProjectBuild starts with Import-Module of the web
+        // compiler (-Verbose lists it): in publish's build, after "Building
+        // project..."; in `otter build` once nothing can go to the PowerShell Otter.
+        if (alreadyChecked) VerboseImports.Web();
         Project project = Project.Load(target);
         Exception? checkFailure = CheckProgram(project, out ResolvedProgram? resolved);
         if (!alreadyChecked)
         {
             if (checkFailure == null) PrepareWebPage(project);
             Program.Trace("native: build");
+            VerboseImports.Web();
         }
 
         string rootDirectory = project.RootDirectory;
@@ -188,6 +195,7 @@ internal static partial class ProjectCommands
                 // Export-OtterWebApplication -OutputPath index.html -PassThruExceptions.
                 if (preparedPageFailure != null) throw preparedPageFailure;
                 SetContentUtf8(Path.Combine(stagingDirectory, "index.html"), preparedPage!);
+                VerboseImports.PageWritten(Path.Combine(stagingDirectory, "index.html"));
                 if (targetLower == "desktop")
                 {
                     SetContentAscii(Path.Combine(stagingDirectory, "run-desktop.cmd"), "@echo off\r\notter desktop \"%~dp0index.html\" %*\r\n");
@@ -369,11 +377,11 @@ internal static partial class ProjectCommands
         }
         try
         {
-            return PublishProject(target, outputDir);
+            return Host.InModule(() => PublishProject(target, outputDir));
         }
         catch (Exception failure) when (failure is not OutOfMemoryException and not CliExit and not NeedsPowerShell)
         {
-            return ReportProjectFailure(failure);
+            return ReportProjectFailure(failure, 814, 820);
         }
     }
 
