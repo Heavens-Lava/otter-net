@@ -1,10 +1,12 @@
-# Every scheduled task in Get-ScheduledTask's order with its state, and every
-# detail of the tasks tools/windows-state.ps1 registers (D80,
-# SPEC-QUESTIONS T3-2): folders, never run, disabled, hidden, ran, failed,
-# running, a trigger in the future and one in the past.
+# Every scheduled task in Get-ScheduledTask's order, and every detail of the
+# tasks tools/windows-state.ps1 registers (D80, SPEC-QUESTIONS T3-2): folders,
+# never run, disabled, hidden, ran, failed, running, a trigger in the future
+# and one in the past. Windows' own tasks are listed by name only: their
+# state changes while the two implementations run one after the other (CI run
+# 39539586980: UsageDataReceiver went from Ready to Running).
 get system information "tasks" into tasks
 for each task in tasks
-    say name of task "-" state of task
+    say name of task
 .
 for each task in tasks
     if name of task starts with "Otter" or name of task starts with "otter"

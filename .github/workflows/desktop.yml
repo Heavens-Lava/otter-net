@@ -43,14 +43,13 @@ jobs:
         run: |
           & artifacts/harness/desktop-harness.exe --otterps otterps/otter.ps1 --otter artifacts/win-x64/otter.exe --tests tests/desktop --out results/desktop --summary $env:GITHUB_STEP_SUMMARY
           exit $LASTEXITCODE
-      - name: Without otter-desktop, the PowerShell Otter runs a window program
+      - name: Without otter-desktop, a window program asks for a reinstall (no PowerShell)
         if: always()
         shell: pwsh
         run: |
           $work = New-Item -ItemType Directory -Force -Path (Join-Path $env:RUNNER_TEMP 'no-desktop')
           Set-Content -Path (Join-Path $work 'made.ot') -Value "create window into w`nsay ""made"" w"
           $env:OTTER_DESKTOP = Join-Path $work 'missing\otter-desktop.exe'
-          $env:OTTER_POWERSHELL = (Resolve-Path otterps/otter.ps1).Path
           $env:OTTER_NET_TRACE = '1'
           Push-Location $work
           $output = & "$env:GITHUB_WORKSPACE/artifacts/win-x64/otter.exe" run made.ot 2>&1 | ForEach-Object { "$_" }
@@ -59,10 +58,10 @@ jobs:
           $output | Write-Host
           $lines = @('## Without otter-desktop', '', '```') + $output + @('```', '', "exit code: $code")
           $lines | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
-          if ($code -ne 0) { throw "exit code $code" }
-          if (-not ($output -match 'otter-net desktop: otter-desktop.exe is missing')) { throw 'no trace of the missing host' }
-          if (-not ($output -match 'otter-net fallback:')) { throw 'the PowerShell Otter did not run it' }
-          if (-not ($output -contains 'made a window')) { throw 'the program did not run' }
+          if ($code -ne 1) { throw "exit code $code, not 1" }
+          if (-not ($output -match 'otter-desktop.exe, which is missing from this installation')) { throw 'no reinstall message' }
+          if ($output -match 'fallback') { throw 'a fallback ran' }
+          if ($output -contains 'made a window') { throw 'the program ran without the desktop host' }
       # Last, because it changes the display: 1920x1080 at a 150 % scale, as
       # the Settings app sets it (tools/set-display-scale.ps1). New windows
       # are laid out at 144 dpi; the session's system DPI stays 96 until the
