@@ -148,12 +148,14 @@ public static unsafe partial class OtterRemoteCommands
     }
 
     // Reads the stream data of the shell (command zero) or of a command until
-    // `more` returns false or the command is done.
+    // `more` returns false or the command is done. A receive that is still
+    // running then is cancelled, and its final callback awaited, before its
+    // context goes away.
     static void Receive(IntPtr shell, IntPtr command, WSMAN_STREAM_ID_SET streams, string hostName, Func<byte[], bool> more)
     {
         while (true)
         {
-            using var receiving = new Operation(receive: true);
+            var receiving = new Operation(receive: true);
             var async = receiving.Async;
             WSManReceiveShellOutput(shell, command, 0, &streams, &async, out IntPtr operation);
             bool keepGoing = true;
@@ -162,14 +164,19 @@ public static unsafe partial class OtterRemoteCommands
             {
                 foreach (Operation.Chunk chunk in receiving.Chunks())
                 {
-                    if (chunk.Data.Length > 0 && keepGoing) keepGoing = more(chunk.Data);
+                    if (chunk.Data.Length > 0) keepGoing = more(chunk.Data);
                     if (chunk.CommandState == CommandStateDone) done = true;
+                    if (!keepGoing || done) break;
                 }
-                receiving.ThrowIfFailed(hostName, connecting: false);
+                if (keepGoing && !done) receiving.ThrowIfFailed(hostName, connecting: false);
             }
             finally
             {
+                bool cancelled = !receiving.Finished;
                 if (operation != IntPtr.Zero) WSManCloseOperation(operation, 0);
+                // Cancelling ends with one more callback (ERROR_OPERATION_ABORTED).
+                if (cancelled) receiving.Wait(TimeSpan.FromSeconds(30));
+                receiving.Dispose();
             }
             if (!keepGoing || done) return;
         }
@@ -228,9 +235,24 @@ public static unsafe partial class OtterRemoteCommands
 
         public WSMAN_SHELL_ASYNC Async => new() { operationContext = GCHandle.ToIntPtr(self), completionFunction = (IntPtr)(delegate* unmanaged<IntPtr, uint, WSMAN_ERROR*, IntPtr, IntPtr, IntPtr, WSMAN_RESPONSE_DATA*, void>)&Completed };
 
+        public bool Finished { get { lock (gate) return finished; } }
+
         public void Wait()
         {
             lock (gate) { while (!finished) Monitor.Wait(gate); }
+        }
+
+        public void Wait(TimeSpan limit)
+        {
+            DateTime end = DateTime.UtcNow + limit;
+            lock (gate)
+            {
+                while (!finished)
+                {
+                    TimeSpan left = end - DateTime.UtcNow;
+                    if (left <= TimeSpan.Zero || !Monitor.Wait(gate, left)) return;
+                }
+            }
         }
 
         public IEnumerable<Chunk> Chunks()
@@ -280,9 +302,12 @@ public static unsafe partial class OtterRemoteCommands
             }
         }
 
+        // The context is freed only once WinRM has made its last callback: a
+        // callback into a freed handle would crash the process. An operation
+        // that never finished keeps its (small) context for the process's life.
         public void Dispose()
         {
-            if (self.IsAllocated) self.Free();
+            if (Finished && self.IsAllocated) self.Free();
         }
     }
 
@@ -313,6 +338,10 @@ public static unsafe partial class OtterRemoteCommands
     [StructLayout(LayoutKind.Sequential)]
     struct WSMAN_STREAM_ID_SET { public uint streamIDsCount; public IntPtr streamIDs; }
 
+    // WSMAN_SHELL_STARTUP_INFO_V11 - the layout WsmSvc.dll reads when the API
+    // is initialized for version 1.1 (its last field, the shell's name, was
+    // missing: WinRM read past the structure and the process crashed with an
+    // access violation, found on a real WinRM endpoint in CI).
     [StructLayout(LayoutKind.Sequential)]
     struct WSMAN_SHELL_STARTUP_INFO
     {
@@ -321,6 +350,7 @@ public static unsafe partial class OtterRemoteCommands
         public uint idleTimeoutMs;
         public IntPtr workingDirectory;
         public IntPtr variableSet;
+        public IntPtr name;
     }
 
     [StructLayout(LayoutKind.Sequential)]

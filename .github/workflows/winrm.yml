@@ -50,7 +50,13 @@ jobs:
           # otterwinrm: the right password is stored. otterwinrmbad: a wrong one.
           New-LocalUser otterwinrm -Password (ConvertTo-SecureString $good -AsPlainText -Force) -PasswordNeverExpires | Out-Null
           New-LocalUser otterwinrmbad -Password (ConvertTo-SecureString $other -AsPlainText -Force) -PasswordNeverExpires | Out-Null
-          Add-LocalGroupMember -Group 'Remote Management Users' -Member otterwinrm, otterwinrmbad
+          # WinRM cannot start the PowerShell host for a new non-admin account
+          # that has never logged on ("could not launch a host process"): on this
+          # throwaway, loopback-only runner the account is a local administrator,
+          # and remote local administrators get their full token.
+          Add-LocalGroupMember -Group 'Administrators' -Member otterwinrm
+          Add-LocalGroupMember -Group 'Remote Management Users' -Member otterwinrmbad
+          New-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name LocalAccountTokenFilterPolicy -Value 1 -PropertyType DWord -Force | Out-Null
           # Otter's credential vault, which both implementations read (D81).
           $program = 'get environment variable "OTTER_GOOD" into good', 'get environment variable "OTTER_BAD" into bad',
                      'set credential "otterwinrm" to good', 'set credential "otterwinrmbad" to bad', 'say "stored"'
@@ -96,6 +102,7 @@ jobs:
           Set-Content -Path "$env:RUNNER_TEMP\forget.ot" -Value 'delete credential "otterwinrm"', 'delete credential "otterwinrmbad"'
           & ./artifacts/win-x64/otter.exe run "$env:RUNNER_TEMP\forget.ot"
           Remove-LocalUser otterwinrm, otterwinrmbad -ErrorAction SilentlyContinue
+          Remove-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name LocalAccountTokenFilterPolicy -ErrorAction SilentlyContinue
           Disable-PSRemoting -Force -WarningAction SilentlyContinue
           exit 0
 
