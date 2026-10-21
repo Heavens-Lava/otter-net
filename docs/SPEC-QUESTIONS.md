@@ -792,6 +792,11 @@ the reference (otter-net's position), or should these texts follow the
 display language (a table of PowerShell's and .NET Framework's translations
 for each text otter-net reproduces)?
 
+
+**Decided (owner, 2026-10-20): English everywhere.** otter-net shows the same
+English texts on every machine and display language; it does not reproduce
+the translations Windows PowerShell 5.1 passes on.
+
 ### W5-6. High DPI: verified at a 150 % monitor scale, not at a 150 % system DPI
 
 `tools/set-display-scale.ps1` sets the runner's display to 1920x1080 at

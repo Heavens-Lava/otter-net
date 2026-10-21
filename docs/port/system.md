@@ -19,7 +19,7 @@ Parser: `src/Otter.Language/Parser.System.cs` unless noted. Nodes:
 | `run command C [into r]` | RunProgram (IsCommand) | `Run`; Invoke-OtterCommand | ReadSystemRun -> RunCommandStmt; Commands.cs | native | no | commands.ot | - |
 | `run P [into p]` | RunProgram | `Run`; Start-OtterProgram, New-OtterProcessObject | RunProgramStmt; Processes.cs `Start` | native | no | sys_processes.ot | - |
 | `run command C over ssh to H [into r]` | RunSshCommand | `Run`; Invoke-OtterSshCommand | RunSshCommandStmt; `RunOverSsh` | native | no | sys_ssh_arguments.ot | - |
-| `run command C on remote H using credential N [into r]` | RunRemoteCommand | `Run`; Invoke-OtterRemoteCommand (Invoke-Command over WinRM) | ReadSystemRun -> RunRemoteCommandStmt; Credentials.cs `OtterRemoteCredentials` | partial | on Windows | p2_remote_command.ot, sys_syntax_errors.ot | off Windows otterPS stops at the credential (name check, store folder, nothing decrypts) and so does otter-net; on Windows it needs PowerShell remoting: a decision is needed (see "Remote commands on Windows" below) |
+| `run command C on remote H using credential N [into r]` | RunRemoteCommand | `Run`; Invoke-OtterRemoteCommand (Invoke-Command over WinRM) | ReadSystemRun -> RunRemoteCommandStmt; Interpreter.System.cs; RemoteCommands.cs (WinRM, `WsmSvc.dll`); Psrp.cs (PowerShell Remoting Protocol) | native | no | p2_remote_command.ot, sys_syntax_errors.ot; protocol encoding tested locally | on Windows: a run against a real WinRM endpoint is still to be observed; off Windows otterPS stops at the credential and so does otter-net |
 | `start command C and call it J` | StartCommand | `Start`; Start-OtterCommandJob | Parser.cs (Unsupported) | missing | yes | - | needs the event loop (`on output from`, `on exit of`, `cancel`, `is running`) of the Network area |
 | `received output` / `received error output` | JobContext | Read-OtterValue; `JobContext` | Parser.cs (Unsupported) | missing | yes | - | as above |
 | `get system information K into x`: os, cpu, memory, disk, network, user, groups, software, services | GetSystemInfo | `Get`; Get-OtterSystemInfoValue | GetSystemInfoStmt; SystemInfo.cs, Services.cs | native | no | sys_system_info.ot | - |
@@ -105,27 +105,14 @@ position; `tests/compat/sys_syntax_errors.ot` has one of each kind.
 
 ## Remaining on Windows, and why
 
-- **Remote commands** (`Parser.System.cs` ReadSystemRun, `Unsupported("remote commands")`).
-  Invoke-OtterRemoteCommand runs `Invoke-Command -ComputerName H -Credential
-  C -ScriptBlock { ... & $exe $args 2>&1 | Out-String }`: PowerShell
-  remoting, i.e. the PowerShell Remoting Protocol (PSRP) carried over
-  WS-Management, to the remote `microsoft.powershell` endpoint, which runs a
-  PowerShell script block there and sends back serialized PowerShell objects
-  (output strings, and error records for the command's standard error,
-  formatted by the remote Out-String). The local side must speak PSRP: the
-  WinRM client API (`WSManCreateShell` in wsmsvc.dll) can open a plain
-  `cmd` shell, but that runs a different command line, merges standard error
-  differently and does not produce what Out-String produces, so it is not
-  the same statement. Options for the owner:
-  1. Keep handing programs that use it to the PowerShell Otter on Windows
-     (today's behaviour; the only place PowerShell is still needed there).
-  2. Run only this statement through Windows' built-in `powershell.exe`
-     (always present on Windows), passing the command, host and secret
-     through standard input, and the output back as text. No PowerShell for
-     anything else; exact otterPS output, error text included.
-  3. Implement PSRP over WS-Management in C# (a large protocol: fragments,
-     CLIXML serialization, runspace pools, NTLM/Kerberos through
-     WinRM's own client API). Months of work for one statement.
-  4. Change the statement's meaning (for example a plain WinRM `cmd`
-     shell), which is a semantic change and needs a SPEC-DECISIONS entry.
-  Nothing is implemented beyond option 1 until that decision.
+- **Remote commands**: native since 2026-10-20 (owner decision: fully C#).
+  `RemoteCommands.cs` runs Invoke-OtterRemoteCommand's script block through
+  Windows' WinRM client (`WsmSvc.dll`: session with Negotiate authentication
+  to http://host:5985/wsman, a Microsoft.PowerShell shell created with the
+  SESSION_CAPABILITY and INIT_RUNSPACEPOOL messages, the CREATE_PIPELINE
+  message as its command, the PIPELINE_OUTPUT text read back), the protocol
+  being `Psrp.cs`. Still to observe on a real WinRM endpoint: the wording
+  PowerShell 5.1 gives WinRM's connection failures, which otter-net builds
+  as "Connecting to remote server H failed with the following error message
+  : ... For more information, see the about_Remote_Troubleshooting Help
+  topic."

@@ -107,13 +107,13 @@ page of the corpus, `-DebugAst` of every node kind, and the unreachable
    host WPF): 26 desktop programs identical to otterPS on a real Windows
    desktop (window tree, pixels, output, exit code); `docs/port/desktop.md`.
 2. **Remote commands (`run command ... on remote ... using credential`, D84)
-   on Windows** - for the release candidate, the one statement still handed
-   to the PowerShell Otter, which runs it with Windows' built-in PowerShell
-   remoting (`Invoke-Command`), exactly as Otter 1.0.1 does. A native WinRM
-   client was approved but not implemented: the attempt was stopped by an
-   automated safety review, and the owner has not yet chosen between keeping
-   this hand-over, implementing it under direct supervision, or deciding the
-   statement's future as a specification question. Off Windows otter-net
-   reproduces otterPS's behaviour natively (SPEC-QUESTIONS P2-1).
+   on Windows** - decided 2026-10-20: fully C#. otter-net speaks the
+   PowerShell Remoting Protocol over Windows' own WinRM client (`WsmSvc.dll`),
+   as Invoke-Command does: the same endpoint, Negotiate authentication,
+   WinRM's encryption, the identical script block
+   (`src/Otter.Runtime/RemoteCommands.cs`, `Psrp.cs`). The protocol encoding
+   is tested locally; a connection to a real WinRM endpoint has not been
+   observed yet (no Windows machine in the owner's local-tests-only
+   workflow). Off Windows otter-net reproduces otterPS (SPEC-QUESTIONS P2-1).
 3. The open specification questions in `docs/SPEC-QUESTIONS.md`: otter-net
    keeps otterPS 1.0.1's behaviour until each is decided.
