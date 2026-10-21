@@ -2,7 +2,7 @@
 <!-- productbuild's description of otter-net's macOS installer; tools/package.ps1
      fills in @VERSION@, @ARCH@ (arm64 or x86_64) and @IDENTIFIER@. -->
 <installer-gui-script minSpecVersion="2">
-  <title>Otter (otter-net) @VERSION@ - release candidate</title>
+  <title>Otter (otter-net) @VERSION@ - @CHANNEL@</title>
   <readme file="README.html" mime-type="text/html"/>
   <license file="LICENSE.txt" mime-type="text/plain"/>
   <options customize="never" require-scripts="false" hostArchitectures="@ARCH@"/>

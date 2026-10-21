@@ -49,10 +49,11 @@ references no WPF.
 - The host runs with real culture data (WPF needs it) and the invariant
   culture as the current culture, as the native otter.
 
-Packaging: `otter-desktop.exe` is framework-dependent (it needs the .NET 10
-Desktop Runtime) as built in CI; a release can publish it self-contained
-(about 60-100 MB more). `tools/publish.ps1` builds it beside `otter.exe` on
-Windows.
+Packaging: the packages (`tools/package.ps1`) publish `otter-desktop.exe`
+self-contained as one file with WPF's `*_cor3.dll` beside it, so it needs no
+.NET runtime (`package.yml` runs it with none findable; docs/PACKAGING.md,
+docs/PREVIEW_RELEASE.md). ci.yml, desktop.yml and `tools/publish.ps1` build
+it framework-dependent (it then needs the .NET 10 Desktop Runtime).
 
 ## Capabilities
 

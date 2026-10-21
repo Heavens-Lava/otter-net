@@ -6,8 +6,8 @@
 # from the repository (it reads tests/compat and src/Otter.Cli/Program.cs).
 #
 #   tools/test-package.sh tarball <otter-net-*.tar.gz>          per-user, in a temporary HOME
-#   tools/test-package.sh deb <otter-net_*.deb> [<older .deb>]  as root (a disposable container)
-#   tools/test-package.sh pkg <otter-net-*.pkg> [<older .pkg>]  with sudo (a disposable Mac)
+#   tools/test-package.sh deb <otter-net_*.deb> [<older .deb> [<newer .deb>]]  as root (a disposable container)
+#   tools/test-package.sh pkg <otter-net-*.pkg> [<older .pkg> [<newer .pkg>]]  with sudo (a disposable Mac)
 #   tools/test-package.sh pkg-payload <otter-net-*.pkg>         no installation: the expanded payload
 #   tools/test-package.sh binary <path to otter>                the checks alone
 #
@@ -166,14 +166,14 @@ test_tarball() {
     shim="$home/.local/bin/otter"
     run_in_home() { env -u XDG_DATA_HOME HOME="$home" PATH="/usr/bin:/bin" "$@"; }
 
-    # An older version first, to test the upgrade: the same files, VERSION 0.9.0.
+    # An older version first, to test the upgrade: the same files, VERSION 0.8.0.
     cp -R "$package" "$scratch/older"
-    printf '0.9.0\n' > "$scratch/older/VERSION"
+    printf '0.8.0\n' > "$scratch/older/VERSION"
     run_in_home "$scratch/older/install.sh" > "$scratch/install.txt" 2>&1 || abort "install.sh (older): $(cat "$scratch/install.txt")"
     run_in_home "$package/install.sh" > "$scratch/install.txt" 2>&1 || abort "install.sh: $(cat "$scratch/install.txt")"
     cat "$scratch/install.txt"
-    if [ ! -e "$data/0.9.0" ] && [ -x "$data/$package_version/otter" ] && grep -q "$data/$package_version/otter" "$shim"; then
-        pass "tarball upgrade: 0.9.0 replaced by $package_version, launcher updated"
+    if [ ! -e "$data/0.8.0" ] && [ -x "$data/$package_version/otter" ] && grep -q "$data/$package_version/otter" "$shim"; then
+        pass "tarball upgrade: 0.8.0 replaced by $package_version, launcher updated"
         note "- tarball: upgrade from an older version replaces it"
     else
         fail "tarball upgrade: $(ls "$data")"
@@ -197,6 +197,29 @@ test_tarball() {
     rm -f "$shim"
     check_gone "tarball with otterPS's launcher" "$data"
 
+    # otterPS uninstalled while otter-net held the command: otter-net's
+    # uninstall.sh must not put back a launcher whose installation is gone.
+    mkdir -p "$home/.local/share/otter/1.0.1"
+    printf '#!/bin/sh\n# Otter launcher - written by Install-Otter.ps1 (1.0.1)\nexec '"'"'%s'"'"' "$@"\n' "$home/.local/share/otter/1.0.1/otter" > "$shim"
+    run_in_home "$package/install.sh" --replace-otterps-launcher > /dev/null 2>&1 || fail "install.sh --replace-otterps-launcher (second time)"
+    rm -rf "$home/.local/share/otter"
+    run_in_home "$package/uninstall.sh" > "$scratch/uninstall.txt" 2>&1 || fail "uninstall.sh after otterPS was removed"
+    if [ -e "$shim" ] || [ -L "$shim" ]; then fail "uninstall.sh put back the launcher of an otterPS that is no longer installed: $(cat "$shim")"
+    else pass "uninstall.sh does not put back a removed otterPS's launcher"; note "- tarball: a removed otterPS's launcher is not put back (no dangling otter command)"; fi
+    check_gone "tarball after otterPS was removed" "$data"
+
+    # Downgrade: a newer version, then this one. install.sh installs what it
+    # is given and removes the other marked versions: one version is left.
+    cp -R "$package" "$scratch/newer"
+    printf '99.0.0\n' > "$scratch/newer/VERSION"
+    run_in_home "$scratch/newer/install.sh" > /dev/null 2>&1 || abort "install.sh (newer)"
+    run_in_home "$package/install.sh" > "$scratch/install.txt" 2>&1 || fail "install.sh over a newer version: $(cat "$scratch/install.txt")"
+    if [ "$(ls "$data")" = "$package_version" ] && grep -q "$data/$package_version/otter" "$shim"; then
+        pass "tarball downgrade: allowed, leaves only $package_version"; note "- tarball: installing an older version over a newer one is allowed and leaves only that one (install.sh has no downgrade check)"
+    else fail "tarball downgrade left: $(ls "$data")"; fi
+    run_in_home "$data/$package_version/uninstall.sh" > /dev/null || fail "uninstall.sh after the downgrade"
+    check_gone "tarball after the downgrade" "$data" "$shim"
+
     # Any other otter is never replaced.
     printf '#!/bin/sh\necho mine\n' > "$shim"
     if run_in_home "$package/install.sh" > /dev/null 2>&1; then fail "install.sh replaced another program's otter"; else pass "install.sh refuses another program's otter"; fi
@@ -206,6 +229,7 @@ test_tarball() {
 test_deb() {
     deb=$1
     older=${2:-}
+    newer=${3:-}
     [ "$(id -u)" -eq 0 ] || abort "the deb test installs packages: run it as root in a disposable container"
     command -v apt-get >/dev/null || abort "apt-get is needed"
     apt-get update -qq > /dev/null
@@ -223,11 +247,25 @@ test_deb() {
     apt-get remove --purge -y otter-net > "$scratch/apt.txt" 2>&1 || fail "apt-get remove: $(tail -20 "$scratch/apt.txt")"
     if dpkg-query -W otter-net >/dev/null 2>&1; then fail "dpkg still lists otter-net"; fi
     check_gone "deb remove" /usr/bin/otter /usr/lib/otter-net /usr/share/doc/otter-net
+
+    if [ -n "$newer" ]; then
+        apt-get install -y "$newer" > "$scratch/apt.txt" 2>&1 || abort "installing $newer: $(tail -20 "$scratch/apt.txt")"
+        newer_version=$(dpkg-query -W -f='${Version}' otter-net)
+        if apt-get install -y "$deb" > "$scratch/apt.txt" 2>&1; then
+            fail "apt-get installed $installed over the newer $newer_version without --allow-downgrades"
+        elif [ "$(dpkg-query -W -f='${Version}' otter-net)" = "$newer_version" ] && [ -x /usr/lib/otter-net/otter ]; then
+            pass "deb downgrade refused: $newer_version stays"; note "- deb: a downgrade ($newer_version to $installed) is refused by apt (needs --allow-downgrades); the newer one stays intact"
+        else fail "after the refused downgrade: $(dpkg-query -W -f='${Version}' otter-net 2>&1)"; fi
+        grep -i "downgrade" "$scratch/apt.txt" | head -3
+        apt-get remove --purge -y otter-net > /dev/null 2>&1 || fail "apt-get remove (newer)"
+        check_gone "deb remove (after the downgrade test)" /usr/bin/otter /usr/lib/otter-net /usr/share/doc/otter-net
+    fi
 }
 
 test_pkg() {
     pkg=$1
     older=${2:-}
+    newer=${3:-}
     identifier=com.otterprogramming.otter-net
     lib=/usr/local/lib/otter-net
     link=/usr/local/bin/otter
@@ -259,6 +297,23 @@ test_pkg() {
     sudo "$lib/$package_version/uninstall.sh" || fail "uninstall.sh failed"
     if pkgutil --pkgs | grep -qx "$identifier"; then fail "pkgutil still has $identifier"; fi
     check_gone "pkg uninstall" "$link" "$lib"
+
+    if [ -n "$newer" ]; then
+        sudo installer -pkg "$newer" -target / > /dev/null || abort "installing $newer"
+        newer_version=$(pkgutil --pkg-info "$identifier" | sed -n 's/^version: //p')
+        if sudo installer -pkg "$pkg" -target / > "$scratch/installer.txt" 2>&1; then
+            got=$(pkgutil --pkg-info "$identifier" | sed -n 's/^version: //p')
+            if [ "$(ls "$lib")" = "$package_version" ] && [ "$(readlink "$link")" = "$lib/$package_version/otter" ] && [ "$got" = "$package_version" ]; then
+                pass "pkg downgrade: allowed by macOS Installer, leaves only $package_version"
+                note "- pkg: installing an older .pkg over a newer one ($newer_version) is allowed (macOS Installer has no downgrade check) and leaves only $package_version, linked and registered"
+            else fail "pkg downgrade left: $(ls "$lib") -> $(readlink "$link"), receipt $got"; fi
+        else
+            pass "pkg downgrade refused"; note "- pkg: installing an older .pkg over a newer one ($newer_version) is refused"
+            package_version=$newer_version
+        fi
+        sudo "$lib/$package_version/uninstall.sh" > /dev/null || fail "uninstall.sh after the downgrade test"
+        check_gone "pkg uninstall (after the downgrade test)" "$link" "$lib"
+    fi
 }
 
 test_pkg_payload() {
@@ -279,10 +334,12 @@ file=$2
 case "$file" in /*) ;; *) file="$PWD/$file" ;; esac
 older=${3:-}
 case "$older" in ""|/*) ;; *) older="$PWD/$older" ;; esac
+newer=${4:-}
+case "$newer" in ""|/*) ;; *) newer="$PWD/$newer" ;; esac
 case "$mode" in
     tarball) test_tarball "$file" ;;
-    deb) test_deb "$file" "$older" ;;
-    pkg) test_pkg "$file" "$older" ;;
+    deb) test_deb "$file" "$older" "$newer" ;;
+    pkg) test_pkg "$file" "$older" "$newer" ;;
     pkg-payload) test_pkg_payload "$file" ;;
     binary) mkdir -p "$scratch/bin"; ln -s "$file" "$scratch/bin/otter"; check_otter "$scratch/bin" "binary" ;;
     *) abort "unknown mode $mode" ;;

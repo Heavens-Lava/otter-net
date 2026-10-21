@@ -1,14 +1,15 @@
 <#
 .SYNOPSIS
-Builds otter-net's release-candidate packages for one runtime.
+Builds otter-net's packages (unsigned, unpublished) for one runtime.
 
 .DESCRIPTION
 Publishes the native otter (Native AOT) for -Runtime and writes, into
 -OutputDirectory (artifacts/packages by default):
 
-  otter-net-<version>-<rid>.zip       Windows: otter.exe (+ otter-desktop.exe
-                                      once src/Otter.Desktop exists), LICENSE,
-                                      README.md, VERSION,
+  otter-net-<version>-<rid>.zip       Windows: otter.exe, otter-desktop.exe
+                                      (self-contained: no .NET needed) and
+                                      the WPF native libraries it loads,
+                                      LICENSE, README.md, VERSION,
                                       THIRD-PARTY-NOTICES.txt, SHA256SUMS
   otter-net-<version>-<rid>.tar.gz    macOS and Linux: bin/otter, install.sh,
                                       uninstall.sh and the same documents
@@ -40,7 +41,9 @@ param(
     # Overrides VERSION: only for building an "older" package to test upgrades.
     [string]$Version = '',
     # An existing publish folder with the native otter, instead of publishing now.
-    [string]$PublishDirectory = ''
+    [string]$PublishDirectory = '',
+    # An existing publish folder with otter-desktop (Windows), instead of publishing it now.
+    [string]$DesktopPublishDirectory = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -51,6 +54,9 @@ $utf8 = [System.Text.UTF8Encoding]::new($false)
 if (-not $Version) { $Version = [System.IO.File]::ReadAllText((Join-Path $root 'VERSION')).Trim() }
 if ($Version -notmatch '^(\d+)\.(\d+)\.(\d+)(-[0-9A-Za-z.]+)?$') { throw "Version '$Version' is not <major>.<minor>.<patch>[-<prerelease>]." }
 $numericVersion = "$($Matches[1]).$($Matches[2]).$($Matches[3])"
+# What kind of build the version says this is; every installer shows it
+# (Settings > Apps comments, the .pkg's title, the .deb's description).
+$channel = if ($Version -match '-preview') { 'internal preview' } elseif ($Version -match '-rc') { 'release candidate' } elseif ($Version -match '-') { 'pre-release' } else { 'release' }
 # What `otter --version` must print: the Otter language version (Program.Version).
 $languageVersion = if ((Get-Content -Raw (Join-Path $root 'src/Otter.Cli/Program.cs')) -match 'const string Version = "([^"]+)"') { $Matches[1] } else { throw 'Program.Version not found.' }
 
@@ -113,15 +119,33 @@ if ($Runtime -eq $hostRid) {
 }
 
 # otter-desktop.exe (desktop windows on Windows), once src/Otter.Desktop exists.
+# Self-contained, so the package runs on a Windows without .NET: the .NET
+# runtime and the Windows Desktop runtime (WPF) are inside it. One file
+# (PublishSingleFile), not trimmed (WPF does not support trimming), not
+# compressed (it starts faster, and the zip and the MSI compress it anyway);
+# WPF's native libraries (*_cor3.dll) stay beside it, where its host loads
+# them, so nothing is ever extracted to %TEMP%. Only English resources, as the
+# framework-dependent build verified by desktop.yml had (docs/PREVIEW_RELEASE.md).
 $desktopFiles = @()
 $desktopProject = Get-ChildItem -Path (Join-Path $root 'src/Otter.Desktop') -Filter '*.csproj' -ErrorAction SilentlyContinue | Select-Object -First 1
 if ($os -eq 'win' -and $desktopProject) {
-    $desktopOut = Join-Path $artifacts "publish/$Runtime-desktop"
-    Write-Host "Publishing $($desktopProject.Name) for $Runtime ..."
-    # As ci.yml and publish.ps1 publish it: framework-dependent, with its app host.
-    Invoke-Native dotnet @('publish', $desktopProject.FullName, '-c', 'Release', '-r', $Runtime, '--self-contained', 'false', '-p:UseAppHost=true', "-p:Version=$Version", '-o', $desktopOut, '--nologo', '-v', 'quiet')
+    $desktopOut = if ($DesktopPublishDirectory) { $DesktopPublishDirectory } else { Join-Path $artifacts "publish/$Runtime-desktop" }
+    if (-not $DesktopPublishDirectory) {
+        Write-Host "Publishing $($desktopProject.Name) for $Runtime (self-contained, single file) ..."
+        if (Test-Path $desktopOut) { Remove-Item -Recurse -Force $desktopOut }
+        Invoke-Native dotnet @('publish', $desktopProject.FullName, '-c', 'Release', '-r', $Runtime, '--self-contained', 'true',
+            '-p:PublishSingleFile=true', '-p:IncludeNativeLibrariesForSelfExtract=false', '-p:EnableCompressionInSingleFile=false',
+            '-p:PublishTrimmed=false', '-p:SatelliteResourceLanguages=en', '-p:UseAppHost=true', "-p:Version=$Version",
+            '-o', $desktopOut, '--nologo', '-v', 'quiet')
+    }
     $desktopFiles = @(Get-ChildItem -LiteralPath $desktopOut -File | Where-Object { $_.Extension -ne '.pdb' })
     if (-not ($desktopFiles | Where-Object Name -eq 'otter-desktop.exe')) { throw "$($desktopProject.Name) did not publish otter-desktop.exe." }
+    # A framework-dependent build (it would need the .NET Desktop Runtime) has these; a self-contained single file has neither.
+    $dependent = @($desktopFiles | Where-Object { $_.Name -in 'otter-desktop.dll', 'otter-desktop.runtimeconfig.json' })
+    if ($dependent) { throw "otter-desktop is not a self-contained single file: $($dependent.Name -join ', ') in $desktopOut." }
+    $unexpected = @($desktopFiles | Where-Object { $_.Name -ne 'otter-desktop.exe' -and $_.Name -notlike '*_cor3.dll' })
+    if ($unexpected) { throw "Unexpected files beside otter-desktop.exe: $($unexpected.Name -join ', ')." }
+    "otter-desktop.exe: {0:N0} bytes, with {1}" -f ($desktopFiles | Where-Object Name -eq 'otter-desktop.exe').Length, ((@($desktopFiles | Where-Object Name -ne 'otter-desktop.exe') | ForEach-Object Name) -join ', ') | Write-Host
 }
 
 # ---- 2. The documents ----------------------------------------------------------
@@ -139,6 +163,33 @@ foreach ($folder in $assets.packageFolders.PSObject.Properties.Name) {
 if (-not $ilcNotices) { throw "THIRD-PARTY-NOTICES.TXT of $ilc not found in the NuGet package folders." }
 $notices = [System.IO.File]::ReadAllText((Join-Path $root 'distribution/package/THIRD-PARTY-NOTICES.header.txt')) +
     ([System.IO.File]::ReadAllText($ilcNotices) -replace "`r`n", "`n")
+# otter-desktop.exe (self-contained) also carries the .NET runtime and the
+# Windows Desktop runtime (WPF) from their runtime packs, both MIT; the
+# .NET runtime's notices are the ones above.
+if ($desktopFiles) {
+    $desktopAssets = Get-Content -Raw (Join-Path $root 'src/Otter.Desktop/obj/project.assets.json') | ConvertFrom-Json
+    $pack = $null
+    foreach ($framework in $desktopAssets.project.frameworks.PSObject.Properties.Value) {
+        foreach ($dependency in @($framework.downloadDependencies)) {
+            if ($dependency -and $dependency.name -eq "Microsoft.WindowsDesktop.App.Runtime.$Runtime") { $pack = $dependency }
+        }
+    }
+    if (-not $pack) { throw "The Windows Desktop runtime pack for $Runtime is not in src/Otter.Desktop/obj/project.assets.json; publish otter-desktop self-contained first." }
+    $packVersion = $pack.version.Trim('[', ']').Split(',')[0].Trim()
+    $packLicense = $null
+    foreach ($folder in $desktopAssets.packageFolders.PSObject.Properties.Name) {
+        $candidate = Join-Path $folder "microsoft.windowsdesktop.app.runtime.$Runtime/$packVersion/LICENSE"
+        if (Test-Path -LiteralPath $candidate) { $packLicense = $candidate; break }
+    }
+    if (-not $packLicense) { throw "The LICENSE of Microsoft.WindowsDesktop.App.Runtime.$Runtime $packVersion was not found in the NuGet package folders." }
+    $notices += "`n`notter-desktop.exe: the .NET runtime and the Windows Desktop runtime`n" +
+        "------------------------------------------------------------------`n`n" +
+        "otter-desktop.exe is published self-contained: it contains the .NET runtime`n" +
+        "(Microsoft.NETCore.App, whose notices are above) and the Windows Desktop`n" +
+        "runtime (WPF, Microsoft.WindowsDesktop.App.Runtime.$Runtime $packVersion), whose native`n" +
+        "libraries are the *_cor3.dll files beside it. https://github.com/dotnet/wpf`n`n" +
+        ([System.IO.File]::ReadAllText($packLicense) -replace "`r`n", "`n").TrimEnd() + "`n"
+}
 
 function Add-Documents {
     param([string]$Folder)
@@ -241,7 +292,7 @@ $($components.ToString().TrimEnd())
 "@, $utf8)
             $msiOut = Join-Path $work 'msi'
             Invoke-Native dotnet @('build', (Join-Path $root 'distribution/windows/otter-net.wixproj'), '-c', 'Release', '--nologo', '-v', 'quiet',
-                "-p:InstallerPlatform=$arch", "-p:ProductVersion=$numericVersion", "-p:PackageVersion=$Version",
+                "-p:InstallerPlatform=$arch", "-p:ProductVersion=$numericVersion", "-p:PackageVersion=$Version", "-p:Channel=$channel",
                 "-p:PayloadWxs=$fragment", "-p:OutputPath=$msiOut/", "-p:IntermediateOutputPath=$(Join-Path $work 'msi-obj')/")
             $msi = Join-Path $OutputDirectory "$name.msi"
             Copy-Item -LiteralPath (Join-Path $msiOut 'otter-net.msi') -Destination $msi -Force
@@ -250,7 +301,7 @@ $($components.ToString().TrimEnd())
         'osx' {
             $identifier = 'com.otterprogramming.otter-net'
             $pkgArch = if ($arch -eq 'arm64') { 'arm64' } else { 'x86_64' }
-            $fill = { param([string]$Text) $Text.Replace('@VERSION@', $Version).Replace('@ARCH@', $pkgArch).Replace('@IDENTIFIER@', $identifier) }
+            $fill = { param([string]$Text) $Text.Replace('@VERSION@', $Version).Replace('@ARCH@', $pkgArch).Replace('@IDENTIFIER@', $identifier).Replace('@CHANNEL@', $channel) }
             # The payload is only otter-net's own folder, /usr/local/lib/otter-net:
             # a package that carries /usr/local/bin itself would take over that
             # folder's owner and permissions (Homebrew's, on Intel Macs).
@@ -292,7 +343,7 @@ $($components.ToString().TrimEnd())
         }
         'linux' {
             $debArch = if ($arch -eq 'x64') { 'amd64' } else { 'arm64' }
-            # 1.0.1-rc.1 -> 1.0.1~rc.1, which Debian sorts before 1.0.1.
+            # 0.9.0-preview.1 -> 0.9.0~preview.1, which Debian sorts before 0.9.0.
             $debVersion = $Version -replace '^(\d+\.\d+\.\d+)-', '$1~'
             $deb = Join-Path $work 'deb/root'
             $lib = Join-Path $deb 'usr/lib/otter-net'
@@ -330,7 +381,7 @@ $($components.ToString().TrimEnd())
             Invoke-Native chmod @('755', (Join-Path $lib 'otter'))
             $installedKb = [int][Math]::Ceiling(((Get-ChildItem -LiteralPath $deb -Recurse -File | Where-Object { $_.FullName -notlike '*DEBIAN*' } | Measure-Object Length -Sum).Sum) / 1KB)
             $control = [System.IO.File]::ReadAllText((Join-Path $root 'distribution/linux/control')).Replace('@VERSION@', $debVersion).Replace('@ARCH@', $debArch).
-                Replace('@INSTALLED_SIZE@', "$installedKb").Replace('@DEPENDS@', ($depends -join ', ')) -replace "`r`n", "`n"
+                Replace('@INSTALLED_SIZE@', "$installedKb").Replace('@DEPENDS@', ($depends -join ', ')).Replace('@CHANNEL@', $channel) -replace "`r`n", "`n"
             [System.IO.File]::WriteAllText((Join-Path $deb 'DEBIAN/control'), $control, $utf8)
             $debFile = Join-Path $OutputDirectory "otter-net_${debVersion}_$debArch.deb"
             Invoke-Native dpkg-deb @('--root-owner-group', '-Zxz', '--build', $deb, $debFile)

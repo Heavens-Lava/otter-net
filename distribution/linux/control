@@ -8,9 +8,10 @@ Recommends: libsqlite3-0, ca-certificates
 Section: devel
 Priority: optional
 Homepage: https://otterprogramming.com
-Description: Otter programming language - otter-net release candidate
+Description: Otter programming language - otter-net @CHANNEL@
  otter-net is the native implementation of the Otter programming language,
  a language that reads like plain English: one self-contained otter command
  that runs Otter 1.0.1 programs with otterPS's output and error messages.
  .
- This is an unsigned release candidate, not an Otter release.
+ This is an unsigned @CHANNEL@ (@VERSION@), not an Otter release; it
+ installs beside the PowerShell Otter (otterPS) and replaces nothing of it.

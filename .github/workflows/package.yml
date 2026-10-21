@@ -1,23 +1,31 @@
-# Release-candidate packages and clean-machine install tests.
+# Packages and clean-machine install tests (docs/PACKAGING.md,
+# docs/PREVIEW_RELEASE.md).
 #
-# Builds every package on its own platform (tools/package.ps1), then installs
-# each on a fresh runner or container WITHOUT PowerShell (on Windows,
-# powershell.exe and pwsh.exe are removed from the PATH the installed otter
-# runs with), runs `otter --version`, tests/compat and a new project,
-# uninstalls it and checks that nothing is left behind (tools/test-package.sh
-# and tools/test-package.ps1).
+# Builds every package on its own platform (tools/package.ps1), then on fresh
+# runners or containers:
+# - installs each WITHOUT PowerShell (tools/test-package.sh / .ps1): over an
+#   older package (upgrade), `otter --version`, tests/compat and a new
+#   project, PATH handling and what a new terminal finds, uninstall leaving
+#   nothing, and a downgrade (refused by the MSI and apt);
+# - Windows: runs desktop windows from the installed package with no .NET
+#   runtime findable (tools/test-desktop-nodotnet.ps1);
+# - installs otterPS 1.0.1 from its own release ZIP (built here with its
+#   tools/New-OtterDistribution.ps1 from the v1.0.1 tag) beside otter-net and
+#   uninstalls both in both orders (tools/test-coexistence.*).
 #
 # NOTHING IS PUBLISHED: no release, no tag, no package registry, no winget or
-# Store submission. The packages are kept as workflow artifacts for 14 days,
-# for review only. They are unsigned release candidates. This repository is
-# public, so anyone signed in to GitHub can download a workflow artifact
-# while it is kept (docs/PACKAGING.md).
+# Store submission. Only a manual run (workflow_dispatch) or a push to
+# cert/preview keeps the packages, after every test passed, as ONE workflow
+# artifact named otter-net-<version>-INTERNAL-PREVIEW-UNSIGNED (all six
+# platforms, SHA256SUMS) for 30 days. Other runs (main, pull requests) keep
+# their packages one day, between jobs only. This repository is public:
+# anyone signed in to GitHub can download a kept artifact (docs/PREVIEW_RELEASE.md).
 name: package
 
 on:
   workflow_dispatch:
   push:
-    branches: [port/package, port/native, main]
+    branches: [port/package, cert/preview, main]
   pull_request:
     branches: [main]
 
@@ -29,6 +37,28 @@ env:
   DOTNET_NOLOGO: '1'
 
 jobs:
+  # otterPS 1.0.1's release ZIP, built by its own tool from its tag, as its
+  # release was (Windows PowerShell 5.1).
+  otterps:
+    name: otterPS 1.0.1 release ZIP (for the coexistence tests)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: Heavens-Lava/otterPS
+          ref: v1.0.1
+      - name: tools/New-OtterDistribution.ps1
+        shell: powershell
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File tools\New-OtterDistribution.ps1 -OutputDirectory dist
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Get-ChildItem dist -File | Format-Table Name, Length -AutoSize | Out-String -Width 200
+      - uses: actions/upload-artifact@v4
+        with:
+          name: otterps-1.0.1-zip
+          path: dist/otter-1.0.1.zip
+          retention-days: 1
+
   windows-build:
     name: Build - Windows ${{ matrix.rid }} (zip, msi)
     runs-on: ${{ matrix.os }}
@@ -52,23 +82,39 @@ jobs:
       - name: Package (zip, msi)
         shell: pwsh
         run: ./tools/package.ps1 -Runtime ${{ matrix.rid }} -Installer
-      - name: An older MSI (0.9.0, the same files), to test the upgrade
+      - name: An older (0.8.0) and a newer (0.9.1) MSI with the same files, for the upgrade and downgrade tests
         shell: pwsh
-        run: ./tools/package.ps1 -Runtime ${{ matrix.rid }} -Installer -Version 0.9.0 -PublishDirectory artifacts/publish/${{ matrix.rid }} -OutputDirectory older
+        run: |
+          ./tools/package.ps1 -Runtime ${{ matrix.rid }} -Installer -Version 0.8.0 -PublishDirectory artifacts/publish/${{ matrix.rid }} -DesktopPublishDirectory artifacts/publish/${{ matrix.rid }}-desktop -OutputDirectory older
+          ./tools/package.ps1 -Runtime ${{ matrix.rid }} -Installer -Version 0.9.1 -PublishDirectory artifacts/publish/${{ matrix.rid }} -DesktopPublishDirectory artifacts/publish/${{ matrix.rid }}-desktop -OutputDirectory newer
+      - name: For the no-.NET test - a framework-dependent otter-desktop (the negative control) and the self-contained desktop harness
+        shell: pwsh
+        run: |
+          dotnet publish src/Otter.Desktop/Otter.Desktop.csproj -c Release -r ${{ matrix.rid }} --self-contained false -p:UseAppHost=true -o nodotnet/fdd --nologo -v quiet
+          dotnet publish tests/desktop/Harness/Harness.csproj -c Release -r ${{ matrix.rid }} --self-contained true -o nodotnet/harness --nologo -v quiet
       - name: What was built (the MSI build also ran Windows Installer's ICE validation)
         shell: pwsh
         run: |
           Get-ChildItem artifacts/packages | Format-Table Name, Length -AutoSize | Out-String -Width 200
           Get-Content artifacts/packages/SHA256SUMS
+          $zip = Get-Item artifacts/packages/*.zip; $msi = Get-Item artifacts/packages/*.msi
+          $desktop = Get-ChildItem artifacts/publish/${{ matrix.rid }}-desktop -File
+          $lines = @("### Windows ${{ matrix.rid }} packages", '', '| File | Bytes |', '|---|---:|')
+          foreach ($f in @($zip, $msi) + $desktop) { $lines += "| ``$($f.Name)`` | $('{0:N0}' -f $f.Length) |" }
+          $lines += ''
+          $lines | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
       - uses: actions/upload-artifact@v4
         with:
-          name: otter-net-${{ steps.version.outputs.version }}-${{ matrix.rid }}-UNSIGNED-release-candidate
+          name: packages-${{ matrix.rid }}
           path: artifacts/packages/
-          retention-days: ${{ github.ref_name == 'port/package' && 14 || 1 }}  # for review only from port/package
+          retention-days: 1
       - uses: actions/upload-artifact@v4
         with:
-          name: upgrade-test-${{ matrix.rid }}
-          path: older/*.msi
+          name: test-inputs-${{ matrix.rid }}
+          path: |
+            older/*.msi
+            newer/*.msi
+            nodotnet/
           retention-days: 1
 
   windows-test:
@@ -85,19 +131,20 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: otter-net-${{ needs.windows-build.outputs.version }}-${{ matrix.rid }}-UNSIGNED-release-candidate
+          name: packages-${{ matrix.rid }}
           path: packages
       - uses: actions/download-artifact@v4
         with:
-          name: upgrade-test-${{ matrix.rid }}
-          path: older
-      - name: Install, upgrade, run without PowerShell, uninstall
+          name: test-inputs-${{ matrix.rid }}
+          path: inputs
+      - name: Install over an older MSI, run without PowerShell, uninstall, refuse a downgrade; the ZIP in place
         shell: powershell
         run: |
           $v = '${{ needs.windows-build.outputs.version }}'
           powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-package.ps1 `
             -Msi "packages\otter-net-$v-${{ matrix.rid }}.msi" `
-            -OlderMsi "older\otter-net-0.9.0-${{ matrix.rid }}.msi" `
+            -OlderMsi "inputs\older\otter-net-0.8.0-${{ matrix.rid }}.msi" `
+            -NewerMsi "inputs\newer\otter-net-0.9.1-${{ matrix.rid }}.msi" `
             -Zip "packages\otter-net-$v-${{ matrix.rid }}.zip" -LogDirectory msi-logs
           exit $LASTEXITCODE
       - uses: actions/upload-artifact@v4
@@ -105,7 +152,85 @@ jobs:
         with:
           name: msi-logs-${{ matrix.rid }}
           path: msi-logs/
-          retention-days: ${{ github.ref_name == 'port/package' && 14 || 1 }}  # for review only from port/package
+          retention-days: 7
+
+  # Desktop windows from the installed package on a Windows where no .NET
+  # runtime can be found (how: tools/test-desktop-nodotnet.ps1), compared with
+  # otterPS 1.0.1 by the desktop harness.
+  windows-desktop-nodotnet:
+    name: Desktop windows without .NET - Windows ${{ matrix.rid }} (msi, zip)
+    needs: windows-build
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, rid: win-x64 }
+          - { os: windows-11-arm, rid: win-arm64 }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check out otterPS 1.0.1 (the desktop harness's reference)
+        uses: actions/checkout@v4
+        with:
+          repository: Heavens-Lava/otterPS
+          ref: v1.0.1
+          path: otterps
+      - uses: actions/download-artifact@v4
+        with:
+          name: packages-${{ matrix.rid }}
+          path: packages
+      - uses: actions/download-artifact@v4
+        with:
+          name: test-inputs-${{ matrix.rid }}
+          path: inputs
+      - name: Hide .NET, install, run desktop programs and the harness, uninstall
+        shell: powershell
+        run: |
+          $v = '${{ needs.windows-build.outputs.version }}'
+          powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-desktop-nodotnet.ps1 `
+            -Msi "packages\otter-net-$v-${{ matrix.rid }}.msi" -Zip "packages\otter-net-$v-${{ matrix.rid }}.zip" `
+            -FrameworkDependentDesktop inputs\nodotnet\fdd\otter-desktop.exe `
+            -Harness inputs\nodotnet\harness\desktop-harness.exe -OtterPs otterps\otter.ps1 `
+            -Results desktop-nodotnet -LogDirectory msi-logs
+          exit $LASTEXITCODE
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: desktop-nodotnet-${{ matrix.rid }}
+          path: |
+            desktop-nodotnet/
+            msi-logs/
+          retention-days: 7
+
+  windows-coexistence:
+    name: Beside otterPS 1.0.1 - Windows ${{ matrix.rid }} (msi, zip)
+    needs: [windows-build, otterps]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, rid: win-x64 }
+          - { os: windows-11-arm, rid: win-arm64 }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: packages-${{ matrix.rid }}
+          path: packages
+      - uses: actions/download-artifact@v4
+        with:
+          name: otterps-1.0.1-zip
+          path: otterps
+      - name: otterPS and otter-net, installed and uninstalled in both orders
+        shell: powershell
+        run: |
+          $v = '${{ needs.windows-build.outputs.version }}'
+          powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-coexistence.ps1 `
+            -Msi "packages\otter-net-$v-${{ matrix.rid }}.msi" -Zip "packages\otter-net-$v-${{ matrix.rid }}.zip" `
+            -OtterPsZip otterps\otter-1.0.1.zip -LogDirectory msi-logs
+          exit $LASTEXITCODE
 
   # Debian 12 - the system a Chromebook's Linux runs - like ci.yml's linux job.
   linux-build:
@@ -140,8 +265,10 @@ jobs:
         run: echo "version=$(tr -d ' \r\n' < VERSION)" >> "$GITHUB_OUTPUT"
       - name: Package (tar.gz, deb)
         run: pwsh -NoProfile -File tools/package.ps1 -Runtime ${{ matrix.rid }} -Installer
-      - name: An older .deb (0.9.0, the same files), to test the upgrade
-        run: pwsh -NoProfile -File tools/package.ps1 -Runtime ${{ matrix.rid }} -Installer -Version 0.9.0 -PublishDirectory artifacts/publish/${{ matrix.rid }} -OutputDirectory older
+      - name: An older (0.8.0) and a newer (0.9.1) .deb with the same files, for the upgrade and downgrade tests
+        run: |
+          pwsh -NoProfile -File tools/package.ps1 -Runtime ${{ matrix.rid }} -Installer -Version 0.8.0 -PublishDirectory artifacts/publish/${{ matrix.rid }} -OutputDirectory older
+          pwsh -NoProfile -File tools/package.ps1 -Runtime ${{ matrix.rid }} -Installer -Version 0.9.1 -PublishDirectory artifacts/publish/${{ matrix.rid }} -OutputDirectory newer
       - name: What was built
         run: |
           ls -l artifacts/packages
@@ -151,13 +278,15 @@ jobs:
           objdump -p artifacts/publish/${{ matrix.rid }}/otter | grep NEEDED
       - uses: actions/upload-artifact@v4
         with:
-          name: otter-net-${{ steps.version.outputs.version }}-${{ matrix.rid }}-UNSIGNED-release-candidate
+          name: packages-${{ matrix.rid }}
           path: artifacts/packages/
-          retention-days: ${{ github.ref_name == 'port/package' && 14 || 1 }}  # for review only from port/package
+          retention-days: 1
       - uses: actions/upload-artifact@v4
         with:
-          name: upgrade-test-${{ matrix.rid }}
-          path: older/*.deb
+          name: test-inputs-${{ matrix.rid }}
+          path: |
+            older/*.deb
+            newer/*.deb
           retention-days: 1
 
   linux-test:
@@ -180,18 +309,56 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: otter-net-${{ needs.linux-build.outputs.version }}-${{ matrix.rid }}-UNSIGNED-release-candidate
+          name: packages-${{ matrix.rid }}
           path: packages
       - uses: actions/download-artifact@v4
         with:
-          name: upgrade-test-${{ matrix.rid }}
-          path: older
+          name: test-inputs-${{ matrix.rid }}
+          path: inputs
       - name: Checksums
         run: cd packages && sha256sum -c SHA256SUMS
-      - name: The .deb - install over an older one, run without PowerShell, remove
-        run: sh tools/test-package.sh deb packages/*.deb older/*.deb
+      - name: The .deb - install over an older one, run without PowerShell, remove, refuse a downgrade
+        run: sh tools/test-package.sh deb packages/*.deb inputs/older/*.deb inputs/newer/*.deb
       - name: The .tar.gz - install.sh into ~/.local, run without PowerShell, uninstall.sh
         run: sh tools/test-package.sh tarball packages/*.tar.gz
+
+  linux-coexistence:
+    name: Beside otterPS 1.0.1 - Debian 12 ${{ matrix.rid }} (deb, tar.gz)
+    needs: [linux-build, otterps]
+    runs-on: ${{ matrix.os }}
+    container: debian:bookworm
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, rid: linux-x64, pwsh: x64 }
+          - { os: ubuntu-24.04-arm, rid: linux-arm64, pwsh: arm64 }
+    defaults:
+      run:
+        shell: sh
+    steps:
+      - name: PowerShell 7 (otterPS runs on it on Linux), from Microsoft's release archive
+        run: |
+          apt-get update -qq
+          apt-get install -y --no-install-recommends ca-certificates curl libicu72 libssl3 less > /dev/null
+          mkdir -p /opt/microsoft/powershell/7
+          curl -sSL https://github.com/PowerShell/PowerShell/releases/download/v7.4.6/powershell-7.4.6-linux-${{ matrix.pwsh }}.tar.gz | tar -xz -C /opt/microsoft/powershell/7
+          chmod 755 /opt/microsoft/powershell/7/pwsh
+          ln -s /opt/microsoft/powershell/7/pwsh /usr/local/bin/pwsh
+          pwsh -NoProfile -Command '$PSVersionTable.PSVersion.ToString()'
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: packages-${{ matrix.rid }}
+          path: packages
+      - uses: actions/download-artifact@v4
+        with:
+          name: otterps-1.0.1-zip
+          path: otterps
+      - name: The .deb beside otterPS
+        run: sh tools/test-coexistence.sh deb packages/*.deb otterps/otter-1.0.1.zip
+      - name: The .tar.gz beside otterPS
+        run: sh tools/test-coexistence.sh tarball packages/*.tar.gz otterps/otter-1.0.1.zip
 
   macos-build:
     name: Build - macOS ${{ matrix.rid }} (tar.gz, pkg)
@@ -214,9 +381,11 @@ jobs:
       - name: Package (tar.gz, pkg)
         shell: pwsh
         run: ./tools/package.ps1 -Runtime ${{ matrix.rid }} -Installer
-      - name: An older .pkg (0.9.0, the same files), to test the upgrade
+      - name: An older (0.8.0) and a newer (0.9.1) .pkg with the same files, for the upgrade and downgrade tests
         shell: pwsh
-        run: ./tools/package.ps1 -Runtime ${{ matrix.rid }} -Installer -Version 0.9.0 -PublishDirectory artifacts/publish/${{ matrix.rid }} -OutputDirectory older
+        run: |
+          ./tools/package.ps1 -Runtime ${{ matrix.rid }} -Installer -Version 0.8.0 -PublishDirectory artifacts/publish/${{ matrix.rid }} -OutputDirectory older
+          ./tools/package.ps1 -Runtime ${{ matrix.rid }} -Installer -Version 0.9.1 -PublishDirectory artifacts/publish/${{ matrix.rid }} -OutputDirectory newer
       - name: What was built
         run: |
           ls -l artifacts/packages
@@ -225,13 +394,15 @@ jobs:
           otool -L artifacts/publish/${{ matrix.rid }}/otter
       - uses: actions/upload-artifact@v4
         with:
-          name: otter-net-${{ steps.version.outputs.version }}-${{ matrix.rid }}-UNSIGNED-release-candidate
+          name: packages-${{ matrix.rid }}
           path: artifacts/packages/
-          retention-days: ${{ github.ref_name == 'port/package' && 14 || 1 }}  # for review only from port/package
+          retention-days: 1
       - uses: actions/upload-artifact@v4
         with:
-          name: upgrade-test-${{ matrix.rid }}
-          path: older/*.pkg
+          name: test-inputs-${{ matrix.rid }}
+          path: |
+            older/*.pkg
+            newer/*.pkg
           retention-days: 1
 
   macos-test:
@@ -248,18 +419,87 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: otter-net-${{ needs.macos-build.outputs.version }}-${{ matrix.rid }}-UNSIGNED-release-candidate
+          name: packages-${{ matrix.rid }}
           path: packages
       - uses: actions/download-artifact@v4
         with:
-          name: upgrade-test-${{ matrix.rid }}
-          path: older
+          name: test-inputs-${{ matrix.rid }}
+          path: inputs
       - name: Checksums
         run: cd packages && shasum -a 256 -c SHA256SUMS
       # The runner has PowerShell (in /usr/local/bin among others): the
       # installed otter runs with PATH=/usr/bin:/bin:/usr/sbin:/sbin and a
       # folder holding only its link, and the script checks pwsh is not found.
-      - name: The .pkg - install over an older one, run without PowerShell, uninstall
-        run: env PATH=/usr/bin:/bin:/usr/sbin:/sbin sh tools/test-package.sh pkg packages/*.pkg older/*.pkg
+      - name: The .pkg - install over an older one, run without PowerShell, uninstall, a downgrade
+        run: env PATH=/usr/bin:/bin:/usr/sbin:/sbin sh tools/test-package.sh pkg packages/*.pkg inputs/older/*.pkg inputs/newer/*.pkg
       - name: The .tar.gz - install.sh into ~/.local, run without PowerShell, uninstall.sh
         run: env PATH=/usr/bin:/bin:/usr/sbin:/sbin sh tools/test-package.sh tarball packages/*.tar.gz
+
+  macos-coexistence:
+    name: Beside otterPS 1.0.1 - macOS ${{ matrix.rid }} (pkg, tar.gz)
+    needs: [macos-build, otterps]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-latest, rid: osx-arm64 }
+          - { os: macos-15-intel, rid: osx-x64 }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: packages-${{ matrix.rid }}
+          path: packages
+      - uses: actions/download-artifact@v4
+        with:
+          name: otterps-1.0.1-zip
+          path: otterps
+      - name: The .pkg beside otterPS (the runner's PowerShell 7 runs otterPS)
+        run: sh tools/test-coexistence.sh pkg packages/*.pkg otterps/otter-1.0.1.zip
+      - name: The .tar.gz beside otterPS
+        run: sh tools/test-coexistence.sh tarball packages/*.tar.gz otterps/otter-1.0.1.zip
+
+  # Only after every test passed, and only for a manual run or cert/preview:
+  # the six platforms' packages as one artifact, with one SHA256SUMS.
+  preview-artifact:
+    name: Keep the INTERNAL-PREVIEW-UNSIGNED packages (30 days)
+    if: github.event_name == 'workflow_dispatch' || github.ref_name == 'cert/preview'
+    needs: [windows-build, windows-test, windows-desktop-nodotnet, windows-coexistence, linux-test, linux-coexistence, macos-test, macos-coexistence]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: packages-*
+          path: collected
+      - name: One folder, checksums verified, one SHA256SUMS
+        run: |
+          set -eu
+          mkdir preview
+          for dir in collected/packages-*; do
+            (cd "$dir" && sha256sum -c SHA256SUMS)
+            find "$dir" -maxdepth 1 -type f \( -name '*.zip' -o -name '*.msi' -o -name '*.tar.gz' -o -name '*.pkg' -o -name '*.deb' -o -name '*.sha256' \) -exec cp {} preview/ \;
+          done
+          cd preview
+          sha256sum $(ls | grep -v '\.sha256$' | sort) > SHA256SUMS
+          cat > README.txt <<EOF
+          otter-net ${{ needs.windows-build.outputs.version }} - INTERNAL PREVIEW, UNSIGNED, NOT A RELEASE.
+          Built by run ${{ github.run_id }} from ${{ github.sha }} (${{ github.ref_name }}).
+          For internal testing only; do not redistribute. Unsigned: Windows SmartScreen
+          and antivirus products may warn; macOS blocks the .pkg when opened from Finder.
+          See docs/PREVIEW_RELEASE.md in the repository. Verify: sha256sum -c SHA256SUMS
+          EOF
+          ls -l
+          cat SHA256SUMS
+          {
+            echo "### otter-net ${{ needs.windows-build.outputs.version }}-INTERNAL-PREVIEW-UNSIGNED"
+            echo
+            echo '| File | Bytes | SHA-256 |'
+            echo '|---|---:|---|'
+            while read -r hash file; do echo "| \`$file\` | $(stat -c %s "$file") | \`$hash\` |"; done < SHA256SUMS
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: otter-net-${{ needs.windows-build.outputs.version }}-INTERNAL-PREVIEW-UNSIGNED
+          path: preview/
+          retention-days: 30
