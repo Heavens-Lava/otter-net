@@ -162,8 +162,10 @@ try {
         $inputPath = $file.FullName + '.input'
         $inputText = if (Test-Path -LiteralPath $inputPath) { [System.IO.File]::ReadAllText($inputPath) } else { '' }
 
-        if ($nondeterministic.ContainsKey($file.Name)) {
-            $results.Add([pscustomobject]@{ File = $name; Outcome = 'skipped'; Engine = ''; Detail = "output changes from run to run: $($nondeterministic[$file.Name])" })
+        # A fuzz mutation or case variant of one of them (name-m<seed>.ot, name-c<seed>.ot) too.
+        $baseName = $file.Name -replace '-[mc]\d+\.ot$', '.ot'
+        if ($nondeterministic.ContainsKey($baseName)) {
+            $results.Add([pscustomobject]@{ File = $name; Outcome = 'skipped'; Engine = ''; Detail = "output changes from run to run: $($nondeterministic[$baseName])" })
             continue
         }
         # One snapshot of the program's folder for both sides, so a file

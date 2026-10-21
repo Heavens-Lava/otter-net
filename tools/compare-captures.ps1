@@ -52,8 +52,21 @@ function Read-Capture {
 
 function ConvertTo-Comparable {
     param([string]$Text)
-    # A path below the case's folder: the platform's separator.
-    return [regex]::Replace($Text, '<work>((?:\\[^\\\r\n"''<>|*?\s]+)+\\?)', { param($match) '<work>' + $match.Groups[1].Value.Replace('\', '/') })
+    # The otterPS checkout's folder, which PowerShell's own texts name (its
+    # module paths), differs from machine to machine.
+    $Text = [regex]::Replace($Text, '(?:[A-Za-z]:\\|/)[^\s''"<>|]*?[\\/]otterps(?=[\\/])', '<otterps>')
+    # A path below the case's folder or otterPS's: the platform's separator.
+    return [regex]::Replace($Text, '<(work|otterps)>((?:\\[^\\\r\n"''<>|*?\s]+)+\\?)', { param($match) '<' + $match.Groups[1].Value + '>' + $match.Groups[2].Value.Replace('\', '/') })
+}
+
+# PowerShell's console view wraps its own texts at 120 columns, so a
+# machine-specific path in them (otterPS's folder) moves the line breaks: such
+# a text is also compared with its line breaks taken out.
+function Test-SameUnwrapped {
+    param([string]$A, [string]$B)
+    $rawA = $A -replace '\r?\n', ''; $rawB = $B -replace '\r?\n', ''
+    $x = ConvertTo-Comparable $rawA; $y = ConvertTo-Comparable $rawB
+    return ($x -ceq $y) -and ($x.Contains('<otterps>') -or $x.Contains('<otter.ps1>'))
 }
 
 function Test-Declared {
@@ -69,10 +82,11 @@ function Test-Declared {
 }
 
 $gates = [ordered]@{}
+$script:unwrapped = 0
 $lines = New-Object System.Collections.Generic.List[string]
 $lines.Add("# $Platform compared with Windows")
 $lines.Add('')
-$lines.Add('Reference: otterPS 1.0.1 on Windows PowerShell 5.1 (win-x64) where it ran; otherwise otter-net on win-x64. Normalised: the case folder (<work>) and the path separator after it. Differences not declared in `tests/cross-platform.psd1` fail.')
+$lines.Add('Reference: otterPS 1.0.1 on Windows PowerShell 5.1 (win-x64) where it ran; otherwise otter-net on win-x64. Normalised: the case folder (<work>), the otterPS checkout''s folder (<otterps>) and the path separator after them; in PowerShell''s own texts that name such a path, the line breaks of its 120-column console view. Differences not declared in `tests/cross-platform.psd1` fail.')
 $lines.Add('')
 $unexpectedAll = New-Object System.Collections.Generic.List[string]
 $declaredAll = New-Object System.Collections.Generic.List[string]
@@ -106,6 +120,7 @@ foreach ($gateFolder in @(Get-ChildItem -LiteralPath $ReferenceRoot -Directory |
             foreach ($part in 'exit', 'stdout', 'stderr', 'files') {
                 $x = ConvertTo-Comparable $a[$part]; $y = ConvertTo-Comparable $b[$part]
                 if ($x -ceq $y) { continue }
+                if ($part -in @('stdout', 'stderr') -and (Test-SameUnwrapped $a[$part] $b[$part])) { $script:unwrapped++; continue }
                 if ($part -eq 'files') {
                     $xl = @($x -split "`n" | Where-Object { $_ }); $yl = @($y -split "`n" | Where-Object { $_ })
                     $diff = @(Compare-Object $xl $yl -CaseSensitive)
@@ -147,8 +162,10 @@ if ($declaredAll.Count -gt 0) {
     $lines.Add('## Declared differences'); $lines.Add('')
     foreach ($d in $declaredAll) { $lines.Add("- $d") }
 }
+$lines.Add('')
+$lines.Add("PowerShell texts identical once their line breaks are taken out: $($script:unwrapped).")
 [System.IO.File]::WriteAllText($ReportPath, ($lines -join "`n") + "`n", $utf8)
-$summary = [ordered]@{ tool = 'compare-captures'; platform = $Platform; gates = $gates; unexpected = $unexpectedAll.Count; declared = $declaredAll.Count }
+$summary = [ordered]@{ tool = 'compare-captures'; platform = $Platform; gates = $gates; unexpected = $unexpectedAll.Count; declared = $declaredAll.Count; unwrapped = $script:unwrapped }
 [System.IO.File]::WriteAllText([System.IO.Path]::ChangeExtension($ReportPath, '.json'), ($summary | ConvertTo-Json -Depth 6), $utf8)
 Write-Host "$Platform against Windows: $($unexpectedAll.Count) unexpected, $($declaredAll.Count) declared differences. Report: $ReportPath"
 foreach ($u in ($unexpectedAll | Select-Object -First 40)) { Write-Host "  $u" -ForegroundColor Red }

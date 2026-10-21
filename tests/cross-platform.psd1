@@ -20,5 +20,9 @@
         @{ Platforms = 'win-arm64'; Cases = '*__t3_system_tasks_printers.ot'; Reason = 'lists the names of the machine''s scheduled tasks and printers, and win-arm64 is another machine than the reference''s' }
         @{ Platforms = 'linux-*'; Cases = '*__c4_core.ot'; Reason = 'the Debian 12 container has no ~/.config, and .NET (otterPS too) gives no "appdata" folder that does not exist' }
         @{ Platforms = 'osx-*', 'linux-*'; Cases = '*__p2_remote_command.ot'; Reason = 'remote commands (WinRM) exist only on Windows; elsewhere otterPS''s internal error (SPEC-QUESTIONS P2-1)' }
+        # Found by the certification (tools/Invoke-OtterNetCertification.ps1).
+        @{ Platforms = '*'; Cases = '*clipboard_env_notify*'; Reason = 'prints how many environment variables the machine has and its temporary folder' }
+        @{ Platforms = '*'; Cases = '*fuzz-variants__dates-*', 'otterPS__examples__dates.ot'; Reason = 'prints the current time of day, which moves between two machines'' runs' }
+        @{ Platforms = '*'; Gates = 'cli'; Cases = 'modules___an_absolute_path*'; Parts = 'files'; Reason = 'the program written by the case holds the case folder''s absolute path, whose length differs from machine to machine' }
     )
 }

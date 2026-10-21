@@ -26,7 +26,16 @@ Works in Windows PowerShell 5.1 and PowerShell 7.
 
 function ConvertTo-CaptureId {
     param([string]$Text)
-    return ($Text -replace '[\\/:]+', '__' -replace '[^A-Za-z0-9_.\-]+', '_')
+    $id = ($Text -replace '[\\/:]+', '__' -replace '[^A-Za-z0-9_.\-]+', '_')
+    # Two cases whose names differ only in capitals ("run ..." and "RUN ...")
+    # must not share a file on a case-insensitive file system (macOS, Windows).
+    if ($id -cne $id.ToLowerInvariant()) {
+        $sha = [System.Security.Cryptography.SHA256]::Create()
+        try { $hash = [System.BitConverter]::ToString($sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($Text))).Replace('-', '').Substring(0, 8).ToLowerInvariant() }
+        finally { $sha.Dispose() }
+        $id = "$id~$hash"
+    }
+    return $id
 }
 
 function ConvertTo-CaptureText {
