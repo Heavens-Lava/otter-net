@@ -62,6 +62,8 @@ jobs:
                      'set credential "otterwinrm" to good', 'set credential "otterwinrmbad" to bad', 'say "stored"'
           Set-Content -Path "$env:RUNNER_TEMP\store.ot" -Value $program
           $env:OTTER_GOOD = $good; $env:OTTER_BAD = $bad
+          # Later steps of this job (the probe) get the password masked.
+          [System.IO.File]::AppendAllText($env:GITHUB_ENV, "OTTER_WINRM_PASSWORD=$good`n")
           & ./artifacts/win-x64/otter.exe run "$env:RUNNER_TEMP\store.ot"
           if ($LASTEXITCODE -ne 0) { throw 'storing the credentials failed' }
           Remove-Item "$env:RUNNER_TEMP\store.ot"
@@ -70,6 +72,11 @@ jobs:
           $name = Invoke-Command -ComputerName localhost -Credential $cred -ScriptBlock { hostname } -ErrorAction Stop
           Write-Host "Invoke-Command as otterwinrm works: $name"
 
+      - name: Probe - which option set does WinRM accept for a PowerShell shell
+        shell: pwsh
+        run: |
+          dotnet run --project tests/winrm/Probe -c Release -- localhost otterwinrm $env:OTTER_WINRM_PASSWORD
+          exit 0
       - name: The full output of each implementation for two cases
         shell: powershell
         run: |
