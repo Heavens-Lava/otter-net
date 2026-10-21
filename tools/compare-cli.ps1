@@ -29,7 +29,8 @@ A case file is a PowerShell data file:
            StderrMask = @('PID: \d+')                     # optional: regexes replaced in stderr before comparing
            TimeoutSeconds = 60                             # optional: this case's own time limit (then the tree is killed)
            HoldPort = 18085                                # optional: an HttpListener holds http://localhost:<port>/ during each run
-           KnownOnPwsh7 = 'why PowerShell 7 differs from 5.1' }  # optional
+           KnownOnPwsh7 = 'why PowerShell 7 differs from 5.1'  # optional
+           CopyFrom = 'C:/path/to/folder' }                # optional: a folder copied (whole) into the case's folder first
     ) }
 
 `{work}` in Args, Files (names and text) and Stdin is replaced by the case's
@@ -62,11 +63,20 @@ param(
     [string]$ReportPath = '',
     [int]$TimeoutSeconds = 120,
     [switch]$ShowReference,
-    [switch]$ReferenceOnly
+    [switch]$ReferenceOnly,
+    # Run otter-net only; what it showed is compared with another machine's
+    # capture afterwards (tools/compare-captures.ps1). A case fails only when
+    # otter-net reports a gap in itself or crashes.
+    [switch]$CandidateOnly,
+    # Save what each side showed (masked as compared; tools/CaptureFormat.ps1).
+    [string]$CaptureDirectory = '',
+    # Fake pwsh/powershell first on otter-net's PATH (no-implicit-PowerShell check).
+    [string]$ShimDirectory = ''
 )
 
 $ErrorActionPreference = 'Stop'
 $here = Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot 'CaptureFormat.ps1')
 $OtterPs = (Resolve-Path $OtterPs).Path
 if ($ReferenceOnly) { $ShowReference = $true }
 elseif (-not $OtterNet) { throw '-OtterNet is required (or -ReferenceOnly).' }
@@ -164,6 +174,9 @@ function New-CaseFolder {
     param([string]$Folder, $Case)
     if (Test-Path -LiteralPath $Folder) { Remove-Item -LiteralPath $Folder -Recurse -Force }
     New-Item -ItemType Directory -Path $Folder | Out-Null
+    if ($Case.CopyFrom) {
+        foreach ($item in @(Get-ChildItem -LiteralPath ([string]$Case.CopyFrom) -Force)) { Copy-Item -LiteralPath $item.FullName -Destination $Folder -Recurse -Force }
+    }
     if (-not $Case.Files) { return }
     foreach ($name in @($Case.Files.Keys | Sort-Object)) {
         $relative = $name.Replace('{work}', $Folder)
@@ -199,7 +212,7 @@ try {
             $caseTimeout = if ($case.TimeoutSeconds) { [int]$case.TimeoutSeconds } else { $TimeoutSeconds }
 
             $runs = @{}
-            $sides = if ($ReferenceOnly) { @('reference') } else { @('reference', 'candidate') }
+            $sides = if ($ReferenceOnly) { @('reference') } elseif ($CandidateOnly) { @('candidate') } else { @('reference', 'candidate') }
             foreach ($side in $sides) {
                 New-CaseFolder -Folder $folder -Case $case
                 $holder = $null
@@ -234,14 +247,33 @@ try {
                     if (-not $AllowFallback -and -not $environment.ContainsKey('OTTER_ENGINE')) { $candidateEnvironment['OTTER_ENGINE'] = 'native' }
                     $candidateFile = $OtterNet; $candidateArguments = $arguments
                     if ($OtterNet.EndsWith('.dll')) { $candidateFile = 'dotnet'; $candidateArguments = @($OtterNet) + $arguments }
+                    $candidateEnvironment = Add-ShimEnvironment -Environment $candidateEnvironment -ShimDirectory $ShimDirectory -CaseName "otter $caseName"
                     $runs[$side] = Invoke-OtterProcess -FileName $candidateFile -Arguments $candidateArguments -WorkingDirectory $folder `
                         -InputText $stdin -Environment $candidateEnvironment -Timeout $caseTimeout
                 }
                 }
                 finally { if ($holder) { $holder.Stop(); $holder.Close() } }
                 $runs[$side] | Add-Member -NotePropertyName Files -NotePropertyValue (Get-FolderSnapshot -Folder $folder -Ignore $ignore)
+                if ($CaptureDirectory) {
+                    # As compared: masks applied, the trace and otter.ps1's path normalised.
+                    $capturedOut = $runs[$side].Stdout
+                    $capturedErr = (($runs[$side].Stderr -split "`r?`n") | Where-Object { $side -eq 'reference' -or $_ -notlike 'otter-net *' }) -join "`n"
+                    $capturedErr = $capturedErr.Replace($referenceScript, '<otter.ps1>')
+                    if ($OtterNet) { $capturedErr = $capturedErr.Replace((Join-Path (Split-Path -Parent $OtterNet) 'otter.ps1'), '<otter.ps1>') }
+                    foreach ($pattern in @($case.Mask | Where-Object { $_ })) { $capturedOut = [regex]::Replace($capturedOut, $pattern, '<masked>') }
+                    foreach ($pattern in @($case.StderrMask | Where-Object { $_ })) { $capturedErr = [regex]::Replace($capturedErr, $pattern, '<masked>') }
+                    Write-Capture -Directory $CaptureDirectory -Side $side -Id $caseName -ExitCode $runs[$side].ExitCode -Stdout $capturedOut -Stderr $capturedErr `
+                        -Folder $folder -WorkPaths @($folder, $work) -Ignore $ignore
+                }
             }
             if ($ReferenceOnly) { continue }
+            if ($CandidateOnly) {
+                $candidate = $runs['candidate']
+                $failure = Get-CandidateFailure $candidate.Stderr
+                $engine = if ($candidate.Stderr -match 'otter-net native') { 'native' } else { '?' }
+                $results.Add([pscustomobject]@{ Case = $caseName; Arguments = ($arguments -join ' '); Outcome = $(if ($failure) { 'DIFFERENT' } else { 'ran' }); Engine = $engine; Detail = $(if ($failure) { $failure } else { "exit $($candidate.ExitCode)" }) })
+                continue
+            }
             $reference = $runs['reference']; $candidate = $runs['candidate']
             $traceLines = @(($candidate.Stderr -split "`r?`n") | Where-Object { $_ -like 'otter-net *' })
             $engine = if ($traceLines | Where-Object { $_ -like 'otter-net native*' }) { 'native' }
@@ -304,7 +336,7 @@ finally {
     Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
 }
 
-$matched = @($results | Where-Object { $_.Outcome -eq 'match' })
+$matched = @($results | Where-Object { $_.Outcome -eq 'match' -or $_.Outcome -eq 'ran' })
 $known = @($results | Where-Object { $_.Outcome -eq 'known' })
 $different = @($results | Where-Object { $_.Outcome -eq 'DIFFERENT' })
 $lines = [System.Collections.Generic.List[string]]::new()
@@ -320,6 +352,10 @@ foreach ($r in ($results | Sort-Object @{ Expression = { if ($_.Outcome -eq 'DIF
     $lines.Add("| $($r.Case) | ``$($r.Arguments)`` | $($r.Outcome) | $($r.Engine) | $(($r.Detail -replace '\|', '\|')) |")
 }
 [System.IO.File]::WriteAllText($ReportPath, ($lines -join "`n") + "`n", [System.Text.UTF8Encoding]::new($false))
+# The counts, for tools/Invoke-OtterNetCertification.ps1.
+$summary = [ordered]@{ tool = 'compare-cli'; mode = $(if ($CandidateOnly) { 'candidate-only' } else { 'reference' }); total = $results.Count; failed = $different.Count; passed = $matched.Count; known = $known.Count; skipped = 0
+    failures = @($different | ForEach-Object { "$($_.Case): $($_.Detail)" }) }
+[System.IO.File]::WriteAllText([System.IO.Path]::ChangeExtension($ReportPath, '.json'), ($summary | ConvertTo-Json -Depth 4), [System.Text.UTF8Encoding]::new($false))
 Write-Host "$($results.Count) cases: $($different.Count) different, $($matched.Count) identical, $($known.Count) known. Report: $ReportPath"
 foreach ($r in $different) { Write-Host "  DIFFERENT $($r.Case): $($r.Detail)" -ForegroundColor Red }
 if ($different.Count -gt 0) { exit 1 }

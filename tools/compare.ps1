@@ -41,11 +41,22 @@ param(
     # Native-only: otter-net may not hand any program to the PowerShell Otter
     # (OTTER_ENGINE=native). A program it cannot run itself fails instead of
     # matching through the fallback.
-    [switch]$NativeOnly
+    [switch]$NativeOnly,
+    # Run otter-net only (no otterPS here, or not the certified one): a
+    # program fails only when otter-net reports a gap in itself or crashes;
+    # what it printed is compared with another machine's capture afterwards
+    # (tools/compare-captures.ps1).
+    [switch]$CandidateOnly,
+    # Save what each side showed, normalised (tools/CaptureFormat.ps1).
+    [string]$CaptureDirectory = '',
+    # Put this folder's fake pwsh/powershell first on otter-net's PATH (the
+    # no-implicit-PowerShell check); OTTER_TEST_PROGRAM names the program.
+    [string]$ShimDirectory = ''
 )
 
 $ErrorActionPreference = 'Stop'
 $here = Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot 'CaptureFormat.ps1')
 $OtterPs = (Resolve-Path $OtterPs).Path
 $OtterNet = (Resolve-Path $OtterNet).Path
 $referenceScript = Join-Path $OtterPs 'otter.ps1'
@@ -161,7 +172,9 @@ try {
         New-Item -ItemType Directory -Path $snapshot | Out-Null
         Get-ChildItem -LiteralPath $file.DirectoryName -File | Copy-Item -Destination $snapshot
         $runs = @{}
-        foreach ($side in @('reference', 'candidate')) {
+        $relativeName = $name.Replace($OtterPs, 'otterPS').Replace($here, 'otter-net')
+        $sides = if ($CandidateOnly) { @('candidate') } else { @('reference', 'candidate') }
+        foreach ($side in $sides) {
             # Both sides run in the same path (a program may print its folder).
             $folder = Join-Path $work "$index"
             if (Test-Path -LiteralPath $folder) { Remove-Item -LiteralPath $folder -Recurse -Force }
@@ -175,13 +188,25 @@ try {
                 # A native build runs directly; a plain .NET build (otter.dll) runs through dotnet.
                 $candidateFile = $OtterNet; $candidateArguments = @('run', $file.Name)
                 if ($OtterNet.EndsWith('.dll')) { $candidateFile = 'dotnet'; $candidateArguments = @($OtterNet, 'run', $file.Name) }
+                $candidateEnvironment = if ($NativeOnly) { @{ OTTER_NET_TRACE = '1'; OTTER_ENGINE = 'native' } } else { @{ OTTER_NET_TRACE = '1'; OTTER_POWERSHELL = $referenceScript } }
+                $candidateEnvironment = Add-ShimEnvironment -Environment $candidateEnvironment -ShimDirectory $ShimDirectory -CaseName "run $relativeName"
                 $runs[$side] = Invoke-OtterProcess -FileName $candidateFile -Arguments $candidateArguments -WorkingDirectory $folder -InputText $inputText `
-                    -Environment $(if ($NativeOnly) { @{ OTTER_NET_TRACE = '1'; OTTER_ENGINE = 'native' } } else { @{ OTTER_NET_TRACE = '1'; OTTER_POWERSHELL = $referenceScript } })
+                    -Environment $candidateEnvironment
             }
             $runs[$side] | Add-Member -NotePropertyName Files -NotePropertyValue (Get-FolderSnapshot -Folder $folder)
+            $sideStderr = if ($side -eq 'candidate') { (($runs[$side].Stderr -split "`r?`n") | Where-Object { $_ -notlike 'otter-net *' }) -join "`n" } else { $runs[$side].Stderr }
+            Write-Capture -Directory $CaptureDirectory -Side $side -Id $relativeName -ExitCode $runs[$side].ExitCode -Stdout (Show-Bytes $runs[$side].Stdout) `
+                -Stderr $sideStderr -Folder $folder -WorkPaths @($folder, $work)
         }
         Remove-Item -LiteralPath $snapshot -Recurse -Force -ErrorAction SilentlyContinue
         $reference = $runs['reference']; $candidate = $runs['candidate']
+        if ($CandidateOnly) {
+            $traceLines = @(($candidate.Stderr -split "`r?`n") | Where-Object { $_ -like 'otter-net *' })
+            $engine = if ($traceLines | Where-Object { $_ -like 'otter-net native*' }) { 'native' } elseif ($traceLines) { $traceLines[0] } else { '?' }
+            $failure = Get-CandidateFailure $candidate.Stderr
+            $results.Add([pscustomobject]@{ File = $name; Outcome = $(if ($failure) { 'DIFFERENT' } else { 'ran' }); Engine = $engine; Detail = $(if ($failure) { $failure } else { "exit $($candidate.ExitCode)" }) })
+            continue
+        }
         $traceLines = @(($candidate.Stderr -split "`r?`n") | Where-Object { $_ -like 'otter-net *' })
         $engine = if ($traceLines | Where-Object { $_ -like 'otter-net native*' }) { 'native' } elseif ($traceLines) { ($traceLines[0] -replace '^otter-net fallback: ', 'fallback: ') } else { '?' }
         $candidateStderr = (($candidate.Stderr -split "`r?`n") | Where-Object { $_ -notlike 'otter-net *' }) -join "`n"
@@ -214,14 +239,15 @@ finally {
     Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
 }
 
-$matched = @($results | Where-Object { $_.Outcome -eq 'match' })
+$matched = @($results | Where-Object { $_.Outcome -eq 'match' -or $_.Outcome -eq 'ran' })
 $different = @($results | Where-Object { $_.Outcome -eq 'DIFFERENT' })
 $skipped = @($results | Where-Object { $_.Outcome -eq 'skipped' })
 $native = @($matched | Where-Object { $_.Engine -eq 'native' })
 $lines = [System.Collections.Generic.List[string]]::new()
-$lines.Add($(if ($NativeOnly) { '# otterPS vs otter-net (native only: no PowerShell fallback)' } else { '# otterPS vs otter-net' }))
+$lines.Add($(if ($CandidateOnly) { '# otter-net alone (no reference on this machine: compared with the Windows capture afterwards)' } elseif ($NativeOnly) { '# otterPS vs otter-net (native only: no PowerShell fallback)' } else { '# otterPS vs otter-net' }))
 $lines.Add('')
-$lines.Add("$($results.Count) programs: **$($different.Count) different**, $($matched.Count) identical ($($native.Count) run natively by otter-net, $($matched.Count - $native.Count) handed to the PowerShell Otter), $($skipped.Count) skipped.")
+if ($CandidateOnly) { $lines.Add("$($results.Count) programs: **$($different.Count) failed** (a gap in otter-net or a crash), $($matched.Count) ran ($($native.Count) natively), $($skipped.Count) skipped.") }
+else { $lines.Add("$($results.Count) programs: **$($different.Count) different**, $($matched.Count) identical ($($native.Count) run natively by otter-net, $($matched.Count - $native.Count) handed to the PowerShell Otter), $($skipped.Count) skipped.") }
 $lines.Add('')
 $lines.Add("Reference: $referenceScript. Candidate: $OtterNet.")
 $lines.Add('')
@@ -232,6 +258,10 @@ foreach ($r in ($results | Sort-Object @{ Expression = { if ($_.Outcome -eq 'DIF
     $lines.Add("| $relative | $($r.Outcome) | $($r.Engine) | $(($r.Detail -replace '\|', '\|')) |")
 }
 [System.IO.File]::WriteAllText($ReportPath, ($lines -join "`n") + "`n", [System.Text.UTF8Encoding]::new($false))
+# The counts, for tools/Invoke-OtterNetCertification.ps1.
+$summary = [ordered]@{ tool = 'compare'; mode = $(if ($CandidateOnly) { 'candidate-only' } else { 'reference' }); total = $results.Count; failed = $different.Count; passed = $matched.Count; native = $native.Count; skipped = $skipped.Count
+    failures = @($different | ForEach-Object { "$($_.File.Replace($OtterPs, 'otterPS').Replace($here, 'otter-net')): $($_.Detail)" }) }
+[System.IO.File]::WriteAllText([System.IO.Path]::ChangeExtension($ReportPath, '.json'), ($summary | ConvertTo-Json -Depth 4), [System.Text.UTF8Encoding]::new($false))
 Write-Host "$($results.Count) programs: $($different.Count) different, $($matched.Count) identical ($($native.Count) native), $($skipped.Count) skipped. Report: $ReportPath"
 foreach ($r in $different) { Write-Host "  DIFFERENT $($r.File): $($r.Detail)" -ForegroundColor Red }
 if ($different.Count -gt 0) { exit 1 }
