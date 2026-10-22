@@ -1,0 +1,73 @@
+{
+  "tool": "compare-captures",
+  "platform": "osx-arm64",
+  "gates": {
+    "cli": {
+      "reference": "otterPS",
+      "compared": 398,
+      "identical": 372,
+      "declared": 26,
+      "unexpected": 0,
+      "differences": []
+    },
+    "conformance": {
+      "reference": "otterPS",
+      "compared": 16,
+      "identical": 14,
+      "declared": 2,
+      "unexpected": 0,
+      "differences": []
+    },
+    "fuzz": {
+      "reference": "otterPS",
+      "compared": 444,
+      "identical": 438,
+      "declared": 6,
+      "unexpected": 0,
+      "differences": []
+    },
+    "network": {
+      "reference": "otterPS",
+      "compared": 22,
+      "identical": 22,
+      "declared": 0,
+      "unexpected": 0,
+      "differences": []
+    },
+    "programs": {
+      "reference": "otterPS",
+      "compared": 234,
+      "identical": 219,
+      "declared": 15,
+      "unexpected": 0,
+      "differences": []
+    },
+    "projects": {
+      "reference": "otterPS",
+      "compared": 84,
+      "identical": 83,
+      "declared": 1,
+      "unexpected": 0,
+      "differences": []
+    },
+    "site": {
+      "reference": "otterPS",
+      "compared": 102,
+      "identical": 102,
+      "declared": 0,
+      "unexpected": 0,
+      "differences": []
+    },
+    "web": {
+      "reference": "otterPS",
+      "compared": 363,
+      "identical": 363,
+      "declared": 0,
+      "unexpected": 0,
+      "differences": []
+    }
+  },
+  "unexpected": 0,
+  "declared": 50,
+  "unwrapped": 27
+}
