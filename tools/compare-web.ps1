@@ -45,11 +45,19 @@ param(
     # examples and conformance fixtures, and otter-net's tests/compat.
     [string[]]$Corpus = @(),
     [string]$ReportPath = '',
-    [int]$TimeoutSeconds = 120
+    [int]$TimeoutSeconds = 120,
+    # Run otter-net only; what it wrote is compared with another machine's
+    # capture afterwards (tools/compare-captures.ps1).
+    [switch]$CandidateOnly,
+    # Save what each side showed and wrote (tools/CaptureFormat.ps1).
+    [string]$CaptureDirectory = '',
+    # Fake pwsh/powershell first on otter-net's PATH (no-implicit-PowerShell check).
+    [string]$ShimDirectory = ''
 )
 
 $ErrorActionPreference = 'Stop'
 $here = Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot 'CaptureFormat.ps1')
 $OtterPs = (Resolve-Path $OtterPs).Path
 $OtterNet = (Resolve-Path $OtterNet).Path
 $referenceScript = Join-Path $OtterPs 'otter.ps1'
@@ -152,7 +160,10 @@ try {
         New-Item -ItemType Directory -Path $snapshot | Out-Null
         Get-ChildItem -LiteralPath $file.DirectoryName -File | Copy-Item -Destination $snapshot
         $runs = @{}
-        foreach ($side in @('reference', 'candidate')) {
+        $relativeName = $file.FullName.Replace($OtterPs, 'otterPS').Replace($here, 'otter-net')
+        $sides = @('reference', 'candidate')
+        if ($CandidateOnly) { $sides = @('candidate') }
+        foreach ($side in $sides) {
             # Both sides run in the same folder: the page's path is printed.
             $folder = Join-Path $work "$index"
             if (Test-Path -LiteralPath $folder) { Remove-Item -LiteralPath $folder -Recurse -Force }
@@ -165,14 +176,28 @@ try {
             else {
                 $candidateFile = $OtterNet; $candidateArguments = @('web', $file.Name, '-NoOpen')
                 if ($OtterNet.EndsWith('.dll')) { $candidateFile = 'dotnet'; $candidateArguments = @($OtterNet, 'web', $file.Name, '-NoOpen') }
+                $candidateEnvironment = Add-ShimEnvironment -Environment @{ OTTER_NET_TRACE = '1'; OTTER_POWERSHELL = $referenceScript } -ShimDirectory $ShimDirectory -CaseName "web $relativeName"
                 $run = Invoke-OtterProcess -FileName $candidateFile -Arguments $candidateArguments -WorkingDirectory $folder `
-                    -Environment @{ OTTER_NET_TRACE = '1'; OTTER_POWERSHELL = $referenceScript }
+                    -Environment $candidateEnvironment
             }
             $run | Add-Member -NotePropertyName Files -NotePropertyValue (Get-FolderFiles -Folder $folder)
             $runs[$side] = $run
+            $sideStderr = $run.Stderr
+            if ($side -eq 'candidate') { $sideStderr = (($run.Stderr -split "`r?`n") | Where-Object { $_ -notlike 'otter-net *' }) -join "`n" }
+            Write-Capture -Directory $CaptureDirectory -Side $side -Id $relativeName -ExitCode $run.ExitCode -Stdout (Get-Text $run.Stdout) `
+                -Stderr $sideStderr -Folder $folder -WorkPaths @($folder, $work) -KeepFiles -InputFolder $snapshot
         }
         Remove-Item -LiteralPath $snapshot -Recurse -Force -ErrorAction SilentlyContinue
         $reference = $runs['reference']; $candidate = $runs['candidate']
+        if ($CandidateOnly) {
+            $failure = Get-CandidateFailure $candidate.Stderr
+            $outcome = 'ran'; $detail = "exit $($candidate.ExitCode)"
+            if ($failure) { $outcome = 'DIFFERENT'; $detail = $failure }
+            $engine = '?'
+            if ($candidate.Stderr -match 'otter-net native') { $engine = 'native' }
+            $results.Add((New-Object PSObject -Property @{ File = $file.FullName; Outcome = $outcome; Engine = $engine; Detail = $detail }))
+            continue
+        }
         $traceLines = @(($candidate.Stderr -split "`r?`n") | Where-Object { $_ -like 'otter-net *' })
         $engine = '?'
         if ($traceLines | Where-Object { $_ -like 'otter-net native*' }) { $engine = 'native' }
@@ -222,7 +247,8 @@ $native = @($matched | Where-Object { $_.Engine -eq 'native' })
 $lines = New-Object System.Collections.Generic.List[string]
 $lines.Add('# otter web: otterPS vs otter-net')
 $lines.Add('')
-$lines.Add("$($results.Count) programs: **$($different.Count) different**, $($matched.Count) identical ($($native.Count) compiled natively by otter-net, $($matched.Count - $native.Count) handed to the PowerShell Otter).")
+if ($CandidateOnly) { $lines.Add("$($results.Count) programs: **$($different.Count) failed** (a gap in otter-net or a crash), $($matched.Count) compiled by otter-net alone; compared with the Windows capture afterwards.") }
+else { $lines.Add("$($results.Count) programs: **$($different.Count) different**, $($matched.Count) identical ($($native.Count) compiled natively by otter-net, $($matched.Count - $native.Count) handed to the PowerShell Otter).") }
 $lines.Add('')
 $referenceHostName = 'Windows PowerShell 5.1'
 if ($pwsh7Reference) { $referenceHostName = 'PowerShell 7 ("match (5.1 form)": identical once the known PowerShell 7 differences are applied)' }
@@ -235,6 +261,11 @@ foreach ($r in ($results | Sort-Object @{ Expression = { if ($_.Outcome -eq 'DIF
     $lines.Add("| $relative | $($r.Outcome) | $($r.Engine) | $(($r.Detail -replace '\|', '\|')) |")
 }
 [System.IO.File]::WriteAllText($ReportPath, ($lines -join "`n") + "`n", (New-Object System.Text.UTF8Encoding($false)))
+# The counts, for tools/Invoke-OtterNetCertification.ps1.
+$mode = 'reference'; if ($CandidateOnly) { $mode = 'candidate-only' }
+$summary = [ordered]@{ tool = 'compare-web'; mode = $mode; total = $results.Count; failed = $different.Count; passed = $matched.Count; native = $native.Count; skipped = 0
+    failures = @($different | ForEach-Object { "$($_.File.Replace($OtterPs, 'otterPS').Replace($here, 'otter-net')): $($_.Detail)" }) }
+[System.IO.File]::WriteAllText([System.IO.Path]::ChangeExtension($ReportPath, '.json'), ($summary | ConvertTo-Json -Depth 4), (New-Object System.Text.UTF8Encoding($false)))
 Write-Host "$($results.Count) programs: $($different.Count) different, $($matched.Count) identical ($($native.Count) native). Report: $ReportPath"
 foreach ($r in $different) { Write-Host "  DIFFERENT $($r.File): $($r.Detail)" -ForegroundColor Red }
 if ($different.Count -gt 0) { exit 1 }

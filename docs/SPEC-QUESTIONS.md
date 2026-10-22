@@ -918,3 +918,19 @@ Otter, the one case of this batch that cannot be reproduced exactly (a cycle
 is still native: otterPS always overflows). Needs a decision: should such a
 page be an Otter error (or render) at any depth?
 
+
+## R6 questions (found 2026-10-21, the release certification)
+
+### R6-1. otterPS's pages and new projects take their line endings from otterPS's own files
+
+The web pages (`otter web`, `build`, `publish`, the website) and the files of
+`otter new` are written from here-strings in otterPS's modules
+(`src/Otter.Web.psm1`, `src/Otter.Project.psm1`), so their line endings are
+those of the otterPS installation: CRLF from the release archive (built on
+Windows) or a Windows checkout, LF from a checkout with `core.autocrlf false`
+or on macOS and Linux. The first certification run checked otterPS out with
+LF on Windows and 238 web pages, 4 project builds, the website and every
+`otter new` case differed from otter-net only there. otter-net always writes
+CRLF, as the released otterPS 1.0.1 does; `.github/workflows/certify.yml`
+checks otterPS out as released. Needs a decision: should Otter's output
+depend on how it was installed, or always be CRLF (or LF)?

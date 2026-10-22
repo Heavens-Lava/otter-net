@@ -1,0 +1,216 @@
+# Release certification of one otter-net commit on all six platforms
+# (docs/CERTIFICATION.md): tools/Invoke-OtterNetCertification.ps1 on each,
+# then every platform's capture compared with the Windows reference and the
+# combined record written.
+#
+# win-x64 compares with otterPS 1.0.1 on Windows PowerShell 5.1 directly (the
+# certified reference); the other platforms run otter-net alone and are
+# compared with the Windows capture afterwards, as ci.yml's cross-platform
+# check does. Only records, reports and captured output are uploaded -
+# never a binary.
+name: certify
+
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: 'The commit to certify (HEAD: the head of the branch the workflow runs on)'
+        default: 'HEAD'
+  push:
+    branches: [cert/certify]
+
+concurrency:
+  group: certify-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CANDIDATE: ${{ (github.event_name != 'workflow_dispatch' || inputs.sha == '' || inputs.sha == 'HEAD') && github.sha || inputs.sha }}
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
+
+jobs:
+  windows:
+    name: ${{ matrix.rid }} - certification
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+          - os: windows-11-arm
+            rid: win-arm64
+    steps:
+      # Both checked out as Windows checks them out (core.autocrlf true), on
+      # every platform, so each runs byte-identical programs. otterPS needs
+      # it: its modules' here-strings become the pages and project files it
+      # writes, with CRLF as in its release (built on Windows).
+      - name: Line endings as on Windows (CRLF), on every platform
+        run: git config --global core.autocrlf true
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.CANDIDATE }}
+          path: otter-net
+      - name: Check out otterPS 1.0.1 (the reference)
+        uses: actions/checkout@v4
+        with:
+          repository: Heavens-Lava/otterPS
+          ref: v1.0.1
+          path: otterps
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Time zone UTC, like the reference
+        run: tzutil /s "UTC"
+      - name: Certify
+        shell: powershell
+        run: |
+          $sha = git -C otter-net rev-parse HEAD
+          powershell -NoProfile -ExecutionPolicy Bypass -File otter-net/tools/Invoke-OtterNetCertification.ps1 -Commit $sha -OtterPs otterps -Platform ${{ matrix.rid }} -OutputDirectory records -WorkDirectory "$env:RUNNER_TEMP\cert" -IncludeMachineState
+          $code = $LASTEXITCODE
+          Get-ChildItem records -Recurse -Filter '${{ matrix.rid }}.md' | ForEach-Object { Get-Content $_.FullName } | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+          exit $code
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cert-${{ matrix.rid }}
+          path: records/
+          if-no-files-found: error
+
+  macos:
+    name: ${{ matrix.rid }} - certification
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            rid: osx-arm64
+          - os: macos-15-intel
+            rid: osx-x64
+    env:
+      TZ: UTC
+    steps:
+      - name: Line endings as on Windows (CRLF), on every platform
+        run: git config --global core.autocrlf true
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.CANDIDATE }}
+          path: otter-net
+      - name: Check out otterPS 1.0.1 (the reference)
+        uses: actions/checkout@v4
+        with:
+          repository: Heavens-Lava/otterPS
+          ref: v1.0.1
+          path: otterps
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: PowerShell 7, for the test tools
+        run: command -v pwsh || brew install --cask powershell
+      - name: Certify
+        shell: pwsh
+        run: |
+          $sha = git -C otter-net rev-parse HEAD
+          & ./otter-net/tools/Invoke-OtterNetCertification.ps1 -Commit $sha -OtterPs otterps -Platform ${{ matrix.rid }} -OutputDirectory records -WorkDirectory "$env:RUNNER_TEMP/cert"
+          $code = $LASTEXITCODE
+          Get-ChildItem records -Recurse -Filter '${{ matrix.rid }}.md' | ForEach-Object { Get-Content $_.FullName } | Out-File -Append $env:GITHUB_STEP_SUMMARY
+          exit $code
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cert-${{ matrix.rid }}
+          path: records/
+          if-no-files-found: error
+
+  # Debian 12, the system of a Chromebook's Linux environment (ci.yml).
+  linux:
+    name: ${{ matrix.rid }} (Debian 12) - certification
+    runs-on: ${{ matrix.os }}
+    container: debian:bookworm
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            rid: linux-x64
+          - os: ubuntu-24.04-arm
+            rid: linux-arm64
+    env:
+      DOTNET_ROOT: /usr/share/dotnet
+      DOTNET_ROLL_FORWARD: Major
+      TZ: UTC
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Native AOT prerequisites, git, node and the .NET 10 SDK
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates curl git clang zlib1g-dev libicu72 libsqlite3-0 nodejs unzip
+          curl -sSL https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 10.0 --install-dir "$DOTNET_ROOT"
+          echo "$DOTNET_ROOT" >> "$GITHUB_PATH"
+          echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
+          git config --global --add safe.directory '*'
+          git config --global core.autocrlf true
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.CANDIDATE }}
+          path: otter-net
+      - name: Check out otterPS 1.0.1 (the reference)
+        uses: actions/checkout@v4
+        with:
+          repository: Heavens-Lava/otterPS
+          ref: v1.0.1
+          path: otterps
+      - name: PowerShell 7, for the test tools (otter-net itself never uses it)
+        run: dotnet tool install --global PowerShell
+      - name: Certify
+        run: |
+          sha=$(git -C otter-net rev-parse HEAD)
+          code=0
+          pwsh -NoProfile -File otter-net/tools/Invoke-OtterNetCertification.ps1 -Commit "$sha" -OtterPs otterps -Platform ${{ matrix.rid }} -OutputDirectory records -WorkDirectory "$RUNNER_TEMP/cert" || code=$?
+          find records -name '${{ matrix.rid }}.md' -exec cat {} \; >> "$GITHUB_STEP_SUMMARY"
+          exit $code
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cert-${{ matrix.rid }}
+          path: records/
+          if-no-files-found: error
+
+  combine:
+    name: Every platform against Windows - the combined record
+    needs: [windows, macos, linux]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.CANDIDATE }}
+          path: otter-net
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: cert-*
+          path: records
+          merge-multiple: true
+      - name: Combine
+        shell: pwsh
+        run: |
+          $sha = git -C otter-net rev-parse HEAD
+          & ./otter-net/tools/Invoke-OtterNetCertification.ps1 -Commit $sha -OutputDirectory records -Combine
+          $code = $LASTEXITCODE
+          Get-Content "records/$sha.md" | Out-File -Append $env:GITHUB_STEP_SUMMARY
+          Get-ChildItem "records/$sha/cross-platform" -Filter *.md | ForEach-Object { Get-Content $_.FullName } | Out-File -Append $env:GITHUB_STEP_SUMMARY
+          exit $code
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: certification
+          path: |
+            records/*.json
+            records/*.md
+            records/*/cross-platform/
