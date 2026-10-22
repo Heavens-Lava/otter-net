@@ -22,7 +22,7 @@
         @{ Platforms = 'osx-*', 'linux-*'; Cases = '*__p2_remote_command.ot'; Reason = 'remote commands (WinRM) exist only on Windows; elsewhere otterPS''s internal error (SPEC-QUESTIONS P2-1)' }
         # Found by the certification (tools/Invoke-OtterNetCertification.ps1).
         @{ Platforms = '*'; Cases = '*clipboard_env_notify*'; Reason = 'prints how many environment variables the machine has and its temporary folder' }
-        @{ Platforms = '*'; Cases = '*fuzz-variants__dates-*', 'otterPS__examples__dates.ot'; Reason = 'prints the current time of day, which moves between two machines'' runs' }
+        @{ Platforms = '*'; Cases = '*fuzz-variants__dates-*', 'otterPS__examples__dates.ot*'; Reason = 'prints the current time of day, which moves between two machines'' runs' }
         @{ Platforms = '*'; Gates = 'cli'; Cases = 'modules___an_absolute_path*'; Parts = 'files'; Reason = 'the program written by the case holds the case folder''s absolute path, whose length differs from machine to machine' }
         @{ Platforms = 'osx-*', 'linux-*'; Cases = '*file_exists_run_command_json_roundtrip*'; Reason = 'runs "cmd /c echo": cmd.exe exists only on Windows' }
         @{ Platforms = 'osx-*', 'linux-*'; Gates = 'cli'; Cases = 'ps-texts___desktop___*', 'ps-texts___V___desktop_*', 'ps-texts___IA___desktop_*'; Reason = '`otter desktop` exists only on Windows; elsewhere otterPS''s "desktop windows are only available on Windows"' }

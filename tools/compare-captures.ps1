@@ -55,6 +55,9 @@ function ConvertTo-Comparable {
     # The otterPS checkout's folder, which PowerShell's own texts name (its
     # module paths), differs from machine to machine.
     $Text = [regex]::Replace($Text, '(?:[A-Za-z]:\\|/)[^\s''"<>|]*?[\\/]otterps(?=[\\/])', '<otterps>')
+    # The comparing tools' own temporary folders have a random name, which
+    # PowerShell's wrapped texts can cut off from the rest of the path.
+    $Text = [regex]::Replace($Text, 'otter-(compare|compare-cli|compare-web|site)-[0-9a-f]{8}\b', 'otter-$1-<id>')
     # A path below the case's folder or otterPS's: the platform's separator.
     return [regex]::Replace($Text, '<(work|otterps)>[^\s"''|*?]*', { param($match) $match.Value.Replace('\', '/') })
 }
@@ -64,7 +67,9 @@ function ConvertTo-Comparable {
 # a text is also compared with its line breaks taken out.
 function Test-SameUnwrapped {
     param([string]$A, [string]$B)
-    $rawA = $A -replace '\r?\n', ''; $rawB = $B -replace '\r?\n', ''
+    # Its view breaks lines at spaces and hyphens and indents the next line:
+    # compared without any white space.
+    $rawA = $A -replace '\s+', ''; $rawB = $B -replace '\s+', ''
     $x = ConvertTo-Comparable $rawA; $y = ConvertTo-Comparable $rawB
     return ($x -ceq $y) -and ($x.Contains('<otterps>') -or $x.Contains('<otter.ps1>'))
 }
