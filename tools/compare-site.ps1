@@ -237,8 +237,12 @@ try {
                 Write-Capture -Directory $CaptureDirectory -Side $side -Id "site__raw__$($page.Name)" -ExitCode 0 -Stdout '' -Stderr '' -Folder $page.FullName -WorkPaths @($root, $work) -KeepFiles
             }
             $static = Join-Path $out 'static'
+            # The pages in ordinal order: the script's Sort-Object Name orders
+            # by culture, differently in Windows PowerShell 5.1 and PowerShell 7.
+            $builtLines = [string[]]@(($build.Stdout -split "`r?`n") | Where-Object { $_ })
+            [System.Array]::Sort($builtLines, [System.StringComparer]::Ordinal)
             Write-Capture -Directory $CaptureDirectory -Side $side -Id 'site__static' -ExitCode $build.ExitCode `
-                -Stdout ((($build.Stdout -split "`r?`n") | Where-Object { $_ }) -join "`n") -Stderr '' -Folder $static -WorkPaths @($root, $work) -Ignore @('docs-index.json')
+                -Stdout ($builtLines -join "`n") -Stderr '' -Folder $static -WorkPaths @($root, $work) -Ignore @('docs-index.json')
             Write-Capture -Directory $CaptureDirectory -Side $side -Id 'site__site.ot' -ExitCode $shell.ExitCode -Stdout $shell.Stdout `
                 -Stderr ((($shell.Stderr -split "`r?`n") | Where-Object { $_ -notlike 'otter-net *' }) -join "`n") -Folder $shellFolder -WorkPaths @($shellFolder, $root, $work) -KeepFiles -InputFolder (Join-Path $OtterPs 'otter-docs')
         }
