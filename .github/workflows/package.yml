@@ -25,7 +25,7 @@ name: package
 on:
   workflow_dispatch:
   push:
-    branches: [port/package, cert/preview, main]
+    branches: [port/package, cert/preview, main, release/0.9.0-preview.1]
   pull_request:
     branches: [main]
 
@@ -460,11 +460,11 @@ jobs:
       - name: The .tar.gz beside otterPS
         run: sh tools/test-coexistence.sh tarball packages/*.tar.gz otterps/otter-1.0.1.zip
 
-  # Only after every test passed, and only for a manual run or cert/preview:
+  # Only after every test passed, and only for a manual run, cert/preview or release/0.9.0-preview.1:
   # the six platforms' packages as one artifact, with one SHA256SUMS.
   preview-artifact:
     name: Keep the INTERNAL-PREVIEW-UNSIGNED packages (30 days)
-    if: github.event_name == 'workflow_dispatch' || github.ref_name == 'cert/preview'
+    if: github.event_name == 'workflow_dispatch' || github.ref_name == 'cert/preview' || github.ref_name == 'release/0.9.0-preview.1'
     needs: [windows-build, windows-test, windows-desktop-nodotnet, windows-coexistence, linux-test, linux-coexistence, macos-test, macos-coexistence]
     runs-on: ubuntu-latest
     steps:

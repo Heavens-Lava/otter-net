@@ -11,7 +11,7 @@ name: winrm
 
 on:
   push:
-    branches: [cert/winrm]
+    branches: [cert/winrm, release/0.9.0-preview.1]
   workflow_dispatch:
 
 jobs:

@@ -17,7 +17,7 @@ on:
         description: 'The commit to certify (HEAD: the head of the branch the workflow runs on)'
         default: 'HEAD'
   push:
-    branches: [cert/certify]
+    branches: [cert/certify, release/0.9.0-preview.1]
 
 concurrency:
   group: certify-${{ github.ref }}
