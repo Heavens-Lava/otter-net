@@ -1,0 +1,1433 @@
+{
+  "kind": "release-certification",
+  "commit": "fbc46a42ea4f6ab2775ffe4a280a7b7b158da140",
+  "subject": "ci: certify, package and WinRM workflows run on the 0.9.0-preview.1 candidate",
+  "platforms": {
+    "win-x64": {
+      "kind": "release-certification",
+      "allGatesPassed": true,
+      "referenceComparedDirectly": true,
+      "run": "https://github.com/Heavens-Lava/otter-net/actions/runs/39747899302 (attempt 1)",
+      "os": "Microsoft Windows NT 10.0.26100.0",
+      "gates": {
+        "build": {
+          "passed": true,
+          "counts": {
+            "solution.warnings": 0,
+            "solution.exit": 0,
+            "aot.warnings": 0,
+            "aot.exit": 0,
+            "desktop.warnings": 0,
+            "otter.version": "Otter 1.0.1",
+            "otter.bytes": 12290048
+          },
+          "failures": [],
+          "note": ""
+        },
+        "conformance": {
+          "passed": true,
+          "counts": {
+            "fixtures.total": 15,
+            "fixtures.passed": 15,
+            "fixtures.browser": 2,
+            "programs.total": 19,
+            "programs.failed": 0,
+            "programs.passed": 16,
+            "programs.native": 16,
+            "programs.skipped": 3
+          },
+          "failures": [],
+          "note": ""
+        },
+        "programs": {
+          "passed": true,
+          "counts": {
+            "programs.total": 271,
+            "programs.failed": 0,
+            "programs.passed": 234,
+            "programs.native": 234,
+            "programs.skipped": 37
+          },
+          "failures": [],
+          "note": ""
+        },
+        "network": {
+          "passed": true,
+          "counts": {
+            "programs.total": 22,
+            "programs.failed": 0,
+            "programs.passed": 22,
+            "programs.native": 22,
+            "testServer": true
+          },
+          "failures": [],
+          "note": ""
+        },
+        "cli": {
+          "passed": true,
+          "counts": {
+            "cases.total": 398,
+            "cases.failed": 0,
+            "cases.passed": 398
+          },
+          "failures": [],
+          "note": ""
+        },
+        "web": {
+          "passed": true,
+          "counts": {
+            "pages.total": 363,
+            "pages.failed": 0,
+            "pages.passed": 363,
+            "pages.native": 363
+          },
+          "failures": [],
+          "note": ""
+        },
+        "fuzz": {
+          "passed": true,
+          "counts": {
+            "generated": 150,
+            "mutated": 150,
+            "variants.mutations": 106,
+            "variants.case": 110,
+            "seed": 20261001,
+            "programs.total": 512,
+            "programs.failed": 0,
+            "programs.passed": 444,
+            "programs.native": 444,
+            "programs.skipped": 68
+          },
+          "failures": [],
+          "note": ""
+        },
+        "projects": {
+          "passed": true,
+          "counts": {
+            "cases.total": 84,
+            "cases.failed": 0,
+            "cases.passed": 84,
+            "projects": 9,
+            "examples": 43
+          },
+          "failures": [],
+          "note": "Every example also runs in the programs gate and compiles in the web gate."
+        },
+        "site": {
+          "passed": true,
+          "counts": {
+            "files.total": 218,
+            "files.failed": 0,
+            "files.passed": 218,
+            "pages": 100
+          },
+          "failures": [],
+          "note": ""
+        },
+        "no-powershell": {
+          "passed": true,
+          "counts": {
+            "processAudit": "on",
+            "processAudit.events": 2124,
+            "runs": 1867,
+            "launches": 0,
+            "launches.allowed": 0,
+            "launches.implicit": 0,
+            "traced.byOtter": 7,
+            "traced.implicit": 0
+          },
+          "failures": [],
+          "note": "Fake pwsh/powershell/powershell.exe first on otter-net's PATH (and on Windows the process-creation audit, for a PowerShell started by its full path); a launch is allowed only for a program's own .ps1 file (-File <file>.ps1, never otter.ps1) or a program that names PowerShell itself as its command (its arguments are in the program's source)."
+        },
+        "native-coverage": {
+          "passed": true,
+          "counts": {
+            "handsToPowerShell": 0,
+            "nodeKinds": "225 of 225 native",
+            "messages.missing": 0,
+            "gaps.internalError": 13,
+            "processSites": 19,
+            "processSites.namingPowerShell": 1,
+            "processSites.unexplained": 0
+          },
+          "failures": [],
+          "note": ""
+        },
+        "desktop": {
+          "passed": true,
+          "counts": {
+            "programs.total": 26,
+            "programs.identical": 26,
+            "missingHost.exit": 1
+          },
+          "failures": [],
+          "note": ""
+        },
+        "machine-state": {
+          "passed": true,
+          "counts": {
+            "programs.total": 32,
+            "programs.failed": 0,
+            "programs.passed": 32,
+            "programs.native": 32,
+            "de-DE.total": 11,
+            "de-DE.failed": 0,
+            "de-DE.passed": 11,
+            "de-DE.native": 11,
+            "fi-FI.total": 11,
+            "fi-FI.failed": 0,
+            "fi-FI.passed": 11,
+            "fi-FI.native": 11
+          },
+          "failures": [],
+          "note": ""
+        },
+        "repository-clean": {
+          "passed": true,
+          "counts": {
+            "pathsChanged": 0
+          },
+          "failures": [],
+          "note": ""
+        }
+      }
+    },
+    "win-arm64": {
+      "kind": "release-certification",
+      "allGatesPassed": true,
+      "referenceComparedDirectly": false,
+      "run": "https://github.com/Heavens-Lava/otter-net/actions/runs/39747899302 (attempt 1)",
+      "os": "Microsoft Windows NT 10.0.26200.0",
+      "gates": {
+        "build": {
+          "passed": true,
+          "counts": {
+            "solution.warnings": 0,
+            "solution.exit": 0,
+            "aot.warnings": 0,
+            "aot.exit": 0,
+            "desktop.warnings": 0,
+            "otter.version": "Otter 1.0.1",
+            "otter.bytes": 12489216
+          },
+          "failures": [],
+          "note": ""
+        },
+        "conformance": {
+          "passed": true,
+          "counts": {
+            "fixtures.total": 15,
+            "fixtures.passed": 15,
+            "fixtures.browser": 2,
+            "programs.total": 19,
+            "programs.failed": 0,
+            "programs.passed": 16,
+            "programs.native": 16,
+            "programs.skipped": 3
+          },
+          "failures": [],
+          "note": ""
+        },
+        "programs": {
+          "passed": true,
+          "counts": {
+            "programs.total": 271,
+            "programs.failed": 0,
+            "programs.passed": 234,
+            "programs.native": 234,
+            "programs.skipped": 37
+          },
+          "failures": [],
+          "note": ""
+        },
+        "network": {
+          "passed": true,
+          "counts": {
+            "programs.total": 22,
+            "programs.failed": 0,
+            "programs.passed": 22,
+            "programs.native": 22,
+            "testServer": true
+          },
+          "failures": [],
+          "note": ""
+        },
+        "cli": {
+          "passed": true,
+          "counts": {
+            "cases.total": 398,
+            "cases.failed": 0,
+            "cases.passed": 398
+          },
+          "failures": [],
+          "note": ""
+        },
+        "web": {
+          "passed": true,
+          "counts": {
+            "pages.total": 363,
+            "pages.failed": 0,
+            "pages.passed": 363,
+            "pages.native": 363
+          },
+          "failures": [],
+          "note": ""
+        },
+        "fuzz": {
+          "passed": true,
+          "counts": {
+            "generated": 150,
+            "mutated": 150,
+            "variants.mutations": 106,
+            "variants.case": 110,
+            "seed": 20261001,
+            "programs.total": 512,
+            "programs.failed": 0,
+            "programs.passed": 444,
+            "programs.native": 444,
+            "programs.skipped": 68
+          },
+          "failures": [],
+          "note": ""
+        },
+        "projects": {
+          "passed": true,
+          "counts": {
+            "cases.total": 84,
+            "cases.failed": 0,
+            "cases.passed": 84,
+            "projects": 9,
+            "examples": 43
+          },
+          "failures": [],
+          "note": "Every example also runs in the programs gate and compiles in the web gate."
+        },
+        "site": {
+          "passed": true,
+          "counts": {
+            "files.total": 101,
+            "files.failed": 0,
+            "files.passed": 101,
+            "pages": 100
+          },
+          "failures": [],
+          "note": ""
+        },
+        "no-powershell": {
+          "passed": true,
+          "counts": {
+            "processAudit": "on",
+            "processAudit.events": 2119,
+            "runs": 1867,
+            "launches": 0,
+            "launches.allowed": 0,
+            "launches.implicit": 0,
+            "traced.byOtter": 7,
+            "traced.implicit": 0
+          },
+          "failures": [],
+          "note": "Fake pwsh/powershell/powershell.exe first on otter-net's PATH (and on Windows the process-creation audit, for a PowerShell started by its full path); a launch is allowed only for a program's own .ps1 file (-File <file>.ps1, never otter.ps1) or a program that names PowerShell itself as its command (its arguments are in the program's source)."
+        },
+        "native-coverage": {
+          "passed": true,
+          "counts": {
+            "handsToPowerShell": 0,
+            "nodeKinds": "225 of 225 native",
+            "messages.missing": 0,
+            "gaps.internalError": 13,
+            "processSites": 19,
+            "processSites.namingPowerShell": 1,
+            "processSites.unexplained": 0
+          },
+          "failures": [],
+          "note": ""
+        },
+        "desktop": {
+          "passed": true,
+          "counts": {
+            "programs.total": 26,
+            "programs.identical": 26,
+            "missingHost.exit": 1
+          },
+          "failures": [],
+          "note": ""
+        },
+        "machine-state": {
+          "passed": true,
+          "counts": {
+            "programs.total": 32,
+            "programs.failed": 0,
+            "programs.passed": 32,
+            "programs.native": 32,
+            "de-DE.total": 11,
+            "de-DE.failed": 0,
+            "de-DE.passed": 11,
+            "de-DE.native": 11,
+            "fi-FI.total": 11,
+            "fi-FI.failed": 0,
+            "fi-FI.passed": 11,
+            "fi-FI.native": 11
+          },
+          "failures": [],
+          "note": ""
+        },
+        "repository-clean": {
+          "passed": true,
+          "counts": {
+            "pathsChanged": 0
+          },
+          "failures": [],
+          "note": ""
+        }
+      }
+    },
+    "osx-arm64": {
+      "kind": "release-certification",
+      "allGatesPassed": true,
+      "referenceComparedDirectly": false,
+      "run": "https://github.com/Heavens-Lava/otter-net/actions/runs/39747899302 (attempt 1)",
+      "os": "Unix 26.6.2",
+      "gates": {
+        "build": {
+          "passed": true,
+          "counts": {
+            "solution.warnings": 0,
+            "solution.exit": 0,
+            "aot.warnings": 0,
+            "aot.exit": 0,
+            "otter.version": "Otter 1.0.1",
+            "otter.bytes": 11201512
+          },
+          "failures": [],
+          "note": ""
+        },
+        "conformance": {
+          "passed": true,
+          "counts": {
+            "fixtures.total": 15,
+            "fixtures.passed": 15,
+            "fixtures.browser": 0,
+            "programs.total": 19,
+            "programs.failed": 0,
+            "programs.passed": 16,
+            "programs.native": 16,
+            "programs.skipped": 3
+          },
+          "failures": [],
+          "note": ""
+        },
+        "programs": {
+          "passed": true,
+          "counts": {
+            "programs.total": 271,
+            "programs.failed": 0,
+            "programs.passed": 234,
+            "programs.native": 234,
+            "programs.skipped": 37
+          },
+          "failures": [],
+          "note": ""
+        },
+        "network": {
+          "passed": true,
+          "counts": {
+            "programs.total": 22,
+            "programs.failed": 0,
+            "programs.passed": 22,
+            "programs.native": 22,
+            "testServer": true
+          },
+          "failures": [],
+          "note": ""
+        },
+        "cli": {
+          "passed": true,
+          "counts": {
+            "cases.total": 398,
+            "cases.failed": 0,
+            "cases.passed": 398
+          },
+          "failures": [],
+          "note": ""
+        },
+        "web": {
+          "passed": true,
+          "counts": {
+            "pages.total": 363,
+            "pages.failed": 0,
+            "pages.passed": 363,
+            "pages.native": 363
+          },
+          "failures": [],
+          "note": ""
+        },
+        "fuzz": {
+          "passed": true,
+          "counts": {
+            "generated": 150,
+            "mutated": 150,
+            "variants.mutations": 106,
+            "variants.case": 110,
+            "seed": 20261001,
+            "programs.total": 512,
+            "programs.failed": 0,
+            "programs.passed": 444,
+            "programs.native": 444,
+            "programs.skipped": 68
+          },
+          "failures": [],
+          "note": ""
+        },
+        "projects": {
+          "passed": true,
+          "counts": {
+            "cases.total": 84,
+            "cases.failed": 0,
+            "cases.passed": 84,
+            "projects": 9,
+            "examples": 43
+          },
+          "failures": [],
+          "note": "Every example also runs in the programs gate and compiles in the web gate."
+        },
+        "site": {
+          "passed": true,
+          "counts": {
+            "files.total": 101,
+            "files.failed": 0,
+            "files.passed": 101,
+            "pages": 100
+          },
+          "failures": [],
+          "note": ""
+        },
+        "no-powershell": {
+          "passed": true,
+          "counts": {
+            "runs": 1867,
+            "launches": 3,
+            "launches.allowed": 3,
+            "launches.implicit": 0
+          },
+          "failures": [],
+          "note": "Fake pwsh/powershell/powershell.exe first on otter-net's PATH (and on Windows the process-creation audit, for a PowerShell started by its full path); a launch is allowed only for a program's own .ps1 file (-File <file>.ps1, never otter.ps1) or a program that names PowerShell itself as its command (its arguments are in the program's source)."
+        },
+        "native-coverage": {
+          "passed": true,
+          "counts": {
+            "handsToPowerShell": 0,
+            "nodeKinds": "225 of 225 native",
+            "messages.missing": 0,
+            "gaps.internalError": 13,
+            "processSites": 19,
+            "processSites.namingPowerShell": 1,
+            "processSites.unexplained": 0
+          },
+          "failures": [],
+          "note": ""
+        },
+        "desktop": {
+          "passed": true,
+          "counts": {
+            "ran": false
+          },
+          "failures": [],
+          "note": "Windows only: desktop windows (WPF) exist only on Windows."
+        },
+        "machine-state": {
+          "passed": true,
+          "counts": {
+            "ran": false
+          },
+          "failures": [],
+          "note": "Windows only."
+        },
+        "repository-clean": {
+          "passed": true,
+          "counts": {
+            "pathsChanged": 0
+          },
+          "failures": [],
+          "note": ""
+        }
+      }
+    },
+    "osx-x64": {
+      "kind": "release-certification",
+      "allGatesPassed": true,
+      "referenceComparedDirectly": false,
+      "run": "https://github.com/Heavens-Lava/otter-net/actions/runs/39747899302 (attempt 1)",
+      "os": "Unix 15.7.9",
+      "gates": {
+        "build": {
+          "passed": true,
+          "counts": {
+            "solution.warnings": 0,
+            "solution.exit": 0,
+            "aot.warnings": 0,
+            "aot.exit": 0,
+            "otter.version": "Otter 1.0.1",
+            "otter.bytes": 11614928
+          },
+          "failures": [],
+          "note": ""
+        },
+        "conformance": {
+          "passed": true,
+          "counts": {
+            "fixtures.total": 15,
+            "fixtures.passed": 15,
+            "fixtures.browser": 0,
+            "programs.total": 19,
+            "programs.failed": 0,
+            "programs.passed": 16,
+            "programs.native": 16,
+            "programs.skipped": 3
+          },
+          "failures": [],
+          "note": ""
+        },
+        "programs": {
+          "passed": true,
+          "counts": {
+            "programs.total": 271,
+            "programs.failed": 0,
+            "programs.passed": 234,
+            "programs.native": 234,
+            "programs.skipped": 37
+          },
+          "failures": [],
+          "note": ""
+        },
+        "network": {
+          "passed": true,
+          "counts": {
+            "programs.total": 22,
+            "programs.failed": 0,
+            "programs.passed": 22,
+            "programs.native": 22,
+            "testServer": true
+          },
+          "failures": [],
+          "note": ""
+        },
+        "cli": {
+          "passed": true,
+          "counts": {
+            "cases.total": 398,
+            "cases.failed": 0,
+            "cases.passed": 398
+          },
+          "failures": [],
+          "note": ""
+        },
+        "web": {
+          "passed": true,
+          "counts": {
+            "pages.total": 363,
+            "pages.failed": 0,
+            "pages.passed": 363,
+            "pages.native": 363
+          },
+          "failures": [],
+          "note": ""
+        },
+        "fuzz": {
+          "passed": true,
+          "counts": {
+            "generated": 150,
+            "mutated": 150,
+            "variants.mutations": 106,
+            "variants.case": 110,
+            "seed": 20261001,
+            "programs.total": 512,
+            "programs.failed": 0,
+            "programs.passed": 444,
+            "programs.native": 444,
+            "programs.skipped": 68
+          },
+          "failures": [],
+          "note": ""
+        },
+        "projects": {
+          "passed": true,
+          "counts": {
+            "cases.total": 84,
+            "cases.failed": 0,
+            "cases.passed": 84,
+            "projects": 9,
+            "examples": 43
+          },
+          "failures": [],
+          "note": "Every example also runs in the programs gate and compiles in the web gate."
+        },
+        "site": {
+          "passed": true,
+          "counts": {
+            "files.total": 101,
+            "files.failed": 0,
+            "files.passed": 101,
+            "pages": 100
+          },
+          "failures": [],
+          "note": ""
+        },
+        "no-powershell": {
+          "passed": true,
+          "counts": {
+            "runs": 1867,
+            "launches": 3,
+            "launches.allowed": 3,
+            "launches.implicit": 0
+          },
+          "failures": [],
+          "note": "Fake pwsh/powershell/powershell.exe first on otter-net's PATH (and on Windows the process-creation audit, for a PowerShell started by its full path); a launch is allowed only for a program's own .ps1 file (-File <file>.ps1, never otter.ps1) or a program that names PowerShell itself as its command (its arguments are in the program's source)."
+        },
+        "native-coverage": {
+          "passed": true,
+          "counts": {
+            "handsToPowerShell": 0,
+            "nodeKinds": "225 of 225 native",
+            "messages.missing": 0,
+            "gaps.internalError": 13,
+            "processSites": 19,
+            "processSites.namingPowerShell": 1,
+            "processSites.unexplained": 0
+          },
+          "failures": [],
+          "note": ""
+        },
+        "desktop": {
+          "passed": true,
+          "counts": {
+            "ran": false
+          },
+          "failures": [],
+          "note": "Windows only: desktop windows (WPF) exist only on Windows."
+        },
+        "machine-state": {
+          "passed": true,
+          "counts": {
+            "ran": false
+          },
+          "failures": [],
+          "note": "Windows only."
+        },
+        "repository-clean": {
+          "passed": true,
+          "counts": {
+            "pathsChanged": 0
+          },
+          "failures": [],
+          "note": ""
+        }
+      }
+    },
+    "linux-x64": {
+      "kind": "release-certification",
+      "allGatesPassed": true,
+      "referenceComparedDirectly": false,
+      "run": "https://github.com/Heavens-Lava/otter-net/actions/runs/39747899302 (attempt 1)",
+      "os": "Unix 7.0.0.1017",
+      "gates": {
+        "build": {
+          "passed": true,
+          "counts": {
+            "solution.warnings": 0,
+            "solution.exit": 0,
+            "aot.warnings": 0,
+            "aot.exit": 0,
+            "otter.version": "Otter 1.0.1",
+            "otter.bytes": 12258544
+          },
+          "failures": [],
+          "note": ""
+        },
+        "conformance": {
+          "passed": true,
+          "counts": {
+            "fixtures.total": 15,
+            "fixtures.passed": 15,
+            "fixtures.browser": 0,
+            "programs.total": 19,
+            "programs.failed": 0,
+            "programs.passed": 16,
+            "programs.native": 16,
+            "programs.skipped": 3
+          },
+          "failures": [],
+          "note": ""
+        },
+        "programs": {
+          "passed": true,
+          "counts": {
+            "programs.total": 271,
+            "programs.failed": 0,
+            "programs.passed": 234,
+            "programs.native": 234,
+            "programs.skipped": 37
+          },
+          "failures": [],
+          "note": ""
+        },
+        "network": {
+          "passed": true,
+          "counts": {
+            "programs.total": 22,
+            "programs.failed": 0,
+            "programs.passed": 22,
+            "programs.native": 22,
+            "testServer": true
+          },
+          "failures": [],
+          "note": ""
+        },
+        "cli": {
+          "passed": true,
+          "counts": {
+            "cases.total": 398,
+            "cases.failed": 0,
+            "cases.passed": 398
+          },
+          "failures": [],
+          "note": ""
+        },
+        "web": {
+          "passed": true,
+          "counts": {
+            "pages.total": 363,
+            "pages.failed": 0,
+            "pages.passed": 363,
+            "pages.native": 363
+          },
+          "failures": [],
+          "note": ""
+        },
+        "fuzz": {
+          "passed": true,
+          "counts": {
+            "generated": 150,
+            "mutated": 150,
+            "variants.mutations": 106,
+            "variants.case": 110,
+            "seed": 20261001,
+            "programs.total": 512,
+            "programs.failed": 0,
+            "programs.passed": 444,
+            "programs.native": 444,
+            "programs.skipped": 68
+          },
+          "failures": [],
+          "note": ""
+        },
+        "projects": {
+          "passed": true,
+          "counts": {
+            "cases.total": 84,
+            "cases.failed": 0,
+            "cases.passed": 84,
+            "projects": 9,
+            "examples": 43
+          },
+          "failures": [],
+          "note": "Every example also runs in the programs gate and compiles in the web gate."
+        },
+        "site": {
+          "passed": true,
+          "counts": {
+            "files.total": 101,
+            "files.failed": 0,
+            "files.passed": 101,
+            "pages": 100
+          },
+          "failures": [],
+          "note": ""
+        },
+        "no-powershell": {
+          "passed": true,
+          "counts": {
+            "runs": 1867,
+            "launches": 3,
+            "launches.allowed": 3,
+            "launches.implicit": 0
+          },
+          "failures": [],
+          "note": "Fake pwsh/powershell/powershell.exe first on otter-net's PATH (and on Windows the process-creation audit, for a PowerShell started by its full path); a launch is allowed only for a program's own .ps1 file (-File <file>.ps1, never otter.ps1) or a program that names PowerShell itself as its command (its arguments are in the program's source)."
+        },
+        "native-coverage": {
+          "passed": true,
+          "counts": {
+            "handsToPowerShell": 0,
+            "nodeKinds": "225 of 225 native",
+            "messages.missing": 0,
+            "gaps.internalError": 13,
+            "processSites": 19,
+            "processSites.namingPowerShell": 1,
+            "processSites.unexplained": 0
+          },
+          "failures": [],
+          "note": ""
+        },
+        "desktop": {
+          "passed": true,
+          "counts": {
+            "ran": false
+          },
+          "failures": [],
+          "note": "Windows only: desktop windows (WPF) exist only on Windows."
+        },
+        "machine-state": {
+          "passed": true,
+          "counts": {
+            "ran": false
+          },
+          "failures": [],
+          "note": "Windows only."
+        },
+        "repository-clean": {
+          "passed": true,
+          "counts": {
+            "pathsChanged": 0
+          },
+          "failures": [],
+          "note": ""
+        }
+      }
+    },
+    "linux-arm64": {
+      "kind": "release-certification",
+      "allGatesPassed": true,
+      "referenceComparedDirectly": false,
+      "run": "https://github.com/Heavens-Lava/otter-net/actions/runs/39747899302 (attempt 1)",
+      "os": "Unix 6.17.0.1022",
+      "gates": {
+        "build": {
+          "passed": true,
+          "counts": {
+            "solution.warnings": 0,
+            "solution.exit": 0,
+            "aot.warnings": 0,
+            "aot.exit": 0,
+            "otter.version": "Otter 1.0.1",
+            "otter.bytes": 12504360
+          },
+          "failures": [],
+          "note": ""
+        },
+        "conformance": {
+          "passed": true,
+          "counts": {
+            "fixtures.total": 15,
+            "fixtures.passed": 15,
+            "fixtures.browser": 0,
+            "programs.total": 19,
+            "programs.failed": 0,
+            "programs.passed": 16,
+            "programs.native": 16,
+            "programs.skipped": 3
+          },
+          "failures": [],
+          "note": ""
+        },
+        "programs": {
+          "passed": true,
+          "counts": {
+            "programs.total": 271,
+            "programs.failed": 0,
+            "programs.passed": 234,
+            "programs.native": 234,
+            "programs.skipped": 37
+          },
+          "failures": [],
+          "note": ""
+        },
+        "network": {
+          "passed": true,
+          "counts": {
+            "programs.total": 22,
+            "programs.failed": 0,
+            "programs.passed": 22,
+            "programs.native": 22,
+            "testServer": true
+          },
+          "failures": [],
+          "note": ""
+        },
+        "cli": {
+          "passed": true,
+          "counts": {
+            "cases.total": 398,
+            "cases.failed": 0,
+            "cases.passed": 398
+          },
+          "failures": [],
+          "note": ""
+        },
+        "web": {
+          "passed": true,
+          "counts": {
+            "pages.total": 363,
+            "pages.failed": 0,
+            "pages.passed": 363,
+            "pages.native": 363
+          },
+          "failures": [],
+          "note": ""
+        },
+        "fuzz": {
+          "passed": true,
+          "counts": {
+            "generated": 150,
+            "mutated": 150,
+            "variants.mutations": 106,
+            "variants.case": 110,
+            "seed": 20261001,
+            "programs.total": 512,
+            "programs.failed": 0,
+            "programs.passed": 444,
+            "programs.native": 444,
+            "programs.skipped": 68
+          },
+          "failures": [],
+          "note": ""
+        },
+        "projects": {
+          "passed": true,
+          "counts": {
+            "cases.total": 84,
+            "cases.failed": 0,
+            "cases.passed": 84,
+            "projects": 9,
+            "examples": 43
+          },
+          "failures": [],
+          "note": "Every example also runs in the programs gate and compiles in the web gate."
+        },
+        "site": {
+          "passed": true,
+          "counts": {
+            "files.total": 101,
+            "files.failed": 0,
+            "files.passed": 101,
+            "pages": 100
+          },
+          "failures": [],
+          "note": ""
+        },
+        "no-powershell": {
+          "passed": true,
+          "counts": {
+            "runs": 1867,
+            "launches": 3,
+            "launches.allowed": 3,
+            "launches.implicit": 0
+          },
+          "failures": [],
+          "note": "Fake pwsh/powershell/powershell.exe first on otter-net's PATH (and on Windows the process-creation audit, for a PowerShell started by its full path); a launch is allowed only for a program's own .ps1 file (-File <file>.ps1, never otter.ps1) or a program that names PowerShell itself as its command (its arguments are in the program's source)."
+        },
+        "native-coverage": {
+          "passed": true,
+          "counts": {
+            "handsToPowerShell": 0,
+            "nodeKinds": "225 of 225 native",
+            "messages.missing": 0,
+            "gaps.internalError": 13,
+            "processSites": 19,
+            "processSites.namingPowerShell": 1,
+            "processSites.unexplained": 0
+          },
+          "failures": [],
+          "note": ""
+        },
+        "desktop": {
+          "passed": true,
+          "counts": {
+            "ran": false
+          },
+          "failures": [],
+          "note": "Windows only: desktop windows (WPF) exist only on Windows."
+        },
+        "machine-state": {
+          "passed": true,
+          "counts": {
+            "ran": false
+          },
+          "failures": [],
+          "note": "Windows only."
+        },
+        "repository-clean": {
+          "passed": true,
+          "counts": {
+            "pathsChanged": 0
+          },
+          "failures": [],
+          "note": ""
+        }
+      }
+    }
+  },
+  "crossPlatform": {
+    "win-arm64": {
+      "compared": true,
+      "unexpected": 0,
+      "declared": 9,
+      "gates": {
+        "cli": {
+          "reference": "otterPS",
+          "compared": 398,
+          "identical": 396,
+          "declared": 2,
+          "unexpected": 0,
+          "differences": []
+        },
+        "conformance": {
+          "reference": "otterPS",
+          "compared": 16,
+          "identical": 15,
+          "declared": 1,
+          "unexpected": 0,
+          "differences": []
+        },
+        "fuzz": {
+          "reference": "otterPS",
+          "compared": 444,
+          "identical": 441,
+          "declared": 3,
+          "unexpected": 0,
+          "differences": []
+        },
+        "network": {
+          "reference": "otterPS",
+          "compared": 22,
+          "identical": 22,
+          "declared": 0,
+          "unexpected": 0,
+          "differences": []
+        },
+        "programs": {
+          "reference": "otterPS",
+          "compared": 234,
+          "identical": 231,
+          "declared": 3,
+          "unexpected": 0,
+          "differences": []
+        },
+        "projects": {
+          "reference": "otterPS",
+          "compared": 84,
+          "identical": 84,
+          "declared": 0,
+          "unexpected": 0,
+          "differences": []
+        },
+        "site": {
+          "reference": "otterPS",
+          "compared": 102,
+          "identical": 102,
+          "declared": 0,
+          "unexpected": 0,
+          "differences": []
+        },
+        "web": {
+          "reference": "otterPS",
+          "compared": 363,
+          "identical": 363,
+          "declared": 0,
+          "unexpected": 0,
+          "differences": []
+        }
+      },
+      "report": "fbc46a42ea4f6ab2775ffe4a280a7b7b158da140/cross-platform/win-arm64.md"
+    },
+    "osx-arm64": {
+      "compared": true,
+      "unexpected": 0,
+      "declared": 50,
+      "gates": {
+        "cli": {
+          "reference": "otterPS",
+          "compared": 398,
+          "identical": 372,
+          "declared": 26,
+          "unexpected": 0,
+          "differences": []
+        },
+        "conformance": {
+          "reference": "otterPS",
+          "compared": 16,
+          "identical": 14,
+          "declared": 2,
+          "unexpected": 0,
+          "differences": []
+        },
+        "fuzz": {
+          "reference": "otterPS",
+          "compared": 444,
+          "identical": 438,
+          "declared": 6,
+          "unexpected": 0,
+          "differences": []
+        },
+        "network": {
+          "reference": "otterPS",
+          "compared": 22,
+          "identical": 22,
+          "declared": 0,
+          "unexpected": 0,
+          "differences": []
+        },
+        "programs": {
+          "reference": "otterPS",
+          "compared": 234,
+          "identical": 219,
+          "declared": 15,
+          "unexpected": 0,
+          "differences": []
+        },
+        "projects": {
+          "reference": "otterPS",
+          "compared": 84,
+          "identical": 83,
+          "declared": 1,
+          "unexpected": 0,
+          "differences": []
+        },
+        "site": {
+          "reference": "otterPS",
+          "compared": 102,
+          "identical": 102,
+          "declared": 0,
+          "unexpected": 0,
+          "differences": []
+        },
+        "web": {
+          "reference": "otterPS",
+          "compared": 363,
+          "identical": 363,
+          "declared": 0,
+          "unexpected": 0,
+          "differences": []
+        }
+      },
+      "report": "fbc46a42ea4f6ab2775ffe4a280a7b7b158da140/cross-platform/osx-arm64.md"
+    },
+    "osx-x64": {
+      "compared": true,
+      "unexpected": 0,
+      "declared": 50,
+      "gates": {
+        "cli": {
+          "reference": "otterPS",
+          "compared": 398,
+          "identical": 372,
+          "declared": 26,
+          "unexpected": 0,
+          "differences": []
+        },
+        "conformance": {
+          "reference": "otterPS",
+          "compared": 16,
+          "identical": 14,
+          "declared": 2,
+          "unexpected": 0,
+          "differences": []
+        },
+        "fuzz": {
+          "reference": "otterPS",
+          "compared": 444,
+          "identical": 438,
+          "declared": 6,
+          "unexpected": 0,
+          "differences": []
+        },
+        "network": {
+          "reference": "otterPS",
+          "compared": 22,
+          "identical": 22,
+          "declared": 0,
+          "unexpected": 0,
+          "differences": []
+        },
+        "programs": {
+          "reference": "otterPS",
+          "compared": 234,
+          "identical": 219,
+          "declared": 15,
+          "unexpected": 0,
+          "differences": []
+        },
+        "projects": {
+          "reference": "otterPS",
+          "compared": 84,
+          "identical": 83,
+          "declared": 1,
+          "unexpected": 0,
+          "differences": []
+        },
+        "site": {
+          "reference": "otterPS",
+          "compared": 102,
+          "identical": 102,
+          "declared": 0,
+          "unexpected": 0,
+          "differences": []
+        },
+        "web": {
+          "reference": "otterPS",
+          "compared": 363,
+          "identical": 363,
+          "declared": 0,
+          "unexpected": 0,
+          "differences": []
+        }
+      },
+      "report": "fbc46a42ea4f6ab2775ffe4a280a7b7b158da140/cross-platform/osx-x64.md"
+    },
+    "linux-x64": {
+      "compared": true,
+      "unexpected": 0,
+      "declared": 51,
+      "gates": {
+        "cli": {
+          "reference": "otterPS",
+          "compared": 398,
+          "identical": 372,
+          "declared": 26,
+          "unexpected": 0,
+          "differences": []
+        },
+        "conformance": {
+          "reference": "otterPS",
+          "compared": 16,
+          "identical": 14,
+          "declared": 2,
+          "unexpected": 0,
+          "differences": []
+        },
+        "fuzz": {
+          "reference": "otterPS",
+          "compared": 444,
+          "identical": 438,
+          "declared": 6,
+          "unexpected": 0,
+          "differences": []
+        },
+        "network": {
+          "reference": "otterPS",
+          "compared": 22,
+          "identical": 22,
+          "declared": 0,
+          "unexpected": 0,
+          "differences": []
+        },
+        "programs": {
+          "reference": "otterPS",
+          "compared": 234,
+          "identical": 218,
+          "declared": 16,
+          "unexpected": 0,
+          "differences": []
+        },
+        "projects": {
+          "reference": "otterPS",
+          "compared": 84,
+          "identical": 83,
+          "declared": 1,
+          "unexpected": 0,
+          "differences": []
+        },
+        "site": {
+          "reference": "otterPS",
+          "compared": 102,
+          "identical": 102,
+          "declared": 0,
+          "unexpected": 0,
+          "differences": []
+        },
+        "web": {
+          "reference": "otterPS",
+          "compared": 363,
+          "identical": 363,
+          "declared": 0,
+          "unexpected": 0,
+          "differences": []
+        }
+      },
+      "report": "fbc46a42ea4f6ab2775ffe4a280a7b7b158da140/cross-platform/linux-x64.md"
+    },
+    "linux-arm64": {
+      "compared": true,
+      "unexpected": 0,
+      "declared": 51,
+      "gates": {
+        "cli": {
+          "reference": "otterPS",
+          "compared": 398,
+          "identical": 372,
+          "declared": 26,
+          "unexpected": 0,
+          "differences": []
+        },
+        "conformance": {
+          "reference": "otterPS",
+          "compared": 16,
+          "identical": 14,
+          "declared": 2,
+          "unexpected": 0,
+          "differences": []
+        },
+        "fuzz": {
+          "reference": "otterPS",
+          "compared": 444,
+          "identical": 438,
+          "declared": 6,
+          "unexpected": 0,
+          "differences": []
+        },
+        "network": {
+          "reference": "otterPS",
+          "compared": 22,
+          "identical": 22,
+          "declared": 0,
+          "unexpected": 0,
+          "differences": []
+        },
+        "programs": {
+          "reference": "otterPS",
+          "compared": 234,
+          "identical": 218,
+          "declared": 16,
+          "unexpected": 0,
+          "differences": []
+        },
+        "projects": {
+          "reference": "otterPS",
+          "compared": 84,
+          "identical": 83,
+          "declared": 1,
+          "unexpected": 0,
+          "differences": []
+        },
+        "site": {
+          "reference": "otterPS",
+          "compared": 102,
+          "identical": 102,
+          "declared": 0,
+          "unexpected": 0,
+          "differences": []
+        },
+        "web": {
+          "reference": "otterPS",
+          "compared": 363,
+          "identical": 363,
+          "declared": 0,
+          "unexpected": 0,
+          "differences": []
+        }
+      },
+      "report": "fbc46a42ea4f6ab2775ffe4a280a7b7b158da140/cross-platform/linux-arm64.md"
+    }
+  },
+  "missing": [],
+  "certified": true
+}
