@@ -122,5 +122,6 @@ retired) with the owner's approval. otterPS 1.0.1 is never modified.
 Before testers start, the kit was run against the official artifact on
 clean machines of every platform (`.github/workflows/preview-kit.yml`):
 Windows x64 and Arm64 (MSI, Windows PowerShell 5.1), Debian 12 x64 and
-Arm64 (`.deb`), and macOS arm64 and x64 (`.tar.gz`). The result is in the
-row above once the run finishes.
+Arm64 (`.deb`), and macOS arm64 and x64 (`.tar.gz`): run
+[39901335533](https://github.com/Heavens-Lava/otter-net/actions/runs/39901335533),
+**11 passed, 0 failed on all six** (2026-10-23).
