@@ -1,8 +1,10 @@
 #!/bin/sh
 # Removes an otter-net installation made by install.sh: its folder (only one
-# carrying otter-net's installation marker), the ~/.local/bin/otter launcher
-# when install.sh wrote it, and puts back the PowerShell Otter's launcher if
-# install.sh replaced it.
+# carrying otter-net's installation marker) and the ~/.local/bin/otter-net
+# launcher when install.sh wrote it for that folder. The stable `otter`
+# command is left alone, except a ~/.local/bin/otter launcher an earlier
+# otter-net preview wrote for that folder: it is removed, and the PowerShell
+# Otter's launcher it replaced is put back while that installation exists.
 #
 #   uninstall.sh [--destination DIR] [--bin-dir DIR]
 #
@@ -23,7 +25,7 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --destination) [ $# -ge 2 ] || fail "--destination needs a folder"; dest=$2; shift 2 ;;
         --bin-dir) [ $# -ge 2 ] || fail "--bin-dir needs a folder"; bin_dir=$2; shift 2 ;;
-        -h|--help) sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        -h|--help) sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) fail "unknown option $1 (see --help)" ;;
     esac
 done
@@ -34,32 +36,34 @@ if [ -z "$dest" ]; then
     fi
 fi
 
-shim="$bin_dir/otter"
-if [ -f "$shim" ]; then
-    second=$(sed -n '2p' "$shim" 2>/dev/null || true)
-    case "$second" in
-        "$launcher_marker"*)
-            if grep -qF "$dest/otter" "$shim"; then
-                # The otterPS launcher install.sh kept runs
-                # exec '<its folder>/otter' "$@"; it goes back only while that
-                # installation still exists (otterPS may have been uninstalled
-                # since, which leaves otter-net's launcher in place).
-                otterps_target=""
-                if [ -f "$root/otterps-launcher" ]; then
-                    otterps_target=$(sed -n "3s/^exec '\\(.*\\)' \"\\\$@\"\$/\\1/p" "$root/otterps-launcher" | sed "s/'\\\\''/'/g")
-                fi
-                if [ -f "$root/otterps-launcher" ] && { [ -z "$otterps_target" ] || [ -e "$otterps_target" ]; }; then
-                    mv -f "$root/otterps-launcher" "$shim"
-                    echo "Put back the PowerShell Otter's otter command in $bin_dir."
-                elif [ -f "$root/otterps-launcher" ]; then
-                    rm -f "$root/otterps-launcher" "$shim"
-                    echo "Removed the otter command from $bin_dir (the PowerShell Otter it replaced, $otterps_target, is no longer installed)."
-                else
-                    rm -f "$shim"
-                    echo "Removed the otter command from $bin_dir."
-                fi
-            fi ;;
-    esac
+# ours <launcher>: a regular file (not a link) install.sh wrote for this
+# installation (the path quoted as install.sh quotes it).
+escaped_dest=$(printf '%s' "$dest" | sed "s/'/'\\\\''/g")
+ours() {
+    [ -f "$1" ] && [ ! -L "$1" ] || return 1
+    case "$(sed -n '2p' "$1" 2>/dev/null || true)" in "$launcher_marker"*) ;; *) return 1 ;; esac
+    grep -qF "exec '$escaped_dest/" "$1"
+}
+
+shim="$bin_dir/otter-net"
+if ours "$shim"; then
+    rm -f "$shim"
+    echo "Removed the otter-net command from $bin_dir."
+fi
+
+legacy="$bin_dir/otter"
+if ours "$legacy"; then
+    otterps_target=""
+    if [ -f "$root/otterps-launcher" ]; then
+        otterps_target=$(sed -n "3s/^exec '\\(.*\\)' \"\\\$@\"\$/\\1/p" "$root/otterps-launcher" | sed "s/'\\\\''/'/g")
+    fi
+    if [ -f "$root/otterps-launcher" ] && { [ -z "$otterps_target" ] || [ -e "$otterps_target" ]; }; then
+        mv -f "$root/otterps-launcher" "$legacy"
+        echo "Put back the PowerShell Otter's otter command in $bin_dir."
+    else
+        rm -f "$root/otterps-launcher" "$legacy"
+        echo "Removed an earlier otter-net preview's otter command from $bin_dir."
+    fi
 fi
 
 if [ ! -e "$dest" ]; then

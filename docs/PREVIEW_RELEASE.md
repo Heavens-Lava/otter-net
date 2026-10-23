@@ -14,10 +14,10 @@ it).
 
 | Where | Shows |
 |---|---|
-| `otter --version` (and `otter-desktop.exe --version`) | `Otter 1.0.1` - unchanged: the **language** version (`Program.Version`, defined by otterPS) |
+| `otter-net --version` (and `otter-desktop.exe --version`) | `Otter 1.0.1` - unchanged: the **language** version (`Program.Version`, defined by otterPS) |
 | package file names, `VERSION` in every install, the `.pkg` | `0.9.0-preview.1` |
 | Windows Settings > Apps | "Otter (otter-net) 0.9.0-preview.1", version `0.9.0`, comment "Otter 1.0.1, native implementation (otter-net) - internal preview 0.9.0-preview.1, unsigned. Not an Otter release." |
-| `otter.exe` / `otter-desktop.exe` file properties | product "Otter (otter-net)", version 0.9.0-preview.1 |
+| `otter-net.exe` / `otter-desktop.exe` file properties | product "Otter (otter-net)", version 0.9.0-preview.1 |
 | MSI ProductVersion (numbers only) | `0.9.0` (previews of 0.9.0 upgrade each other: `AllowSameVersionUpgrades`) |
 | `.deb` | `0.9.0~preview.1` (sorts before `0.9.0`); description "otter-net internal preview" |
 | `.pkg` title | "Otter (otter-net) 0.9.0-preview.1 - internal preview" |
@@ -50,34 +50,51 @@ it).
 | | otterPS 1.0.1 (released) and its unpublished installers | otter-net internal preview |
 |---|---|---|
 | Product name | Otter / "Otter Programming Language" (MSI, Store) | **Otter (otter-net)** |
+| Command | **`otter`** | **`otter-net`** only - no otter-net package installs, replaces or removes an `otter` command |
 | Windows MSI UpgradeCode | `F2065F2E-9E7A-405C-810C-3826A1DAAE39` (built, not published) | **`B6DDDF92-EF9A-4FC0-ACA2-E1E3B3413E9B`** |
 | Windows install folder | ZIP: `%LOCALAPPDATA%\Otter\1.0.1`; MSI: `%LOCALAPPDATA%\Programs\Otter` | **`%LOCALAPPDATA%\Programs\otter-net`** (MSI); the ZIP runs where it is extracted |
-| Windows PATH | its folder **appended** to the user PATH (`Install-Otter.ps1 -AddToUserPath`; its MSI: `Part="last"`) | its folder **first** in the user PATH (MSI, `Part="first"`); removed on uninstall; the machine PATH is never touched |
+| Windows PATH | its folder **appended** to the user PATH (`Install-Otter.ps1 -AddToUserPath`; its MSI: `Part="last"`) | its folder **appended** to the user PATH (MSI, `Part="last"`); it holds `otter-net.exe` and `otter-desktop.exe`, no `otter`; removed on uninstall; the machine PATH is never touched |
 | Windows registry | `HKCU\Software\Otter` (MSI) | **`HKCU\Software\otter-net`** |
 | Settings > Apps | "Otter Programming Language" (MSI) | **"Otter (otter-net) 0.9.0-preview.1"** |
 | winget | `JeffreyMacy.Otter`, moniker `otter` (manifest written, not submitted) | **none** - not reused, nothing submitted |
 | Microsoft Store | `JeffreyMacy.OtterProgrammingLanguage` (published; app execution alias `otter.exe`) | **none** |
-| macOS | ZIP: `~/.local/share/otter/1.0.1`, launcher `~/.local/bin/otter`; no pkg | **pkgutil id `com.otterprogramming.otter-net`**, `/usr/local/lib/otter-net/<v>`, link `/usr/local/bin/otter`; tarball: `~/.local/share/otter-net/<v>` |
-| Debian / Chromebook | ZIP as on macOS; no .deb | **dpkg package `otter-net`**, `/usr/lib/otter-net/otter`, link `/usr/bin/otter`, docs `/usr/share/doc/otter-net` |
-| `otter --version` | `Otter 1.0.1` | `Otter 1.0.1` (same language) |
+| macOS | ZIP: `~/.local/share/otter/1.0.1`, launcher `~/.local/bin/otter`; no pkg | **pkgutil id `com.otterprogramming.otter-net`**, `/usr/local/lib/otter-net/<v>/otter-net`, link `/usr/local/bin/otter-net`; tarball: `~/.local/share/otter-net/<v>`, launcher `~/.local/bin/otter-net` |
+| Debian / Chromebook | ZIP as on macOS; no .deb | **dpkg package `otter-net`**, `/usr/lib/otter-net/otter-net`, link `/usr/bin/otter-net`, docs `/usr/share/doc/otter-net` |
+| `--version` | `otter --version`: `Otter 1.0.1` | `otter-net --version`: `Otter 1.0.1` (same language) |
 
 No installer of otter-net writes, moves or deletes anything of otterPS's,
 and otter-net no longer reads otterPS's installation at all (since
 `c474ab8` it never starts PowerShell). The coexistence tests below check
 this in both install and uninstall orders.
 
-**How a user tells them apart** (both print `Otter 1.0.1`): the command's
-path - `where.exe otter` on Windows (otter-net:
-`...\Programs\otter-net\otter.exe`; otterPS: `...\Otter\1.0.1\otter.cmd`),
-`ls -l "$(command -v otter)"` on macOS and Linux - the package's `VERSION`
-file, Settings > Apps / `pkgutil --pkgs` / `dpkg -l otter-net`. Each
-package's README says so ("Which otter am I running?").
+**`otter` is never otter-net's** (the owner's decision, 2026-10-22):
+otter-net is invoked explicitly as `otter-net`, with exactly `otter`'s
+arguments (its messages still say `otter`, word for word as Otter 1.0.1).
+Installing or uninstalling otter-net does not change which runtime `otter`
+selects: otterPS's while it is installed, otherwise none. The executable is
+published as `otter` (`otter.exe`) and every package carries it as
+`otter-net` (`otter-net.exe`); it locates `otter-desktop.exe` and runs
+itself (`otter test`) by its own path, never by name. Earlier preview
+builds (before this change) did take `otter`; installing this one undoes
+that: the `.pkg` removes an earlier otter-net `/usr/local/bin/otter` link,
+`install.sh` gives `~/.local/bin/otter` back to otterPS (or removes it when
+that otterPS is gone; `--replace-otterps-launcher` is refused now), and
+the MSI's and `.deb`'s upgrades remove the old files themselves.
 
-**Identifiers to confirm** (placeholders the owner should own):
-`com.otterprogramming.otter-net` assumes the owner controls
-otterprogramming.com (it is the project's homepage); the `.deb` Maintainer
-is the GitHub no-reply address; the MSI Manufacturer is "Jeffrey Macy" (as
-otterPS's MSI).
+**Identifiers:** `com.otterprogramming.otter-net` for macOS (confirmed by
+the owner, 2026-10-22); the MSI Manufacturer is "Jeffrey Macy" (as otterPS's
+MSI). The `.deb` Maintainer is still the GitHub no-reply address
+(`114191752+Heavens-Lava@users.noreply.github.com`, which receives no
+mail) - **proposed replacement, not applied:** `Jeffrey Macy
+<otter-net@otterprogramming.com>`. otterprogramming.com's DNS has mail
+forwarding (MX `eforward1-5.registrar-servers.com`, SPF
+`include:spf.efwd.registrar-servers.com`, checked 2026-10-22), so a
+forwarding address there is project-controlled and keeps the owner's own
+address private. Before it goes into `distribution/linux/control`: create
+the forward in the registrar's mail-forwarding settings and confirm a test
+message arrives. (otterPS's `SECURITY.md` names `security@otter-lang.org`;
+otter-lang.org does not resolve, so that address cannot receive mail -
+reported to the owner, otterPS unchanged.)
 
 ## The packages
 
@@ -211,32 +228,28 @@ coexistence job's own check, which counted where.exe's extensionless match
 (otterPS's macOS/Linux launcher `otter`, which cmd and PowerShell never
 run) as the first `otter`; fixed in the test.
 
-## Decisions for the owner
+## The owner's decisions (2026-10-22)
 
-1. **The version scheme** (above): `0.9.0-preview.N` for previews, and
-   what a final otter-net release is called (0.9.x/1.0.0 of its own, or
-   Otter 1.0.2/1.1 under otterPS's identities).
-2. **Identity at release: beside otterPS or replacing it.** The preview
-   deliberately sits beside it. Replacing means taking otterPS's MSI
-   UpgradeCode, winget `JeffreyMacy.Otter` and the Store package - and
-   deciding what happens to ZIP installs at `%LOCALAPPDATA%\Otter`.
-3. **`otter --version`**: keep `Otter 1.0.1` (today; byte-for-byte with
-   otterPS), or add the implementation and package version (e.g. a second
-   line or `--version --verbose`) - a behaviour change, so a language/CLI
-   decision, not packaging.
-4. **Desktop runtime size**: the self-contained `otter-desktop.exe` adds
-   41-58 MB to each Windows download (see the table). Alternatives: ship
-   it framework-dependent and require the .NET 10 Desktop Runtime, or make
-   desktop windows an optional MSI feature/download.
-5. **WPF resource languages**: the preview carries English WPF resources
-   only (as verified so far); including WPF's other languages (measured
-   for win-x64: +9.0 MB installed, +3.0 MB in the ZIP) would show WPF's own texts in the user's display language, as
-   otterPS on Windows PowerShell does (SPEC-QUESTIONS W5-5).
-6. **Public artifacts**: this repository is public, so anyone signed in to
-   GitHub can download the preview artifact for 30 days. If that is not
-   wanted: make the repository private, or delete the run's artifact
-   after the internal testers have it (`gh api -X DELETE
-   repos/Heavens-Lava/otter-net/actions/artifacts/<id>`).
-7. **Signing**: `docs/SIGNING.md` (costs, recommendation, approvals).
-8. **Identifiers above** (`com.otterprogramming.otter-net`, maintainer
-   address).
+1. **Internal preview approved** for trusted testing
+   ([PREVIEW_TESTING.md](PREVIEW_TESTING.md): installation and feedback).
+2. **Version:** `0.9.0-preview.1` is the native-engine product version;
+   the language stays Otter 1.0.1 (`--version` prints `Otter 1.0.1`).
+3. **Separate from otterPS:** its installer, Store and winget identities and
+   its stable `otter` command are not overwritten; otter-net is the
+   `otter-net` command.
+4. **The self-contained Windows desktop companion stays.**
+5. **Signing:** prepare the Windows and Apple infrastructure, buy nothing
+   and sign up for nothing yet ([SIGNING.md](SIGNING.md)).
+6. **`com.otterprogramming.otter-net`** for macOS; a verified
+   project-controlled Debian maintainer address is proposed above, to be
+   confirmed before it is used.
+7. **The internal-preview artifact is kept for now.** It is unsigned and
+   publicly downloadable (public repository): never described as private
+   or production-ready.
+8. Merge into `main` after the final review, once the intended changes and
+   the required checks are verified. No public release, package
+   publication, tag, Store or winget submission, or expense.
+
+Still open: WPF's resource languages (English only today; other
+languages +9.0 MB installed for win-x64), and `otter-net --version` showing
+the product version (a CLI behaviour change, so a language/CLI decision).

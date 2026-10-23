@@ -24,7 +24,7 @@ processes it starts):
    ("You must install or update .NET"); if it starts, the test stops, since
    .NET was still found.
 
-Then it installs the MSI and runs, with the installed otter.exe:
+Then it installs the MSI and runs, with the installed otter-net.exe:
 - tests\compat's desktop programs that close themselves (ui_run_create*.ot):
   they create WPF controls, so WPF must load;
 - with -Harness (a self-contained desktop-harness) and -OtterPs (otterPS
@@ -224,7 +224,7 @@ try {
     # ---- The installed package ----
     $process = Start-Process msiexec.exe -ArgumentList @('/i', "`"$Msi`"", '/qn', '/norestart', '/l*v', "`"$(Join-Path $LogDirectory 'nodotnet-install.log')`"") -Wait -PassThru
     if ($process.ExitCode -ne 0) { throw "msiexec /i failed ($($process.ExitCode))" }
-    $otter = Join-Path $installDir 'otter.exe'
+    $otter = Join-Path $installDir 'otter-net.exe'
     $desktop = Join-Path $installDir 'otter-desktop.exe'
     if (-not (Test-Path $desktop)) { throw "no $desktop" }
     Note ("- installed otter-desktop.exe: {0:N0} bytes; beside it: {1}" -f (Get-Item $desktop).Length, ((Get-ChildItem $installDir -Filter '*_cor3.dll' | ForEach-Object Name) -join ', '))
@@ -238,7 +238,7 @@ try {
         $harnessResult.Out | Write-Host
         if ($harnessResult.Err) { $harnessResult.Err | Write-Host }
         $line = @($harnessResult.Out -split "`r?`n" | Where-Object { $_ -match '\d+ of \d+' } | Select-Object -Last 1)
-        if ($harnessResult.Code -eq 0) { Pass "desktop harness without .NET: $line"; Note "- msi: tests\desktop with the self-contained harness, the installed otter.exe and no .NET, against otterPS 1.0.1: $line" }
+        if ($harnessResult.Code -eq 0) { Pass "desktop harness without .NET: $line"; Note "- msi: tests\desktop with the self-contained harness, the installed otter-net.exe and no .NET, against otterPS 1.0.1: $line" }
         else { Fail "desktop harness without .NET (exit $($harnessResult.Code)): $line"; Note "- msi: tests\desktop harness without .NET FAILED (exit $($harnessResult.Code)): $line" }
     }
 
@@ -252,7 +252,7 @@ try {
         Add-Type -AssemblyName System.IO.Compression.FileSystem
         [System.IO.Compression.ZipFile]::ExtractToDirectory($Zip, $extract)
         $folder = (Get-ChildItem $extract -Directory | Select-Object -First 1).FullName
-        Test-DesktopPrograms -Otter (Join-Path $folder 'otter.exe') -Label 'zip'
+        Test-DesktopPrograms -Otter (Join-Path $folder 'otter-net.exe') -Label 'zip'
         Note '- zip: the same desktop programs ran from the extracted ZIP without .NET'
     }
 }

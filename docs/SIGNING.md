@@ -1,10 +1,13 @@
 # Signing and notarization plan
 
-Status (2026-10-21): **a plan only.** Nothing has been bought, signed up
-for, or signed. Every package built so far, including the internal preview
-(`docs/PREVIEW_RELEASE.md`), is unsigned. The prices below were checked on
-2026-10-21 (sources linked; confirm them again before buying). The
-decisions at the end are the owner's.
+Status (2026-10-22): **infrastructure prepared, not active.** The owner
+asked (2026-10-22) to prepare Windows and Apple signing without buying
+subscriptions or signing up for paid services. Done: the signing script,
+the packaging hooks and a rehearsal in every `package.yml` run (below).
+Nothing has been bought, signed up for, or signed with a real identity;
+every package built so far, including the internal preview, is unsigned.
+The prices below were checked on 2026-10-21 (sources linked; confirm them
+again before buying). The decisions at the end are the owner's.
 
 ## Why it matters
 
@@ -25,13 +28,13 @@ decisions at the end are the owner's.
 
 | Platform | Item | How | Notes |
 |---|---|---|---|
-| Windows | `otter.exe` (Native AOT) | Authenticode, SHA-256, RFC 3161 timestamp | both x64 and Arm64 |
+| Windows | `otter-net.exe` (Native AOT) | Authenticode, SHA-256, RFC 3161 timestamp | both x64 and Arm64 |
 | Windows | `otter-desktop.exe` (self-contained single file) | Authenticode | the `*_cor3.dll` beside it are Microsoft's and already Microsoft-signed; check with `signtool verify /pa` and leave them alone |
 | Windows | the `.msi` | Authenticode (`signtool` signs MSI files) | sign the executables **before** the MSI is built (they are inside its cabinet), then the MSI |
 | Windows | the `.zip` | not signable; its executables are signed | publish SHA-256 sums beside it (already done) |
-| macOS | `otter` (Native AOT, arm64 and x64) | `codesign` with a **Developer ID Application** certificate, `--options runtime` (Hardened Runtime) and `--timestamp` | Native AOT needs no entitlements ([Microsoft](https://learn.microsoft.com/en-us/dotnet/core/deploying/macos)) |
+| macOS | `otter-net` (Native AOT, arm64 and x64) | `codesign` with a **Developer ID Application** certificate, `--options runtime` (Hardened Runtime) and `--timestamp` | Native AOT needs no entitlements ([Microsoft](https://learn.microsoft.com/en-us/dotnet/core/deploying/macos)) |
 | macOS | the `.pkg` | `productbuild --sign` (or `productsign`) with a **Developer ID Installer** certificate | then notarize and staple |
-| macOS | the `.tar.gz` | not signable; its `otter` is signed and notarized | a bare executable cannot be stapled: Gatekeeper checks its notarization online the first time ([Apple](https://developer.apple.com/documentation/security/customizing-the-notarization-workflow)) |
+| macOS | the `.tar.gz` | not signable; its `otter-net` is signed and notarized | a bare executable cannot be stapled: Gatekeeper checks its notarization online the first time ([Apple](https://developer.apple.com/documentation/security/customizing-the-notarization-workflow)) |
 | Linux | the `.deb` | normally unsigned (`dpkg-sig` is gone from Debian; `debsigs` is not checked by apt) | only an apt repository is signed: its `InRelease`/`Release.gpg`, with an OpenPGP key users install as a `Signed-By:` keyring |
 | all | `SHA256SUMS` | optionally a detached OpenPGP or Sigstore signature | free |
 
@@ -114,50 +117,137 @@ Windows), so check before choosing that route.
   repository files generated in CI with `reprepro` or `aptly` and served
   from GitHub Pages). Not needed for the preview.
 
-## Pipeline changes (when the owner approves)
+## What is in place (2026-10-22)
 
-All in `package.yml`, all in the **build** jobs, before anything is packed:
+- **`tools/sign.ps1 -Kind exe|msi|macho|pkg -Files ...`**, one entry point
+  whose identity comes from `OTTER_SIGN_PROVIDER`:
+  - `artifact-signing` - Windows, Azure Artifact Signing through
+    `signtool /dlib` (`OTTER_SIGN_DLIB` = `Azure.CodeSigning.Dlib.dll`,
+    `OTTER_SIGN_METADATA` = a `metadata.json` with `Endpoint`,
+    `CodeSigningAccountName`, `CertificateProfileName`; the Azure login is
+    `azure/login`'s OIDC session);
+  - `pfx` - Windows, a `.pfx` (`OTTER_SIGN_PFX`, `OTTER_SIGN_PFX_PASSWORD`),
+    imported into the user's certificate store for the run and chosen by
+    thumbprint (the password is never a command-line argument), removed
+    afterwards; the rehearsal uses it with a self-signed certificate;
+  - `developer-id` - macOS: `codesign --options runtime --timestamp` with
+    `OTTER_SIGN_APP_IDENTITY`, `productsign` with
+    `OTTER_SIGN_INSTALLER_IDENTITY` (keychain `OTTER_SIGN_KEYCHAIN`), and,
+    with `OTTER_NOTARY_KEY` / `_KEY_ID` / `_ISSUER` (App Store Connect API
+    key), `notarytool submit --wait` (must end `Accepted`), `stapler staple`
+    and `spctl --assess` for the `.pkg`; the bare executable is submitted
+    in a zip (it cannot be stapled);
+  - `adhoc` - macOS rehearsal: an ad-hoc signature with the Hardened Runtime.
 
-1. **Windows build jobs** (`windows-build`):
-   - After `dotnet publish` of `otter` and `otter-desktop`, and before
-     `package.ps1` makes the zip and the MSI: sign `otter.exe` and
-     `otter-desktop.exe`. `package.ps1` gets a `-SignCommand` hook (or is
-     split: publish, sign, pack) so the signed files are what the zip and
-     the MSI carry. Then sign the MSI.
-   - Artifact Signing's action runs on Windows x64 runners only: the
-     `win-arm64` job builds on `windows-11-arm` as now, uploads the unsigned
-     executables, and a small `windows-sign` job on `windows-latest` signs
-     both architectures' files (signing does not care about the file's
-     architecture), then packs the arm64 zip/MSI there or sends the signed
-     files back. Simplest: build both MSIs on `windows-latest` (WiX builds
-     an arm64 MSI on x64) from signed executables.
-   - Steps: `azure/login@v2` (`client-id`, `tenant-id`, `subscription-id`
-     from repository **variables**; OIDC, `permissions: id-token: write`
-     on that job only), then `azure/artifact-signing-action@v2` with
-     `endpoint`, `signing-account-name`, `certificate-profile-name`,
-     `files-folder`, `file-digest: SHA256`,
-     `timestamp-rfc3161: http://timestamp.acs.microsoft.com`,
-     `timestamp-digest: SHA256`.
-   - Check: `signtool verify /pa /v` on every signed file; the test jobs
-     also check `Get-AuthenticodeSignature` is `Valid` for the installed
-     files.
-2. **macOS build jobs** (`macos-build`):
-   - Import the Developer ID certificates (`.p12` + password, base64 in
-     secrets) into a temporary keychain made for the job (`security
-     create-keychain`, `security import`, `security set-key-partition-list`),
-     deleted at the end.
-   - `codesign --force --options runtime --timestamp --sign "Developer ID
-     Application: Jeffrey Macy (TEAMID)" otter` before packing; `productbuild
-     --sign "Developer ID Installer: ..."` in `package.ps1` (a `-SignIdentity`
-     parameter); `notarytool submit --key ... --key-id ... --issuer ...
-     --wait`; `stapler staple` the `.pkg`.
-   - Test jobs add `spctl --assess --type install` (pkg) and `codesign
-     --verify --strict` / `spctl --assess --type execute` (otter).
-3. **Linux:** no change (optionally `gpg --detach-sign SHA256SUMS`).
-4. **Only on approved runs:** signing jobs run only on `workflow_dispatch`
-   from a protected branch or tag, in a GitHub **environment** (e.g.
-   `signing`) with required reviewer = the owner, so a pull request can
-   never reach the signing identity. Pull requests keep building unsigned.
+  Windows signatures (up to three tries each, for a timestamp server that
+  misses once) are SHA-256 with an RFC 3161 timestamp
+  (`OTTER_SIGN_TIMESTAMP`, default `http://timestamp.acs.microsoft.com`),
+  and each is checked after signing (signer, timestamp; `Valid` for a real
+  identity).
+- **`tools/package.ps1 -Sign`** signs at the right points: a copy of the
+  published executable before anything is packed (so the zip, the MSI, the
+  tarball and the `.pkg` all carry the signed file, and the shared publish
+  folder stays unsigned), `otter-desktop.exe` likewise (WPF's `*_cor3.dll`
+  are Microsoft-signed and left alone), then the built `.msi` or `.pkg`;
+  checksums are computed after signing. It runs the signed executable's
+  `--version` (on macOS this proves it runs under the Hardened Runtime).
+  Linux packages are not signed (`-Sign` is ignored there).
+- **A rehearsal in every `package.yml` run**, discarded afterwards:
+  Windows x64 and Arm64 sign `otter-net.exe`, `otter-desktop.exe` and the
+  MSI with a throwaway self-signed certificate made in the job (timestamped
+  by DigiCert's public TSA), check every signature and run the signed
+  executable; macOS arm64 and x64 sign ad hoc with the Hardened Runtime,
+  check the flag, run the signed executable and check it is what the
+  `.tar.gz` and `.pkg` carry. A Native AOT `otter-net` runs under the
+  Hardened Runtime with no entitlements (also checked locally on an Apple
+  silicon Mac, 2026-10-22).
+
+Not exercised without the real accounts: Artifact Signing's dlib and
+login, Developer ID certificates, productsign, notarization and stapling.
+
+## Turning it on (after the owner approves and the accounts exist)
+
+1. **Accounts** (the spend): Azure subscription + Artifact Signing account
+   (Basic) with identity validation and a "Public Trust" certificate
+   profile; Apple Developer Program enrolment, then a Developer ID
+   Application and a Developer ID Installer certificate, and an App Store
+   Connect API key with the "Developer" role.
+2. **A GitHub environment `signing`** with the owner as required reviewer,
+   deployable only from `release/*` branches and tags. Its variables:
+   `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`,
+   `ARTIFACT_SIGNING_ENDPOINT`, `ARTIFACT_SIGNING_ACCOUNT`,
+   `ARTIFACT_SIGNING_PROFILE`, `APPLE_APP_IDENTITY`,
+   `APPLE_INSTALLER_IDENTITY`, `APPLE_NOTARY_KEY_ID`, `APPLE_NOTARY_ISSUER`;
+   its secrets: `APPLE_CERTIFICATES_P12` (both certificates, base64),
+   `APPLE_CERTIFICATES_PASSWORD`, `APPLE_NOTARY_KEY_P8` (base64).
+   An Entra app registration with a federated credential for
+   `repo:Heavens-Lava/otter-net:environment:signing` and only the
+   "Artifact Signing Certificate Profile Signer" role.
+3. **package.yml**: a `workflow_dispatch` input `sign` (default false); the
+   build jobs get `environment: signing` and `permissions: id-token: write`
+   only for a signing run (e.g. separate `windows-sign-build` /
+   `macos-sign-build` jobs with `if: inputs.sign`, so ordinary runs never
+   wait for an approval), and before `package.ps1 ... -Sign`:
+
+   ```yaml
+   # Windows
+   - uses: azure/login@v2
+     with:
+       client-id: ${{ vars.AZURE_CLIENT_ID }}
+       tenant-id: ${{ vars.AZURE_TENANT_ID }}
+       subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+   - shell: pwsh
+     run: |
+       # Microsoft's signing client (the dlib); check the package name in
+       # Microsoft's current Artifact Signing docs when setting this up.
+       nuget install Microsoft.ArtifactSigning.Client -x -OutputDirectory $env:RUNNER_TEMP\signing
+       $dlib = (Get-ChildItem $env:RUNNER_TEMP\signing -Recurse -Filter Azure.CodeSigning.Dlib.dll | Where-Object FullName -like '*x64*' | Select-Object -First 1).FullName
+       @{ Endpoint = '${{ vars.ARTIFACT_SIGNING_ENDPOINT }}'; CodeSigningAccountName = '${{ vars.ARTIFACT_SIGNING_ACCOUNT }}'; CertificateProfileName = '${{ vars.ARTIFACT_SIGNING_PROFILE }}' } |
+         ConvertTo-Json | Set-Content $env:RUNNER_TEMP\signing\metadata.json
+       "OTTER_SIGN_PROVIDER=artifact-signing" >> $env:GITHUB_ENV
+       "OTTER_SIGN_DLIB=$dlib" >> $env:GITHUB_ENV
+       "OTTER_SIGN_METADATA=$env:RUNNER_TEMP\signing\metadata.json" >> $env:GITHUB_ENV
+   - shell: pwsh
+     run: ./tools/package.ps1 -Runtime ${{ matrix.rid }} -Installer -Sign
+
+   # macOS
+   - env:
+       P12: ${{ secrets.APPLE_CERTIFICATES_P12 }}
+       P12_PASSWORD: ${{ secrets.APPLE_CERTIFICATES_PASSWORD }}
+       NOTARY_P8: ${{ secrets.APPLE_NOTARY_KEY_P8 }}
+     run: |
+       keychain="$RUNNER_TEMP/signing.keychain-db"; kpw=$(uuidgen)
+       security create-keychain -p "$kpw" "$keychain"
+       security set-keychain-settings -lut 3600 "$keychain"
+       security unlock-keychain -p "$kpw" "$keychain"
+       printf '%s' "$P12" | base64 --decode > "$RUNNER_TEMP/certs.p12"
+       security import "$RUNNER_TEMP/certs.p12" -k "$keychain" -P "$P12_PASSWORD" -T /usr/bin/codesign -T /usr/bin/productsign
+       security set-key-partition-list -S apple-tool:,apple: -k "$kpw" "$keychain" > /dev/null
+       security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+       rm -f "$RUNNER_TEMP/certs.p12"
+       printf '%s' "$NOTARY_P8" | base64 --decode > "$RUNNER_TEMP/notary.p8"
+       {
+         echo "OTTER_SIGN_PROVIDER=developer-id"
+         echo "OTTER_SIGN_KEYCHAIN=$keychain"
+         echo "OTTER_SIGN_APP_IDENTITY=${{ vars.APPLE_APP_IDENTITY }}"
+         echo "OTTER_SIGN_INSTALLER_IDENTITY=${{ vars.APPLE_INSTALLER_IDENTITY }}"
+         echo "OTTER_NOTARY_KEY=$RUNNER_TEMP/notary.p8"
+         echo "OTTER_NOTARY_KEY_ID=${{ vars.APPLE_NOTARY_KEY_ID }}"
+         echo "OTTER_NOTARY_ISSUER=${{ vars.APPLE_NOTARY_ISSUER }}"
+       } >> "$GITHUB_ENV"
+   - shell: pwsh
+     run: ./tools/package.ps1 -Runtime ${{ matrix.rid }} -Installer -Sign
+   - if: always()
+     run: security delete-keychain "$RUNNER_TEMP/signing.keychain-db" || true; rm -f "$RUNNER_TEMP/notary.p8"
+   ```
+
+   Artifact Signing's client is x64: on the `windows-11-arm` runner it runs
+   under emulation, or both architectures' files are signed on
+   `windows-latest` (signing does not depend on the file's architecture).
+4. **Tests of signed packages**: `Get-AuthenticodeSignature` must be
+   `Valid` for the installed `otter-net.exe`, `otter-desktop.exe` and the
+   MSI; `codesign --verify --strict`, `spctl --assess --type execute`
+   (executable) and `--type install` (`.pkg`) on macOS.
 
 ## Secrets handling
 

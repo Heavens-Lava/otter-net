@@ -4,10 +4,13 @@
 # 1. An upgrade replaces the older version. Installer never removes files of
 #    an earlier package, so older version folders that carry otter-net's
 #    marker are removed here.
-# 2. /usr/local/bin/otter becomes a link to this version (preinstall has
+# 2. /usr/local/bin/otter-net becomes a link to this version (preinstall has
 #    already refused anything there that is not otter-net's link). The link
 #    is made here, not carried in the payload, so the package never takes
 #    over /usr/local/bin's owner and permissions.
+# 3. Earlier otter-net packages linked /usr/local/bin/otter instead; that
+#    link is removed, so `otter` is again what it was before otter-net
+#    (otterPS's, or none). Only a link into /usr/local/lib/otter-net is.
 #
 # $3 is the target volume ("/" for a normal installation).
 set -e
@@ -21,5 +24,11 @@ for old in "$lib"/*/; do
     rm -rf "$old"
 done
 mkdir -p "$target/usr/local/bin"
-ln -sfn "/usr/local/lib/otter-net/@VERSION@/otter" "$target/usr/local/bin/otter"
+ln -sfn "/usr/local/lib/otter-net/@VERSION@/otter-net" "$target/usr/local/bin/otter-net"
+legacy="$target/usr/local/bin/otter"
+if [ -L "$legacy" ]; then
+    case "$(readlink "$legacy")" in
+        /usr/local/lib/otter-net/*|../lib/otter-net/*) rm -f "$legacy" ;;
+    esac
+fi
 exit 0

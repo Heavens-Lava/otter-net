@@ -1,8 +1,10 @@
 #!/bin/sh
 # Tests otter-net installed beside the PowerShell Otter (otterPS 1.0.1,
 # installed from its own release ZIP with its own Install-Otter.ps1
-# -AddToUserPath): which `otter` a new terminal gets, that both still work,
-# and that uninstalling either one, in both orders, leaves the other intact.
+# -AddToUserPath): that a new terminal's `otter` is always otterPS's (or
+# none) - never otter-net's - and its `otter-net` is otter-net's, that both
+# still work, and that uninstalling either one, in both orders, leaves the
+# other intact.
 # Changes the machine: run it on a disposable runner or container only.
 #
 #   tools/test-coexistence.sh tarball <otter-net-*.tar.gz> <otter-1.0.1.zip>
@@ -78,9 +80,9 @@ classify() {
     esac
 }
 
-# The otter a new terminal finds, and which one it is.
+# The <command> (otter or otter-net) a new terminal finds, and which one it is.
 terminal_otter() {
-    found=$(new_terminal "$1" 'command -v otter || true')
+    found=$(new_terminal "$1" "command -v $2 || true")
     printf '%s %s' "$(classify "$found")" "$found"
 }
 
@@ -138,36 +140,36 @@ case "$mode" in
         net_pkg=$(find "$scratch/net" -mindepth 1 -maxdepth 1 -type d | head -1)
         chmod -R a+rX "$scratch/net"
         net_home="$user_home/.local/share/otter-net/$package_version"
-        net_cmd="$net_home/otter"
-        net_install() { as_user "'$net_pkg/install.sh' $1" > "$scratch/net-install.txt" 2>&1; }
+        net_cmd="$net_home/otter-net"
+        net_install() { as_user "'$net_pkg/install.sh'" > "$scratch/net-install.txt" 2>&1; }
         net_uninstall() { as_user "'$net_home/uninstall.sh'" > "$scratch/net-uninstall.txt" 2>&1 || fail "otter-net uninstall.sh: $(cat "$scratch/net-uninstall.txt")"; }
-        net_present() { [ -x "$net_cmd" ]; }
+        net_present() { [ -x "$net_cmd" ] && [ -f "$user_home/.local/bin/otter-net" ]; }
         net_gone() {
-            if [ -e "$user_home/.local/share/otter-net" ]; then fail "$1: otter-net left $user_home/.local/share/otter-net"
+            if [ -e "$user_home/.local/share/otter-net" ] || [ -e "$user_home/.local/bin/otter-net" ]; then fail "$1: otter-net left $(ls -d "$user_home/.local/share/otter-net" "$user_home/.local/bin/otter-net" 2>/dev/null)"
             else pass "$1: otter-net fully removed"; fi
         }
         ;;
     deb)
         [ "$(id -u)" -eq 0 ] || abort "deb: run as root in a disposable container"
-        net_cmd=/usr/bin/otter
+        net_cmd=/usr/bin/otter-net
         net_install() { apt-get install -y "$package" > "$scratch/net-install.txt" 2>&1; }
         net_uninstall() { apt-get remove --purge -y otter-net > "$scratch/net-uninstall.txt" 2>&1 || fail "apt-get remove: $(tail -5 "$scratch/net-uninstall.txt")"; }
-        net_present() { dpkg-query -W otter-net > /dev/null 2>&1 && [ -x /usr/lib/otter-net/otter ]; }
+        net_present() { dpkg-query -W otter-net > /dev/null 2>&1 && [ -x /usr/lib/otter-net/otter-net ]; }
         net_gone() {
-            if dpkg-query -W otter-net > /dev/null 2>&1 || [ -e /usr/bin/otter ] || [ -e /usr/lib/otter-net ]; then fail "$1: otter-net left behind"
+            if dpkg-query -W otter-net > /dev/null 2>&1 || [ -e /usr/bin/otter-net ] || [ -e /usr/lib/otter-net ]; then fail "$1: otter-net left behind"
             else pass "$1: otter-net fully removed"; fi
         }
         apt-get update -qq > /dev/null
         ;;
     pkg)
         sudo -n true 2>/dev/null || abort "pkg: needs sudo (a disposable Mac)"
-        [ ! -e /usr/local/bin/otter ] || abort "/usr/local/bin/otter already exists"
-        net_cmd=/usr/local/bin/otter
+        [ ! -e /usr/local/bin/otter-net ] || abort "/usr/local/bin/otter-net already exists"
+        net_cmd=/usr/local/bin/otter-net
         net_install() { sudo installer -pkg "$package" -target / > "$scratch/net-install.txt" 2>&1; }
         net_uninstall() { sudo "/usr/local/lib/otter-net/$package_version/uninstall.sh" > "$scratch/net-uninstall.txt" 2>&1 || fail "uninstall.sh: $(cat "$scratch/net-uninstall.txt")"; }
-        net_present() { [ -x "/usr/local/lib/otter-net/$package_version/otter" ] && [ -L /usr/local/bin/otter ]; }
+        net_present() { [ -x "/usr/local/lib/otter-net/$package_version/otter-net" ] && [ -L /usr/local/bin/otter-net ]; }
         net_gone() {
-            if [ -e /usr/local/lib/otter-net ] || [ -e /usr/local/bin/otter ] || pkgutil --pkgs | grep -qx com.otterprogramming.otter-net; then fail "$1: otter-net left behind"
+            if [ -e /usr/local/lib/otter-net ] || [ -e /usr/local/bin/otter-net ] || pkgutil --pkgs | grep -qx com.otterprogramming.otter-net; then fail "$1: otter-net left behind"
             else pass "$1: otter-net fully removed"; fi
         }
         ;;
@@ -179,38 +181,38 @@ net_fingerprint() {
     return 0
 }
 
-# Reports which otter new terminals get. On Linux one answer; on macOS
-# without and with otterPS's PATH line.
-report_terminal() {
-    label=$1; expect=$2; expect_with_line=${3:-$2}
+# expect_terminal <label> <command> <expected> [<expected with otterPS's PATH line, macOS>]
+expect_terminal() {
+    label=$1; command=$2; expect=$3; expect_with_line=${4:-$3}
     if [ "$(uname)" = Darwin ]; then
-        plain=$(terminal_otter without-profile-line)
-        with=$(terminal_otter with-profile-line)
-        note "- $mode, $label: a new terminal's otter is $plain; with otterPS's PATH line in ~/.zshrc: $with"
-        case "$plain" in "$expect"*) pass "$label: new terminal (no ~/.local/bin on PATH): $plain" ;; *) fail "$label: new terminal (no ~/.local/bin on PATH): $plain, expected $expect" ;; esac
-        case "$with" in "$expect_with_line"*) pass "$label: new terminal (otterPS's PATH line): $with" ;; *) fail "$label: new terminal (otterPS's PATH line): $with, expected $expect_with_line" ;; esac
+        plain=$(terminal_otter without-profile-line "$command")
+        with=$(terminal_otter with-profile-line "$command")
+        note "- $mode, $label: a new terminal's $command is $plain; with otterPS's PATH line in ~/.zshrc: $with"
+        case "$plain" in "$expect"*) pass "$label: new terminal's $command (no ~/.local/bin on PATH): $plain" ;; *) fail "$label: new terminal's $command (no ~/.local/bin on PATH): $plain, expected $expect" ;; esac
+        case "$with" in "$expect_with_line"*) pass "$label: new terminal's $command (otterPS's PATH line): $with" ;; *) fail "$label: new terminal's $command (otterPS's PATH line): $with, expected $expect_with_line" ;; esac
     else
-        found=$(terminal_otter -)
-        note "- $mode, $label: a new terminal's otter is $found"
-        case "$found" in "$expect"*) pass "$label: new terminal: $found" ;; *) fail "$label: new terminal: $found, expected $expect" ;; esac
+        found=$(terminal_otter - "$command")
+        note "- $mode, $label: a new terminal's $command is $found"
+        case "$found" in "$expect"*) pass "$label: new terminal's $command: $found" ;; *) fail "$label: new terminal's $command: $found, expected $expect" ;; esac
     fi
 }
 
-# What a new terminal gets with both installed: the .tar.gz takes
-# ~/.local/bin/otter only when told to; the .deb (/usr/bin) and the .pkg
-# (/usr/local/bin) come after ~/.local/bin wherever that is on the PATH.
-case "$mode" in
-    tarball) both_plain=otter-net; both_line=otter-net ;;
-    deb) both_plain=otterPS; both_line=otterPS ;;
-    pkg) both_plain=otter-net; both_line=otterPS ;;
-esac
-# macOS has no ~/.local/bin on the PATH until the user adds otterPS's line:
-# without it, neither launcher in ~/.local/bin is found.
-ps_plain=otterPS; net_plain=otter-net
-if [ "$(uname)" = Darwin ]; then
-    ps_plain=none
-    [ "$mode" = tarball ] && { both_plain=none; net_plain=none; }
-fi
+# report_terminal <label> <otterPS installed: yes|no> <otter-net installed: yes|no>
+# `otter` is otterPS's whenever otterPS is installed, otherwise none - never
+# otter-net's. `otter-net` is otter-net's whenever it is installed. macOS
+# has no ~/.local/bin on the PATH until the user adds otterPS's line, so
+# there launchers in ~/.local/bin (otterPS's, the tarball's) need that line.
+report_terminal() {
+    label=$1; ps=$2; net=$3
+    if [ "$ps" = yes ]; then otter_line=otterPS; otter_plain=otterPS; else otter_line=none; otter_plain=none; fi
+    if [ "$net" = yes ]; then net_line=otter-net; net_plain=otter-net; else net_line=none; net_plain=none; fi
+    if [ "$(uname)" = Darwin ]; then
+        otter_plain=none
+        [ "$mode" = tarball ] && net_plain=none
+    fi
+    expect_terminal "$label" otter "$otter_plain" "$otter_line"
+    expect_terminal "$label" otter-net "$net_plain" "$net_line"
+}
 
 # ---- Order A: otterPS first, then otter-net; uninstall otter-net first --------
 
@@ -220,66 +222,43 @@ cat "$scratch/otterps-install.txt"
 otterps_before=$(otterps_fingerprint)
 [ "$(classify "$otterps_shim")" = otterPS ] || abort "otterPS did not write its ~/.local/bin/otter launcher"
 works "otterPS (alone)" "$otterps_home/otter"
-report_terminal "otterPS alone" "$ps_plain" otterPS
+report_terminal "otterPS alone" yes no
 
-if [ "$mode" = tarball ]; then
-    if net_install ""; then fail "install.sh replaced otterPS's launcher unasked"
-    else pass "install.sh refuses to take otterPS's otter command unasked: $(tail -1 "$scratch/net-install.txt")"; fi
-    net_install --replace-otterps-launcher || abort "install.sh --replace-otterps-launcher: $(cat "$scratch/net-install.txt")"
-else
-    net_install || abort "installing otter-net: $(tail -20 "$scratch/net-install.txt")"
-fi
+net_install || abort "installing otter-net: $(tail -20 "$scratch/net-install.txt")"
 net_present || abort "otter-net is not installed"
 works "otter-net" "$net_cmd"
-if [ "$mode" = tarball ]; then
-    works "otterPS (beside otter-net)" "$otterps_home/otter"
-    [ "$(otterps_fingerprint)" = "$otterps_before" ] && pass "otterPS's files unchanged" || fail "otterPS's files changed"
-else
-    otterps_intact "otter-net installed"
-fi
-report_terminal "both installed" "$both_plain" "$both_line"
+otterps_intact "otter-net installed"
+report_terminal "both installed" yes yes
 net_uninstall
 net_gone "A: otter-net removed"
 otterps_intact "A: after otter-net was removed"
-report_terminal "A: after otter-net was removed" "$ps_plain" otterPS
+report_terminal "A: after otter-net was removed" yes no
 otterps_uninstall
 otterps_gone "A: otterPS removed"
-report_terminal "A: both removed" none none
+report_terminal "A: both removed" no no
 note "- $mode, order A (otterPS, otter-net; remove otter-net, then otterPS): see the checks above"
 
 # ---- Order B: otter-net first, then otterPS; uninstall otterPS first ---------
 
 say "== B: otter-net, then otterPS; remove otterPS, then otter-net"
-if [ "$mode" = tarball ]; then net_install "" || abort "install.sh: $(cat "$scratch/net-install.txt")"
-else net_install || abort "installing otter-net: $(tail -20 "$scratch/net-install.txt")"; fi
+net_install || abort "installing otter-net: $(tail -20 "$scratch/net-install.txt")"
 net_before=$(net_fingerprint)
 works "otter-net (alone)" "$net_cmd"
-if otterps_install; then
-    otterps_ok=yes
-    pass "otterPS's Install-Otter.ps1 -AddToUserPath after otter-net"
-else
-    otterps_ok=no
-    if [ "$mode" = tarball ] && grep -q "Refusing to replace" "$scratch/otterps-install.txt"; then
-        pass "otterPS's installer refuses to replace otter-net's ~/.local/bin/otter (otterPS's own rule); its files are installed, its command is not"
-        note "- tarball, order B: otterPS's Install-Otter.ps1 -AddToUserPath stops at otter-net's launcher (\"Refusing to replace ...\"): install otterPS first, or run it without -AddToUserPath"
-    else
-        fail "otterPS's installer after otter-net: $(cat "$scratch/otterps-install.txt")"
-    fi
-fi
-if [ -x "$otterps_home/otter" ]; then works "otterPS (beside otter-net)" "$otterps_home/otter"; fi
+report_terminal "B: otter-net alone" no yes
+otterps_install || abort "otterPS's Install-Otter.ps1 -AddToUserPath after otter-net: $(cat "$scratch/otterps-install.txt")"
+pass "otterPS's Install-Otter.ps1 -AddToUserPath after otter-net"
+otterps_before=$(otterps_fingerprint)
+otterps_intact "B: both installed"
 works "otter-net (beside otterPS)" "$net_cmd"
-if [ "$mode" = tarball ]; then report_terminal "B: both installed" "$net_plain" otter-net
-else report_terminal "B: both installed" "$both_plain" "$both_line"; fi
-if [ -d "$otterps_home" ]; then otterps_uninstall; fi
+report_terminal "B: both installed" yes yes
+otterps_uninstall
 otterps_gone "B: otterPS removed"
 if net_present && [ "$(net_fingerprint)" = "$net_before" ]; then pass "B: otter-net intact after otterPS was removed"; else fail "B: otter-net changed after otterPS was removed"; fi
 works "otter-net (otterPS removed)" "$net_cmd"
-if [ "$mode" = deb ] || [ "$mode" = pkg ]; then report_terminal "B: after otterPS was removed" otter-net otter-net
-else report_terminal "B: after otterPS was removed" "$net_plain" otter-net; fi
+report_terminal "B: after otterPS was removed" no yes
 net_uninstall
 net_gone "B: otter-net removed"
-report_terminal "B: both removed" none none
-[ "$otterps_ok" = yes ] || true
+report_terminal "B: both removed" no no
 note "- $mode, order B (otter-net, otterPS; remove otterPS, then otter-net): see the checks above"
 
 say ""

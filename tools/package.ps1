@@ -6,12 +6,12 @@ Builds otter-net's packages (unsigned, unpublished) for one runtime.
 Publishes the native otter (Native AOT) for -Runtime and writes, into
 -OutputDirectory (artifacts/packages by default):
 
-  otter-net-<version>-<rid>.zip       Windows: otter.exe, otter-desktop.exe
+  otter-net-<version>-<rid>.zip       Windows: otter-net.exe, otter-desktop.exe
                                       (self-contained: no .NET needed) and
                                       the WPF native libraries it loads,
                                       LICENSE, README.md, VERSION,
                                       THIRD-PARTY-NOTICES.txt, SHA256SUMS
-  otter-net-<version>-<rid>.tar.gz    macOS and Linux: bin/otter, install.sh,
+  otter-net-<version>-<rid>.tar.gz    macOS and Linux: bin/otter-net, install.sh,
                                       uninstall.sh and the same documents
 
 and with -Installer the platform's installer, built on that platform:
@@ -20,9 +20,17 @@ and with -Installer the platform's installer, built on that platform:
   otter-net-<version>-<rid>.pkg       macOS (pkgbuild + productbuild, unsigned)
   otter-net_<version>_<arch>.deb      Linux and Chromebooks (dpkg-deb)
 
+The installed command is `otter-net` (otter-net.exe), never `otter`: the
+packages leave the stable `otter` command (otterPS's) as it is. The published
+executable is otter (otter.exe); the packages carry it under that new name
+(it finds otter-desktop.exe and runs itself by its own path, not its name).
+
 Each package gets a <file>.sha256, and SHA256SUMS lists every package in the
 folder. The version comes from VERSION (the one source; MSBuild reads it
-too). Nothing is signed and nothing is published: docs/PACKAGING.md.
+too). Nothing is published: docs/PACKAGING.md. Nothing is signed unless
+-Sign is given: then tools/sign.ps1 signs the executables before they are
+packed, and the .msi or .pkg after it is built, with the identity
+OTTER_SIGN_PROVIDER names (docs/SIGNING.md). Linux packages are not signed.
 
 Native AOT needs the platform's linker (tools/publish.ps1 says which). Works
 in PowerShell 7 on every platform.
@@ -43,7 +51,9 @@ param(
     # An existing publish folder with the native otter, instead of publishing now.
     [string]$PublishDirectory = '',
     # An existing publish folder with otter-desktop (Windows), instead of publishing it now.
-    [string]$DesktopPublishDirectory = ''
+    [string]$DesktopPublishDirectory = '',
+    # Sign with tools/sign.ps1 (OTTER_SIGN_PROVIDER; docs/SIGNING.md).
+    [switch]$Sign
 )
 
 $ErrorActionPreference = 'Stop'
@@ -65,6 +75,8 @@ $onWindows = [System.IO.Path]::DirectorySeparatorChar -eq '\'
 $hostOs = if ($onWindows) { 'win' } elseif ($IsMacOS) { 'osx' } else { 'linux' }
 $hostRid = "$hostOs-" + [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString().ToLowerInvariant()
 $exe = if ($os -eq 'win') { 'otter.exe' } else { 'otter' }
+# The name the packages install it under (see above).
+$command = if ($os -eq 'win') { 'otter-net.exe' } else { 'otter-net' }
 $name = "otter-net-$Version-$Runtime"
 
 $artifacts = Join-Path $root 'artifacts'
@@ -118,6 +130,21 @@ if ($Runtime -eq $hostRid) {
     if ($printed -ne "Otter $languageVersion") { throw "$binary --version printed '$printed', not 'Otter $languageVersion'." }
 }
 
+# Signing: a copy of the executable, so a shared publish folder stays unsigned.
+$signScript = Join-Path $PSScriptRoot 'sign.ps1'
+if ($Sign -and $os -eq 'linux') { Write-Warning 'Linux packages are not signed (docs/SIGNING.md); -Sign is ignored.'; $Sign = $false }
+if ($Sign) {
+    $signedDir = Join-Path $work 'signed'
+    New-Item -ItemType Directory -Force -Path $signedDir | Out-Null
+    Copy-Item -LiteralPath $binary -Destination (Join-Path $signedDir $exe)
+    $binary = Join-Path $signedDir $exe
+    & $signScript -Kind $(if ($os -eq 'win') { 'exe' } else { 'macho' }) -Files $binary
+    if ($Runtime -eq $hostRid) {
+        $printed = (& $binary --version | Out-String).Trim()
+        if ($printed -ne "Otter $languageVersion") { throw "The signed $binary --version printed '$printed', not 'Otter $languageVersion'." }
+    }
+}
+
 # otter-desktop.exe (desktop windows on Windows), once src/Otter.Desktop exists.
 # Self-contained, so the package runs on a Windows without .NET: the .NET
 # runtime and the Windows Desktop runtime (WPF) are inside it. One file
@@ -145,6 +172,15 @@ if ($os -eq 'win' -and $desktopProject) {
     if ($dependent) { throw "otter-desktop is not a self-contained single file: $($dependent.Name -join ', ') in $desktopOut." }
     $unexpected = @($desktopFiles | Where-Object { $_.Name -ne 'otter-desktop.exe' -and $_.Name -notlike '*_cor3.dll' })
     if ($unexpected) { throw "Unexpected files beside otter-desktop.exe: $($unexpected.Name -join ', ')." }
+    if ($Sign) {
+        $signedDesktop = Join-Path $work 'signed-desktop'
+        New-Item -ItemType Directory -Force -Path $signedDesktop | Out-Null
+        $desktopHost = $desktopFiles | Where-Object Name -eq 'otter-desktop.exe'
+        Copy-Item -LiteralPath $desktopHost.FullName -Destination $signedDesktop
+        & $signScript -Kind exe -Files (Join-Path $signedDesktop 'otter-desktop.exe')
+        # WPF's *_cor3.dll are Microsoft's, already signed by Microsoft.
+        $desktopFiles = @(@(Get-Item -LiteralPath (Join-Path $signedDesktop 'otter-desktop.exe')) + @($desktopFiles | Where-Object Name -ne 'otter-desktop.exe'))
+    }
     "otter-desktop.exe: {0:N0} bytes, with {1}" -f ($desktopFiles | Where-Object Name -eq 'otter-desktop.exe').Length, ((@($desktopFiles | Where-Object Name -ne 'otter-desktop.exe') | ForEach-Object Name) -join ', ') | Write-Host
 }
 
@@ -205,9 +241,9 @@ $staged = Join-Path $work "archive/$name"
 New-Item -ItemType Directory -Force -Path $staged | Out-Null
 $built = @()
 if ($os -eq 'win') {
-    Copy-Item -LiteralPath $binary -Destination $staged
+    Copy-Item -LiteralPath $binary -Destination (Join-Path $staged $command)
     foreach ($file in $desktopFiles) {
-        if (Test-Path -LiteralPath (Join-Path $staged $file.Name)) { throw "otter-desktop's $($file.Name) would replace otter's." }
+        if (Test-Path -LiteralPath (Join-Path $staged $file.Name)) { throw "otter-desktop's $($file.Name) would replace otter-net's." }
         Copy-Item -LiteralPath $file.FullName -Destination $staged
     }
     Add-Documents $staged
@@ -219,11 +255,11 @@ if ($os -eq 'win') {
     [System.IO.Compression.ZipFile]::CreateFromDirectory((Split-Path -Parent $staged), $archive, [System.IO.Compression.CompressionLevel]::Optimal, $false)
 } else {
     New-Item -ItemType Directory -Force -Path (Join-Path $staged 'bin') | Out-Null
-    Copy-Item -LiteralPath $binary -Destination (Join-Path $staged 'bin/otter')
+    Copy-Item -LiteralPath $binary -Destination (Join-Path $staged "bin/$command")
     Copy-Item -LiteralPath (Join-Path $root 'distribution/unix/install.sh') -Destination $staged
     Copy-Item -LiteralPath (Join-Path $root 'distribution/unix/uninstall.sh') -Destination $staged
     Add-Documents $staged
-    Invoke-Native chmod @('755', (Join-Path $staged 'bin/otter'), (Join-Path $staged 'install.sh'), (Join-Path $staged 'uninstall.sh'))
+    Invoke-Native chmod @('755', (Join-Path $staged "bin/$command"), (Join-Path $staged 'install.sh'), (Join-Path $staged 'uninstall.sh'))
     $inside = @(Get-ChildItem -LiteralPath $staged -File -Recurse | ForEach-Object { $_.FullName.Substring($staged.Length + 1) } | Sort-Object)
     Write-Sha256Sums -Folder $staged -Path (Join-Path $staged 'SHA256SUMS') -Files $inside
     $archive = Join-Path $OutputDirectory "$name.tar.gz"
@@ -233,6 +269,12 @@ if ($os -eq 'win') {
     Invoke-Native tar (@('-c', '-z', '-f', $archive) + $owner + @('-C', (Split-Path -Parent $staged), $name))
 }
 $built += $archive
+# The executable under its installed name works the same.
+if ($Runtime -eq $hostRid) {
+    $renamed = if ($os -eq 'win') { Join-Path $staged $command } else { Join-Path $staged "bin/$command" }
+    $printed = (& $renamed --version | Out-String).Trim()
+    if ($printed -ne "Otter $languageVersion") { throw "$renamed --version printed '$printed', not 'Otter $languageVersion'." }
+}
 
 # ---- 4. The installer ------------------------------------------------------------
 
@@ -296,6 +338,7 @@ $($components.ToString().TrimEnd())
                 "-p:PayloadWxs=$fragment", "-p:OutputPath=$msiOut/", "-p:IntermediateOutputPath=$(Join-Path $work 'msi-obj')/")
             $msi = Join-Path $OutputDirectory "$name.msi"
             Copy-Item -LiteralPath (Join-Path $msiOut 'otter-net.msi') -Destination $msi -Force
+            if ($Sign) { & $signScript -Kind msi -Files $msi }
             $built += $msi
         }
         'osx' {
@@ -305,15 +348,15 @@ $($components.ToString().TrimEnd())
             # The payload is only otter-net's own folder, /usr/local/lib/otter-net:
             # a package that carries /usr/local/bin itself would take over that
             # folder's owner and permissions (Homebrew's, on Intel Macs).
-            # postinstall makes the /usr/local/bin/otter link.
+            # postinstall makes the /usr/local/bin/otter-net link.
             $payload = Join-Path $work 'pkg/root'
             $lib = Join-Path $payload $Version
             New-Item -ItemType Directory -Force -Path $lib | Out-Null
             [System.IO.File]::WriteAllText((Join-Path $lib '.otter-net-install'), "otter-net installation marker - written by the otter-net .pkg`nVersion: $Version`n", $utf8)
-            Copy-Item -LiteralPath $binary -Destination (Join-Path $lib 'otter')
+            Copy-Item -LiteralPath $binary -Destination (Join-Path $lib $command)
             Add-Documents $lib
             [System.IO.File]::WriteAllText((Join-Path $lib 'uninstall.sh'), (& $fill ([System.IO.File]::ReadAllText((Join-Path $root 'distribution/macos/uninstall.sh')))), $utf8)
-            Invoke-Native chmod @('755', (Join-Path $lib 'otter'), (Join-Path $lib 'uninstall.sh'))
+            Invoke-Native chmod @('755', (Join-Path $lib $command), (Join-Path $lib 'uninstall.sh'))
             # No extended attributes (they would become ._ files in the payload).
             Invoke-Native xattr @('-cr', $payload)
             $scripts = Join-Path $work 'pkg/scripts'
@@ -335,6 +378,7 @@ $($components.ToString().TrimEnd())
                 '--install-location', '/usr/local/lib/otter-net', '--ownership', 'recommended', '--quiet', (Join-Path $components 'otter-net-component.pkg'))
             $pkg = Join-Path $OutputDirectory "$name.pkg"
             Invoke-Native productbuild @('--distribution', $distribution, '--resources', $resources, '--package-path', $components, '--quiet', $pkg)
+            if ($Sign) { & $signScript -Kind pkg -Files $pkg }
             # macOS adds com.apple.provenance to files written by some sandboxed
             # processes; it cannot be removed and pkgbuild stores it as empty
             # ._ entries. Harmless, but not in a clean (CI) build.
@@ -349,9 +393,9 @@ $($components.ToString().TrimEnd())
             $lib = Join-Path $deb 'usr/lib/otter-net'
             $doc = Join-Path $deb 'usr/share/doc/otter-net'
             New-Item -ItemType Directory -Force -Path $lib, $doc, (Join-Path $deb 'usr/bin'), (Join-Path $deb 'DEBIAN') | Out-Null
-            Copy-Item -LiteralPath $binary -Destination (Join-Path $lib 'otter')
+            Copy-Item -LiteralPath $binary -Destination (Join-Path $lib $command)
             [System.IO.File]::WriteAllText((Join-Path $lib 'VERSION'), "$Version`n", $utf8)
-            Invoke-Native ln @('-s', '../lib/otter-net/otter', (Join-Path $deb 'usr/bin/otter'))
+            Invoke-Native ln @('-s', "../lib/otter-net/$command", (Join-Path $deb "usr/bin/$command"))
             Copy-Item -LiteralPath (Join-Path $root 'distribution/package/README.md') -Destination (Join-Path $doc 'README.md')
             [System.IO.File]::WriteAllText((Join-Path $doc 'THIRD-PARTY-NOTICES.txt'), $notices, $utf8)
             [System.IO.File]::WriteAllText((Join-Path $doc 'copyright'),
@@ -378,7 +422,7 @@ $($components.ToString().TrimEnd())
             $depends.Add('libssl3 | libssl3t64')
             Get-ChildItem -LiteralPath $deb -Recurse -Directory | ForEach-Object { Invoke-Native chmod @('755', $_.FullName) }
             Get-ChildItem -LiteralPath $deb -Recurse -File | ForEach-Object { Invoke-Native chmod @('644', $_.FullName) }
-            Invoke-Native chmod @('755', (Join-Path $lib 'otter'))
+            Invoke-Native chmod @('755', (Join-Path $lib $command))
             $installedKb = [int][Math]::Ceiling(((Get-ChildItem -LiteralPath $deb -Recurse -File | Where-Object { $_.FullName -notlike '*DEBIAN*' } | Measure-Object Length -Sum).Sum) / 1KB)
             $control = [System.IO.File]::ReadAllText((Join-Path $root 'distribution/linux/control')).Replace('@VERSION@', $debVersion).Replace('@ARCH@', $debArch).
                 Replace('@INSTALLED_SIZE@', "$installedKb").Replace('@DEPENDS@', ($depends -join ', ')).Replace('@CHANNEL@', $channel) -replace "`r`n", "`n"

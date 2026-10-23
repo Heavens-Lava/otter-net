@@ -42,7 +42,17 @@ files.
 | `osx-arm64`, `osx-x64` | `otter-net-<v>-<rid>.tar.gz` | `otter-net-<v>-<rid>.pkg` (pkgbuild + productbuild) |
 | `linux-x64`, `linux-arm64` (also Chromebooks) | `otter-net-<v>-<rid>.tar.gz` | `otter-net_<v>_amd64.deb`, `otter-net_<v>_arm64.deb` (dpkg-deb) |
 
-What every package carries: the native `otter` (`otter.exe`), `LICENSE`
+**The command is `otter-net`.** Every package installs the native
+executable as `otter-net` (`otter-net.exe`) and never installs, replaces or
+removes an `otter` command, so installing or uninstalling otter-net does not
+change which runtime `otter` selects (otterPS's, or none; the owner's
+decision of 2026-10-22). `otter-net` takes `otter`'s arguments and prints
+Otter 1.0.1's messages word for word (they say `otter`). The executable is
+published as `otter` (`otter.exe`) and renamed when packed: it finds
+`otter-desktop.exe` beside itself and runs itself by its own path, not by
+name; `package.ps1` runs the renamed copy's `--version` to check.
+
+What every package carries: the native `otter-net` (`otter-net.exe`), `LICENSE`
 (Otter Free Use License 1.1), `README.md` (`distribution/package/README.md`:
 what this is and how to install and uninstall it), `VERSION` and
 `THIRD-PARTY-NOTICES.txt`. The notices are needed: a Native AOT executable
@@ -65,13 +75,13 @@ runtime's license to `THIRD-PARTY-NOTICES.txt`. Size: see
 
 ### Windows: `.zip` and `.msi`
 
-- **zip**: `otter-net-<v>-<rid>/` with `otter.exe`, `otter-desktop.exe` and
+- **zip**: `otter-net-<v>-<rid>/` with `otter-net.exe`, `otter-desktop.exe` and
   its `*_cor3.dll`, and the documents; run in place, no installation.
 - **msi** (`distribution/windows/Package.wxs`, `otter-net.wixproj`, WiX 5 SDK
   from NuGet; not in `otter-net.sln`):
   - per user, no administrator rights: `%LOCALAPPDATA%\Programs\otter-net`;
-  - that folder is put **first** on the user's PATH, so a new terminal's
-    `otter` is otter-net's even when otterPS's folder is on the PATH too;
+  - that folder is **appended** to the user's PATH: a new terminal has
+    `otter-net`; there is no `otter` in it, so `otter` is unchanged;
   - `HKCU\Software\otter-net` (InstallFolder, Version, one value per file:
     a per-user component needs a registry key path, ICE38);
   - one Settings > Apps entry, "Otter (otter-net) <v>";
@@ -90,24 +100,27 @@ runtime's license to `THIRD-PARTY-NOTICES.txt`. Size: see
 - **pkg** (`distribution/macos/`), unsigned:
   - installs `/usr/local/lib/otter-net/<v>/` (otter, documents,
     `uninstall.sh`, an `.otter-net-install` marker); `postinstall` links
-    `/usr/local/bin/otter` to it. The payload holds only otter-net's own
+    `/usr/local/bin/otter-net` to it, and removes an `/usr/local/bin/otter`
+    link that an earlier otter-net preview made (only a link into
+    `/usr/local/lib/otter-net`). The payload holds only otter-net's own
     folder, so the package never takes over `/usr/local/bin`'s owner and
     permissions (Homebrew's, on Intel Macs);
   - `preinstall` stops the installation, changing nothing, when
-    `/usr/local/bin/otter` exists and is not otter-net's link;
+    `/usr/local/bin/otter-net` exists and is not otter-net's link;
+    `/usr/local/bin/otter` is never touched otherwise;
   - upgrade: `postinstall` removes older otter-net version folders (macOS
     Installer never removes an older package's files);
   - uninstall: `sudo /usr/local/lib/otter-net/<v>/uninstall.sh` (the link,
     the folder, and `pkgutil --forget com.otterprogramming.otter-net`);
   - needs an administrator password; macOS 12 or later (the executable's
     minimum); `hostArchitectures` is the package's own processor.
-- **tar.gz**, Homebrew-style (`bin/otter` in a versioned folder) and per user,
+- **tar.gz**, Homebrew-style (`bin/otter-net` in a versioned folder) and per user,
   like Linux below.
 
 ### Linux and Chromebooks: `.deb` and `.tar.gz`
 
 - **deb** (`distribution/linux/control`): package `otter-net`,
-  `/usr/lib/otter-net/otter` (+ `VERSION`), `/usr/bin/otter` link,
+  `/usr/lib/otter-net/otter-net` (+ `VERSION`), `/usr/bin/otter-net` link,
   `/usr/share/doc/otter-net/` (copyright with the license, README,
   notices). `Depends` is computed from the executable: `libc6 (>= <newest
   GLIBC_ symbol it uses>)`, the libraries it links, and `libssl3 | libssl3t64`
@@ -123,18 +136,20 @@ runtime's license to `THIRD-PARTY-NOTICES.txt`. Size: see
     uses `.../otter/<v>/`, which otter-net looks in for the PowerShell
     Otter, so the two never share a folder), with an `.otter-net-install`
     marker written first;
-  - a launcher `~/.local/bin/otter` (`exec '<folder>/otter' "$@"`, marked on
-    its second line like otterPS's); if `~/.local/bin` is not on the PATH
-    the script prints the line to add, and changes no shell profile;
-  - an otterPS launcher there is replaced only with
-    `--replace-otterps-launcher`, kept, and put back by `uninstall.sh`; any
-    other `otter` is never replaced;
+  - a launcher `~/.local/bin/otter-net` (`exec '<folder>/otter-net' "$@"`,
+    marked on its second line like otterPS's); if `~/.local/bin` is not on
+    the PATH the script prints the line to add, and changes no shell
+    profile; any other `otter-net` is never replaced;
+  - `~/.local/bin/otter` (otterPS's launcher) is never written or replaced;
+    `--replace-otterps-launcher` is refused. An earlier preview's
+    `~/.local/bin/otter` launcher (otter-net's marker) is removed on
+    install, and the otterPS launcher it had kept goes back while that
+    otterPS installation exists;
   - installing a newer version removes the older otter-net versions (marked
     folders only); the same version again needs `--force`;
-  - `uninstall.sh` removes the folder, the launcher (when it is otter-net's)
-    and `~/.local/share/otter-net` when empty; it puts otterPS's launcher
-    back only while the otterPS installation it runs still exists (otherwise
-    it would leave a dangling `otter`);
+  - `uninstall.sh` removes the folder, its `otter-net` launcher and
+    `~/.local/share/otter-net` when empty (and an earlier preview's `otter`
+    launcher for that folder, as install does);
   - installing an older version over a newer one is allowed and leaves only
     the one installed (no downgrade check).
 
@@ -143,56 +158,45 @@ runtime's license to `THIRD-PARTY-NOTICES.txt`. Size: see
 | | otterPS (released 1.0.1 and unpublished MSI) | otter-net release candidate |
 |---|---|---|
 | Release ZIP install (Windows) | `%LOCALAPPDATA%\Otter\<v>\otter.cmd`, user PATH | zip runs in place; MSI below |
-| Release ZIP install (Linux, macOS) | `~/.local/share/otter/<v>/`, `~/.local/bin/otter` launcher | `~/.local/share/otter-net/<v>/`, the same launcher path (see above) |
+| Command | `otter` | `otter-net` |
+| Release ZIP install (Linux, macOS) | `~/.local/share/otter/<v>/`, `~/.local/bin/otter` launcher | `~/.local/share/otter-net/<v>/`, `~/.local/bin/otter-net` launcher |
 | MSI (otterPS's: built and tested, not published) | `%LOCALAPPDATA%\Programs\Otter`, `HKCU\Software\Otter`, UpgradeCode `F2065F2E-9E7A-405C-810C-3826A1DAAE39` | `%LOCALAPPDATA%\Programs\otter-net`, `HKCU\Software\otter-net`, UpgradeCode `B6DDDF92-...` |
 | winget | `JeffreyMacy.Otter`, moniker `otter` (manifest written, not submitted) | none - not reused |
 | Microsoft Store | `JeffreyMacy.OtterProgrammingLanguage` (published) | none - not reused |
 | macOS / Debian identifiers | none | `com.otterprogramming.otter-net` (.pkg), `otter-net` (.deb) |
 
 The two can be installed side by side: otter-net's installers never touch
-otterPS's folders, registry key or upgrade code, and otter-net never starts
-PowerShell (since `c474ab8`). With both on the PATH, otter-net's MSI comes
-first; the tarball takes `~/.local/bin/otter` only when asked; the `.deb`
-(`/usr/bin`) and `.pkg` (`/usr/local/bin`) come after otterPS's
-`~/.local/bin/otter` whenever that folder is on the PATH. The coexistence
-tests (`tools/test-coexistence.*`) check every case in both install and
-uninstall orders; results in [PREVIEW_RELEASE.md](PREVIEW_RELEASE.md).
+otterPS's folders, registry key, upgrade code or `otter` command, and
+otter-net never starts PowerShell (since `c474ab8`). A new terminal's
+`otter` is otterPS's whenever otterPS is installed (and on its PATH) and
+never otter-net's; its `otter-net` is otter-net's. The coexistence tests
+(`tools/test-coexistence.*`) check both commands at every step, in both
+install and uninstall orders; results in [PREVIEW_RELEASE.md](PREVIEW_RELEASE.md).
 
-## To decide before publishing
+## Decided, and still to decide before publishing
 
-1. **Code signing** (the blocker). Symantec quarantined the first unsigned
-   otter-net `otter.exe` (Heur.AdvML.D, 2026-10-15); `docs/ARCHITECTURE.md`
-   phase 5 and otterPS's `docs/OTTER_WINDOWS_INSTALLER.md` list the options
-   (Azure Trusted Signing, an OV certificate). Sign `otter.exe`,
-   `otter-desktop.exe` and the MSI. On macOS an Apple Developer ID
-   (US$99/year) is needed to sign the executable and the `.pkg`
-   (`productsign`) and to notarize them; unsigned, Gatekeeper blocks the
-   `.pkg` when opened from Finder and a downloaded `otter` is quarantined
-   (`xattr -d com.apple.quarantine` works around it, which users should not
-   be asked to do). A `.deb` is normally unsigned; an apt repository would
-   need its own key.
-2. **Identity: replace otterPS or sit beside it.** Decide whether otter-net
-   ships as the next Otter (1.0.2 or 1.1) under otterPS's identities - the
-   MSI UpgradeCode `F2065F2E-...` (then its MSI replaces otterPS's MSI, and
-   should also remove or leave the ZIP install at `%LOCALAPPDATA%\Otter`),
-   winget `JeffreyMacy.Otter`, the Store package - or under new ones as
-   here. The release candidates deliberately use new identities so nothing
-   published is replaced by accident.
-3. ~~The PowerShell Otter for what is still handed over~~ - resolved:
-   otter-net runs everything natively (desktop windows in the
-   self-contained `otter-desktop.exe`, remote commands in C#).
-4. **The version** otter-net is released as, and what `otter --version`
-   prints then (today the language version, `Otter 1.0.1`); the preview's
-   proposal is in [PREVIEW_RELEASE.md](PREVIEW_RELEASE.md).
-5. **macOS package identifier** `com.otterprogramming.otter-net` and the
-   `.deb` maintainer address (the GitHub no-reply address) - placeholders to
-   confirm.
-6. **Workflow artifacts on a public repository.** This repository is public:
-   anyone signed in to GitHub can download the release-candidate artifacts
-   while they are kept (now: only manual and `cert/preview` runs keep the
-   preview artifact, 30 days; others one day between jobs). otterPS's MSI
-   workflow kept only logs for that reason. If that is not wanted, make the
-   repository private or delete the run's artifact after review.
+Decided by the owner on 2026-10-22 ([PREVIEW_RELEASE.md](PREVIEW_RELEASE.md#the-owners-decisions-2026-10-22)):
+otter-net stays **beside** otterPS under its own identities and its own
+`otter-net` command; the version is `0.9.0-preview.1` (language Otter
+1.0.1); the self-contained desktop companion stays; macOS uses
+`com.otterprogramming.otter-net`; the preview artifact is kept for now.
+
+Still open before anything is published:
+
+1. **Code signing** (the blocker for a public preview). Symantec
+   quarantined the first unsigned otter-net `otter.exe` (Heur.AdvML.D,
+   2026-10-15); unsigned, Gatekeeper blocks the `.pkg` from Finder and
+   quarantines a downloaded executable. The signing hooks are in place
+   and rehearsed in every package.yml run (`tools/sign.ps1`,
+   `package.ps1 -Sign`); the accounts are not bought: [SIGNING.md](SIGNING.md).
+2. **The `.deb` maintainer address:** still the GitHub no-reply address;
+   a project-controlled replacement is proposed in
+   [PREVIEW_RELEASE.md](PREVIEW_RELEASE.md) and waits for confirmation.
+3. **Workflow artifacts on a public repository.** Anyone signed in to
+   GitHub can download a kept artifact (only manual, `cert/preview` and
+   `release/0.9.0-preview.1` runs keep the preview artifact, 30 days;
+   others one day between jobs). Delete a run's artifact after review if
+   needed.
 
 ## Building locally
 
@@ -230,11 +234,13 @@ Scheduler process, uninstall, downgrade refused, the ZIP),
 package with no .NET findable) and `tools/test-coexistence.ps1` (beside
 otterPS).
 
-Each runs the installed `otter` with `PATH=/usr/bin:/bin:/usr/sbin:/sbin`
+Each runs the installed `otter-net` with `PATH=/usr/bin:/bin:/usr/sbin:/sbin`
 plus its own folder, and fails if `pwsh` or `powershell` is found there:
-`otter --version`, every `tests/compat` program (none may say it needs the
-PowerShell Otter, crash, or print an unhandled exception), `otter new console
-demo` then `run`, `check` and `test`, and startup time. With
+`otter-net --version`, every `tests/compat` program (none may say it needs
+the PowerShell Otter, crash, or print an unhandled exception), `otter-net
+new console demo` then `run`, `check` and `test`, and startup time; and
+fails if the package installed, replaced or removed an `otter` command
+(including after an earlier preview that had taken one). With
 `OTTER_TEST_REFERENCE=<folder of tools/capture.ps1 outputs>` it also
 compares each program's output.
 

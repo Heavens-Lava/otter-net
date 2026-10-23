@@ -4,14 +4,20 @@
 # Builds every package on its own platform (tools/package.ps1), then on fresh
 # runners or containers:
 # - installs each WITHOUT PowerShell (tools/test-package.sh / .ps1): over an
-#   older package (upgrade), `otter --version`, tests/compat and a new
-#   project, PATH handling and what a new terminal finds, uninstall leaving
-#   nothing, and a downgrade (refused by the MSI and apt);
+#   older package (upgrade), `otter-net --version`, tests/compat and a new
+#   project, PATH handling and what a new terminal finds (`otter-net`, and
+#   never an `otter` from otter-net), uninstall leaving nothing, and a
+#   downgrade (refused by the MSI and apt);
 # - Windows: runs desktop windows from the installed package with no .NET
 #   runtime findable (tools/test-desktop-nodotnet.ps1);
 # - installs otterPS 1.0.1 from its own release ZIP (built here with its
 #   tools/New-OtterDistribution.ps1 from the v1.0.1 tag) beside otter-net and
-#   uninstalls both in both orders (tools/test-coexistence.*).
+#   uninstalls both in both orders (tools/test-coexistence.*): `otter` stays
+#   otterPS's throughout;
+# - rehearses signing (tools/sign.ps1 through package.ps1 -Sign) with a
+#   throwaway self-signed certificate on Windows and an ad-hoc Hardened
+#   Runtime signature on macOS: the packages it makes are checked and
+#   discarded. Real signing is not set up (docs/SIGNING.md).
 #
 # NOTHING IS PUBLISHED: no release, no tag, no package registry, no winget or
 # Store submission. Only a manual run (workflow_dispatch) or a push to
@@ -31,10 +37,18 @@ on:
 
 permissions:
   contents: read
+  # Downloading the earlier preview's artifact (the pre-rename upgrade test).
+  actions: read
 
 env:
   DOTNET_CLI_TELEMETRY_OPTOUT: '1'
   DOTNET_NOLOGO: '1'
+  # The internal preview built before the command was renamed to otter-net
+  # (commit fbc46a4, kept until 2026-11-21): its packages installed `otter`,
+  # and the install tests upgrade over them. Once it has expired the step
+  # that downloads it says so and those checks are skipped.
+  PRE_RENAME_RUN: '39747899383'
+  PRE_RENAME_ARTIFACT: otter-net-0.9.0-preview.1-INTERNAL-PREVIEW-UNSIGNED
 
 jobs:
   # otterPS 1.0.1's release ZIP, built by its own tool from its tag, as its
@@ -87,6 +101,35 @@ jobs:
         run: |
           ./tools/package.ps1 -Runtime ${{ matrix.rid }} -Installer -Version 0.8.0 -PublishDirectory artifacts/publish/${{ matrix.rid }} -DesktopPublishDirectory artifacts/publish/${{ matrix.rid }}-desktop -OutputDirectory older
           ./tools/package.ps1 -Runtime ${{ matrix.rid }} -Installer -Version 0.9.1 -PublishDirectory artifacts/publish/${{ matrix.rid }} -DesktopPublishDirectory artifacts/publish/${{ matrix.rid }}-desktop -OutputDirectory newer
+      - name: Signing rehearsal - a throwaway self-signed certificate, nothing kept
+        shell: pwsh
+        run: |
+          $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject 'CN=otter-net signing rehearsal (not trusted)' -CertStoreLocation Cert:\CurrentUser\My -NotAfter (Get-Date).AddDays(1)
+          $pfx = Join-Path $env:RUNNER_TEMP 'rehearsal.pfx'
+          $password = [Guid]::NewGuid().ToString('N')
+          Write-Output "::add-mask::$password"
+          Export-PfxCertificate -Cert $cert -FilePath $pfx -Password (ConvertTo-SecureString $password -AsPlainText -Force) | Out-Null
+          try {
+            $env:OTTER_SIGN_PROVIDER = 'pfx'; $env:OTTER_SIGN_PFX = $pfx; $env:OTTER_SIGN_PFX_PASSWORD = $password
+            $env:OTTER_SIGN_TIMESTAMP = 'http://timestamp.digicert.com'
+            ./tools/package.ps1 -Runtime ${{ matrix.rid }} -Installer -Sign -PublishDirectory artifacts/publish/${{ matrix.rid }} -DesktopPublishDirectory artifacts/publish/${{ matrix.rid }}-desktop -OutputDirectory signtest
+            Add-Type -AssemblyName System.IO.Compression.FileSystem
+            [System.IO.Compression.ZipFile]::ExtractToDirectory((Get-Item signtest/*.zip).FullName, 'signtest/zip')
+            $files = @((Get-Item signtest/*.msi)) + @(Get-ChildItem signtest/zip -Recurse -Include otter-net.exe, otter-desktop.exe)
+            if ($files.Count -ne 3) { throw "expected the MSI and two executables, found $($files.Count)" }
+            foreach ($f in $files) {
+              $s = Get-AuthenticodeSignature -LiteralPath $f.FullName
+              if ($s.SignerCertificate.Thumbprint -ne $cert.Thumbprint -or -not $s.TimeStamperCertificate) { throw "$($f.Name): not signed by the rehearsal certificate with a timestamp ($($s.Status))" }
+              "$($f.Name): signed by $($s.SignerCertificate.Subject), timestamp $($s.TimeStamperCertificate.Subject)"
+            }
+            $printed = (& (Get-ChildItem signtest/zip -Recurse -Filter otter-net.exe).FullName --version | Out-String).Trim()
+            if ($printed -ne 'Otter 1.0.1') { throw "the signed otter-net.exe printed '$printed'" }
+            "### Signing rehearsal (${{ matrix.rid }}): otter-net.exe, otter-desktop.exe and the MSI signed (self-signed throwaway certificate, timestamped) and checked; discarded" | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+          } finally {
+            Remove-Item -Force $pfx -ErrorAction SilentlyContinue
+            Remove-Item -Force "Cert:\CurrentUser\My\$($cert.Thumbprint)" -ErrorAction SilentlyContinue
+            Remove-Item -Recurse -Force signtest -ErrorAction SilentlyContinue
+          }
       - name: For the no-.NET test - a framework-dependent otter-desktop (the negative control) and the self-contained desktop harness
         shell: pwsh
         run: |
@@ -137,15 +180,27 @@ jobs:
         with:
           name: test-inputs-${{ matrix.rid }}
           path: inputs
-      - name: Install over an older MSI, run without PowerShell, uninstall, refuse a downgrade; the ZIP in place
+      - name: The earlier preview's packages (before the rename), for the upgrade test
+        id: prerename
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.PRE_RENAME_ARTIFACT }}
+          run-id: ${{ env.PRE_RENAME_RUN }}
+          github-token: ${{ github.token }}
+          path: prerename
+      - name: Install over an older MSI, run without PowerShell, uninstall, refuse a downgrade; over the pre-rename MSI; the ZIP in place
         shell: powershell
         run: |
           $v = '${{ needs.windows-build.outputs.version }}'
+          $pre = "prerename\otter-net-0.9.0-preview.1-${{ matrix.rid }}.msi"
+          $preArgs = @()
+          if (Test-Path $pre) { $preArgs = @('-PreRenameMsi', $pre) } else { "### pre-rename MSI not available (run $env:PRE_RENAME_RUN expired?): that upgrade was not tested" | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY }
           powershell -NoProfile -ExecutionPolicy Bypass -File tools\test-package.ps1 `
             -Msi "packages\otter-net-$v-${{ matrix.rid }}.msi" `
             -OlderMsi "inputs\older\otter-net-0.8.0-${{ matrix.rid }}.msi" `
             -NewerMsi "inputs\newer\otter-net-0.9.1-${{ matrix.rid }}.msi" `
-            -Zip "packages\otter-net-$v-${{ matrix.rid }}.zip" -LogDirectory msi-logs
+            -Zip "packages\otter-net-$v-${{ matrix.rid }}.zip" -LogDirectory msi-logs @preArgs
           exit $LASTEXITCODE
       - uses: actions/upload-artifact@v4
         if: always()
@@ -317,10 +372,24 @@ jobs:
           path: inputs
       - name: Checksums
         run: cd packages && sha256sum -c SHA256SUMS
-      - name: The .deb - install over an older one, run without PowerShell, remove, refuse a downgrade
-        run: sh tools/test-package.sh deb packages/*.deb inputs/older/*.deb inputs/newer/*.deb
-      - name: The .tar.gz - install.sh into ~/.local, run without PowerShell, uninstall.sh
-        run: sh tools/test-package.sh tarball packages/*.tar.gz
+      - name: The earlier preview's packages (before the rename), for the upgrade test
+        id: prerename
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.PRE_RENAME_ARTIFACT }}
+          run-id: ${{ env.PRE_RENAME_RUN }}
+          github-token: ${{ github.token }}
+          path: prerename
+      - name: The .deb - install over an older one, run without PowerShell, remove, refuse a downgrade, over the pre-rename .deb
+        run: |
+          pre=$(ls prerename/otter-net_*_$(dpkg --print-architecture).deb 2>/dev/null || true)
+          [ -n "$pre" ] || echo "### pre-rename .deb not available (run $PRE_RENAME_RUN expired?): that upgrade was not tested" >> "$GITHUB_STEP_SUMMARY"
+          OTTER_PRE_RENAME="$pre" sh tools/test-package.sh deb packages/*.deb inputs/older/*.deb inputs/newer/*.deb
+      - name: The .tar.gz - install.sh into ~/.local, run without PowerShell, uninstall.sh, over the pre-rename tarball
+        run: |
+          pre=$(ls prerename/otter-net-*-${{ matrix.rid }}.tar.gz 2>/dev/null || true)
+          OTTER_PRE_RENAME="$pre" sh tools/test-package.sh tarball packages/*.tar.gz
 
   linux-coexistence:
     name: Beside otterPS 1.0.1 - Debian 12 ${{ matrix.rid }} (deb, tar.gz)
@@ -386,6 +455,24 @@ jobs:
         run: |
           ./tools/package.ps1 -Runtime ${{ matrix.rid }} -Installer -Version 0.8.0 -PublishDirectory artifacts/publish/${{ matrix.rid }} -OutputDirectory older
           ./tools/package.ps1 -Runtime ${{ matrix.rid }} -Installer -Version 0.9.1 -PublishDirectory artifacts/publish/${{ matrix.rid }} -OutputDirectory newer
+      - name: Signing rehearsal - an ad-hoc Hardened Runtime signature, nothing kept
+        shell: pwsh
+        run: |
+          $env:OTTER_SIGN_PROVIDER = 'adhoc'
+          try {
+            ./tools/package.ps1 -Runtime ${{ matrix.rid }} -Installer -Sign -PublishDirectory artifacts/publish/${{ matrix.rid }} -OutputDirectory signtest
+            New-Item -ItemType Directory signtest/x | Out-Null
+            tar -xzf (Get-Item signtest/*.tar.gz).FullName -C signtest/x
+            $exe = (Get-ChildItem signtest/x -Recurse -Filter otter-net).FullName
+            $details = (codesign -dv $exe 2>&1 | Out-String)
+            if ($details -notmatch 'flags=0x[0-9a-f]+\([^)]*runtime') { throw "no Hardened Runtime flag: $details" }
+            $printed = (& $exe --version | Out-String).Trim()
+            if ($printed -ne 'Otter 1.0.1') { throw "the signed otter-net printed '$printed'" }
+            pkgutil --expand-full (Get-Item signtest/*.pkg).FullName signtest/pkg
+            $payload = (Get-ChildItem signtest/pkg -Recurse -Filter otter-net | Where-Object FullName -like '*Payload*').FullName
+            if ((codesign -dv $payload 2>&1 | Out-String) -notmatch 'runtime') { throw 'the .pkg payload is not the signed executable' }
+            "### Signing rehearsal (${{ matrix.rid }}): otter-net signed ad hoc with the Hardened Runtime, runs, and is what the .tar.gz and .pkg carry; discarded" | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+          } finally { Remove-Item -Recurse -Force signtest -ErrorAction SilentlyContinue }
       - name: What was built
         run: |
           ls -l artifacts/packages
@@ -430,10 +517,24 @@ jobs:
       # The runner has PowerShell (in /usr/local/bin among others): the
       # installed otter runs with PATH=/usr/bin:/bin:/usr/sbin:/sbin and a
       # folder holding only its link, and the script checks pwsh is not found.
-      - name: The .pkg - install over an older one, run without PowerShell, uninstall, a downgrade
-        run: env PATH=/usr/bin:/bin:/usr/sbin:/sbin sh tools/test-package.sh pkg packages/*.pkg inputs/older/*.pkg inputs/newer/*.pkg
-      - name: The .tar.gz - install.sh into ~/.local, run without PowerShell, uninstall.sh
-        run: env PATH=/usr/bin:/bin:/usr/sbin:/sbin sh tools/test-package.sh tarball packages/*.tar.gz
+      - name: The earlier preview's packages (before the rename), for the upgrade test
+        id: prerename
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.PRE_RENAME_ARTIFACT }}
+          run-id: ${{ env.PRE_RENAME_RUN }}
+          github-token: ${{ github.token }}
+          path: prerename
+      - name: The .pkg - install over an older one, run without PowerShell, uninstall, a downgrade, over the pre-rename .pkg
+        run: |
+          pre=$(ls prerename/otter-net-*-${{ matrix.rid }}.pkg 2>/dev/null || true)
+          [ -n "$pre" ] || echo "### pre-rename .pkg not available (run $PRE_RENAME_RUN expired?): that upgrade was not tested" >> "$GITHUB_STEP_SUMMARY"
+          env PATH=/usr/bin:/bin:/usr/sbin:/sbin OTTER_PRE_RENAME="$pre" sh tools/test-package.sh pkg packages/*.pkg inputs/older/*.pkg inputs/newer/*.pkg
+      - name: The .tar.gz - install.sh into ~/.local, run without PowerShell, uninstall.sh, over the pre-rename tarball
+        run: |
+          pre=$(ls prerename/otter-net-*-${{ matrix.rid }}.tar.gz 2>/dev/null || true)
+          env PATH=/usr/bin:/bin:/usr/sbin:/sbin OTTER_PRE_RENAME="$pre" sh tools/test-package.sh tarball packages/*.tar.gz
 
   macos-coexistence:
     name: Beside otterPS 1.0.1 - macOS ${{ matrix.rid }} (pkg, tar.gz)

@@ -4,11 +4,12 @@
 
   - Installs for the current user only, no administrator rights, into
     %LOCALAPPDATA%\Programs\otter-net: exactly the files of the ZIP
-    (otter.exe; otter-desktop.exe, self-contained, with WPF's *_cor3.dll;
+    (otter-net.exe; otter-desktop.exe, self-contained, with WPF's *_cor3.dll;
     LICENSE, README.md, VERSION, THIRD-PARTY-NOTICES.txt, SHA256SUMS).
     Nothing else is needed on the machine: no .NET, no PowerShell.
-  - Puts that folder first on the user's PATH, so a new terminal's `otter` is
-    otter-net's, also when the PowerShell Otter (otterPS) is on the PATH too.
+  - Adds that folder at the end of the user's PATH, so a new terminal has the
+    `otter-net` command. There is no otter.exe in it: the stable `otter`
+    command (otterPS's, if installed) stays exactly what it was.
   - Uninstalling (Settings > Apps) removes the files, the folder, the PATH
     entry and HKCU\Software\otter-net.
   - Its own identity, distinct from every otterPS identity
@@ -51,12 +52,12 @@
       </Directory>
     </StandardDirectory>
 
-    <!-- `otter` on the user's PATH; the registry value is the component's key
+    <!-- `otter-net` on the user's PATH; the registry value is the component's key
          (a per-user component needs one, ICE38). -->
     <Component Id="OtterNetOnPath" Directory="INSTALLFOLDER" Guid="6CFBA9A4-2DD8-47B6-804B-A9ABD2AF4371">
       <RegistryValue Root="HKCU" Key="Software\otter-net" Name="InstallFolder" Type="string" Value="[INSTALLFOLDER]" KeyPath="yes" />
       <RegistryValue Root="HKCU" Key="Software\otter-net" Name="Version" Type="string" Value="$(var.PackageVersion)" />
-      <Environment Id="OtterNetPath" Name="PATH" Value="[INSTALLFOLDER]" Part="first" Action="set" System="no" Permanent="no" />
+      <Environment Id="OtterNetPath" Name="PATH" Value="[INSTALLFOLDER]" Part="last" Action="set" System="no" Permanent="no" />
       <RemoveFolder Id="RemoveInstallFolder" Directory="INSTALLFOLDER" On="uninstall" />
       <!-- Removed only when empty: other programs install there too. -->
       <RemoveFolder Id="RemoveUserProgramsFolder" Directory="UserProgramsFolder" On="uninstall" />

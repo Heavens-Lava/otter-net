@@ -10,8 +10,10 @@ Priority: optional
 Homepage: https://otterprogramming.com
 Description: Otter programming language - otter-net @CHANNEL@
  otter-net is the native implementation of the Otter programming language,
- a language that reads like plain English: one self-contained otter command
- that runs Otter 1.0.1 programs with otterPS's output and error messages.
+ a language that reads like plain English: one self-contained otter-net
+ command that runs Otter 1.0.1 programs with otterPS's output and error
+ messages.
  .
- This is an unsigned @CHANNEL@ (@VERSION@), not an Otter release; it
- installs beside the PowerShell Otter (otterPS) and replaces nothing of it.
+ This is an unsigned @CHANNEL@ (@VERSION@), not an Otter release. It
+ installs /usr/bin/otter-net only: the otter command (the PowerShell Otter,
+ otterPS) is neither installed nor changed.

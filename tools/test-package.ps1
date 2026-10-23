@@ -2,15 +2,16 @@
 .SYNOPSIS
 Tests otter-net's Windows packages the way a user gets them, as on a machine
 without PowerShell: installs the MSI (after an older one, to test the
-upgrade), runs the installed `otter` from a new terminal's PATH with every
-folder holding powershell.exe or pwsh.exe removed, uninstalls it and checks
-that nothing is left behind; checks that a downgrade is refused (with
+upgrade), runs the installed `otter-net` from a new terminal's PATH with
+every folder holding powershell.exe or pwsh.exe removed, checks that it
+installs no `otter` command, uninstalls it and checks that nothing is left
+behind; checks that a downgrade is refused (with
 -NewerMsi); then runs the ZIP in place.
 
 .DESCRIPTION
 Runs on a disposable Windows (CI): it installs and uninstalls for the current
 user. The script itself needs Windows PowerShell 5.1 or PowerShell 7; every
-`otter` it starts gets the PATH without PowerShell, so a program that needed
+`otter-net` it starts gets the PATH without PowerShell, so a program that needed
 the PowerShell Otter would say so ("needs the PowerShell Otter") instead of
 running. (otter-net no longer hands anything to PowerShell; the check stays
 so that a regression would show.) Desktop windows run in the installed
@@ -30,6 +31,9 @@ param(
     # A newer version of the same MSI: installing -Msi over it must be refused.
     [string]$NewerMsi = '',
     [string]$Zip = '',
+    # A real MSI from before the command was renamed (it installed otter.exe,
+    # first on the PATH): -Msi installed over it must take otter away again.
+    [string]$PreRenameMsi = '',
     [string]$LogDirectory = 'msi-logs'
 )
 
@@ -109,7 +113,7 @@ function Test-Otter {
     param([string]$Otter, [string]$Label)
     Write-Host "== $Label ($Otter)"
     $version = Invoke-Clean $Otter @('--version') $scratch
-    if ($version.Out.Trim() -eq "Otter $languageVersion") { Pass "otter --version: $($version.Out.Trim())" } else { Fail "otter --version printed '$($version.Out.Trim())' $($version.Err)" }
+    if ($version.Out.Trim() -eq "Otter $languageVersion") { Pass "otter-net --version: $($version.Out.Trim())" } else { Fail "otter-net --version printed '$($version.Out.Trim())' $($version.Err)" }
 
     # tests\compat, each program in a fresh copy of the folder's files.
     $allowed = @('ui_run_create.ot', 'ui_run_create_try.ot', 'ui_run_create_unknown.ot', 'p2_remote_command.ot')
@@ -180,10 +184,12 @@ try {
             Where-Object { $_.PSObject.Properties['DisplayName'] -and $_.DisplayName -like '*otter*' } | ForEach-Object { Write-Host "  found: $($_.PSPath) $($_.DisplayName) $($_.DisplayVersion)" }
     }
     if ($OlderMsi) { Note '- msi: upgrade from an older MSI leaves one Apps entry and one PATH entry' }
-    if (Test-Path (Join-Path $installDir 'otter.exe')) { Pass "$installDir\otter.exe" } else { Fail "no $installDir\otter.exe" }
+    if (Test-Path (Join-Path $installDir 'otter-net.exe')) { Pass "$installDir\otter-net.exe" } else { Fail "no $installDir\otter-net.exe" }
+    $otterLike = @(Get-ChildItem -LiteralPath $installDir -File | Where-Object { $_.BaseName -eq 'otter' })
+    if (-not $otterLike) { Pass "no otter command in $installDir" } else { Fail "$installDir has $($otterLike.Name -join ', ')" }
     $userPath = @(([Environment]::GetEnvironmentVariable('Path', 'User') -split ';') | Where-Object { $_ })
     $mine = @($userPath | Where-Object { $_.TrimEnd('\') -eq $installDir })
-    if ($mine.Count -eq 1 -and $userPath[0].TrimEnd('\') -eq $installDir) { Pass 'user PATH: the install folder, once, first'; Note '- msi: user PATH has the install folder once, first (no duplicate after the upgrade)' } else { Fail "user PATH: $($userPath -join ';')" }
+    if ($mine.Count -eq 1 -and $userPath[-1].TrimEnd('\') -eq $installDir) { Pass 'user PATH: the install folder, once, last'; Note '- msi: user PATH has the install folder once, at the end (no duplicate after the upgrade); it holds otter-net.exe and no otter command' } else { Fail "user PATH: $($userPath -join ';')" }
     $machinePath = @(([Environment]::GetEnvironmentVariable('Path', 'Machine') -split ';') | Where-Object { $_.TrimEnd('\') -eq $installDir })
     if (-not $machinePath) { Pass 'machine PATH untouched' } else { Fail "the machine PATH has $installDir" }
     $registered = (Get-ItemProperty 'HKCU:\Software\otter-net' -ErrorAction SilentlyContinue)
@@ -191,13 +197,16 @@ try {
 
     # ---- A new terminal without PowerShell ----
     $script:cleanPath = Get-PathWithoutPowerShell
-    $where = Invoke-Clean "$env:SystemRoot\System32\where.exe" @('otter') $scratch
+    $where = Invoke-Clean "$env:SystemRoot\System32\where.exe" @('otter-net') $scratch
     $first = ($where.Out -split "`r?`n" | Where-Object { $_ } | Select-Object -First 1)
-    if ($first -eq (Join-Path $installDir 'otter.exe')) { Pass "a new terminal's otter: $first" } else { Fail "a new terminal's otter is '$first'" }
-    $terminal = Get-NewTerminalOtter
+    if ($first -eq (Join-Path $installDir 'otter-net.exe')) { Pass "a new terminal's otter-net: $first" } else { Fail "a new terminal's otter-net is '$first'" }
+    $terminal = Get-NewTerminalOtter -Name 'otter-net'
     if ($null -eq $terminal.Session) { Note '- msi: (Task Scheduler could not start a new-session process; the PATH from the registry was checked)' }
-    elseif ($terminal.Session.Count -ge 1 -and $terminal.Session[0] -eq (Join-Path $installDir 'otter.exe')) { Pass "a new session's otter (Task Scheduler, fresh environment): $($terminal.Session[0])"; Note "- msi: a new terminal (a fresh process from Task Scheduler) finds $($terminal.Session[0])" }
-    else { Fail "a new session's otter: $($terminal.Session -join ', ')" }
+    elseif ($terminal.Session.Count -ge 1 -and $terminal.Session[0] -eq (Join-Path $installDir 'otter-net.exe')) { Pass "a new session's otter-net (Task Scheduler, fresh environment): $($terminal.Session[0])"; Note "- msi: a new terminal (a fresh process from Task Scheduler) finds $($terminal.Session[0])" }
+    else { Fail "a new session's otter-net: $($terminal.Session -join ', ')" }
+    $otterTerminal = Get-NewTerminalOtter
+    if (-not $otterTerminal.Found -and -not $otterTerminal.Session) { Pass "a new terminal has no otter command (otter-net installs none)"; Note '- msi: a new terminal still has no otter command: otter-net installs only otter-net' }
+    else { Fail "a new terminal finds otter: $((@($otterTerminal.Found) + @($otterTerminal.Session)) -join ', ')" }
     foreach ($shell in 'powershell.exe', 'pwsh.exe') {
         $found = Invoke-Clean "$env:SystemRoot\System32\where.exe" @($shell) $scratch
         if ($found.Code -eq 0) { throw "$shell is still found on the test PATH: $($found.Out)" }
@@ -213,11 +222,13 @@ try {
     if (Get-OtterEntries) { $left += 'the Settings > Apps entry' }
     if (@(([Environment]::GetEnvironmentVariable('Path', 'User') -split ';') | Where-Object { $_.TrimEnd('\') -eq $installDir })) { $left += 'the user PATH entry' }
     $script:cleanPath = Get-PathWithoutPowerShell
-    $where = Invoke-Clean "$env:SystemRoot\System32\where.exe" @('otter') $scratch
-    if ($where.Code -eq 0) { $left += "otter on a new terminal's PATH ($($where.Out.Trim()))" }
-    $terminal = Get-NewTerminalOtter
-    if ($terminal.Session) { $left += "otter in a new session ($($terminal.Session -join ', '))" }
-    if (-not $left) { Pass 'uninstall: nothing left behind'; Note '- msi uninstall: files, folder, PATH entry, registry key and Apps entry removed; a new terminal finds no otter' }
+    foreach ($name in 'otter-net', 'otter') {
+        $where = Invoke-Clean "$env:SystemRoot\System32\where.exe" @($name) $scratch
+        if ($where.Code -eq 0) { $left += "$name on a new terminal's PATH ($($where.Out.Trim()))" }
+        $terminal = Get-NewTerminalOtter -Name $name
+        if ($terminal.Session) { $left += "$name in a new session ($($terminal.Session -join ', '))" }
+    }
+    if (-not $left) { Pass 'uninstall: nothing left behind'; Note '- msi uninstall: files, folder, PATH entry, registry key and Apps entry removed; a new terminal finds neither otter-net nor otter' }
     else { Fail "uninstall left behind: $($left -join ', ')" }
 
     # ---- Downgrade: a newer otter-net MSI is installed; this one is refused ----
@@ -227,12 +238,30 @@ try {
         $code = Invoke-Msiexec @('/i', "`"$Msi`"") (Join-Path $LogDirectory 'downgrade.log') -MayFail
         $after = @(Get-OtterEntries)
         $message = Select-String -Path (Join-Path $LogDirectory 'downgrade.log') -Pattern 'A newer version of otter-net is already installed' -SimpleMatch -Quiet
-        if ($code -ne 0 -and $after.Count -eq 1 -and $newer.Count -eq 1 -and $after[0].DisplayVersion -eq $newer[0].DisplayVersion -and (Test-Path (Join-Path $installDir 'otter.exe'))) {
+        if ($code -ne 0 -and $after.Count -eq 1 -and $newer.Count -eq 1 -and $after[0].DisplayVersion -eq $newer[0].DisplayVersion -and (Test-Path (Join-Path $installDir 'otter-net.exe'))) {
             Pass "downgrade refused (msiexec $code$(if ($message) { ', "A newer version of otter-net is already installed."' })); $($after[0].DisplayName) stays"
             Note "- msi: a downgrade (over $($newer[0].DisplayVersion)) is refused (msiexec exit $code$(if ($message) { ', with the message "A newer version of otter-net is already installed."' })); the newer one stays installed"
         } else { Fail "downgrade: msiexec $code; entries now: $(($after | ForEach-Object { "$($_.DisplayName) $($_.DisplayVersion)" }) -join '; ')" }
         Invoke-Msiexec @('/x', "`"$NewerMsi`"") (Join-Path $LogDirectory 'uninstall-newer.log')
         if ((Test-Path $installDir) -or (Get-OtterEntries)) { Fail 'the newer MSI left files or an Apps entry' } else { Pass 'the newer MSI uninstalled cleanly' }
+    }
+
+    # ---- Over a real pre-rename MSI ----
+    if ($PreRenameMsi) {
+        $PreRenameMsi = (Resolve-Path $PreRenameMsi).Path
+        Invoke-Msiexec @('/i', "`"$PreRenameMsi`"") (Join-Path $LogDirectory 'install-pre-rename.log')
+        $before = Get-NewTerminalOtter
+        if (@($before.Found)[0] -eq (Join-Path $installDir 'otter.exe')) { Pass "the pre-rename MSI made otter.exe the new terminal's otter" } else { Fail "the pre-rename MSI: a new terminal's otter is $(@($before.Found) -join ', ')" }
+        Invoke-Msiexec @('/i', "`"$Msi`"") (Join-Path $LogDirectory 'install-over-pre-rename.log')
+        $after = Get-NewTerminalOtter
+        $net = Get-NewTerminalOtter -Name 'otter-net'
+        $userPath = @(([Environment]::GetEnvironmentVariable('Path', 'User') -split ';') | Where-Object { $_ -and $_.TrimEnd('\') -eq $installDir })
+        if (-not $after.Found -and -not $after.Session -and @($net.Found)[0] -eq (Join-Path $installDir 'otter-net.exe') -and -not (Test-Path (Join-Path $installDir 'otter.exe')) -and $userPath.Count -eq 1 -and @(Get-OtterEntries).Count -eq 1) {
+            Pass 'over a real pre-rename MSI: otter.exe removed, a new terminal has otter-net and no otter, one PATH entry, one Apps entry'
+            Note "- msi: over a real pre-rename MSI ($([System.IO.Path]::GetFileName($PreRenameMsi)), otter.exe first on the PATH): otter.exe is removed, a new terminal has otter-net and no otter; one PATH entry, one Apps entry"
+        } else { Fail "over the pre-rename MSI: otter $((@($after.Found) + @($after.Session)) -join ', '); otter-net $(@($net.Found) -join ', '); PATH entries $($userPath.Count)" }
+        Invoke-Msiexec @('/x', "`"$Msi`"") (Join-Path $LogDirectory 'uninstall-after-pre-rename.log')
+        if ((Test-Path $installDir) -or (Get-OtterEntries)) { Fail 'after the pre-rename test: files or an Apps entry left' } else { Pass 'uninstalled after the pre-rename test' }
     }
 
     # ---- The ZIP, run in place ----
@@ -248,11 +277,12 @@ try {
         }
         if (-not $bad) { Pass 'zip: SHA256SUMS matches' } else { Fail "zip: checksum differs: $($bad -join ', ')" }
         $script:cleanPath = Get-PathWithoutPowerShell
-        $zipped = Invoke-Clean (Join-Path $folder.FullName 'otter.exe') @('--version') $scratch
+        if (Test-Path (Join-Path $folder.FullName 'otter.exe')) { Fail 'zip: has otter.exe' }
+        $zipped = Invoke-Clean (Join-Path $folder.FullName 'otter-net.exe') @('--version') $scratch
         $hello = Join-Path $scratch 'hello.ot'
         [System.IO.File]::WriteAllText($hello, "say `"Hello`"`n")
-        $said = Invoke-Clean (Join-Path $folder.FullName 'otter.exe') @('run', 'hello.ot') $scratch
-        if ($zipped.Out.Trim() -eq "Otter $languageVersion" -and $said.Out.Trim() -eq 'Hello') { Pass 'zip: otter.exe runs in place'; Note '- zip: checksums match; otter.exe runs in place without PowerShell' }
+        $said = Invoke-Clean (Join-Path $folder.FullName 'otter-net.exe') @('run', 'hello.ot') $scratch
+        if ($zipped.Out.Trim() -eq "Otter $languageVersion" -and $said.Out.Trim() -eq 'Hello') { Pass 'zip: otter-net.exe runs in place'; Note '- zip: checksums match; otter-net.exe runs in place without PowerShell' }
         else { Fail "zip: '$($zipped.Out.Trim())' '$($said.Out.Trim())' $($said.Err)" }
     }
 }

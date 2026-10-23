@@ -2,9 +2,10 @@
 .SYNOPSIS
 Tests otter-net's Windows packages installed beside otterPS 1.0.1 (the
 PowerShell Otter, installed from its own release ZIP with its own
-Install-Otter.ps1 -AddToUserPath): which `otter` a new terminal gets, that
-both still work, and that uninstalling either, in both orders, leaves the
-other intact.
+Install-Otter.ps1 -AddToUserPath): that a new terminal's `otter` is always
+otterPS's (or none) - never otter-net's - and its `otter-net` is otter-net's,
+that both still work, and that uninstalling either, in both orders, leaves
+the other intact.
 
 .DESCRIPTION
 Changes the machine (installs for the current user): a disposable Windows
@@ -76,10 +77,10 @@ function Test-Works {
     else { Fail "$Label ($Command): --version '$($version.Out)' run '$($ran.Out)' $($ran.Err)" }
 }
 
-# Which otter a new terminal finds first; checks it is $Expect.
-function Test-Terminal {
-    param([string]$Label, [string]$Expect)
-    $terminal = Get-NewTerminalOtter
+# Which `otter` (or -Name) a new terminal finds first; checks it is $Expect.
+function Test-Command {
+    param([string]$Label, [string]$Expect, [string]$Name = 'otter')
+    $terminal = Get-NewTerminalOtter -Name $Name
     $first = @($terminal.Found)[0]
     $kind = Get-OtterKind $first
     $sessionText = ''
@@ -87,10 +88,18 @@ function Test-Terminal {
         $sessionFirst = @($terminal.Session)[0]
         $sessionKind = Get-OtterKind $sessionFirst
         $sessionText = "; new session: $sessionKind"
-        if ($sessionKind -ne $Expect) { Fail "${Label}: a new session (Task Scheduler) finds $sessionKind ($sessionFirst), expected $Expect" }
+        if ($sessionKind -ne $Expect) { Fail "${Label}: a new session (Task Scheduler) finds $Name = $sessionKind ($sessionFirst), expected $Expect" }
     }
-    if ($kind -eq $Expect) { Pass "${Label}: a new terminal's otter is $kind ($first)$sessionText" } else { Fail "${Label}: a new terminal's otter is $kind ($first), expected $Expect" }
-    Note "- ${Label}: a new terminal's otter is $kind$(if ($first) { " ($first)" })$sessionText; all found: $(@($terminal.Found | ForEach-Object { Get-OtterKind $_ }) -join ', ')"
+    if ($kind -eq $Expect) { Pass "${Label}: a new terminal's $Name is $kind ($first)$sessionText" } else { Fail "${Label}: a new terminal's $Name is $kind ($first), expected $Expect" }
+    Note "- ${Label}: a new terminal's $Name is $kind$(if ($first) { " ($first)" })$sessionText; all found: $(@($terminal.Found | ForEach-Object { Get-OtterKind $_ }) -join ', ')"
+}
+
+# `otter` is otterPS's while otterPS is installed, otherwise none - never
+# otter-net's; `otter-net` is otter-net's while it is installed.
+function Test-Terminal {
+    param([string]$Label, [bool]$Ps, [bool]$Net)
+    Test-Command $Label $(if ($Ps) { 'otterPS' } else { 'none' }) 'otter'
+    Test-Command $Label $(if ($Net) { 'otter-net' } else { 'none' }) 'otter-net'
 }
 
 function Get-UserPathEntries { @(([Environment]::GetEnvironmentVariable('Path', 'User') -split ';') | Where-Object { $_ } | ForEach-Object { $_.TrimEnd('\') }) }
@@ -101,8 +110,7 @@ function Test-PathEntries {
     $netCount = @($entries | Where-Object { $_ -eq $netDir }).Count
     $psCount = @($entries | Where-Object { $_ -eq $psDir }).Count
     $ok = ($netCount -eq [int]$Net) -and ($psCount -eq [int]$Ps)
-    if ($Net -and $entries[0] -ne $netDir) { $ok = $false }
-    if ($ok) { Pass "${Label}: user PATH has otter-net $netCount time(s)$(if ($Net) { ' (first)' }), otterPS $psCount time(s)" }
+    if ($ok) { Pass "${Label}: user PATH has otter-net $netCount time(s), otterPS $psCount time(s)" }
     else { Fail "${Label}: user PATH: $($entries -join ';')" }
 }
 
@@ -141,48 +149,48 @@ function Test-PsGone {
 try {
     if ((Test-Path $netDir) -or (Test-Path $psDir)) { throw 'otter-net or otterPS is already installed here.' }
     $psCmd = Join-Path $psDir 'otter.cmd'
-    $netCmd = Join-Path $netDir 'otter.exe'
+    $netCmd = Join-Path $netDir 'otter-net.exe'
 
     # ---- A ----
     Write-Host '== A: otterPS, then otter-net (MSI); uninstall otter-net, then otterPS'
     Install-OtterPs
     $psPrint = Get-Fingerprint $psDir
-    Test-Terminal 'A, otterPS alone' 'otterPS'
+    Test-Terminal 'A, otterPS alone' $true $false
     Install-Net 'coexist-a-install.log'
     Test-PathEntries 'A, both installed' $true $true
-    Test-Terminal 'A, both installed' 'otter-net'
+    Test-Terminal 'A, both installed' $true $true
     Test-Works 'otter-net' $netCmd
     Test-Works 'otterPS' $psCmd
     if ((Get-Fingerprint $psDir) -eq $psPrint) { Pass "A: otterPS's files unchanged by otter-net's install" } else { Fail "A: otterPS's files changed" }
     Uninstall-Net 'coexist-a-uninstall.log'
     Test-NetGone 'A, otter-net uninstalled'
     Test-PathEntries 'A, otter-net uninstalled' $false $true
-    Test-Terminal 'A, otter-net uninstalled' 'otterPS'
+    Test-Terminal 'A, otter-net uninstalled' $true $false
     Test-Works 'otterPS (otter-net uninstalled)' $psCmd
     if ((Get-Fingerprint $psDir) -eq $psPrint) { Pass "A: otterPS's files unchanged by otter-net's uninstall" } else { Fail "A: otterPS's files changed by otter-net's uninstall" }
     Uninstall-OtterPs
     Test-PsGone 'A, both uninstalled'
-    Test-Terminal 'A, both uninstalled' 'none'
+    Test-Terminal 'A, both uninstalled' $false $false
 
     # ---- B ----
     Write-Host '== B: otter-net (MSI), then otterPS; uninstall otterPS, then otter-net'
     Install-Net 'coexist-b-install.log'
     $netPrint = Get-Fingerprint $netDir
-    Test-Terminal 'B, otter-net alone' 'otter-net'
+    Test-Terminal 'B, otter-net alone' $false $true
     Install-OtterPs
     Test-PathEntries 'B, both installed' $true $true
-    Test-Terminal 'B, both installed' 'otter-net'
+    Test-Terminal 'B, both installed' $true $true
     Test-Works 'otter-net' $netCmd
     Test-Works 'otterPS' $psCmd
     Uninstall-OtterPs
     Test-PsGone 'B, otterPS uninstalled'
     Test-PathEntries 'B, otterPS uninstalled' $true $false
     if ((Get-Fingerprint $netDir) -eq $netPrint -and (Test-Path 'HKCU:\Software\otter-net')) { Pass "B: otter-net's files and registry key unchanged by otterPS's install and uninstall" } else { Fail "B: otter-net changed" }
-    Test-Terminal 'B, otterPS uninstalled' 'otter-net'
+    Test-Terminal 'B, otterPS uninstalled' $false $true
     Test-Works 'otter-net (otterPS uninstalled)' $netCmd
     Uninstall-Net 'coexist-b-uninstall.log'
     Test-NetGone 'B, both uninstalled'
-    Test-Terminal 'B, both uninstalled' 'none'
+    Test-Terminal 'B, both uninstalled' $false $false
 
     # ---- Z: the ZIP, run in place ----
     if ($Zip) {
@@ -191,16 +199,16 @@ try {
         $psPrint = Get-Fingerprint $psDir
         $extract = Join-Path $scratch 'zip'
         [System.IO.Compression.ZipFile]::ExtractToDirectory($Zip, $extract)
-        $zipOtter = Join-Path (Get-ChildItem $extract -Directory | Select-Object -First 1).FullName 'otter.exe'
+        $zipOtter = Join-Path (Get-ChildItem $extract -Directory | Select-Object -First 1).FullName 'otter-net.exe'
         Test-Works 'otter-net (ZIP, in place)' $zipOtter
         Test-Works 'otterPS (beside the ZIP)' $psCmd
-        Test-Terminal 'Z, ZIP extracted' 'otterPS'
+        Test-Terminal 'Z, ZIP extracted' $true $false
         Remove-Item -Recurse -Force $extract
         if ((Get-Fingerprint $psDir) -eq $psPrint) { Pass "Z: otterPS unchanged" } else { Fail 'Z: otterPS changed' }
         Test-Works 'otterPS (ZIP deleted)' $psCmd
         Uninstall-OtterPs
         Test-PsGone 'Z, otterPS uninstalled'
-        Note '- Z: the ZIP runs in place beside otterPS and changes nothing: a new terminal keeps otterPS'
+        Note '- Z: the ZIP runs in place beside otterPS and changes nothing: a new terminal keeps otterPS as otter'
     }
 }
 finally {

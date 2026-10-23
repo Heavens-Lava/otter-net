@@ -53,15 +53,17 @@ function Select-Runnable {
     @($Paths | Where-Object { $_ -and $extensions -contains [System.IO.Path]::GetExtension($_).ToLowerInvariant() })
 }
 
-# Every `otter` a new terminal finds, in order (where.exe), checked two ways:
+# Every `otter` (or -Name, e.g. otter-net) a new terminal finds, in order
+# (where.exe), checked two ways:
 # where.exe with the PATH composed from the registry, and where.exe in a new
 # process started by Task Scheduler. Returns an object with Found (the list),
 # and Session (the new process's list, or $null when it could not run).
 function Get-NewTerminalOtter {
+    param([string]$Name = 'otter')
     $path = Get-NewTerminalPath
     $psi = New-Object System.Diagnostics.ProcessStartInfo
     $psi.FileName = "$env:SystemRoot\System32\where.exe"
-    $psi.Arguments = 'otter'
+    $psi.Arguments = $Name
     $psi.UseShellExecute = $false
     $psi.RedirectStandardOutput = $true
     $psi.RedirectStandardError = $true
@@ -70,7 +72,7 @@ function Get-NewTerminalOtter {
     $text = $process.StandardOutput.ReadToEnd()
     $process.WaitForExit()
     $found = @(Select-Runnable @($text -split "`r?`n" | Where-Object { $_ }))
-    $session = Invoke-InNewSession 'where otter'
+    $session = Invoke-InNewSession "where $Name"
     if ($null -ne $session) { $session = @(Select-Runnable @($session | Where-Object { $_ -and $_ -notmatch '^INFO:' })) }
     [pscustomobject]@{ Found = $found; Session = $session }
 }
@@ -79,7 +81,7 @@ function Get-NewTerminalOtter {
 function Get-OtterKind {
     param([string]$Path)
     if (-not $Path) { return 'none' }
-    if ($Path -like '*\Programs\otter-net\*' -or $Path -like '*\otter-net-*\otter.exe') { return 'otter-net' }
+    if ($Path -like '*\Programs\otter-net\*' -or $Path -like '*\otter-net-*\otter-net.exe') { return 'otter-net' }
     if ($Path -like '*\Otter\1.0.1\otter.cmd' -or $Path -like '*\Programs\Otter\otter.cmd') { return 'otterPS' }
     "other ($Path)"
 }
