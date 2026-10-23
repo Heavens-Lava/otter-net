@@ -14,5 +14,6 @@
   <ItemGroup>
     <ProjectReference Include="..\Otter.Runtime\Otter.Runtime.csproj" />
     <ProjectReference Include="..\Otter.Web\Otter.Web.csproj" />
+    <ProjectReference Include="..\Otter.Web.Hosting\Otter.Web.Hosting.csproj" />
   </ItemGroup>
 </Project>

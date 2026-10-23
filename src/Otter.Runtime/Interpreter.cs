@@ -183,6 +183,11 @@ public sealed partial class Interpreter
                     thing.WriteProperty(((VariableExpr)property.Target).Name, Evaluate(property.Value, scope));
                 }
                 scope.Set(objectDef.Name, thing);
+                // The Otter Web runtime (opt-in): `site is a web server` declares a server.
+                if (WebHostFactory != null && string.Equals(objectDef.TypeName, WebServerType, StringComparison.OrdinalIgnoreCase))
+                {
+                    RegisterWebServer(thing, objectDef);
+                }
                 return;
             }
             case TypeDefStmt typeDef:
@@ -289,9 +294,9 @@ public sealed partial class Interpreter
                 {
                     Execute(tryStmt.Body, scope);
                 }
-                catch (Exception failure) when (failure is not ReturnSignal and not OutOfMemoryException)
+                catch (Exception failure) when (failure is not ReturnSignal and not WebRespondSignal and not OutOfMemoryException)
                 {
-                    // `return` passes straight through a try; everything else is
+                    // `return` (and a web route's `respond`) passes straight through a try; everything else is
                     // a failure. D68: `otherwise into reason` keeps its message.
                     // The compiled engine catches .NET's own exception, not PowerShell's wrapping of it.
                     string message = CompiledEngine ? OtterPsCompiledEngine.RawMessage(failure) : failure.Message;

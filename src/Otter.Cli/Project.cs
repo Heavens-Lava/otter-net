@@ -26,6 +26,12 @@ internal sealed class Project
     public string PublishOutputDir { get; init; } = "publish";
     // A PowerShell @{} hashtable: keys ignore capitals.
     public Dictionary<string, string> Scripts { get; init; } = new(StringComparer.OrdinalIgnoreCase);
+    // "web": { "runtime": "otter-web-0.1" }: the Otter Web runtime opt-in
+    // (docs/web/RUNTIME_CONTRACT.md); null without it (Otter 1.0.1).
+    public string? WebRuntime { get; init; }
+    public bool WebAllowPublicBind { get; init; }
+
+    public const string SupportedWebRuntime = "otter-web-0.1";
 
     // The host's file system ignores capitals (Windows); PowerShell's
     // Test-OtterProjectWindowsHost.
@@ -310,8 +316,32 @@ internal sealed class Project
             }
         }
 
+        // 5. The Otter Web runtime (opt-in; absent in Otter 1.0.1 projects).
+        string? webRuntime = null;
+        bool allowPublicBind = false;
+        if (Has(manifest, "web", out object? webValue))
+        {
+            AssertType(manifestName, "web", webValue, "object");
+            var web = (OtterThing)webValue!;
+            foreach (string key in web.PropertyNames)
+            {
+                if (key is not ("runtime" or "allowPublicBind")) throw Problem($"{manifestName}: web.{key} is not a setting of the Otter Web runtime (runtime, allowPublicBind).");
+            }
+            if (!Has(web, "runtime", out object? runtimeValue)) throw Problem($"{manifestName}: web.runtime is required (\"{SupportedWebRuntime}\").");
+            AssertType(manifestName, "web.runtime", runtimeValue, "string");
+            if ((string)runtimeValue! != SupportedWebRuntime) throw Problem($"{manifestName}: web.runtime \"{runtimeValue}\" is not supported; this otter-net supports \"{SupportedWebRuntime}\".");
+            webRuntime = (string)runtimeValue!;
+            if (Has(web, "allowPublicBind", out object? publicValue))
+            {
+                AssertType(manifestName, "web.allowPublicBind", publicValue, "boolean");
+                allowPublicBind = (bool)publicValue!;
+            }
+        }
+
         return new Project
         {
+            WebRuntime = webRuntime,
+            WebAllowPublicBind = allowPublicBind,
             RootDirectory = rootDirectory,
             ManifestPath = found.ManifestPath,
             ManifestFileName = manifestName,

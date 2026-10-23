@@ -9,6 +9,13 @@ internal static class FileMode
 {
     public enum Kind { Run, Check }
 
+    // The Otter Web runtime's settings, for a project that opts in.
+    public sealed record WebSettings(bool AllowPublicBind);
+
+    // Kestrel, set by WebHosting.cs in the otter command only: otter-desktop
+    // compiles these sources too and has no web host.
+    public static OtterWebHostFactory? WebHostFactory { get; set; }
+
     // Assert-OtterSourceFileReadable (RC3 B12): the path exists, is a file,
     // and can be opened. Returns the resolved path; exits with 1 otherwise.
     public static string AssertReadable(string scriptPath)
@@ -37,7 +44,7 @@ internal static class FileMode
     }
 
     public static int Invoke(CommandLine line, string scriptPath, Kind kind, string[] arguments,
-                             string? displayTarget = null, Debugger? debugger = null, Profiler? profiler = null)
+                             string? displayTarget = null, Debugger? debugger = null, Profiler? profiler = null, WebSettings? web = null)
     {
         if (!scriptPath.ToLowerInvariant().EndsWith(".ot", StringComparison.Ordinal))
         {
@@ -120,7 +127,18 @@ internal static class FileMode
                 ApplicationPath = resolvedPath,
                 // $script:OtterCompiledRunAllowed: a plain run goes to otterPS's
                 // compiled engine when it can compile the program (CompiledEngine.cs).
-                CompiledEngine = debugger == null && profiler == null && !line.DebugAst
+                // The Otter Web runtime (opt-in): Kestrel serves the program's routes.
+                WebHostFactory = web == null ? null : WebHostFactory ?? throw new InvalidOperationException("The Otter Web runtime is not part of this host."),
+                WebAllowPublicBind = web?.AllowPublicBind ?? false,
+                WebLog = web == null ? null : message => Console.Error.WriteLine(message),
+                WebHandlerFailed = web == null ? null : failure =>
+                {
+                    string text = failure is OtterError handlerError
+                        ? resolved.Remap(handlerError).FormatDetailed()
+                        : "Otter hit a problem inside itself, which means this is a bug in Otter: " + failure.Message;
+                    Console.Error.WriteLine(text);
+                },
+                CompiledEngine = web == null && debugger == null && profiler == null && !line.DebugAst
                     && !string.Equals(Environment.GetEnvironmentVariable("OTTER_ENGINE"), "interpreter", StringComparison.Ordinal)
                     && OtterPsCompiledEngine.Accepts(compiled.Program!),
             };

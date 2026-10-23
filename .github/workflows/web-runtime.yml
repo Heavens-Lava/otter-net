@@ -1,0 +1,151 @@
+# The Otter Web runtime 0.1 (docs/web/RUNTIME_CONTRACT.md) on all six
+# platforms: the Native AOT otter built from this commit runs the black-box
+# HTTP tests (tools/test-web-runtime.ps1, loopback only), and its size is
+# compared with main's (the cost of Kestrel). Nothing is published.
+name: web runtime
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['web/**']
+  pull_request:
+    branches: [main]
+    paths: ['src/**', 'tests/web-runtime/**', 'tools/test-web-runtime.ps1', '.github/workflows/web-runtime.yml']
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
+
+jobs:
+  native:
+    name: ${{ matrix.name }} - Native AOT, black-box HTTP tests, size
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: Windows x64, os: windows-latest, rid: win-x64, exe: otter.exe }
+          - { name: Windows on Arm, os: windows-11-arm, rid: win-arm64, exe: otter.exe }
+          - { name: macOS Apple silicon, os: macos-latest, rid: osx-arm64, exe: otter }
+          - { name: macOS Intel, os: macos-15-intel, rid: osx-x64, exe: otter }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          path: base
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Publish native (AOT) - this commit and main
+        shell: pwsh
+        run: |
+          dotnet publish src/Otter.Cli/Otter.Cli.csproj -c Release -r ${{ matrix.rid }} -p:UseAppHost=true -o artifacts/new --nologo
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          dotnet publish base/src/Otter.Cli/Otter.Cli.csproj -c Release -r ${{ matrix.rid }} -p:UseAppHost=true -o artifacts/base --nologo
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Size
+        shell: pwsh
+        run: |
+          $new = (Get-Item artifacts/new/${{ matrix.exe }}).Length; $base = (Get-Item artifacts/base/${{ matrix.exe }}).Length
+          New-Item -ItemType Directory -Force results | Out-Null
+          $line = "| ${{ matrix.rid }} | {0:N0} | {1:N0} | +{2:N0} (+{3:N1} MB) |" -f $base, $new, ($new - $base), (($new - $base) / 1MB)
+          $line | Out-File -Encoding utf8 results/size-${{ matrix.rid }}.md
+          "### Size of otter (${{ matrix.rid }})`n`n| Target | main | this commit | difference |`n|---|---:|---:|---:|`n$line" | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+      - name: Black-box HTTP tests (loopback)
+        shell: pwsh
+        run: |
+          ./tools/test-web-runtime.ps1 -OtterNet artifacts/new/${{ matrix.exe }} -ReportPath results/web-runtime-${{ matrix.rid }}.md
+          $code = $LASTEXITCODE
+          Get-Content results/web-runtime-${{ matrix.rid }}.md | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+          exit $code
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: web-runtime-${{ matrix.rid }}
+          path: results/
+          retention-days: 7
+
+  # Debian 12, the system of a Chromebook's Linux, as in ci.yml.
+  linux:
+    name: Debian 12 ${{ matrix.rid }} - Native AOT, black-box HTTP tests, size
+    runs-on: ${{ matrix.os }}
+    container: debian:bookworm
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, rid: linux-x64 }
+          - { os: ubuntu-24.04-arm, rid: linux-arm64 }
+    env:
+      DOTNET_ROOT: /usr/share/dotnet
+      DOTNET_ROLL_FORWARD: Major
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Native AOT prerequisites, the .NET 10 SDK and PowerShell 7 (for the test tool)
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates curl git clang zlib1g-dev libicu72 procps
+          curl -sSL https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 10.0 --install-dir "$DOTNET_ROOT"
+          echo "$DOTNET_ROOT" >> "$GITHUB_PATH"
+          echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
+          "$DOTNET_ROOT/dotnet" tool install --global PowerShell
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          path: base
+      - name: Publish native (AOT) - this commit and main
+        run: |
+          dotnet publish src/Otter.Cli/Otter.Cli.csproj -c Release -r ${{ matrix.rid }} -p:UseAppHost=true -o artifacts/new --nologo
+          dotnet publish base/src/Otter.Cli/Otter.Cli.csproj -c Release -r ${{ matrix.rid }} -p:UseAppHost=true -o artifacts/base --nologo
+      - name: Size
+        run: |
+          new=$(stat -c %s artifacts/new/otter); base=$(stat -c %s artifacts/base/otter)
+          mkdir -p results
+          line=$(awk -v b="$base" -v n="$new" -v r="${{ matrix.rid }}" 'BEGIN { printf "| %s | %\047d | %\047d | +%\047d (+%.1f MB) |", r, b, n, n - b, (n - b) / 1048576 }')
+          echo "$line" > results/size-${{ matrix.rid }}.md
+          printf '### Size of otter (%s)\n\n| Target | main | this commit | difference |\n|---|---:|---:|---:|\n%s\n' "${{ matrix.rid }}" "$line" >> "$GITHUB_STEP_SUMMARY"
+      - name: Black-box HTTP tests (loopback)
+        run: |
+          code=0
+          pwsh -NoProfile -File tools/test-web-runtime.ps1 -OtterNet artifacts/new/otter -ReportPath results/web-runtime-${{ matrix.rid }}.md || code=$?
+          cat results/web-runtime-${{ matrix.rid }}.md >> "$GITHUB_STEP_SUMMARY"
+          exit $code
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: web-runtime-${{ matrix.rid }}
+          path: results/
+          retention-days: 7
+
+  summary:
+    name: All six platforms
+    needs: [native, linux]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: web-runtime-*
+          path: collected
+      - name: One table
+        run: |
+          {
+            echo '### otter size: main vs this commit (Native AOT)'
+            echo
+            echo '| Target | main | this commit | difference |'
+            echo '|---|---:|---:|---:|'
+            cat collected/*/size-*.md
+            echo
+            echo '### Black-box HTTP tests'
+            echo
+            for f in collected/*/web-runtime-*.md; do echo "- $(basename "$f" .md): $(sed -n 3p "$f")"; done
+          } >> "$GITHUB_STEP_SUMMARY"
