@@ -22,20 +22,27 @@ namespace Otter.Web.Hosting;
 // interpreter's event loop empties on its own thread.
 public sealed class KestrelWebHost : IOtterWebHost
 {
-    const int MaxWaiting = 1000;
-    static readonly TimeSpan AnswerTimeout = TimeSpan.FromSeconds(60);
+    // Requests waiting for the program, and how long one may wait before it
+    // is answered 503 and abandoned (contract §6-§7). The tests make these
+    // small through two environment variables; nothing else reads them.
+    readonly int maxWaiting = EnvironmentNumber("OTTER_WEB_TEST_MAX_WAITING", 1000);
+    readonly TimeSpan answerTimeout = TimeSpan.FromSeconds(EnvironmentNumber("OTTER_WEB_TEST_QUEUE_TIMEOUT_SECONDS", 60));
+    int live;   // requests in the queue that are still waiting
     static readonly TimeSpan StopTimeout = TimeSpan.FromSeconds(5);
     static readonly UTF8Encoding StrictUtf8 = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
     readonly OtterWebServerOptions options;
     readonly ConcurrentQueue<OtterWebRequest> waiting = new();
     WebApplication? app;
-    Task? stopTask;
+    volatile Task? stopTask;
     PosixSignalRegistration? sigint, sigterm;
     volatile bool stopRequested;
     volatile bool stopping;
 
     public KestrelWebHost(OtterWebServerOptions options) => this.options = options;
+
+    static int EnvironmentNumber(string name, int fallback) =>
+        int.TryParse(Environment.GetEnvironmentVariable(name), out int value) && value > 0 ? value : fallback;
 
     public static OtterWebHostFactory Factory => options => new KestrelWebHost(options);
 
@@ -89,11 +96,16 @@ public sealed class KestrelWebHost : IOtterWebHost
 
     // The first Ctrl+C or SIGTERM asks for a graceful stop; a second one
     // while stopping ends the process at once (the default action).
+    // The stop starts here, on the signal's own thread, so it also happens
+    // while a handler is busy (the event loop is not running then): Kestrel
+    // stops accepting at once and closes the remaining connections after
+    // the 5 s grace, so no client is left waiting.
     void OnSignal(PosixSignalContext context)
     {
         if (stopRequested) return;
         context.Cancel = true;
         stopRequested = true;
+        BeginStop();
     }
 
     // §2: loopback unless the project allows public binding.
@@ -124,26 +136,60 @@ public sealed class KestrelWebHost : IOtterWebHost
         return false;
     }
 
-    public bool TryTake(out OtterWebRequest request) => waiting.TryDequeue(out request!);
-
-    public void BeginStop()
+    // The next request the program may run: abandoned ones (timed out,
+    // client gone) are dropped here and never reach a handler.
+    public bool TryTake(out OtterWebRequest request)
     {
-        if (app == null || stopping) return;
-        stopping = true;
-        stopTask = app.StopAsync();
+        while (waiting.TryDequeue(out OtterWebRequest? next))
+        {
+            if (next.TryTake())
+            {
+                Interlocked.Decrement(ref live);
+                request = next;
+                return true;
+            }
+        }
+        request = null!;
+        return false;
     }
 
+    int stopStarted;
+
+    // Idempotent: from the signal handler and from the event loop.
+    public void BeginStop()
+    {
+        WebApplication? running = app;
+        if (running == null || Interlocked.Exchange(ref stopStarted, 1) == 1) return;
+        stopping = true;
+        stopTask = Task.Run(() => running.StopAsync());
+    }
+
+    // The program has ended: everything still waiting is answered 503 and
+    // abandoned, so no client is left waiting and no handler runs later.
     public void Shutdown()
     {
         if (app == null) return;
         stopping = true;
-        while (waiting.TryDequeue(out OtterWebRequest? request)) request.Completion.TrySetResult(Unavailable());
-        try { (stopTask ?? app.StopAsync()).Wait(StopTimeout + TimeSpan.FromSeconds(1)); } catch (AggregateException) { }
-        while (waiting.TryDequeue(out OtterWebRequest? request)) request.Completion.TrySetResult(Unavailable());
+        AbandonWaiting();
+        BeginStop();
+        try { stopTask?.Wait(StopTimeout + TimeSpan.FromSeconds(1)); } catch (AggregateException) { }
+        AbandonWaiting();
         sigint?.Dispose();
         sigterm?.Dispose();
         try { ((IAsyncDisposable)app).DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(2)); } catch (AggregateException) { }
         app = null;
+    }
+
+    void AbandonWaiting()
+    {
+        while (waiting.TryDequeue(out OtterWebRequest? request))
+        {
+            if (request.TryAbandon())
+            {
+                Interlocked.Decrement(ref live);
+                request.Completion.TrySetResult(Unavailable());
+            }
+        }
     }
 
     static OtterWebResponse Unavailable() => OtterWebResponse.Json(503, "{\"error\":\"Service Unavailable\"}");
@@ -235,22 +281,36 @@ public sealed class KestrelWebHost : IOtterWebHost
             Query = query,
             Headers = headers,
             Body = body,
+            Aborted = context.RequestAborted,
         };
-        if (waiting.Count >= MaxWaiting) return Unavailable();
-        waiting.Enqueue(otterRequest);
-        if (stopping)
+        // Overload: more requests waiting than allowed get 503 at once.
+        if (Interlocked.Increment(ref live) > maxWaiting)
         {
-            // Stopping began while this request was read: answer it rather
-            // than leave it for a loop that may have ended.
-            otterRequest.Completion.TrySetResult(Unavailable());
+            Interlocked.Decrement(ref live);
+            return Unavailable();
         }
-        Task finished = await Task.WhenAny(otterRequest.Completion.Task, Task.Delay(AnswerTimeout, context.RequestAborted));
+        waiting.Enqueue(otterRequest);
+
+        Task finished = await Task.WhenAny(otterRequest.Completion.Task, Task.Delay(answerTimeout, context.RequestAborted))
+            .ConfigureAwait(false);
         if (finished != otterRequest.Completion.Task)
         {
+            // Timed out or the client went away while it waited: abandon it
+            // (its handler will never run) - unless the program already took
+            // it, in which case its handler is running and finishes; a gone
+            // client's answer is then discarded.
+            if (otterRequest.TryAbandon())
+            {
+                Interlocked.Decrement(ref live);
+                context.RequestAborted.ThrowIfCancellationRequested();
+                otterRequest.Completion.TrySetResult(Unavailable());
+                return Unavailable();
+            }
             context.RequestAborted.ThrowIfCancellationRequested();
-            otterRequest.Completion.TrySetResult(Unavailable());
         }
-        return await otterRequest.Completion.Task;
+        // Taken: wait for the handler (a shutdown aborts the connection
+        // after its 5 s grace, which ends this wait).
+        return await otterRequest.Completion.Task.WaitAsync(context.RequestAborted).ConfigureAwait(false);
     }
 
     static OtterWebResponse BadRequest(string message) =>

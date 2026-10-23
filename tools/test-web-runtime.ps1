@@ -70,7 +70,7 @@ public sealed class OtterCapture
 "@
 
 # otter-net as a child process (not a shell job, so it receives SIGINT).
-function Start-Otter([string[]]$Arguments, [string]$Directory) {
+function Start-Otter([string[]]$Arguments, [string]$Directory, [hashtable]$Environment = @{}) {
     $psi = [System.Diagnostics.ProcessStartInfo]::new()
     if ($OtterNet -like '*.dll') { $psi.FileName = 'dotnet'; $psi.ArgumentList.Add($OtterNet) } else { $psi.FileName = $OtterNet }
     foreach ($a in $Arguments) { $psi.ArgumentList.Add($a) }
@@ -79,6 +79,7 @@ function Start-Otter([string[]]$Arguments, [string]$Directory) {
     $psi.RedirectStandardInput = $true
     $psi.RedirectStandardOutput = $true
     $psi.RedirectStandardError = $true
+    foreach ($key in $Environment.Keys) { $psi.Environment[$key] = [string]$Environment[$key] }
     $out = [OtterCapture]::new(); $err = [OtterCapture]::new()
     $process = [System.Diagnostics.Process]::new()
     $process.StartInfo = $psi
@@ -235,6 +236,33 @@ try {
     $okAll = ($tasks | Where-Object { $_.Result -match '^Hello, c\d+$' }).Count
     Check '40 concurrent requests are all answered (§7)' ($okAll -eq 40) "$okAll of 40"
 
+    # ---- the request lifecycle (§6-§8) ----
+    $hits = { [int](Send GET "$base/countvalue").Body }
+    # A slow handler runs alone: the next request is read at once but runs after it.
+    $slow = $client.GetStringAsync("$base/slow"); Start-Sleep -Milliseconds 400
+    $clock = [System.Diagnostics.Stopwatch]::StartNew(); $r = Send GET "$base/hello?name=after"; $clock.Stop()
+    Check 'a slow handler runs alone; the next request is answered after it (§7)' ($r.Body -eq 'Hello, after' -and $clock.ElapsedMilliseconds -ge 1500 -and $slow.Result -eq 'slow done') "$($clock.ElapsedMilliseconds) ms, slow: $($slow.Result)"
+    # A request whose client leaves while it waits is never run.
+    $before = & $hits
+    $slow = $client.GetStringAsync("$base/slow"); Start-Sleep -Milliseconds 400
+    $gone = [System.Net.Sockets.TcpClient]::new('127.0.0.1', $port); $bytes = Ascii "GET /count HTTP/1.1`r`nHost: x`r`n`r`n"; $gone.GetStream().Write($bytes, 0, $bytes.Length); Start-Sleep -Milliseconds 300; $gone.Dispose()
+    [void]$slow.Wait(15000); Start-Sleep -Milliseconds 500
+    $after = & $hits
+    Check 'a request whose client left while it waited never runs its handler (§7)' ($after -eq $before) "hits $before -> $after"
+    # A client that leaves during its handler: the handler finishes; the server carries on.
+    $errBefore = $run.Err.ToString()
+    $left = [System.Net.Sockets.TcpClient]::new('127.0.0.1', $port); $bytes = Ascii "GET /slow HTTP/1.1`r`nHost: x`r`n`r`n"; $left.GetStream().Write($bytes, 0, $bytes.Length); Start-Sleep -Milliseconds 500; $left.Dispose()
+    $r = Send GET "$base/hello?name=still"
+    $newErr = $run.Err.ToString().Substring($errBefore.Length)
+    Check 'a client that leaves during its handler: the handler finishes and the server carries on (§7)' ($r.Body -eq 'Hello, still' -and -not $newErr.Contains('failed')) "$($r.Body) $newErr"
+    # Concurrent requests: every handler runs exactly once.
+    $before = & $hits
+    $many = 1..20 | ForEach-Object { $client.GetAsync("$base/count") }
+    [void][System.Threading.Tasks.Task]::WaitAll($many, 30000)
+    $ok = ($many | Where-Object { $_.IsCompletedSuccessfully -and [int]$_.Result.StatusCode -eq 200 }).Count
+    $after = & $hits
+    Check '20 concurrent handlers each run exactly once (§7)' ($ok -eq 20 -and $after -eq $before + 20) "$ok answered, hits $before -> $after"
+
     # port in use (§2)
     $second = Start-Otter @('run', $dir) $dir
     if ($second.Process.WaitForExit(30000)) { $second.Process.WaitForExit() }
@@ -260,6 +288,56 @@ try {
         Write-Host 'SKIP  graceful stop on Ctrl+C / SIGTERM (§8): not automated on Windows'
     }
     Stop-Otter $run
+
+    # ================= time-outs, overload and shutdown with requests waiting =================
+    # A request that waits too long gets 503 and its handler never runs.
+    $p = Get-FreePort; $d = New-Case 'basic' $p
+    $x = Start-Otter @('run', $d) $d @{ OTTER_WEB_TEST_QUEUE_TIMEOUT_SECONDS = 1 }
+    if (Wait-Until { $x.Err.ToString().Contains('listening') } 60) {
+        $b = "http://127.0.0.1:$p"
+        $slow = $client.GetStringAsync("$b/slow"); Start-Sleep -Milliseconds 400
+        $r = Send GET "$b/count"
+        [void]$slow.Wait(15000); Start-Sleep -Milliseconds 500
+        $value = [int](Send GET "$b/countvalue").Body
+        Check 'a request that times out while waiting gets 503 and never runs (§6, §7)' ($r.Status -eq 503 -and $value -eq 0) "status $($r.Status), hits $value"
+    } else { Check 'a request that times out while waiting gets 503 and never runs (§6, §7)' $false 'did not start' }
+    Stop-Otter $x
+    # Overload: beyond the waiting limit, 503 at once; the others run once each.
+    $p = Get-FreePort; $d = New-Case 'basic' $p
+    $x = Start-Otter @('run', $d) $d @{ OTTER_WEB_TEST_MAX_WAITING = 3 }
+    if (Wait-Until { $x.Err.ToString().Contains('listening') } 60) {
+        $b = "http://127.0.0.1:$p"
+        $slow = $client.GetStringAsync("$b/slow"); Start-Sleep -Milliseconds 400
+        $burst = 1..8 | ForEach-Object { $client.GetAsync("$b/count") }
+        $all = [System.Threading.Tasks.Task]::WaitAll($burst, 30000)
+        $codes = @($burst | Where-Object IsCompletedSuccessfully | ForEach-Object { [int]$_.Result.StatusCode })
+        [void]$slow.Wait(15000); Start-Sleep -Milliseconds 300
+        $value = [int](Send GET "$b/countvalue").Body
+        $ran = @($codes | Where-Object { $_ -eq 200 }).Count; $refused = @($codes | Where-Object { $_ -eq 503 }).Count
+        Check 'queue overload: 503 beyond the limit, every request answered, each accepted one runs once (§6)' ($all -and $codes.Count -eq 8 -and $refused -ge 4 -and $ran + $refused -eq 8 -and $value -eq $ran) "answered $($codes.Count), 200: $ran, 503: $refused, hits $value"
+    } else { Check 'queue overload: 503 beyond the limit, every request answered, each accepted one runs once (§6)' $false 'did not start' }
+    Stop-Otter $x
+    # Shutdown with requests waiting (POSIX signal; see the Windows test for Ctrl+C there).
+    if (-not $IsWindows) {
+        $p = Get-FreePort; $d = New-Case 'basic' $p
+        $x = Start-Otter @('run', $d) $d
+        if (Wait-Until { $x.Err.ToString().Contains('listening') } 60) {
+            $b = "http://127.0.0.1:$p"
+            $slow = $client.GetAsync("$b/slow"); Start-Sleep -Milliseconds 400
+            $pending = 1..3 | ForEach-Object { $client.GetAsync("$b/count") }
+            Start-Sleep -Milliseconds 300
+            & kill -TERM $x.Process.Id
+            $answered = [System.Threading.Tasks.Task]::WaitAll(@($slow) + $pending, 20000)
+            $exited = $x.Process.WaitForExit(20000); if ($exited) { $x.Process.WaitForExit() }
+            $slowOk = $slow.IsCompletedSuccessfully -and [int]$slow.Result.StatusCode -eq 200
+            $statuses = @($pending | ForEach-Object { if ($_.IsCompletedSuccessfully) { [int]$_.Result.StatusCode } else { 'error' } })
+            Check 'shutdown with requests waiting: the running handler finishes, the waiting ones are answered, nothing hangs, exit 0 (§8)' ($answered -and $slowOk -and $exited -and $x.Process.ExitCode -eq 0 -and -not ($statuses -contains 'error')) "answered=$answered slow=$slowOk waiting=$($statuses -join ',') exited=$exited"
+        } else { Check 'shutdown with requests waiting (§8)' $false 'did not start' }
+        Stop-Otter $x
+    } else {
+        $skipped.Add('shutdown with requests waiting (§8): POSIX signal, see the Windows Ctrl+C test')
+        Write-Host 'SKIP  shutdown with requests waiting (§8): POSIX signal, see the Windows Ctrl+C test'
+    }
 
     # ================= refusals =================
     foreach ($case in @(

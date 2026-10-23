@@ -17,9 +17,23 @@ namespace Otter.Runtime;
 // What the program declared for one server.
 public sealed record OtterWebServerOptions(string Name, string Host, int Port, long MaxBody, bool AllowPublicBind);
 
-// One complete request, as the host read it.
+// One complete request, as the host read it. Its state decides, once and
+// atomically, who owns it: the program takes it (its handler runs and
+// answers) or the host abandons it (time-out, client gone, shutdown: the
+// host answers, and the handler never runs). Never both.
 public sealed class OtterWebRequest
 {
+    const int Waiting = 0, Taken = 1, Abandoned = 2;
+    int state = Waiting;
+
+    // The program takes the request; false if the host abandoned it first.
+    public bool TryTake() => Interlocked.CompareExchange(ref state, Taken, Waiting) == Waiting;
+    // The host gives up on it; false if the program already took it.
+    public bool TryAbandon() => Interlocked.CompareExchange(ref state, Abandoned, Waiting) == Waiting;
+    public bool IsAbandoned => Volatile.Read(ref state) == Abandoned;
+    // Signalled when the client goes away.
+    public CancellationToken Aborted { get; init; }
+
     public required string Id { get; init; }
     public required string Method { get; init; }
     public required string Path { get; init; }
@@ -42,7 +56,8 @@ public interface IOtterWebHost
     string Url { get; }
     // Binds and starts accepting; throws OtterWebHostProblem on failure.
     void Start();
-    // The next complete request, if one is waiting.
+    // The next complete request that is still waiting, taken for the
+    // program (OtterWebRequest.TryTake); abandoned ones are skipped.
     bool TryTake(out OtterWebRequest request);
     // Ctrl+C or SIGTERM was pressed.
     bool StopRequested { get; }
@@ -131,8 +146,13 @@ public sealed partial class Interpreter
                 stopping = true;
                 host.BeginStop();
             }
-            // Requests already waiting are answered, also while stopping.
-            for (int i = 0; i < 64 && host.TryTake(out OtterWebRequest request); i++) interpreter.HandleWebRequest(this, request);
+            // Requests already waiting are answered, also while stopping -
+            // but never inside another request's handler (a `wait` there
+            // services events): handlers run one at a time (contract §7).
+            if (interpreter.currentWebRequest == null)
+            {
+                for (int i = 0; i < 64 && host.TryTake(out OtterWebRequest request); i++) interpreter.HandleWebRequest(this, request);
+            }
             if (stopping && host.IsStopped)
             {
                 stopped = true;
@@ -286,6 +306,12 @@ public sealed partial class Interpreter
 
     void HandleWebRequest(WebServer server, OtterWebRequest request)
     {
+        // The client left while the request waited: its handler does not run.
+        if (request.Aborted.IsCancellationRequested)
+        {
+            request.Completion.TrySetCanceled();
+            return;
+        }
         OtterWebResponse response;
         try
         {

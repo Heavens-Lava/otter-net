@@ -165,7 +165,31 @@ when site receives GET at "/hello" into req
 | 431 | Headers over 32 KiB |
 | 503 | More than 1,000 requests waiting for the program, or the server is stopping |
 
-## 7. Limits and slow clients
+## 7. The request lifecycle, limits and slow clients
+
+- **Who answers a request is decided once, atomically.** The program takes
+  it (its handler runs, and its answer is sent), or the host abandons it
+  (the answer is 503, or nothing if the client has gone). Never both.
+  - A request whose client disconnects while it waits is abandoned; its
+    handler **never runs** **[T]**.
+  - A request that waits longer than 60 s gets **503** and is abandoned;
+    its handler never runs **[T]**.
+  - More than 1,000 requests waiting: each new one gets **503** at once
+    **[T]**.
+- **A handler that has started runs to the end**, even if its client
+  disconnects meanwhile. Otter has no way to stop a running handler, and
+  its effects (a counter, a file, a database row) happen. Its answer is
+  discarded. Each request has its own `into req` thing and its own answer
+  slot, so a late or discarded answer can never reach another request
+  **[T]**.
+- **Handlers run strictly one at a time.** A `wait` inside a handler pauses
+  the whole server: other requests are still read, but they wait for it
+  **[T]**.
+- The tests shorten the 60 s and the 1,000 through two environment
+  variables, `OTTER_WEB_TEST_QUEUE_TIMEOUT_SECONDS` and
+  `OTTER_WEB_TEST_MAX_WAITING`. They are for testing only and are not a
+  supported setting.
+
 
 - **How requests reach the program:** connections are accepted and read
   concurrently. A request reaches the program only when its headers and
@@ -186,13 +210,21 @@ when site receives GET at "/hello" into req
 ## 8. Stopping
 
 - **Ctrl+C (SIGINT), SIGTERM, or the end of the program's event sources**
-  **[T]**:
+  **[T]** (on Windows, a real console Ctrl+C is tested by
+  `tools/test-web-windows-ctrlc.ps1`):
   - the server stops accepting connections;
   - requests already received are answered, for up to 5 s, then the rest
     get 503;
   - it prints `Otter Web: stopped.` to standard error;
   - the program exits with 0.
 - A second Ctrl+C stops at once.
+- **The stop starts from the signal itself**, so it also happens while a
+  handler is busy. Kestrel stops accepting at once and closes the remaining
+  connections after the 5 s grace. **No client waits indefinitely**, even if
+  a handler never finishes (the process then needs the second Ctrl+C)
+  **[T]**.
+- Not tested: closing the console window, logging off or shutting down
+  Windows (SIGTERM on Windows).
 
 ## 9. Compatibility
 

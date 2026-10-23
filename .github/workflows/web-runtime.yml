@@ -63,6 +63,14 @@ jobs:
           $code = $LASTEXITCODE
           Get-Content results/web-runtime-${{ matrix.rid }}.md | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
           exit $code
+      - name: Graceful stop on a real console Ctrl+C (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          ./tools/test-web-windows-ctrlc.ps1 -OtterNet artifacts/new/${{ matrix.exe }} -ReportPath results/windows-ctrlc-${{ matrix.rid }}.md
+          $code = $LASTEXITCODE
+          Get-Content results/windows-ctrlc-${{ matrix.rid }}.md | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+          exit $code
       - uses: actions/upload-artifact@v4
         if: always()
         with:
