@@ -108,11 +108,8 @@ jobs:
           dotnet publish base/src/Otter.Cli/Otter.Cli.csproj -c Release -r ${{ matrix.rid }} -p:UseAppHost=true -o artifacts/base --nologo
       - name: Size
         run: |
-          new=$(stat -c %s artifacts/new/otter); base=$(stat -c %s artifacts/base/otter)
           mkdir -p results
-          line=$(awk -v b="$base" -v n="$new" -v r="${{ matrix.rid }}" 'BEGIN { printf "| %s | %\047d | %\047d | +%\047d (+%.1f MB) |", r, b, n, n - b, (n - b) / 1048576 }')
-          echo "$line" > results/size-${{ matrix.rid }}.md
-          printf '### Size of otter (%s)\n\n| Target | main | this commit | difference |\n|---|---:|---:|---:|\n%s\n' "${{ matrix.rid }}" "$line" >> "$GITHUB_STEP_SUMMARY"
+          pwsh -NoProfile -Command '$new = (Get-Item artifacts/new/otter).Length; $base = (Get-Item artifacts/base/otter).Length; $line = "| ${{ matrix.rid }} | {0:N0} | {1:N0} | +{2:N0} (+{3:N1} MB) |" -f $base, $new, ($new - $base), (($new - $base) / 1MB); $line | Out-File -Encoding utf8 results/size-${{ matrix.rid }}.md; "### Size of otter (${{ matrix.rid }})`n`n| Target | main | this commit | difference |`n|---|---:|---:|---:|`n$line" | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY'
       - name: Black-box HTTP tests (loopback)
         run: |
           code=0

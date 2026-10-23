@@ -28,6 +28,7 @@ $cases = Join-Path $root 'tests/web-runtime'
 $scratch = Join-Path ([System.IO.Path]::GetTempPath()) ('otter-web-' + [Guid]::NewGuid().ToString('N').Substring(0, 8))
 New-Item -ItemType Directory -Path $scratch | Out-Null
 $results = [System.Collections.Generic.List[object]]::new()
+$skipped = [System.Collections.Generic.List[string]]::new()
 $client = [System.Net.Http.HttpClient]::new([System.Net.Http.HttpClientHandler]@{ AllowAutoRedirect = $false; UseCookies = $false })
 $client.Timeout = [TimeSpan]::FromSeconds(20)
 
@@ -253,7 +254,10 @@ try {
         } else { Check 'Ctrl+C (SIGINT) stops gracefully, exit 0 (§8)' $false 'did not start' }
         Stop-Otter $run2
     } else {
-        Check 'graceful stop: Windows console Ctrl+C is checked by hand (not automated)' $true
+        # POSIX signals cannot be sent to a Windows console program from here:
+        # graceful stop on Windows (Ctrl+C) is not automated.
+        $skipped.Add('graceful stop on Ctrl+C / SIGTERM (§8): not automated on Windows')
+        Write-Host 'SKIP  graceful stop on Ctrl+C / SIGTERM (§8): not automated on Windows'
     }
     Stop-Otter $run
 
@@ -297,9 +301,10 @@ finally {
 
 $failed = @($results | Where-Object { -not $_.Ok })
 Write-Host ''
-Write-Host "$($results.Count - $failed.Count) passed, $($failed.Count) failed"
+Write-Host "$($results.Count - $failed.Count) passed, $($failed.Count) failed$(if ($skipped.Count) { ", $($skipped.Count) skipped" })"
 if ($ReportPath) {
-    $lines = @("# Otter Web runtime 0.1: black-box tests", '', "$($results.Count - $failed.Count) passed, $($failed.Count) failed ($([System.Runtime.InteropServices.RuntimeInformation]::OSDescription), $([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture))", '', '| Result | Check |', '|---|---|')
+    $lines = @("# Otter Web runtime 0.1: black-box tests", '', "$($results.Count - $failed.Count) passed, $($failed.Count) failed$(if ($skipped.Count) { ", $($skipped.Count) skipped" }) ($([System.Runtime.InteropServices.RuntimeInformation]::OSDescription), $([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture))", '', '| Result | Check |', '|---|---|')
+    foreach ($s in $skipped) { $lines += "| skipped | $s |" }
     foreach ($r in $results) { $lines += "| $(if ($r.Ok) { 'pass' } else { '**FAIL**' }) | $($r.Name)$(if (-not $r.Ok -and $r.Detail) { ': ' + ($r.Detail -replace '\|', '/' -replace "`r?`n", ' ') }) |" }
     [System.IO.File]::WriteAllLines($ReportPath, $lines)
 }
