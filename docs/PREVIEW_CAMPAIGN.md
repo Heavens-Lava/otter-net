@@ -11,7 +11,7 @@ distribution is proposed. New language features are out of scope.
 | | |
 |---|---|
 | Baseline | commit `f4e513431b23d64898ac44543f057dc5699952a0` (certified; [CERTIFICATION.md](CERTIFICATION.md)) |
-| The **only** artifact for testers | run [39881403663](https://github.com/Heavens-Lava/otter-net/actions/runs/39881403663), `otter-net-0.9.0-preview.1-INTERNAL-PREVIEW-UNSIGNED` (artifact 12471417045), available until **2026-11-22** |
+| The **only** artifact for testers | run [39881403663](https://github.com/Heavens-Lava/otter-net/actions/runs/39881403663), `otter-net-0.9.0-preview.1-INTERNAL-PREVIEW-UNSIGNED` (artifact 12471417045), available until **2026-11-22**; downloaded in full and checksums verified on 2026-10-23. The obsolete preview artifacts (runs 39747899383, 39647277612) were deleted that day. |
 | Tester guide (authoritative) | [PREVIEW_TESTING.md](PREVIEW_TESTING.md) |
 | Repeatable check | [preview-kit/](../preview-kit/README.md): 11 checks against Otter 1.0.1's own output, and a report of the machine's details |
 | Labels | unsigned, internal, trusted testers only, not production-ready, not private (public repository) |

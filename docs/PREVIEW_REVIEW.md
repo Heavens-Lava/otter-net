@@ -69,7 +69,7 @@ with the `.json` and the per-platform comparisons.
 | **Blocker (public preview only)** | Unsigned packages. SmartScreen and antivirus products may warn. Gatekeeper blocks the `.pkg` from Finder and quarantines downloaded executables. The signing infrastructure is ready but not active (section 5). |
 | Major | None. |
 | Minor | The `.deb` maintainer is still the GitHub no-reply address. A replacement is proposed in section 6. |
-| Minor | The two earlier preview artifacts (runs 39747899383 and 39647277612) have the same name and version, but their packages installed `otter`. Testers must use run 39881403663. Delete the old artifacts once testers have the new one. Installing over an old package removes its `otter` (tested). |
+| Resolved | The two earlier preview artifacts (runs 39747899383 and 39647277612, same name and version, packages that installed `otter`) were deleted on 2026-10-23; run 39881403663's is the only one. Installing over an old package removes its `otter` (tested). |
 | Minor | Windows downloads are 41-58 MB larger because the desktop companion is self-contained. This is the owner's choice. |
 | Minor | The macOS `.pkg` and the tarballs allow a downgrade. The MSI and `.deb` refuse one. |
 | Minor | Remote commands are not tested against a second machine, in a domain (Kerberos), or over HTTPS. |

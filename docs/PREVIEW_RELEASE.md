@@ -132,14 +132,13 @@ afc7a4b75fb5c6d11f7f8cc8629fa9d54c82cffaa1d9626db56246489bbd6574  otter-net-0.9.
 46c3ef85791e011e791da7ef9b411ce787ab6a726c9e33c347dba3ed97288cdd  otter-net_0.9.0~preview.1_arm64.deb
 ```
 
-**Superseded:** run 39747899383 (commit `fbc46a4`) and run 39647277612
-(commit `bf21fec`) kept artifacts with the same name and version whose
-packages still installed an `otter` command. They are kept for now (the
-owner's decision); tell testers to use run 39881403663's, and delete the
-older ones when the testers have the new one (`gh api -X DELETE
-repos/Heavens-Lava/otter-net/actions/artifacts/12412279631`, and
-`.../12368661883`). Installing the new packages over an old one removes
-the old `otter` command (tested below).
+**The only preview artifact.** The earlier builds - run 39747899383
+(commit `fbc46a4`, artifact 12412279631) and run 39647277612 (commit
+`bf21fec`, artifact 12368661883), same name and version, whose packages
+still installed an `otter` command - were **retired on 2026-10-23** (the
+owner's decision): deleted after run 39881403663's artifact was downloaded
+in full and its 12 checksums verified. Installing the new packages over an
+old one removes the old `otter` command (tested below).
 
 Builds are not byte-identical: each run's packages have their own checksums.
 
