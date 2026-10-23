@@ -4,7 +4,7 @@
 |---|---|---|---|---|
 | 2026-10-23 | 0: audit and proposals | `web/phase0-audit` (merged) | `bfd2bec` | approved by the owner (WEB-001 opt-in, Kestrel, API in principle, S-1 fix) |
 | 2026-10-23 | security: S-1 fix | private advisory fork (GHSA-w4wm-qr4q-9qvr) | `093e325` | regression test passes; 202 compat programs identical before/after; awaiting coordinated publication |
-| 2026-10-23 | 1a: secure HTTP core | `web/phase1a-runtime` | see the PR | local macOS arm64: 46/46 black-box checks (Native AOT and framework builds); six-platform CI in the PR |
+| 2026-10-23 | 1a: secure HTTP core | `web/phase1a-runtime`, PR #6 | `c877125` (product code = `309dfe0`) | web runtime 6/6 platforms (46/46; Windows 44 + 1 skipped); certify 309dfe0 every gate on 6 platforms, same totals as f4e5134 (`release/certification/309dfe0...md`); ci, desktop, package green; 202 compat programs identical to the preview binary; size +4.4 to +5.4 MB |
 
 ## Phase 1a checklist (owner's authorisation, 2026-10-23)
 
