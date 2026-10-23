@@ -452,6 +452,8 @@ older=${3:-}
 case "$older" in ""|/*) ;; *) older="$PWD/$older" ;; esac
 newer=${4:-}
 case "$newer" in ""|/*) ;; *) newer="$PWD/$newer" ;; esac
+OTTER_PRE_RENAME=${OTTER_PRE_RENAME:-}
+case "$OTTER_PRE_RENAME" in ""|/*) ;; *) OTTER_PRE_RENAME="$PWD/$OTTER_PRE_RENAME" ;; esac
 case "$mode" in
     tarball) test_tarball "$file" ;;
     deb) test_deb "$file" "$older" "$newer" ;;
