@@ -1,0 +1,51 @@
+name: "Preview: feedback"
+description: How installing and using the otter-net internal preview went (not a specific bug).
+title: "[preview feedback] "
+labels: [preview, feedback]
+body:
+  - type: markdown
+    attributes:
+      value: "Thank you for testing. **Issues are public.** Specific bugs go in the bug report form; security problems go to the project owner privately."
+  - type: input
+    id: platform
+    attributes:
+      label: Platform, version and package
+      placeholder: "e.g. Windows 11 24H2 x64, .msi"
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How easy was installing?
+      options: ["Easy", "OK", "Hard", "I could not install it"]
+    validations:
+      required: true
+  - type: textarea
+    id: warnings
+    attributes:
+      label: Warnings you saw while installing
+      description: SmartScreen, Gatekeeper, antivirus (which product and its exact words).
+  - type: dropdown
+    id: kit
+    attributes:
+      label: Preview kit result
+      options: ["11 passed, 0 failed", "Some failed (report filed)", "Did not run it"]
+    validations:
+      required: true
+  - type: textarea
+    id: programs
+    attributes:
+      label: Your own programs
+      description: What you ran, and whether the output matched the released Otter (`otter`).
+  - type: dropdown
+    id: uninstall
+    attributes:
+      label: Uninstalling
+      options: ["Clean - otter-net gone, otter as before", "Something was left or changed (say below)", "Did not uninstall"]
+    validations:
+      required: true
+  - type: textarea
+    id: other
+    attributes:
+      label: Anything else
+      description: Confusing instructions or messages, slowness, what you liked.

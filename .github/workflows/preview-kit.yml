@@ -1,0 +1,112 @@
+# The internal-preview kit (preview-kit/) run the way a tester runs it: the
+# OFFICIAL tester artifact (the internal preview of run 39881403663, commit
+# f4e5134 - the only one testers are given) is installed on a clean machine
+# with its own installer, the kit's check script runs against the installed
+# otter-net, and the package is uninstalled. Nothing is built or kept here:
+# it checks the kit and the artifact testers actually download.
+name: preview kit
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['preview-kit/**', '.github/workflows/preview-kit.yml']
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  PREVIEW_RUN: '39881403663'
+  PREVIEW_ARTIFACT: otter-net-0.9.0-preview.1-INTERNAL-PREVIEW-UNSIGNED
+
+jobs:
+  windows:
+    name: Windows ${{ matrix.rid }} - the MSI, the kit in Windows PowerShell 5.1
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, rid: win-x64 }
+          - { os: windows-11-arm, rid: win-arm64 }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.PREVIEW_ARTIFACT }}
+          run-id: ${{ env.PREVIEW_RUN }}
+          github-token: ${{ github.token }}
+          path: preview
+      - name: Install the MSI, run the kit, uninstall
+        shell: powershell
+        run: |
+          $msi = (Get-Item "preview\otter-net-0.9.0-preview.1-${{ matrix.rid }}.msi").FullName
+          $p = Start-Process msiexec.exe -ArgumentList @('/i', "`"$msi`"", '/qn', '/norestart') -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "msiexec /i failed ($($p.ExitCode))" }
+          $exe = Join-Path $env:LOCALAPPDATA 'Programs\otter-net\otter-net.exe'
+          powershell -NoProfile -ExecutionPolicy Bypass -File preview-kit\check.ps1 -OtterNet $exe
+          $code = $LASTEXITCODE
+          Get-Content preview-kit\preview-kit-report.txt
+          $p = Start-Process msiexec.exe -ArgumentList @('/x', "`"$msi`"", '/qn', '/norestart') -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "msiexec /x failed ($($p.ExitCode))" }
+          exit $code
+
+  linux:
+    name: Debian 12 ${{ matrix.rid }} - the .deb, the kit
+    runs-on: ${{ matrix.os }}
+    container: debian:bookworm
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, rid: linux-x64, deb: amd64 }
+          - { os: ubuntu-24.04-arm, rid: linux-arm64, deb: arm64 }
+    defaults:
+      run:
+        shell: sh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.PREVIEW_ARTIFACT }}
+          run-id: ${{ env.PREVIEW_RUN }}
+          github-token: ${{ github.token }}
+          path: preview
+      - name: Install the .deb, run the kit, remove it
+        run: |
+          apt-get update -qq > /dev/null
+          apt-get install -y "./preview/otter-net_0.9.0~preview.1_${{ matrix.deb }}.deb" > /dev/null
+          code=0
+          sh preview-kit/check.sh || code=$?
+          cat preview-kit/preview-kit-report.txt
+          apt-get remove --purge -y otter-net > /dev/null
+          exit $code
+
+  macos:
+    name: macOS ${{ matrix.rid }} - the tar.gz, the kit
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-latest, rid: osx-arm64 }
+          - { os: macos-15-intel, rid: osx-x64 }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.PREVIEW_ARTIFACT }}
+          run-id: ${{ env.PREVIEW_RUN }}
+          github-token: ${{ github.token }}
+          path: preview
+      - name: install.sh in a fresh HOME, run the kit, uninstall.sh
+        run: |
+          home="$RUNNER_TEMP/tester"; mkdir -p "$home"
+          tar -xzf preview/otter-net-0.9.0-preview.1-${{ matrix.rid }}.tar.gz -C "$RUNNER_TEMP"
+          env HOME="$home" sh "$RUNNER_TEMP/otter-net-0.9.0-preview.1-${{ matrix.rid }}/install.sh"
+          code=0
+          env HOME="$home" PATH="$home/.local/bin:/usr/bin:/bin:/usr/sbin:/sbin" sh preview-kit/check.sh || code=$?
+          cat preview-kit/preview-kit-report.txt
+          env HOME="$home" sh "$home/.local/share/otter-net/0.9.0-preview.1/uninstall.sh"
+          exit $code

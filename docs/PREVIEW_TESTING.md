@@ -3,6 +3,10 @@
 For trusted testers of **otter-net 0.9.0-preview.1**: the native (C#)
 implementation of the Otter 1.0.1 language. Thank you for trying it.
 
+This is **the** guide for the preview (the campaign plan is
+[PREVIEW_CAMPAIGN.md](PREVIEW_CAMPAIGN.md)). Use only the download from run
+**39881403663** below: earlier preview builds are retired.
+
 **Please read first.**
 
 - This is an **internal preview, unsigned, and not production-ready.** Use
@@ -137,6 +141,34 @@ program with both and compare:
 
 The output is meant to be **identical** - any difference is worth a report.
 
+### The preview kit
+
+A repeatable check with real programs: download the repository (on
+<https://github.com/Heavens-Lava/otter-net>, **Code > Download ZIP**),
+extract it, open its `preview-kit` folder in a terminal and run:
+
+    powershell -ExecutionPolicy Bypass -File check.ps1     # Windows
+    sh check.sh                                            # macOS, Linux, Chromebook
+
+It compares 11 checks with Otter 1.0.1's own output - expected: **11
+passed, 0 failed** - and writes `preview-kit-report.txt` with your
+machine's details. Attach that report to every bug report.
+[preview-kit/README.md](../preview-kit/README.md) also has two desktop
+window programs to try by hand on Windows.
+
+### Diagnostics
+
+- Try mistakes on purpose (a typo, a missing file, `x is 1 / 0`): the error
+  messages should read exactly as Otter 1.0.1's.
+- `OTTER_NET_TRACE=1` makes otter-net say on standard error what it did
+  (for example which host ran a desktop program):
+
+      OTTER_NET_TRACE=1 otter-net run myprogram.ot                 # macOS, Linux
+      $env:OTTER_NET_TRACE = 1; otter-net run myprogram.ot          # Windows PowerShell
+      set OTTER_NET_TRACE=1 && otter-net run myprogram.ot           # Command Prompt
+
+  Include that output when something looks wrong.
+
 ## 4. Uninstall
 
 | Package | Uninstall |
@@ -152,10 +184,17 @@ before (otterPS, or nothing).
 
 ## 5. Feedback checklist
 
-Please send what you can of the following. Reports go to
-<https://github.com/Heavens-Lava/otter-net/issues> (title starting
-"[preview]"; issues are public, so leave out anything private), or straight
-to the project owner.
+Please send what you can of the following:
+
+- **Bugs:** the ["Preview: bug report" form](https://github.com/Heavens-Lava/otter-net/issues/new?template=preview-bug.yml)
+  (one problem per report).
+- **How it went overall:** the ["Preview: feedback" form](https://github.com/Heavens-Lava/otter-net/issues/new?template=preview-feedback.yml).
+- **Security problems** (something that runs, reads, writes or sends what
+  it should not, or an installer that changes something not its own,
+  including `otter`): **never in a public issue** - tell the project owner
+  privately.
+
+Issues are public, so leave out anything private.
 
 **About your machine**
 

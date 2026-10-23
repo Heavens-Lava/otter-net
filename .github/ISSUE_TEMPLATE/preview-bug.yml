@@ -1,0 +1,98 @@
+name: "Preview: bug report"
+description: Something in the otter-net internal preview (0.9.0-preview.1) went wrong.
+title: "[preview] "
+labels: [preview, bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for testing. **Issues are public:** leave out anything private (paths with your name are fine to edit out).
+        **Security problems** (something that runs, reads or writes what it should not, or leaks data): do not file them here. Tell the project owner privately instead.
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Windows 11 x64
+        - Windows 11 Arm64
+        - Windows 10 x64
+        - macOS, Apple silicon
+        - macOS, Intel
+        - Debian / Ubuntu x64
+        - Debian / Ubuntu Arm64
+        - Chromebook (Linux)
+        - Other (say below)
+    validations:
+      required: true
+  - type: input
+    id: os-version
+    attributes:
+      label: Operating system version
+      placeholder: "e.g. Windows 11 24H2, macOS 15.3, Debian 12, ChromeOS 13x"
+    validations:
+      required: true
+  - type: dropdown
+    id: package
+    attributes:
+      label: Package
+      options: [".msi", ".zip", ".pkg", ".tar.gz", ".deb"]
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Installing / uninstalling
+        - Running a program (output, errors)
+        - Desktop windows (Windows)
+        - Web pages (otter-net web / serve)
+        - Projects (new, check, test, build)
+        - Error messages / diagnostics
+        - Performance
+        - Something else
+    validations:
+      required: true
+  - type: dropdown
+    id: otterps
+    attributes:
+      label: Does the released Otter (otterPS 1.0.1, the `otter` command) do the same?
+      options:
+        - "No - otterPS behaves differently (a regression)"
+        - "Yes - otterPS does the same"
+        - "I don't have otterPS / didn't check"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: What you did
+      description: The exact commands, and the program (or the smallest part of it that shows the problem).
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened
+      description: The full output, copied as text (or a screenshot for windows and installers).
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+  - type: dropdown
+    id: repeat
+    attributes:
+      label: Does it happen again?
+      options: ["Every time", "Sometimes", "Only once"]
+    validations:
+      required: true
+  - type: textarea
+    id: report
+    attributes:
+      label: preview-kit-report.txt
+      description: "From the preview kit (preview-kit/README.md): run check.ps1 or check.sh and paste the report."
+      render: text
