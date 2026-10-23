@@ -1,0 +1,104 @@
+# The Otter Web runtime 0.1 black-box test program
+# (docs/web/RUNTIME_CONTRACT.md; tools/test-web-runtime.ps1 replaces 18080).
+site is a web server
+    port is 18080
+    host is "127.0.0.1"
+    maxbody is 1000
+.
+
+# The request lifecycle: a slow handler, and a counter that shows whether
+# a handler ran.
+hits is 0
+
+when site receives GET at "/slow"
+    wait 3 seconds
+    respond with "slow done"
+.
+
+when site receives GET at "/count"
+    hits is hits plus 1
+    respond with hits as json
+.
+
+when site receives GET at "/countvalue"
+    respond with hits as json
+.
+
+when site receives GET at "/hello" into req
+    get "name" from query of req into name
+    if name is gone
+        name is "stranger"
+    .
+    respond with "Hello, " plus name
+.
+
+when site receives GET at "/queries" into req
+    get "tag" from queries of req into tags
+    respond with tags as json
+.
+
+when site receives GET at "/header" into req
+    get "x-otter-test" from headers of req into value
+    respond with value
+.
+
+when site receives GET at "/request" into req
+    info has
+        method is method of req
+        path is path of req
+    .
+    respond with info as json
+.
+
+when site receives POST at "/echo" into req
+    respond with body of req
+.
+
+when site receives POST at "/json" into req
+    data is a thing
+    convert body of req from json into data
+    respond with data as json and status 201
+.
+
+when site receives GET at "/status"
+    respond with "teapot" as json and status 400 plus 18
+.
+
+when site receives GET at "/badstatus"
+    code is 99
+    respond with "x" as json and status code
+.
+
+when site receives GET at "/statusonly"
+    respond with status 202
+.
+
+when site receives GET at "/nothing"
+    x is 1
+.
+
+when site receives GET at "/first"
+    respond with "first"
+    respond with "second"
+.
+
+when site receives GET at "/fail"
+    fail with "boom"
+.
+
+when site receives GET at "/missing" into req
+    name is name of query of req
+    respond with name
+.
+
+when site receives GET at "/trycatch"
+    try
+        respond with "inside try"
+    otherwise
+        respond with "caught"
+    .
+.
+
+when site receives a request at "/any" into req
+    respond with method of req
+.

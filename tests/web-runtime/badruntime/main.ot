@@ -1,0 +1,7 @@
+site is a web server
+    port is 18080
+    host is "0.0.0.0"
+.
+when site receives GET at "/hello"
+    respond with "hello"
+.

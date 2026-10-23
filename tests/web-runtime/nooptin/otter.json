@@ -1,0 +1,6 @@
+{
+  "name": "web-runtime-nooptin",
+  "version": "0.1.0",
+  "target": "server",
+  "entryPoint": "main.ot"
+}

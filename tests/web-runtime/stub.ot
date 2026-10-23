@@ -1,0 +1,10 @@
+# Otter 1.0.1's `otter serve` stub must stay as certified without the
+# opt-in: literal replies only, anything else as node text.
+when api receives GET at "/literal"
+    respond with "literal reply"
+.
+when api receives GET at "/variable"
+    greeting is "hi"
+    respond with greeting
+.
+listen on port 18080

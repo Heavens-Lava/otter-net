@@ -28,7 +28,7 @@
     <!-- WPF projects leave System.IO out of the implicit usings; the command's
          sources expect it, as in Otter.Cli. -->
     <Using Include="System.IO" />
-    <Compile Include="..\Otter.Cli\**\*.cs" Exclude="..\Otter.Cli\bin\**;..\Otter.Cli\obj\**" LinkBase="Cli" />
+    <Compile Include="..\Otter.Cli\**\*.cs" Exclude="..\Otter.Cli\bin\**;..\Otter.Cli\obj\**;..\Otter.Cli\WebHosting.cs" LinkBase="Cli" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Otter.Runtime\Otter.Runtime.csproj" />

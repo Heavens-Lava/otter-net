@@ -15,9 +15,12 @@ public sealed class OtterList : List<object?>
 
 // A thing: properties in the order they were first set, as otterPS's
 // OtterObject. Two things are equal only if they are the same thing.
-public sealed class OtterThing(string typeName)
+// A thing's property names are case-sensitive (D41). Only the Otter Web
+// runtime makes things whose names ignore capitals: a request's headers
+// (docs/web/RUNTIME_CONTRACT.md).
+public sealed class OtterThing(string typeName, bool namesIgnoreCase = false)
 {
-    readonly Dictionary<string, object?> properties = new(StringComparer.Ordinal);
+    readonly Dictionary<string, object?> properties = new(namesIgnoreCase ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
     readonly List<string> order = new();
 
     public string TypeName { get; } = typeName;

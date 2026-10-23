@@ -70,6 +70,10 @@ public sealed partial class Interpreter
         activeHttpRequests.Clear();
         activeJobs.Clear();
         currentJobContext = null;
+        webServers.Clear();
+        defaultWebServer = null;
+        defaultWebPort = 8080;
+        currentWebRequest = null;
     }
 
     // Another area's event source (command jobs) joins the loop here.

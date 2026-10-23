@@ -14,6 +14,9 @@ public sealed partial class Interpreter
     bool TryExecuteNetwork(Stmt statement, Scope scope)
     {
         if (TryExecuteJob(statement, scope)) return true;   // command jobs (Jobs.cs)
+        // Routes, respond, start, listen: the Otter Web runtime when the
+        // project opts in (WebRuntime.cs); otherwise Otter 1.0.1's refusals below.
+        if (WebHostFactory != null && TryExecuteWeb(statement, scope)) return true;
         switch (statement)
         {
             // ---- HTTP (D49, D96, D101, D116A, D116B) ----
