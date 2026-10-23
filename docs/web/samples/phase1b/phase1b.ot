@@ -1,0 +1,49 @@
+site is a web server
+    port is 8080
+    static is "public"
+    fallback is "index.html"
+.
+
+when site receives GET at "/api/users/:id" into req
+    id is id of parameters of req
+    user has
+        id is id
+        name is "Ada"
+    .
+    respond with user as json
+.
+
+when site receives GET at "/files/:folder/:name" into req
+    get "folder" from parameters of req into folder
+    get "name" from parameters of req into name
+    respond with folder plus "/" plus name
+.
+
+when site receives GET at "/old"
+    reply is a web response
+        status is 301
+        location is "/new"
+    .
+    respond with reply
+.
+
+when site receives GET at "/missing"
+    reply is a web response
+        status is 404
+        type is "text/plain"
+        body is "Nothing here"
+    .
+    respond with reply
+.
+
+when site receives GET at "/download"
+    extra is a thing
+    set "Content-Disposition" to "attachment; filename=data.csv" in extra
+    reply is a web response
+        status is 200
+        type is "text/csv"
+        body is "a,b\n1,2"
+        headers is extra
+    .
+    respond with reply
+.
