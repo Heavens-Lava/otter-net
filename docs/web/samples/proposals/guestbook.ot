@@ -1,0 +1,54 @@
+# Proposal: the "Otter Guestbook" reference app (otter-web-plan EXAMPLE_APPS
+# A). Otter 1.0.1 grammar only; passes `otter-net check` today. The routes
+# need the proposed opt-in web runtime to run.
+use "html.ot"
+use "sessions.ot"
+
+connect "guestbook.db" into db
+execute db with "create table if not exists entries (id integer primary key, name text, message text)"
+setupSessions db
+
+site is a web server
+    port is 8080
+    host is "127.0.0.1"
+    static is "public"
+.
+
+when site receives GET at "/" into req
+    query db with "select name, message from entries order by id desc limit 50" into rows
+    items are
+        "<h1>Guestbook</h1>"
+    .
+    each row in rows
+        line is "<p><b>" plus escapeHtml name of row plus "</b>: " plus escapeHtml message of row plus "</p>"
+        add line to items
+    .
+    join items with "" into page
+    reply is a web response
+        type is "text/html"
+        body is page
+    .
+    respond with reply
+.
+
+when site receives POST at "/sign" into req
+    entry is form of req
+    name is name of entry
+    message is message of entry
+    if name is ""
+        respond with "name is required" as json and status 400
+    .
+    if length of message is at least 501
+        respond with "message is too long" as json and status 400
+    .
+    execute db with
+        "insert into entries (name, message) values (@name, @message)"
+        parameter "name" is name
+        parameter "message" is message
+    into ignored
+    reply is a web response
+        status is 303
+        location is "/"
+    .
+    respond with reply
+.

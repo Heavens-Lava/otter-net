@@ -1,0 +1,18 @@
+app is a page
+    title is "Keys"
+.
+box is a text box
+    placeholder is "type"
+.
+board is a canvas
+    width is 320
+    height is 200
+.
+when box is keydown
+    say "key down"
+.
+when board is mousemove
+    say "mouse moved"
+.
+put box, board in app
+show app

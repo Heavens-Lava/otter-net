@@ -1,0 +1,24 @@
+# serve: a computed value is NOT evaluated (node text is sent)
+greeting is "hello"
+when server receives GET at "/dyn" into req
+    name is "Ann"
+    respond with "Hi " plus name
+.
+when server receives GET at "/var"
+    respond with greeting
+.
+when server receives GET at "/twice"
+    say "never runs"
+    respond with "first"
+    respond with "second"
+.
+when server receives GET at "/nothing"
+    say "no respond here"
+.
+when server receives GET at "/users/:id"
+    respond with "param route"
+.
+when server receives GET at "/redirect"
+    respond with status 302
+.
+listen on port 18732

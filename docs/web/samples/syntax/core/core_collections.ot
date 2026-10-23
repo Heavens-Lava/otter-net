@@ -1,0 +1,76 @@
+# Category: lists, things, types, dynamic keys, text and math operations
+games are
+    "Zelda"
+    "Mario"
+    "Metroid"
+.
+none are empty
+add "Kirby" to games
+remove "Mario" from games
+say games
+say length of games
+say first of games
+say last of games
+say first of none
+sort games
+say games
+reverse games
+say games
+if games contains "Kirby"
+    say "has Kirby"
+person has name "Ada", age 36
+say name of person
+age of person is 37
+say age of person
+pet has
+    kind "cat"
+    age is 3
+    friendly
+.
+say kind of pet
+say friendly of pet
+box is a thing
+    width 2
+.
+say width of box
+a Point has
+    x
+    y
+.
+p is a Point with x 1, y 2
+say x of p
+q is a Point
+say y of q
+home has city "Oslo"
+user has address home
+say city of address of user
+say length of the name of person
+set "score" to 10 in person
+get "score" from person into s
+say s
+message is "Hello Jeff"
+replace "Jeff" with "World" in message into copy1
+say copy1 message
+replace "Jeff" with "World" in message
+say message
+split "a,b,c" by "," into parts
+say parts
+join parts with "-" into dashed
+say dashed
+find g in games where g starts with "Z" into found
+say found
+say uppercase of message
+say lowercase of message
+say absolute value of 0 minus 3
+say square root of 16
+say round of 2.5
+say round up of 2.1
+say round down of 2.9
+say larger of 3 and 8
+say smaller of 3 and 8
+say sine of 90
+say cosine of 0
+say tangent of 45
+say log of 1000
+say natural log of 1
+say pi

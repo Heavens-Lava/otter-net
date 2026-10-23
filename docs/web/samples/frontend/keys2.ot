@@ -1,0 +1,12 @@
+app is a page
+    title is "Keys"
+.
+box is a text box
+    placeholder is "type"
+.
+when box is keydown
+    k is key of event
+    say k
+.
+put box in app
+show app

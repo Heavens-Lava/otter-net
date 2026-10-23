@@ -1,0 +1,11 @@
+# Each line should be rejected by check (forms that are NOT Otter).
+wait 5
+restart the machine
+kill foo
+random thing from list into x
+say "x" in colour "red"
+show progress 50
+set cursor to 1 1
+hash "x" into digest
+run command "x" over sh
+get system info "os" into x

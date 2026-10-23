@@ -1,0 +1,33 @@
+# A hand-written dynamic HTTP responder on a raw tcp server (D113), loopback only.
+listen for tcp on "127.0.0.1" on port 18750 and call it server
+say "listening on" local address of server local port of server
+crlf is text from bytes bytes from hex "0D0A"
+hits is 0
+on connection to server
+    conn is incoming connection
+    on data from conn
+        request is text from bytes received data
+        split request by " " into parts
+        position is 0
+        path is "/"
+        for each part in parts
+            position is position plus 1
+            if position is 2
+                path is part
+            .
+        .
+        hits is hits plus 1
+        pieces are
+            "<h1>You asked for "
+            path
+            "</h1><p>hit "
+            hits
+            "</p>"
+        .
+        join pieces with "" into body
+        head is "HTTP/1.1 200 OK" plus crlf plus "Content-Type: text/html; charset=utf-8" plus crlf plus "Connection: close" plus crlf plus crlf
+        reply is head plus body
+        send bytes from text reply through conn
+        close tcp conn
+    .
+.

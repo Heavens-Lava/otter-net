@@ -1,0 +1,13 @@
+connect to websocket "ws://127.0.0.1:9001/room" and call it room
+on open of room
+    send "hello" through room
+.
+on message from room
+    say received message
+.
+on close of room
+    say close code
+.
+on error of room
+    say "socket problem"
+.

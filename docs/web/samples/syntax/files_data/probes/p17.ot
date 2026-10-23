@@ -1,0 +1,2 @@
+d is xml from text "<a/>"
+write xml d to "f.xml"

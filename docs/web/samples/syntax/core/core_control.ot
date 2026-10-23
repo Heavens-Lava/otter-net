@@ -1,0 +1,58 @@
+# Category: conditions and control flow
+score is 72
+if score is at least 90
+    say "A"
+otherwise if score is at least 70
+    say "C"
+otherwise
+    say "F"
+.
+if score is not 50 and score is greater than 10
+    say "and works"
+if score is less than 0 or score is at most 100
+    say "or works"
+if not score is 0
+    say "not works"
+price is 80
+tax is 25
+if price plus tax is at least 100
+    say "free shipping"
+if price is greater than 10 and
+    tax is less than 30
+    say "continued condition"
+word is "otter"
+if word starts with "ot" and word ends with "er" and word contains "tt"
+    say "text tests"
+if word
+    say "non-empty text is truthy"
+if not ""
+    say "empty text is falsy"
+i is 0
+while i is less than 3
+    i is i plus 1
+.
+say i
+repeat 2 times
+    say "hi"
+.
+count from 1 to 3 as n
+    say n
+.
+items are
+    "a"
+    "b"
+.
+for each item in items
+    say item
+.
+each item in items
+    say item
+.
+increase i
+increase i by 5
+decrease i
+decrease i by 2
+say i
+add 10 to i
+remove 4 from i
+say i

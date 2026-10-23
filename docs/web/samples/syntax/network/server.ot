@@ -1,0 +1,24 @@
+# Web server and routes (D51); runs only under `otter serve`. check only.
+api is a web server
+    port is 5000
+    host is "localhost"
+.
+when api receives GET at "/users"
+    respond with "users" as json
+.
+when api receives POST at "/users" into req
+    respond with "created" as json and status 201
+.
+when api receives a request at "/hello"
+    respond with "Hello from Otter!"
+.
+when api receives at "/default"
+    respond with "default is GET"
+.
+when api receives DELETE at "/health"
+    respond with status 204
+.
+when api receives GET at "/missing"
+    respond with "Not Found" as json and status 404
+.
+start api

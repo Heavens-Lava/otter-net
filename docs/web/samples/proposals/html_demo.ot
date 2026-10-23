@@ -1,0 +1,7 @@
+use "html.ot"
+name is "<script>alert('x')</script> & \"friends\""
+safe is escapeHtml name
+say safe
+template is "<p>Hello, {{name}}!</p>"
+replace "{{name}}" with safe in template into page
+say page

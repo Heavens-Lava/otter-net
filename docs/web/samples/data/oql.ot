@@ -1,0 +1,24 @@
+connect "audit.db" into db
+minAge is 10
+get name and age from users in db
+    where age is at least minAge or name starts with "k"
+    order by name descending
+    take 5
+into rows
+each row in rows
+    say name of row age of row
+.
+wanted are
+    "a"
+    "kept"
+.
+count all from users in db where name is in wanted into n
+say "count in:" n
+get all from users in db where age between 1 and 100 into r2
+say "between:" r2
+pattern is "%"
+get all from users in db where name contains pattern into r3
+each x in r3
+    say "contains %:" name of x
+.
+disconnect db

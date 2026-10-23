@@ -1,0 +1,4 @@
+get folders in "." into fs
+for each folder in fs
+    copy folder to "Backup"
+.

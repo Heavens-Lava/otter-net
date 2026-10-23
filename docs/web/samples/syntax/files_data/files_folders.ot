@@ -1,0 +1,48 @@
+# Files and folders: read/write/append/atomically, copy/move/delete,
+# exists/is locked, folders, discovery, file objects, current directory, zip.
+create folder "work"
+set current directory to "work"
+get current directory into here
+write "Hello" to "a.txt"
+append " world" to "a.txt"
+write "v2" to "b.txt" atomically
+read "a.txt" into text
+say text
+if file "a.txt" exists
+    say "a exists"
+.
+if file "a.txt" is locked
+    say "wrong"
+otherwise
+    say "a not locked"
+.
+copy "a.txt" to "copies/a-copy.txt"
+move "b.txt" to "copies"
+create folder "copies/sub"
+write "deep" to "copies/sub/d.txt"
+get files in "copies" into files
+say length of files
+get files in "copies" and subfolders into all
+for each f in all
+    say name of f extension of f size of f
+.
+get folders in "copies" into subs
+for each sub in subs
+    say name of sub
+.
+copy folder "copies" to "mirror"
+move folder "mirror" to "moved-mirror"
+zip folder "copies" into "out/copies.zip"
+unzip "out/copies.zip" into "restored"
+read "restored/sub/d.txt" into deep
+say deep
+delete file "a.txt"
+if file "a.txt" exists
+    say "wrong"
+otherwise
+    say "a deleted"
+.
+create folder "empty"
+delete folder "empty"
+set current directory to ".."
+say "done"

@@ -1,0 +1,32 @@
+# XML (D105)
+doc is xml with root "library"
+lib is root of doc
+add element "book" to lib and call it book
+set attribute "id" of book to "1"
+add element "title" with text "Otter" to book
+say pretty text from xml doc
+say text of "title" in book
+say attribute "id" of book
+if book has attribute "id"
+    say "has id"
+.
+if element "book" exists in lib
+    say "book exists"
+.
+books is elements "book" in lib
+say length of books
+first is child 0 in lib
+say name of first
+all is children 0 in lib
+say length of all
+e is element "title" in book
+set text of e to "Renamed"
+set text of "title" in book to "Again"
+say attributes of book
+remove attribute "id" from book
+write xml doc to file "lib.xml"
+again is xml from file "lib.xml"
+say text from xml again
+parsed is xml from text "<a><b/></a>"
+remove element element "b" in parsed
+say text from xml parsed

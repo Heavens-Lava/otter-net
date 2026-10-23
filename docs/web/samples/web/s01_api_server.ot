@@ -1,0 +1,35 @@
+# serve: declared server, routes, json, status
+api is a web server
+    port is 18731
+    host is "localhost"
+.
+
+when api receives GET at "/health"
+    respond with "OK"
+.
+
+when api receives GET at "/api/users"
+    respond with "Ada Lovelace" as json
+.
+
+when api receives POST at "/api/users" into req
+    respond with "User created" as json and status 201
+.
+
+when api receives DELETE at "/api/users"
+    respond with status 204
+.
+
+when api receives a request at "/any"
+    respond with "any method"
+.
+
+when api receives at "/default-get"
+    respond with "default method"
+.
+
+when api receives PATCH at "/patch"
+    respond with 42 as json
+.
+
+start api

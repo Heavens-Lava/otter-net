@@ -1,0 +1,20 @@
+connect "audit.db" into db
+query db with "PRAGMA journal_mode=WAL" into j
+each r in j
+    say "journal:" journal_mode of r
+.
+execute db with "PRAGMA busy_timeout=5000"
+query db with "PRAGMA busy_timeout" into t
+each r in t
+    say "busy timeout:" timeout of r
+.
+query db with "select sqlite_version() as v" into v
+each r in v
+    say "sqlite" v of r
+.
+execute db with "create table if not exists schema_version (version integer)" 
+query db with "PRAGMA user_version" into uv
+each r in uv
+    say "user_version:" user_version of r
+.
+disconnect db

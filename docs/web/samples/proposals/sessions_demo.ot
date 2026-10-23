@@ -1,0 +1,13 @@
+use "sessions.ot"
+connect "demo-sessions.db" into db
+setupSessions db
+token is newSession db and "ada"
+say "token length:" length of token
+say "user:" sessionUser db and token
+endSession db and token
+say "after logout:" sessionUser db and token
+hash password "correct horse" and call it stored
+if password "correct horse" matches hash stored
+    say "password ok"
+.
+disconnect db

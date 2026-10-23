@@ -1,0 +1,62 @@
+tags are
+    "a"
+    "b"
+.
+user has
+    name is "Ann <script>alert('x')</script> & co"
+    age is 36
+    tags is tags
+.
+convert user to json into text
+say text
+convert "{\"city\": \"Tempe\", \"n\": 1.5, \"x\": null, \"nested\": {\"k\": [1,2]}}" from json into parsed
+say city of parsed
+say n of parsed
+if x of parsed is gone
+    say "null is gone"
+.
+write text to "out.json"
+read json from "out.json" into back
+say name of back
+rows are
+    user
+.
+row1 has
+    name is "B, \"quoted\""
+    age is 2
+.
+people are
+    row1
+.
+convert people to csv into csvText
+say csvText
+write csv people to "people.csv"
+read csv from "people.csv" into loaded
+each p in loaded
+    say name of p age of p
+.
+get environment variable "HOME" into home
+say "home set:" length of home
+set environment variable "OTTER_AUDIT" to "1"
+get environment variable "OTTER_AUDIT" into v
+say "env:" v
+get environment variable "OTTER_DOES_NOT_EXIST" into missing
+if missing is gone
+    say "missing env is gone"
+.
+say "args:" length of arguments
+d is today
+format d as "yyyy-MM-dd" into iso
+say "today format ok:" length of iso
+t is now
+add 30 minutes to t
+p is date from "2026-01-31" using "yyyy-MM-dd"
+add 1 month to p
+say p
+s is "  Hello World  "
+say uppercase of s
+split "a,b,c" by "," into words
+join words with "|" into joined
+say joined
+replace "World" with "Otter" in s
+say s

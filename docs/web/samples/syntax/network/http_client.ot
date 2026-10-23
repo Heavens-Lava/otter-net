@@ -1,0 +1,50 @@
+# HTTP client forms (D49, D96, D116A, D116B). check only - never run.
+url is "http://127.0.0.1:1/items"
+payload is "hello"
+get url into page
+get url as json into data
+get json from url into data2
+post payload to url
+post payload to url into answer
+post payload as json to url into answer2
+put payload to url into answer3
+put payload as json to url into answer4
+delete from url
+delete from url into gone1
+get url into page2
+    with header "Accept" is "text/plain"
+    with cookies
+    following redirects
+    with timeout 10 seconds
+post payload to url into answer5
+    without cookies
+    without redirects
+download file from url to "copy.txt"
+start get from url and call it r1
+start get from url as json and call it r2
+    with header "X-A" is "1"
+    with timeout 5 seconds
+start post payload to url and call it r3
+start post payload as json to url and call it r4
+start put payload to url and call it r5
+start delete from url and call it r6
+on complete of r1
+    say received response
+    say status of r1 response of r1 state of r1
+.
+on error of r1
+    say error of r1
+.
+on cancel of r2
+    say "cancelled"
+.
+if r1 is pending
+    say "pending"
+.
+if r1 is not completed and r3 is not failed
+    say "x"
+.
+if r2 is cancelled or r4 is running
+    say "y"
+.
+cancel r2

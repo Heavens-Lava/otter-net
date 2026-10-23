@@ -1,0 +1,28 @@
+homePage is a page
+    title is "Home"
+.
+aboutPage is a page
+    title is "About"
+.
+notFoundPage is a page
+    title is "Not Found"
+.
+docs is a link
+    text is "Docs"
+    url is "https://example.com"
+.
+put docs in homePage
+route "/" shows homePage
+route "/about" shows aboutPage
+route otherwise shows notFoundPage
+on route change
+    say current route
+.
+userPage is a page
+    title is "User"
+.
+route "/users/:id" shows userPage
+on route change
+    say "user" route parameter "id" "tab" query parameter "tab"
+.
+go to "/users/42?tab=posts"

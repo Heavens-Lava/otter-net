@@ -1,0 +1,58 @@
+config has
+    provider is "sqlite"
+    connection is "audit.db"
+.
+connect config into db
+execute db with "drop table if exists users"
+execute db with "create table users (id integer primary key, name text, email text, age integer)"
+evil is "x'); drop table users; --"
+execute db with
+    "insert into users (name, email, age) values (@name, @email, @age)"
+    parameter "name" is evil
+    parameter "email" is "a@b.c"
+    parameter "age" is 42
+into result
+say "rows affected: " rows affected of result
+say "last id: " last inserted id of result
+query db with
+    "select id, name, age from users where name = @name"
+    parameter "name" is evil
+into rows
+each row in rows
+    say name of row " / " age of row
+.
+query db with "select count(*) as n from users" into c
+each r in c
+    say "count " n of r
+.
+begin transaction on db into tx
+execute tx with "insert into users (name) values ('rolled')"
+rollback tx
+query db with "select count(*) as n from users" into c2
+each r in c2
+    say "after rollback " n of r
+.
+begin transaction on db into tx2
+execute tx2 with "insert into users (name) values ('kept')"
+commit tx2
+get tables from db into tables
+each t in tables
+    say name of t " " kind of t " " schema of t
+.
+get columns from "users" in db into cols
+each col in cols
+    say name of col " " type of col " " database type of col " pk=" primary key of col
+.
+execute db with "insert into users (name) values ('a'); insert into users (name) values ('b')" into multi
+say "multi rows affected " rows affected of multi
+query db with "select count(*) as n from users" into c3
+each r in c3
+    say "count after multi " n of r
+.
+say db
+disconnect db
+try
+    query db with "select 1" into x
+otherwise into reason
+    say "closed: " reason
+.

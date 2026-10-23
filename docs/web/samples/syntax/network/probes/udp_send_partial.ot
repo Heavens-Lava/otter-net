@@ -1,0 +1,2 @@
+open udp and call it u
+send "x" through u to "127.0.0.1"

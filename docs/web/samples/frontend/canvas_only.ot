@@ -1,0 +1,14 @@
+app is a page
+    title is "Canvas"
+.
+board is a canvas
+    width is 640
+    height is 480
+    mode is "3d"
+    animation is "spin"
+.
+when board is clicked
+    say "clicked"
+.
+put board in app
+show app

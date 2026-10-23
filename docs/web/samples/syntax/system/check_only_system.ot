@@ -1,0 +1,65 @@
+# CHECK ONLY - never run: processes, dialogs, clipboard, notify, registry,
+# event log, credentials, secrets, power, print, links, remote commands.
+set environment variable "OTTER_AUDIT" to "1"
+get system folder "temp" into tempPath
+get current directory into here
+set current directory to here
+get system information "os" into info
+get arguments into args
+get processes into everything
+run "sleep 30" into p
+run "notepad.exe"
+set priority of process p to "below normal"
+wait for process p up to 5 seconds into finished
+wait for process p up to 1 seconds
+kill process p
+kill process p and its children
+run command "git status"
+run command "hostname" on remote "server01" using credential "admin" into remoteResult
+run command "hostname" over ssh to "user@host" into sshResult
+copy "text" to clipboard
+get clipboard into clip
+notify "Title" with "Message"
+choose file into picked
+choose folder into pickedFolder
+choose file to save into savePath
+get registry value "n" from "HKCU:\Software\MyApp" into regValue
+set registry value "n" to "d" in "HKCU:\Software\MyApp"
+delete registry value "n" from "HKCU:\Software\MyApp"
+if registry key "HKCU:\Software\MyApp" exists
+    say "key"
+.
+get event log entries from "System" up to 20 into entries
+set credential "n" to "secret"
+get credential "n" into secretText
+delete credential "n"
+store secret "api-token" with value "abc"
+token is secret "api-token"
+if secret "api-token" exists
+    say "has secret"
+.
+delete secret "api-token"
+print "file.txt" to "PrinterName"
+create symbolic link "l" pointing to "t"
+if file "l" is a symbolic link
+    say "link"
+.
+get symbolic link target of "l" into t
+get owner of "x" into owner
+if file "x" is read only
+    say "ro"
+.
+set file "x" to read only
+set file "x" to writable
+set cursor to row 5 column 10
+options are
+    "tea"
+    "coffee"
+.
+choose from options into choice
+ask secretly "Password:" and call it pw
+lock the computer
+sign out
+restart the computer
+restart computer
+shut down the computer

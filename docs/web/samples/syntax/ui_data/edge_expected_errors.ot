@@ -1,0 +1,10 @@
+# Expected syntax errors (documented quirks), check only.
+get all from items in db first 3 into rows
+numbers are
+    1
+    2
+if 2 is in numbers
+    say "in"
+.
+route "/a"
+go home

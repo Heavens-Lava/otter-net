@@ -1,0 +1,3 @@
+to f age
+    return age is at least 18
+.

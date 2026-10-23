@@ -1,0 +1,5 @@
+xs are empty
+if xs
+    say "x"
+otherwise
+    say "empty list is falsy"

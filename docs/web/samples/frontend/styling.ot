@@ -1,0 +1,18 @@
+app is a page
+    title is "Styling"
+    background is "linear-gradient(#000, #123)"
+.
+hero is a image
+    source is "assets/hero.png"
+    alt is "Hero"
+.
+docs is a link
+    url is "https://example.com"
+    text is "Docs"
+.
+panel is a text
+    text is "<b>not bold</b>"
+    customstyle is "transform: rotate(5deg); filter: blur(1px)"
+.
+put hero, docs, panel in app
+show app

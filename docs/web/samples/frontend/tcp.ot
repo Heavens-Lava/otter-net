@@ -1,0 +1,9 @@
+listen for tcp on port 9100 and call it lobby
+on connection to lobby
+    peer is incoming connection
+    send bytes from text "welcome" through peer
+.
+open udp on port 9101 and call it beacon
+on data from beacon
+    say sender address
+.

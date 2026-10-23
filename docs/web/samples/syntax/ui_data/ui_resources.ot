@@ -1,0 +1,56 @@
+# D44/D46/D47 resources and events, D52 contextual `the`, D56 declarative elements.
+create the window into the app
+title of app is "Sample"
+create text box into nameBox
+create primary button into helloButton
+the text of helloButton is "Say Hello"
+put nameBox, helloButton in app
+when helloButton is clicked
+    say the text of the nameBox
+.
+when app is closed
+    say "bye"
+.
+show app
+
+page "Dashboard"
+    layout centered
+    gap 16
+    align center
+    columns 2 on medium
+    stack on small
+    card "Welcome"
+        layout stack
+        spread
+        round 12
+        background "#123456"
+        padding 20
+        width full
+        heading "Hello"
+        text "Body"
+        primary button "Go"
+            hover
+                grow 1.1
+                animate 200ms ease-out
+            click
+                say "clicked"
+        secondary button "Back"
+            enter
+                fade in
+                move up 30
+                animate 0.5 s spring
+        danger button "Stop"
+            leave
+                slide from left
+        input nameField
+    grid 3
+        layout grid 3
+        panel
+            text "a"
+    section "Footer"
+        link "Docs"
+        image "logo.png"
+    sidebar "Nav"
+        text "x"
+    main "Body"
+        text "y"

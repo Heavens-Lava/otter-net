@@ -1,0 +1,6 @@
+a Person has
+    name
+.
+sam is a Person
+    name is "Sam"
+.

@@ -1,0 +1,3 @@
+set random seed to 42
+random number from 1 to 100 into a1
+say a1

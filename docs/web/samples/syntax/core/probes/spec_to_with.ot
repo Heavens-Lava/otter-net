@@ -1,0 +1,3 @@
+to area with w, h
+    return w times h
+.

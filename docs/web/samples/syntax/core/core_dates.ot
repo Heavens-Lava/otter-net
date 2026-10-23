@@ -1,0 +1,24 @@
+# Category: dates and time
+d is date from "2024-01-15"
+say year of d
+say month of d
+say day of d
+e is date from "03/02/2024" using "MM/dd/yyyy"
+add 7 days to d
+remove 1 month from d
+format d as "yyyy-MM-dd" into shown
+say shown
+days between d and e make gap
+say gap
+diff is days between d and e
+say diff
+say months between d and e
+t is today
+say year of t
+n is now
+add 2 hours to n
+remove 30 minutes from n
+h is hour of n
+m is minute of n
+s is second of n
+say "parts read"

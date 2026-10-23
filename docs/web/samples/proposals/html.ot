@@ -1,0 +1,11 @@
+# Proposal P-HTML (tier B: plain Otter 1.0.1, runs today).
+# Escapes text for HTML element content and quoted attribute values.
+# "&" goes first, so the entities added later are not escaped twice.
+to escapeHtml raw
+    replace "&" with "&amp;" in raw into s1
+    replace "<" with "&lt;" in s1 into s2
+    replace ">" with "&gt;" in s2 into s3
+    replace "\"" with "&quot;" in s3 into s4
+    replace "'" with "&#39;" in s4 into s5
+    return s5
+.

@@ -1,0 +1,31 @@
+# A DB-backed page: sqlite (D97/D98) + raw tcp server (D113), loopback only.
+database has
+    provider is "sqlite"
+    connection is ":memory:"
+.
+connect database into db
+execute db with
+    "create table notes (id integer primary key autoincrement, title text)"
+execute db with
+    "insert into notes (title) values (@title)"
+    parameter "title" is "first note"
+into ignored
+listen for tcp on "127.0.0.1" on port 18751 and call it server
+crlf is text from bytes bytes from hex "0D0A"
+on connection to server
+    conn is incoming connection
+    on data from conn
+        query db with
+            "select id, title from notes"
+        into rows
+        lines are empty
+        for each row in rows
+            add title of row to lines
+        .
+        join lines with "</li><li>" into listing
+        head is "HTTP/1.1 200 OK" plus crlf plus "Content-Type: text/html" plus crlf plus "Connection: close" plus crlf plus crlf
+        reply is head plus "<ul><li>" plus listing plus "</li></ul>"
+        send bytes from text reply through conn
+        close tcp conn
+    .
+.

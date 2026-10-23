@@ -1,0 +1,61 @@
+# D97/D98 databases, D99 queries and aggregates, the readability article.
+config has
+    provider is "sqlite"
+    connection is "/private/tmp/claude-501/-Users-jeffreymacy/6c877030-d74e-4ac7-ae89-7c7f8e3b0013/scratchpad/audit-syntax/samples/ui_data/sample.db"
+.
+connect config into db
+execute db with "create table items (id integer primary key, name text, price real, category text)"
+execute db with
+    "insert into items (name, price, category) values (@name, @price, @cat)"
+    parameter "name" is "Pen"
+    parameter "price" is 1.5
+    parameter "cat" is "office"
+into first
+say "rows affected:" the rows affected of first "last id:" last inserted id of first
+execute db with "insert into items (name, price, category) values ('Notebook', 4.0, 'office')"
+execute db with "insert into items (name, price, category) values ('Apple', 0.75, 'food')"
+
+begin transaction on db into tx
+execute tx with "insert into items (name, price, category) values ('Backpack', 25.0, 'travel')"
+commit tx
+begin transaction on db into tx2
+execute tx2 with "delete from items"
+rollback tx2
+
+query db with
+    "select name from items where price > @min order by name"
+    parameter "min" is 1
+into rows
+each row in rows
+    say "query:" the name of row
+.
+
+get tables from db into tables
+say "tables:" length of tables
+get columns from "items" in db into columns
+say "columns:" length of columns
+
+get name and price from items in db with
+    order by price descending
+into sorted
+say "first sorted:" name of first of sorted
+get distinct category from items in db order by category into cats
+say "categories:" length of cats
+wanted are
+    "office"
+    "food"
+.
+get all from items in db where category is in wanted and price is between 1 and 5 into picked
+say "picked:" length of picked
+get all from items in db where category is not in wanted order by id take 1 skip 0 into others
+say "others:" length of others
+count all from items in db into n
+sum of price from items in db where category is "office" into s
+total of price from items in db into t
+average of price from items in db into avgPrice
+minimum of price from items in db into lo
+max of price from items in db into hi
+say n s t avgPrice lo hi
+disconnect db
+delete file "/private/tmp/claude-501/-Users-jeffreymacy/6c877030-d74e-4ac7-ae89-7c7f8e3b0013/scratchpad/audit-syntax/samples/ui_data/sample.db"
+say "done"

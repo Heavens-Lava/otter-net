@@ -1,0 +1,30 @@
+# Proposal P-SESSION (tier B: plain Otter 1.0.1). A server-side session
+# store in SQLite: the browser only ever holds a random 256-bit id.
+to setupSessions db
+    execute db with "create table if not exists sessions (id text primary key, user text, created text)"
+.
+to newSession db and user
+    token is hex from bytes secure random bytes 32
+    execute db with
+        "insert into sessions (id, user, created) values (@id, @user, datetime('now'))"
+        parameter "id" is token
+        parameter "user" is user
+    into ignored
+    return token
+.
+to sessionUser db and token
+    query db with
+        "select user from sessions where id = @id"
+        parameter "id" is token
+    into rows
+    each row in rows
+        return user of row
+    .
+    return ""
+.
+to endSession db and token
+    execute db with
+        "delete from sessions where id = @id"
+        parameter "id" is token
+    into ignored
+.

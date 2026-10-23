@@ -1,0 +1,34 @@
+# Category: lexical, values, variables, operators, output
+name is "Otter"          # inline comment
+count1 is 3
+ratio is 2.5
+flag is true
+other is false
+nothing is gone
+say "tab:\there" "quote:\"q\"" "slash:\\" "keep:\q"
+say name count1 ratio flag other nothing
+say
+flipped is not flag
+say flipped
+notOther is not other
+say notOther
+neg is 0 minus 5
+say neg
+say 2 plus 3 times 4
+say 10 - 4 / 2
+say 1 + 2 * 3
+say 7 divided by 2
+say 20 percent of 50
+say 2 power 10
+joined is "Hello, " and name
+say joined
+sum is 10 and 20
+say sum
+5 plus 6 make eleven
+say eleven
+x is 4
+x times 2 make y
+say y
+log "a log line"
+warn "a warning"
+error "an error line"

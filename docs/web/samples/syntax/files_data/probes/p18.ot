@@ -1,0 +1,2 @@
+b is bytes from file "x"
+write bytes b to "y.bin"

@@ -1,0 +1,9 @@
+save has
+    level is 3
+    score is 1200
+.
+convert save to json into text1
+write text1 to "save.json"
+read "save.json" into loaded
+convert loaded from json into restored
+say level of restored

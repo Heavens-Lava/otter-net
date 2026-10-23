@@ -1,0 +1,3 @@
+if not file "zz.txt" exists
+    say "absent"
+.

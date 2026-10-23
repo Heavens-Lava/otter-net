@@ -1,0 +1,18 @@
+api is a web server
+    port is 5000
+    host is "localhost"
+.
+scores are
+    10
+    20
+.
+when api receives GET at "/api/health"
+    respond with "ok"
+.
+when api receives GET at "/api/scores"
+    respond with scores as json
+.
+when api receives POST at "/api/scores" into req
+    respond with status 201
+.
+start api

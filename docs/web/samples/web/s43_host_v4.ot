@@ -1,0 +1,7 @@
+api is a web server
+    port is 18746
+    host is "127.0.0.1"
+.
+when api receives GET at "/"
+    respond with "v4"
+.

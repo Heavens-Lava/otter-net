@@ -1,0 +1,22 @@
+# A browser page that posts a "form" to an Otter-agnostic JSON API with fetch.
+app is a page
+    title is "Sign up <b>&</b>"
+.
+nameBox is a text box
+    text is ""
+.
+send is a button
+    text is "Send"
+.
+result is a text
+    text is "<script>alert(1)</script>"
+.
+put nameBox, send, result in app
+when send is clicked
+    entry has
+        name is value of nameBox
+    .
+    post entry as json to "http://localhost:18770/api/users" into reply
+        with header "Accept" is "application/json"
+    text of result is reply
+show app

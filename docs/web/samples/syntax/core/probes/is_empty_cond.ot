@@ -1,0 +1,3 @@
+x is ""
+if x is empty
+    say "e"

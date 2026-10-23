@@ -1,0 +1,14 @@
+connect to websocket "ws://localhost:18771/chat" using protocol "chat" and call it socket
+on open of socket
+    send "hi" through socket
+.
+on message from socket
+    say received message
+    close websocket socket with code 1000 and reason "done"
+.
+on close of socket
+    say close code close reason close was clean
+.
+on error of socket
+    say websocket error
+.

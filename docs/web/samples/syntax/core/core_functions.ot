@@ -1,0 +1,45 @@
+# Category: functions, errors
+to greet who
+    say "Hello" who
+.
+greet "Ada"
+to addNumbers x and y
+    return x plus y
+.
+r1 is addNumbers 3 and 4
+say r1
+addNumbers 3 4 make r2
+say r2
+addNumbers 5 6 into r3
+say r3
+to fact n
+    if n is at most 1
+        return 1
+    .
+    m is n minus 1
+    r is fact m
+    return n times r
+.
+say fact 5
+to early v
+    if v is 0
+        stop
+    .
+    say "not stopped"
+.
+early 0
+early 1
+try
+    fail with "custom failure"
+otherwise into reason
+    say "caught:" reason
+.
+try
+    z is 1 divided by 0
+otherwise
+    say "caught without reason"
+.
+try
+    fail with "swallowed"
+.
+say "after swallow"

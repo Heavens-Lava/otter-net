@@ -1,0 +1,25 @@
+name is "<b>Ann</b>"
+greeting is "Hello, " plus name
+say greeting
+first is "<p>"
+first and name make html
+say html
+try
+    convert "{'k': 1, b: 2}" from json into lenient
+    say "lenient json accepted k=" k of lenient
+otherwise into reason
+    say "strict:" reason
+.
+connect "audit.db" into db
+execute db with "create table if not exists blobs (b blob, d text)"
+data is bytes from text "hi"
+execute db with
+    "insert into blobs (b, d) values (@b, @d)"
+    parameter "b" is data
+    parameter "d" is now
+.
+query db with "select typeof(b) as t, b, d from blobs" into rows
+each r in rows
+    say "bytes bound as:" t of r b of r " date bound as:" d of r
+.
+disconnect db

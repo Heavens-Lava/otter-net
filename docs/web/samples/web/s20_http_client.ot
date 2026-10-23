@@ -1,0 +1,57 @@
+base is "http://127.0.0.1:18760"
+get "http://127.0.0.1:18760/hello" into page
+say "get:" page
+get json from "http://127.0.0.1:18760/json" into data
+say "json name:" name of data
+get "http://127.0.0.1:18760/json" as json into data2
+say "as json n:" n of data2
+get "http://127.0.0.1:18760/404" into notFound
+say "404 body:" notFound
+try
+    get "http://127.0.0.1:18760/500" into broke
+    say "500 body:" broke
+otherwise into reason
+    say "500 error:" reason
+.
+user has
+    name is "Ann"
+    age is 30
+.
+post user to "http://127.0.0.1:18760/echo" into answer
+say "post thing:" answer
+post "a=1&b=2" to "http://127.0.0.1:18760/echo" into answer2
+say "post text:" answer2
+post user as json to "http://127.0.0.1:18760/echo" into answer3
+say "post as json:" answer3
+put "x" to "http://127.0.0.1:18760/echo" into answer4
+say "put:" answer4
+delete from "http://127.0.0.1:18760/thing" into answer5
+say "delete:" answer5
+get "http://127.0.0.1:18760/setcookie" into ignored
+get "http://127.0.0.1:18760/cookie" into withJar
+say "cookie jar:" withJar
+get "http://127.0.0.1:18760/cookie" into noJar
+    without cookies
+say "without cookies:" noJar
+get "http://127.0.0.1:18760/redirect" into followed
+say "redirect followed:" followed
+get "http://127.0.0.1:18760/redirect" into notFollowed
+    without redirects
+say "redirect not followed: [" notFollowed "]"
+get "http://127.0.0.1:18760/headers" into hdr
+    with header "X-A" is "1"
+    with timeout 5 seconds
+say "header:" hdr
+try
+    get "http://127.0.0.1:18760/hello" into bad
+        with header "X-B" is "a\nb"
+otherwise into reason
+    say "header injection:" reason
+.
+start get from "http://127.0.0.1:18760/404" and call it req
+on complete of req
+    say "async complete status:" status of req "response:" received response
+.
+on error of req
+    say "async error:" error of req
+.

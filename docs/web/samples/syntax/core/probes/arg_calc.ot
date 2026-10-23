@@ -1,0 +1,4 @@
+to f n
+    return n
+.
+say f 3 minus 1

@@ -1,0 +1,19 @@
+# "Templating" today: read a file and replace placeholders (no escaping).
+name is "<b>Ann</b>"
+read "page.tpl" into page
+replace "{{name}}" with name in page
+say page
+token is secure random bytes 32
+tokenText is hex from bytes token
+say length of tokenText
+data is bytes from text "sid=abc"
+key is bytes from text "server-secret"
+signature is hmac sha256 of data using key
+say hex from bytes signature
+hello is bytes from text "hello"
+digest is sha256 of hello
+say hex from bytes digest
+hash password "correct horse" and call it stored
+if password "correct horse" matches hash stored
+    say "password ok"
+.

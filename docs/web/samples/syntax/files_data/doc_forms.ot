@@ -1,0 +1,2 @@
+# Forms written in otterPS prose docs (SPEC 13, rules3.md) - expected to be rejected or differ.
+write "x" to file "f.txt"

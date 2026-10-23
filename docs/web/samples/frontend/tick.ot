@@ -1,0 +1,9 @@
+app is a page
+    title is "T"
+.
+game is a canvas with width 800, height 600, targetFps 60
+when game is tick
+    say "t"
+.
+put game in app
+show app

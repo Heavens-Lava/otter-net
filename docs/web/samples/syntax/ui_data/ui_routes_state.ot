@@ -1,0 +1,62 @@
+# D56 state/derive/watch, D56 exclusions, D103 routing, D110 drag and drop, await.
+state clicks is 0
+derive doubled is clicks times 2
+when clicks changes
+    say "clicks is now" clicks doubled
+.
+clicks is clicks plus 1
+
+homePage is a page
+    title is "Home"
+.
+userPage is a page
+    title is "User"
+.
+route "/" shows homePage
+route "/users/:id" shows userPage
+route otherwise shows homePage
+go to "/users/7"
+go back
+go forward
+replace route with "/"
+on route change
+    say current route
+    say route parameter "id"
+    say query parameter "q"
+.
+
+board is panel with accepts drops is true, width 300
+tile is panel with draggable is true
+put tile, board in homePage
+on drag of tile
+    set drag data to "tile-1"
+.
+on drop on board
+    say drag data drop x drop y
+    say dragged item
+.
+on files dropped on board
+    for each f in dropped files
+        say name of f
+    .
+.
+
+to fetchLater
+    await delay 250
+    value is await delay 10
+.
+await fetchLater make result
+await fetchLater into other
+
+memo cached
+    say "x"
+.
+shared theme is "dark"
+on start
+    say "start"
+.
+on close
+    say "close"
+.
+focus tile
+hide tile

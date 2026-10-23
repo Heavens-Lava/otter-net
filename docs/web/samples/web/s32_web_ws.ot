@@ -1,0 +1,15 @@
+app is a page
+    title is "Chat"
+.
+log1 is a text
+    text is ""
+.
+put log1 in app
+connect to websocket "ws://localhost:18771/chat" and call it chat
+on open of chat
+    send "hello" through chat
+.
+on message from chat
+    text of log1 is received message
+.
+show app

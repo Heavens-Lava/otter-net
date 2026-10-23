@@ -1,0 +1,20 @@
+app is a page
+    title is "Sprite"
+.
+ship is a image
+    source is "assets/ship.png"
+    position is "absolute"
+    left is 10
+    top is 10
+.
+go is a button
+    text is "Move"
+.
+x is 10
+when go is clicked
+    x is x plus 16
+    left of ship is x
+    source of ship is "assets/ship2.png"
+.
+put ship, go in app
+show app

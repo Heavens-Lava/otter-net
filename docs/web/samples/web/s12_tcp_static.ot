@@ -1,0 +1,32 @@
+# Static file serving by hand on a raw tcp server: no MIME table, no traversal guard.
+listen for tcp on "127.0.0.1" on port 18753 and call it server
+crlf is text from bytes bytes from hex "0D0A"
+on connection to server
+    conn is incoming connection
+    on data from conn
+        request is text from bytes received data
+        split request by " " into parts
+        position is 0
+        path is "/index.txt"
+        for each part in parts
+            position is position plus 1
+            if position is 2
+                path is part
+            .
+        .
+        filePath is "public" plus path
+        if path contains ".."
+            reply is "HTTP/1.1 400 Bad Request" plus crlf plus "Connection: close" plus crlf plus crlf
+            send bytes from text reply through conn
+        otherwise if file filePath exists
+            content is bytes from file filePath
+            head is "HTTP/1.1 200 OK" plus crlf plus "Content-Type: text/plain" plus crlf plus "Connection: close" plus crlf plus crlf
+            send bytes from text head through conn
+            send content through conn
+        otherwise
+            reply is "HTTP/1.1 404 Not Found" plus crlf plus "Connection: close" plus crlf plus crlf
+            send bytes from text reply through conn
+        .
+        close tcp conn
+    .
+.

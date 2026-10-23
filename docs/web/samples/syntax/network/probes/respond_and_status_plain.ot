@@ -1,0 +1,3 @@
+when api receives GET at "/m"
+    respond with "Not Found" and status 404
+.

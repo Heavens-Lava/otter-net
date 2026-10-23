@@ -1,0 +1,3 @@
+p has k 1
+set "status" to "active" in p
+get "status" from p into cs

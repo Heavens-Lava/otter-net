@@ -1,0 +1,16 @@
+p is "/var-path"
+api is a web server
+    port is 18748
+.
+admin is a web server
+    port is 18749
+.
+when api receives GET at p
+    respond with "variable path"
+.
+when nobody receives GET at "/undeclared-server"
+    respond with "server name ignored"
+.
+when admin receives GET at "/admin"
+    respond with "admin route on api port"
+.

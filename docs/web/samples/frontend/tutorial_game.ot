@@ -1,0 +1,25 @@
+game is a canvas with width 800, height 600, targetFps 60
+
+ballX is 400
+ballY is 300
+velocityX is 4
+velocityY is 3
+radius is 15
+
+when game tick with delta
+    add velocityX to ballX
+    add velocityY to ballY
+
+    if ballX is less than radius or ballX is greater than (800 - radius)
+        velocityX is 0 - velocityX
+    .
+
+    if ballY is less than radius or ballY is greater than (600 - radius)
+        velocityY is 0 - velocityY
+    .
+
+    clear canvas
+    draw circle at ballX, ballY with radius radius, color "#38bdf8"
+.
+
+start game

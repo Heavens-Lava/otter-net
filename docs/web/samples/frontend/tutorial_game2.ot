@@ -1,0 +1,8 @@
+game is a canvas with width 800, height 600, targetFps 60
+ballX is 400
+when game tick with delta
+    add 4 to ballX
+    clear canvas
+    draw circle at ballX, 300 with radius 15, color "#38bdf8"
+.
+start game

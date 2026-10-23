@@ -1,0 +1,42 @@
+# File watching (D104), command jobs (D119-R2), wait (D101/D121). check only.
+watch file "settings.json" and call it fileWatcher
+watch folder "data" and call it folderWatcher
+watch folder "data" recursively and call it deepWatcher
+on change of fileWatcher
+    say changed path change kind
+.
+on create in folderWatcher
+    say changed file name
+.
+on delete in folderWatcher
+    say changed path
+.
+on rename in deepWatcher
+    say old path changed path
+.
+if fileWatcher is watching
+    stop watching fileWatcher
+.
+start command "helper.ps1" and call it job
+on output from job
+    say received output
+.
+on error output from job
+    say received error output
+.
+on exit of job
+    say exit code of job state of job
+.
+on complete of job
+    say output of job error output of job id of job
+.
+on cancel of job
+    say "cancelled"
+.
+if job is running or job is completed or job is failed or job is cancelled
+    cancel job
+.
+done is false
+while not done
+    wait 100 milliseconds
+.

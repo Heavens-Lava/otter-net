@@ -1,0 +1,4 @@
+to area w h
+    return w times h
+.
+x is area with 10, 20

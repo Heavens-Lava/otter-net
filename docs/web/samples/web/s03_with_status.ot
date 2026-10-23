@@ -1,0 +1,3 @@
+when server receives GET at "/x"
+    respond with "x" with status 201
+.

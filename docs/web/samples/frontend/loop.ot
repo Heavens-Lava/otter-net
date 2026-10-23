@@ -1,0 +1,7 @@
+frame is 0
+start timer clock
+while frame is less than 3
+    add 1 to frame
+    wait 16 milliseconds
+.
+say frame elapsed milliseconds of clock

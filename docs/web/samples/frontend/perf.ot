@@ -1,0 +1,23 @@
+a Body has
+    x
+    vx
+to makeBody startX
+    nb is a Body with x startX, vx 1
+    return nb
+
+bodies are empty
+count from 1 to 1000 as i
+    makeBody i make b
+    add b to bodies
+.
+start timer clock
+count from 1 to 60 as frame
+    for each body in bodies
+        nx is x of body plus vx of body
+        if nx is greater than 2000
+            vx of body is 0 minus 1
+        .
+        x of body is nx
+    .
+.
+say "60 frames x 1000 bodies ms:" elapsed milliseconds of clock

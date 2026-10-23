@@ -1,0 +1,64 @@
+# Harmless system/console/timing/random/crypto forms: safe to run.
+get environment variable "HOME" into home
+if home is not gone
+    say "HOME is set"
+.
+get environment variable "OTTER_AUDIT_SURELY_UNSET_987" into missing
+if missing is gone
+    say "unset variable is gone"
+.
+run command "echo hi" into result
+say "[" output of result "]" "exit" exit code of result
+say "[" error output of result "]"
+set random seed to 42
+random number from 1 to 10 into n
+say "seeded number" n
+picks are
+    "a"
+    "b"
+    "c"
+.
+random item from picks into pick
+say "seeded item" pick
+start timer clock
+wait 1 second
+wait 20 milliseconds
+if elapsed milliseconds of clock is at least 1000
+    say "waited at least a second"
+.
+if elapsed time of clock is less than 10
+    say "elapsed time is in seconds"
+.
+hash "abc" as "sha256" into digest
+say digest
+hash "abc" as "sha256" with key "k" into keyed
+say keyed
+encrypt "round trip" with key "secret" into cipher
+decrypt cipher with key "secret" into plain
+say plain
+data is bytes from text "abc"
+say hex from bytes sha256 of data
+signingKey is bytes from text "key"
+say hex from bytes hmac sha256 of data using signingKey
+noise is secure random bytes 16
+say length of noise
+generate encryption key and call it aesKey
+say length of aesKey
+encrypt data using aesKey and call it sealed
+decrypt sealed using aesKey and call it opened
+if data securely equals opened
+    say "bytes round trip"
+.
+hash password "pw" and call it stored
+if password "pw" matches hash stored
+    say "password verified"
+.
+say "Colored" in color "green"
+if console is interactive
+    say "interactive"
+otherwise
+    say "not interactive"
+.
+show progress 50 percent
+show progress 100 percent
+say "done"

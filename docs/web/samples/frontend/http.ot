@@ -1,0 +1,7 @@
+get json from "http://127.0.0.1:5000/api/scores" into scores
+post scores as json to "http://127.0.0.1:5000/api/scores" into saved
+start get from "http://127.0.0.1:5000/api/state" and call it req
+    with timeout 5 seconds
+on complete of req
+    say received response
+.

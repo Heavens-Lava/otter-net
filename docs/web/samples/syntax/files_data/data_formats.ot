@@ -1,0 +1,31 @@
+# JSON, CSV, bytes.
+user has
+    name is "Ann"
+    age is 30
+.
+convert user to json into jsonText
+say jsonText
+write jsonText to "user.json"
+read json from "user.json" into loaded
+say name of loaded
+convert "{\"x\": [1, 2]}" from json into parsed
+say x of parsed
+write "name,city\nAnn,Denver\nBo,\"Fort, Worth\"\n" to "people.csv"
+read csv from "people.csv" into people
+say city of last of people
+write csv people to "people-out.csv"
+convert people to csv into csvText
+say csvText
+convert "a,b\n1,2" from csv into rows
+say b of first of rows
+greeting is bytes from text "Hi"
+say hex from bytes greeting
+say base64 from bytes greeting
+say text from bytes bytes from hex "4869"
+say text from bytes bytes from base64 "SGk="
+nothing is empty bytes
+say length of nothing
+write bytes greeting to file "hi.bin"
+write bytes greeting to file "hi2.bin" atomically
+back is bytes from file "hi.bin"
+say length of back

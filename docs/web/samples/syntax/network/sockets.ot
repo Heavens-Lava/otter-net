@@ -1,0 +1,59 @@
+# WebSocket (D106), TCP (D107/D112/D113), UDP (D108). check only - never run.
+connect to websocket "ws://127.0.0.1:1/chat" using protocol "chat" and call it ws
+connect to websocket "ws://127.0.0.1:1/plain" and call it ws2
+on open of ws
+    send "hello" through ws
+.
+on message from ws
+    say received message
+.
+on close of ws
+    say close code close reason close was clean
+.
+on error of ws
+    say websocket error
+.
+if ws is connecting or ws is open or ws is closing or ws is closed
+    say state of ws url of ws protocol of ws
+.
+close websocket ws2
+close websocket ws with code 1000 and reason "done"
+listen for tcp on port 0 and call it server
+listen for tcp on "127.0.0.1" on port 0 and call it server2
+on connection to server
+    conn is incoming connection
+    on data from conn
+        say text from bytes received data
+        send bytes from text "pong" through conn
+        close tcp conn
+    .
+.
+if server is listening
+    say local address of server local port of server
+.
+connect to tcp "127.0.0.1" on port 1 and call it client
+connect securely to tcp "example.test" on port 443 for server "example.test" and call it tls
+connect securely to tcp "example.test" on port 443
+    for server "example.test"
+    using protocols "h2"
+    and call it tls2
+on connect of client
+    say remote address of client remote port of client local port of client
+.
+on error of client
+    say network error
+.
+if client is connected and tls is secure
+    say tls version of tls tls protocol of tls
+.
+stop tcp server
+if server2 is stopped
+    say "stopped"
+.
+open udp on port 0 and call it receiver
+open udp and call it sender
+on data from receiver
+    say sender address sender port count of received data
+.
+send bytes from text "hi" through sender to "127.0.0.1" on port port of receiver
+close udp sender

@@ -1,0 +1,4 @@
+# Category: console input
+ask "Your age?" and call it age
+next is age plus 1
+say "Next year:" next

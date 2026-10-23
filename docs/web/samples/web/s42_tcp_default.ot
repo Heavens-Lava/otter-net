@@ -1,0 +1,3 @@
+listen for tcp on port 0 and call it server
+say local address of server
+stop tcp server

@@ -1,0 +1,35 @@
+hash "hello" as "sha256" into digest
+say digest
+hash "hello" as "sha256" with key "k" into mac
+say mac
+data is bytes from text "hello"
+d2 is sha256 of data
+say hex from bytes d2
+m2 is hmac sha256 of data using bytes from text "key"
+say base64 from bytes m2
+r is secure random bytes 32
+say length of r
+token is hex from bytes secure random bytes 16
+say "token length" length of token
+hash password "correct horse" and call it stored
+say stored
+if password "correct horse" matches hash stored
+    say "match"
+.
+if password "wrong" matches hash stored
+    say "bad"
+otherwise
+    say "no match"
+.
+generate encryption key and call it key
+encrypt data using key and call it sealed
+decrypt sealed using key and call it opened
+say text from bytes opened
+if d2 securely equals sha256 of data
+    say "securely equal"
+.
+encrypt "secret text" with key "pass" into cipher
+decrypt cipher with key "pass" into plain
+say plain
+random number from 1 to 6 into roll
+say "roll" roll

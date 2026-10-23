@@ -1,0 +1,4 @@
+while file "zz.txt" exists
+    say 1
+.
+say "ok"

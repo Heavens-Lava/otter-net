@@ -1,0 +1,28 @@
+angle is 30
+s is sine of angle
+c is cosine of angle
+t is tangent of 45
+r is square root of 81
+neg is 0 - 5
+av is absolute value of neg
+p is pi
+pw is 2 power 10
+big is larger of 3 and 7
+small is smaller of 3 and 7
+rd is round of 4.5
+ln is natural log of 10
+lg is log of 100
+random number from 1 to 10 into n
+items are
+    "a"
+    "b"
+.
+random item from items into pick
+dx is 3
+dy is 4
+sq is dx times dx
+sq2 is dy times dy
+total is sq plus sq2
+dist is square root of total
+x is 2 plus 3 times 4
+say s c t r av p pw big small rd ln lg dist x

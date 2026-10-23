@@ -1,0 +1,57 @@
+# Proposal P-SERVER (tier A): every line below is Otter 1.0.1 grammar and
+# passes `otter-net check` today. What it DOES under the proposed opt-in
+# runtime is new (docs/web/WEB_SYNTAX_PROPOSALS.md); today `otter serve`
+# only sends literal replies and `otter run` refuses routes.
+use "html.ot"
+
+site is a web server
+    port is 8080
+    host is "127.0.0.1"
+    static is "public"
+    maxbody is 1048576
+.
+
+when site receives GET at "/api/health"
+    respond with "ok"
+.
+
+when site receives GET at "/hello" into req
+    name is name of query of req
+    if name is ""
+        name is "stranger"
+    .
+    safe is escapeHtml name
+    page is "<h1>Hello, " plus safe plus "</h1>"
+    reply is a web response
+        status is 200
+        type is "text/html"
+        body is page
+    .
+    respond with reply
+.
+
+when site receives GET at "/api/users/:id" into req
+    id is id of parameters of req
+    user has
+        id is id
+        name is "Ada"
+    .
+    respond with user as json
+.
+
+when site receives POST at "/api/notes" into req
+    note is json of req
+    title is title of note
+    if title is ""
+        respond with "title is required" as json and status 400
+    .
+    respond with note as json and status 201
+.
+
+when site receives GET at "/old"
+    reply is a web response
+        status is 302
+        location is "/hello"
+    .
+    respond with reply
+.

@@ -1,0 +1,7 @@
+code is 201
+when server receives GET at "/x"
+    respond with "x" as json and status code
+.
+when server receives GET at "/y"
+    respond with status 302
+.

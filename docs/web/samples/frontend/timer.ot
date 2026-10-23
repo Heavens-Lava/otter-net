@@ -1,0 +1,8 @@
+start timer clock
+x is 0
+repeat 1000 times
+    x is x + 1
+.
+ms is elapsed milliseconds of clock
+el is elapsed time of clock
+say ms

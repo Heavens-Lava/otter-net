@@ -1,0 +1,8 @@
+start command "echo hello-from-job" and call it job
+on output from job
+    say "got:" received output
+.
+on exit of job
+    say "exit code:" exit code of job
+.
+say "main program done"
