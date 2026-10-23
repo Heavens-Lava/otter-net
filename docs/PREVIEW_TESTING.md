@@ -10,7 +10,7 @@ implementation of the Otter 1.0.1 language. Thank you for trying it.
   rely on it for real work yet.
 - **The download is not private.** It is a GitHub Actions artifact of a
   public repository: anyone signed in to GitHub can download it while it is
-  kept (until @EXPIRES@). Please don't pass the link on.
+  kept (until 2026-11-22). Please don't pass the link on.
 - It installs a separate command, **`otter-net`**. It never installs,
   replaces or removes `otter`: if you have the released Otter (otterPS
   1.0.1), `otter` keeps running it, before, during and after this test.
@@ -18,12 +18,12 @@ implementation of the Otter 1.0.1 language. Thank you for trying it.
   implements. The preview's own version, 0.9.0-preview.1, is in the file
   names and in the `VERSION` file.
 
-Built from commit `@COMMIT@` (branch `release/0.9.0-preview.1`).
+Built from commit `f4e513431b23d64898ac44543f057dc5699952a0` (branch `release/0.9.0-preview.1`).
 
 ## 1. Download and check
 
 1. Sign in to GitHub and open
-   <https://github.com/Heavens-Lava/otter-net/actions/runs/@RUN@>.
+   <https://github.com/Heavens-Lava/otter-net/actions/runs/39881403663>.
 2. Under **Artifacts**, download
    `otter-net-0.9.0-preview.1-INTERNAL-PREVIEW-UNSIGNED` (one zip, about
    260 MB, with the packages for every platform) and extract it.

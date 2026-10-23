@@ -104,7 +104,18 @@ Only records, reports and captured output are uploaded, never a binary.
   holds its record and evidence. Commit the combined record under
   `release/certification/` as the evidence of the release.
 
-## Results: the commit certified
+## Results: the internal preview's commit
+
+**Commit `f4e513431b23d64898ac44543f057dc5699952a0`** (branch
+`release/0.9.0-preview.1`, the internal preview 0.9.0-preview.1), run
+**39881403736** (2026-10-23): **every gate passed on all six platforms
+with the same totals as below, and every platform matches the Windows
+reference** (0 unexpected; declared win-arm64 9, macOS 50, Linux 51).
+Record: `release/certification/f4e513431b23d64898ac44543f057dc5699952a0.md`
+and `.json`. The same gates also passed on `fbc46a4` (run 39747899302).
+The section below is the first certification, with the full detail.
+
+## Results: the first commit certified
 
 **Commit `2f63abc4de9a0e19604096e1d279e59b89524eae`** (branch
 `cert/certify`: `c474ab8` plus this certification tooling; no change to

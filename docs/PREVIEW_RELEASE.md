@@ -99,41 +99,53 @@ reported to the owner, otterPS unchanged.)
 ## The packages
 
 Built by `.github/workflows/package.yml` on each platform, kept only from a
-manual run or a push to `cert/preview`, after every test passed, as **one
-workflow artifact `otter-net-0.9.0-preview.1-INTERNAL-PREVIEW-UNSIGNED`**
-(30 days) with `SHA256SUMS` and a `README.txt`. Other runs (main, pull
-requests) keep their packages for one day, between jobs only.
+manual run or a push to `cert/preview` or `release/0.9.0-preview.1`, after
+every test passed, as **one workflow artifact
+`otter-net-0.9.0-preview.1-INTERNAL-PREVIEW-UNSIGNED`** (30 days) with
+`SHA256SUMS` and a `README.txt`. Other runs (main, pull requests) keep
+their packages for one day, between jobs only. The repository is public:
+anyone signed in to GitHub can download a kept artifact, so it is not
+private.
 
-### Run 39647277612 (2026-10-21, commit `bf21fec`, branch `cert/preview`)
+### Run 39881403663 (2026-10-23, commit `f4e5134`, branch `release/0.9.0-preview.1`) - the internal preview
 
 All 22 jobs passed. Artifact **`otter-net-0.9.0-preview.1-INTERNAL-PREVIEW-UNSIGNED`**
-(artifact id 12368661883, 257 MB zipped, kept until 2026-11-20):
+(artifact id 12471417045, 257 MB zipped, kept until 2026-11-22). This is
+the first preview with the separate `otter-net` command; testers'
+instructions are in [PREVIEW_TESTING.md](PREVIEW_TESTING.md).
 
-    gh run download 39647277612 -R Heavens-Lava/otter-net -n otter-net-0.9.0-preview.1-INTERNAL-PREVIEW-UNSIGNED
+    gh run download 39881403663 -R Heavens-Lava/otter-net -n otter-net-0.9.0-preview.1-INTERNAL-PREVIEW-UNSIGNED
     sha256sum -c SHA256SUMS      # macOS: shasum -a 256 -c SHA256SUMS
 
-Downloaded and verified (`shasum -a 256 -c SHA256SUMS`: all OK):
+```
+e2fb32251c590c0204a29dd864f2e33ae36873210b3741f38eb90eb06ee57a47  otter-net-0.9.0-preview.1-linux-arm64.tar.gz
+afc7a4b75fb5c6d11f7f8cc8629fa9d54c82cffaa1d9626db56246489bbd6574  otter-net-0.9.0-preview.1-linux-x64.tar.gz
+4439872cf26fabb963cd480c79f269d77461479d6c44df5f92a33ede8a80d23b  otter-net-0.9.0-preview.1-osx-arm64.pkg
+529f20c52887bf2847c5c9712a9cf34683a097e0a27102670ac2e5646b871ce4  otter-net-0.9.0-preview.1-osx-arm64.tar.gz
+58f481a1e8daa45c2f0828c81f258471edab96b8d52ba97f668dcdffc3e4c8f5  otter-net-0.9.0-preview.1-osx-x64.pkg
+4bfe97b6b07fb65285d7cc52ba923f6de3815543cbedc5b6fe2725754f8bc613  otter-net-0.9.0-preview.1-osx-x64.tar.gz
+3ddbdaa4568322e0c65b03e7475696c446181f51e69aa100f7cdade1aa2d0fa4  otter-net-0.9.0-preview.1-win-arm64.msi
+4500f4be0defe4b361439fd4e9780b157a1fb7d6fcd215f3a5e44fcbc33603c2  otter-net-0.9.0-preview.1-win-arm64.zip
+0ace7679d4d926a552d506aca08826e7577b463e23648c8b573333df0542ea52  otter-net-0.9.0-preview.1-win-x64.msi
+215e30805cf33410c8f4f2f7805088b65cc601a36e18a8fceedecf541030f3af  otter-net-0.9.0-preview.1-win-x64.zip
+9dc0482ea909181ecbaabd06252700ccc15afcd49e893b12648e5171593ca676  otter-net_0.9.0~preview.1_amd64.deb
+46c3ef85791e011e791da7ef9b411ce787ab6a726c9e33c347dba3ed97288cdd  otter-net_0.9.0~preview.1_arm64.deb
+```
 
-| File | Bytes | SHA-256 |
-|---|---:|---|
-| `otter-net-0.9.0-preview.1-win-x64.msi` | 51,339,264 | `e6c1ac292ff00d54045894189f3499fffb6c6ca2db3d82bbb6ebebed3a1f1a7e` |
-| `otter-net-0.9.0-preview.1-win-x64.zip` | 63,547,918 | `3681e6dcde706bd1707ab23bd8a34861747076a91fc7a9b14a34d2fe3e37f7ce` |
-| `otter-net-0.9.0-preview.1-win-arm64.msi` | 45,887,488 | `e3fa75ce2b24d9fc7ce4cd3704b43351f687b39b10b6ddfc49a197b160a83c13` |
-| `otter-net-0.9.0-preview.1-win-arm64.zip` | 58,374,305 | `1ec596108becba6e99711775f290080bdaefe684ea6920d91900b26a30eda03f` |
-| `otter-net-0.9.0-preview.1-osx-arm64.pkg` | 4,815,458 | `ca96e0d300eb7d3676ed5f851b97bb398e902fc1c9a65773fdeb371130c93d50` |
-| `otter-net-0.9.0-preview.1-osx-arm64.tar.gz` | 4,806,694 | `9087504e6568926ebab9294120f78048636fc9a8ee37601af5dd77fbbdfcf8dc` |
-| `otter-net-0.9.0-preview.1-osx-x64.pkg` | 5,277,694 | `cfa2d03e86ed429fffbac84ff24ba01abacd14fcaa4f7575183dc13a5dd0fcde` |
-| `otter-net-0.9.0-preview.1-osx-x64.tar.gz` | 5,272,943 | `3b732d6f1338b1637da8d8771cf87cf719813d309227384acbbfee11f43ed0f3` |
-| `otter-net_0.9.0~preview.1_amd64.deb` | 4,334,024 | `ab6761e2cabd6f072bd84b174dd1a5ef377d4709ade546577695da05807b44f6` |
-| `otter-net-0.9.0-preview.1-linux-x64.tar.gz` | 5,570,278 | `9bba84ae8e321eb53ca843a742e9b116abc813103bd2b2fc77ee2bdce9d1d408` |
-| `otter-net_0.9.0~preview.1_arm64.deb` | 3,740,208 | `723a4fd7fc8eed44d14f712aaada9592c3ae325c0fcda2d033aa261c65d73c3f` |
-| `otter-net-0.9.0-preview.1-linux-arm64.tar.gz` | 5,208,541 | `d0d17580a33d15171a7c96f7d67caab83b3e9e274652df26a9785dc6ab502410` |
+**Superseded:** run 39747899383 (commit `fbc46a4`) and run 39647277612
+(commit `bf21fec`) kept artifacts with the same name and version whose
+packages still installed an `otter` command. They are kept for now (the
+owner's decision); tell testers to use run 39881403663's, and delete the
+older ones when the testers have the new one (`gh api -X DELETE
+repos/Heavens-Lava/otter-net/actions/artifacts/12412279631`, and
+`.../12368661883`). Installing the new packages over an old one removes
+the old `otter` command (tested below).
 
 Builds are not byte-identical: each run's packages have their own checksums.
 
 ### The self-contained desktop companion: size
 
-| | framework-dependent `otter-desktop` (main, run 39618736521) | self-contained (this preview) | difference |
+| | framework-dependent `otter-desktop` (main, run 39618736521) | self-contained (run 39647277612) | difference |
 |---|---:|---:|---:|
 | win-x64 MSI | 4,636,672 | 51,339,264 | +46.7 MB |
 | win-x64 ZIP | 5,867,103 | 63,547,918 | +57.7 MB |
@@ -144,12 +156,16 @@ Builds are not byte-identical: each run's packages have their own checksums.
 Beside it: `D3DCompiler_47_cor3.dll` (x64 only), `PenImc_cor3.dll`,
 `PresentationNative_cor3.dll`, `vcruntime140_cor3.dll`, `wpfgfx_cor3.dll`.
 The MSI (LZX, `CompressionLevel="high"`) is about 12 MB smaller than the
-ZIP (deflate). Installed size on Windows: about 145 MB (x64; `otter.exe` is about 12 MB of it).
+ZIP (deflate). Installed size on Windows: about 145 MB (x64; `otter-net.exe` is about 12 MB of it).
 
 ### Desktop windows with no .NET (Windows x64 and Arm64)
 
 `tools/test-desktop-nodotnet.ps1` in job "Desktop windows without .NET",
-both architectures passed. How the runner was made a machine without .NET
+both architectures passed (run 39881403663; and 39747899383, 39647277612
+before the rename). In run 39879518726 (commit `a87ae41`) the Arm64 harness
+reported 25 of 26: in `repl_window` UI Automation got a COMException on
+**otterPS's** window (the reference), while otter-net's side behaved
+correctly; it passed 26 of 26 in the next run. How the runner was made a machine without .NET
 for the test process and everything it starts:
 
 1. `C:\Program Files\dotnet` and `C:\Program Files (x86)\dotnet` renamed
@@ -172,20 +188,29 @@ themselves) ran in `otter-desktop.exe` (`OTTER_NET_TRACE` shows the hand-off);
 a program that shows a window, closed by the test with `WM_CLOSE`, ran its
 `when ... is closed` handler and went on. And the desktop harness
 (`tests/desktop`, published self-contained so it needs no .NET either),
-with the installed `otter.exe`, against otterPS 1.0.1: **26 of 26 programs
+with the installed `otter-net.exe`, against otterPS 1.0.1: **26 of 26 programs
 identical** (window tree after every step, pixels, output, errors, exit
 code) on **both x64 and Arm64** (desktop.yml covers x64 only).
 
 ### Install, upgrade, downgrade, uninstall, PATH (without PowerShell)
 
+Run 39881403663. Every test also checks that no package installs, replaces
+or removes an `otter` command.
+
 | Platform | Package | Result |
 |---|---|---|
-| Windows x64 (windows-latest), Windows 11 Arm64 | MSI | over 0.8.0: one Apps entry, install folder once and **first** on the user PATH, machine PATH untouched; a **new terminal** (checked from the registry PATH and from a fresh Task Scheduler process) finds `...\Programs\otter-net\otter.exe`; tests\compat 202 of 202 native; new/run/check/test; startup 11 ms (x64), 20 ms (Arm64); uninstall removes files, folder, PATH entry, `HKCU\Software\otter-net`, Apps entry, and a new terminal finds no `otter`; **downgrade** (over 0.9.1) refused, msiexec 1603 "A newer version of otter-net is already installed.", the newer stays |
-| | ZIP | checksums match; `otter.exe` runs in place |
-| Debian 12 x64, arm64 (= Chromebook Linux) | .deb | over 0.8.0; tests/compat 202 of 202; startup 7 ms / 6 ms; `apt-get remove --purge` leaves nothing; **downgrade** (over 0.9.1) refused by apt without `--allow-downgrades`, the newer stays |
-| | .tar.gz | upgrade, 202 of 202, uninstall leaves nothing; otterPS's launcher kept unless asked and put back; a removed otterPS's launcher is not put back (fixed in this branch); downgrade allowed (no check), one version left |
-| macOS Apple silicon, Intel | .pkg | refuses another program's `/usr/local/bin/otter`; over 0.8.0 leaves one version; 202 of 202; startup 18 ms / 54 ms; `uninstall.sh` leaves nothing and forgets the receipt; **downgrade allowed** (macOS Installer has no downgrade check): leaves only the installed version, linked and registered |
-| | .tar.gz | as on Linux; startup 18 ms / 39 ms |
+| Windows x64 (windows-latest), Windows 11 Arm64 | MSI | over 0.8.0: one Apps entry, install folder once and **appended** to the user PATH, machine PATH untouched, `otter-net.exe` and no `otter`; a **new terminal** (registry PATH and a fresh Task Scheduler process) finds `...\Programs\otter-net\otter-net.exe` and **no `otter`**; tests\compat 202 of 202 native; new/run/check/test; uninstall removes files, folder, PATH entry, `HKCU\Software\otter-net`, Apps entry, and a new terminal finds neither command; **downgrade** (over 0.9.1) refused; **over the real pre-rename MSI** (run 39747899383, `otter.exe` first on the PATH): `otter.exe` removed, a new terminal has `otter-net` and no `otter`, one PATH entry, one Apps entry |
+| | ZIP | checksums match; `otter-net.exe` runs in place, no `otter.exe` in it |
+| Debian 12 x64, arm64 (= Chromebook Linux) | .deb | over 0.8.0; `/usr/bin/otter-net`, no `/usr/bin/otter`; tests/compat 202 of 202; `apt-get remove --purge` leaves nothing; downgrade refused by apt; **over the real pre-rename .deb**: `/usr/bin/otter` removed, `/usr/bin/otter-net` installed |
+| | .tar.gz | upgrade, 202 of 202, uninstall leaves nothing; otterPS's `~/.local/bin/otter` untouched by install and uninstall; `--replace-otterps-launcher` refused; an earlier preview's `otter` launcher given back to otterPS (or removed if otterPS is gone); a user's own `otter` link left alone; **over the real pre-rename tarball**: `~/.local/bin/otter` removed, `otter-net` added; downgrade allowed (no check), one version left |
+| macOS Apple silicon, Intel | .pkg | refuses another program's `/usr/local/bin/otter-net`; leaves another program's `/usr/local/bin/otter` alone; removes an earlier preview's `/usr/local/bin/otter` link; over 0.8.0 leaves one version; 202 of 202; `uninstall.sh` leaves nothing; downgrade allowed (macOS Installer has no check); **over the real pre-rename .pkg**: `/usr/local/bin/otter` removed, `/usr/local/bin/otter-net` linked |
+| | .tar.gz | as on Linux, including the real pre-rename tarball |
+
+Signing rehearsal (same run): `otter-net.exe`, `otter-desktop.exe` and the
+MSI signed on Windows x64 and Arm64 with a throwaway self-signed
+certificate, timestamped by DigiCert, verified and discarded; `otter-net`
+signed ad hoc with the Hardened Runtime on macOS arm64 and x64, runs, and
+is what the `.tar.gz` and `.pkg` carry ([SIGNING.md](SIGNING.md)).
 
 ### Beside otterPS 1.0.1
 
@@ -195,38 +220,23 @@ otterPS's release ZIP was built in the run by its own
 -AddToUserPath` (Windows PowerShell 5.1 on Windows; PowerShell 7.4.6 on
 Linux and macOS). Order A: otterPS, then otter-net; remove otter-net, then
 otterPS. Order B: otter-net, then otterPS; remove otterPS, then otter-net.
-In every case both `otter --version` and a program worked through each
-one's own path, and removing one left the other's files (hashed) and
-command intact; nothing of either was left at the end.
+At every step a new terminal's `otter` and `otter-net` were both checked;
+both products worked through their own paths, removing one left the
+other's files (hashed) and command intact, and nothing was left at the end.
+otterPS's installer now also works after otter-net (order B) on every
+platform.
 
-| Platform | Package | Which `otter` a new terminal gets with both installed |
-|---|---|---|
-| Windows x64, Arm64 | MSI | **otter-net** (its folder is first in the user PATH; otterPS's is appended), in both orders; after otter-net is uninstalled, otterPS again; after otterPS is uninstalled, otter-net |
-| | ZIP | otterPS (the ZIP changes no PATH); deleting the folder is the uninstall |
-| Debian 12 x64, arm64 | .deb | **otterPS** - Debian's `~/.profile` puts `~/.local/bin` (otterPS's launcher) before `/usr/bin`; otter-net is `/usr/bin/otter` by full path, and becomes the `otter` once otterPS is uninstalled |
-| | .tar.gz | order A: `install.sh` refuses otterPS's launcher unless `--replace-otterps-launcher`; with it, **otter-net**, and uninstalling otter-net puts otterPS's launcher back. Order B: otterPS's `Install-Otter.ps1 -AddToUserPath` **refuses to replace otter-net's launcher** (its own rule: it replaces only its own) - its files install, its command does not; otter-net stays the `otter` |
-| macOS arm64, x64 | .pkg | **otter-net** (`/usr/local/bin`), unless the user added otterPS's PATH line to `~/.zshrc` - then **otterPS** (`~/.local/bin` first) |
-| | .tar.gz | `~/.local/bin` is not on a new Mac's PATH: neither launcher is found until the user adds the line otterPS (and `install.sh`) print; with it, as on Linux |
+| Platform | Package | A new terminal's `otter` | A new terminal's `otter-net` |
+|---|---|---|---|
+| Windows x64, Arm64 | MSI | otterPS while it is installed, otherwise none - in both orders, before and after otter-net's install and uninstall | otter-net while it is installed, otherwise none |
+| | ZIP | otterPS (the ZIP changes no PATH) | none (run in place) |
+| Debian 12 x64, arm64 | .deb, .tar.gz | otterPS while it is installed, otherwise none | otter-net (`/usr/bin/otter-net`, `~/.local/bin/otter-net`) while installed |
+| macOS arm64, x64 | .pkg | none, or otterPS once the user adds otterPS's PATH line to `~/.zshrc` (macOS has no `~/.local/bin` on the PATH) | otter-net (`/usr/local/bin/otter-net`) while installed |
+| | .tar.gz | as the .pkg | otter-net once `~/.local/bin` is on the PATH (`install.sh` prints the line) |
 
-Findings for the owner (not fixable inside otter-net's packages without
-touching otterPS or users' shell profiles):
-
-- With otterPS installed per user, the **.deb and .pkg do not win** a new
-  terminal where `~/.local/bin` is on the PATH (always on Debian/ChromeOS
-  for a user whose `~/.local/bin` exists; on macOS once the user follows
-  otterPS's instructions). The package README says so and how to check.
-- otterPS's installer cannot be run with `-AddToUserPath` after otter-net's
-  tarball took `~/.local/bin/otter`: install otterPS first, or without
-  `-AddToUserPath`.
-- The Windows Store package's `otter.exe` alias (in
-  `%LOCALAPPDATA%\Microsoft\WindowsApps`, on the user PATH) was not tested
-  (no Store on CI runners); otter-net's MSI folder is first in the user PATH,
-  so it should come before the alias.
-
-Run 39645030006 (the commit before) passed everything except the Windows
-coexistence job's own check, which counted where.exe's extensionless match
-(otterPS's macOS/Linux launcher `otter`, which cmd and PowerShell never
-run) as the first `otter`; fixed in the test.
+Not covered by CI: the Microsoft Store package's `otter.exe` alias (no
+Store on the runners). otter-net installs no `otter`, so it cannot come
+between that alias and the user.
 
 ## The owner's decisions (2026-10-22)
 
