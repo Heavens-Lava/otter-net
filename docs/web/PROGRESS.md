@@ -6,6 +6,20 @@
 | 2026-10-23 | security: S-1 fix | private advisory fork (GHSA-w4wm-qr4q-9qvr) | `093e325` | regression test passes; 202 compat programs identical before/after; awaiting coordinated publication |
 | 2026-10-23 | 1a: secure HTTP core | `web/phase1a-runtime`, PR #6 | `c877125` (product code = `309dfe0`) | web runtime 6/6 platforms (46/46; Windows 44 + 1 skipped); certify 309dfe0 every gate on 6 platforms, same totals as f4e5134 (`release/certification/309dfe0...md`); ci, desktop, package green; 202 compat programs identical to the preview binary; size +4.4 to +5.4 MB |
 
+| 2026-10-24 | 1b: path parameters, static files, web response | `web/phase1b` (PR) | see the PR | local macOS arm64: 106/106 black-box checks; negative controls: removing the dot-name or the symlink containment check makes the suite fail |
+
+## Phase 1b checklist (owner's authorisation, 2026-10-24)
+
+- [x] Path parameters (`:name`, decoded UTF-8, 400 on invalid or encoded `/`), precedence, duplicate routes refused at start
+- [x] Static files: inside the project only, canonical root, `..`/encoded/backslash/NUL/drive/dot names refused, symlinks and junctions resolved at every level, no listing, streaming
+- [x] Explicit `fallback`, off by default; navigations only (Accept text/html, no extension, not /api/ or /ws/)
+- [x] Dotfiles and dot-folders never served; `.well-known/` left to the reverse proxy
+- [x] MIME table (JavaScript, WASM, GLB, glTF, KTX2, HDR, images, fonts, audio/video)
+- [x] HTTP caching: ETag, Last-Modified, 304; Vite-hashed names immutable; others no-cache
+- [x] The `web response` object: status, type, body (UTF-8), location (no open redirects), headers (validated, runtime headers protected), cookies refused until Phase 3
+- [x] Regression tests for traversal, symlinks, redirects, headers, response encoding, streaming, route precedence; Phase 1a tests kept
+- [x] 1.0.1 behaviour without the opt-in unchanged; no grammar change
+
 ## Phase 1a checklist (owner's authorisation, 2026-10-23)
 
 - [x] Opt-in manifest setting (`web.runtime`, `web.allowPublicBind`)

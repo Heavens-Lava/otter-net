@@ -1,6 +1,6 @@
 # Otter Web runtime: Phase 1b plan
 
-**Status: planning approved (2026-10-23). Not implemented.**
+**Status: implemented** in PR "Otter Web runtime - Phase 1b" (2026-10-24), with the owner's decisions: `fallback` is an explicit property, off by default; dotfiles and dot-folders are never served; `.well-known/` is left to the reverse proxy; Vite-style hashed names are cached as immutable, and build-manifest integration waits for Phase 4. The exact rules are in [RUNTIME_CONTRACT.md](RUNTIME_CONTRACT.md) §2b, §3 and §5b.
 Implementation starts only after Phase 1a (PR #6) passes its review gate.
 There is no grammar change. Every example is in
 [samples/phase1b/phase1b.ot](samples/phase1b/phase1b.ot) and passes

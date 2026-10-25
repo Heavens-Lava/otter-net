@@ -1,0 +1,10 @@
+# Two routes answering exactly the same requests stop the program at start.
+site is a web server
+    port is 18080
+.
+when site receives GET at "/users/:id"
+    respond with "one"
+.
+when site receives GET at "/users/:name"
+    respond with "two"
+.

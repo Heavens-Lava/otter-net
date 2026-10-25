@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Connections;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -205,6 +206,20 @@ public sealed class KestrelWebHost : IOtterWebHost
         response.Headers["Cache-Control"] = "no-store";
         bool head = HttpMethods.IsHead(context.Request.Method);
 
+        // Static files (§2b): only when no route matches the path; served
+        // here, streamed, without reaching the program.
+        if (options.StaticRoot != null)
+        {
+            try
+            {
+                if (await TryServeStaticAsync(context, head)) return;
+            }
+            catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
+            {
+                return;   // the client went away during the download
+            }
+        }
+
         OtterWebResponse answer;
         try
         {
@@ -278,6 +293,7 @@ public sealed class KestrelWebHost : IOtterWebHost
             Id = id,
             Method = request.Method.ToUpperInvariant(),
             Path = path,
+            RawPath = RawPath(context),
             Query = query,
             Headers = headers,
             Body = body,
@@ -311,6 +327,77 @@ public sealed class KestrelWebHost : IOtterWebHost
         // Taken: wait for the handler (a shutdown aborts the connection
         // after its 5 s grace, which ends this wait).
         return await otterRequest.Completion.Task.WaitAsync(context.RequestAborted).ConfigureAwait(false);
+    }
+
+    // The request target's path as the client sent it (still encoded).
+    static string RawPath(HttpContext context)
+    {
+        string raw = context.Features.Get<IHttpRequestFeature>()?.RawTarget ?? context.Request.Path.Value ?? "/";
+        int query = raw.IndexOf('?');
+        return query >= 0 ? raw[..query] : raw;
+    }
+
+    // ---- static files (§2b) ----
+
+    async Task<bool> TryServeStaticAsync(HttpContext context, bool head)
+    {
+        string method = context.Request.Method.ToUpperInvariant();
+        if (!OtterWebPaths.TryDecodeSegments(RawPath(context), out List<string> segments)) return false;
+        if (options.Routes.AnyMatches(segments)) return false;          // routes come first
+        string? file = OtterWebStatic.Resolve(options.StaticRoot!, segments);
+        if (file != null)
+        {
+            if (method is not ("GET" or "HEAD"))
+            {
+                context.Response.StatusCode = 405;
+                context.Response.Headers["Allow"] = "GET, HEAD";
+                context.Response.ContentLength = 0;
+                return true;
+            }
+            await SendFileAsync(context, file, head, cacheForever: OtterWebStatic.IsHashedName(file));
+            return true;
+        }
+        if (options.Fallback != null && OtterWebStatic.FallbackApplies(method, context.Request.Headers.Accept.ToString(), segments))
+        {
+            await SendFileAsync(context, options.Fallback, head, cacheForever: false);
+            return true;
+        }
+        return false;
+    }
+
+    static async Task SendFileAsync(HttpContext context, string path, bool head, bool cacheForever)
+    {
+        var info = new FileInfo(path);
+        HttpResponse response = context.Response;
+        string etag = OtterWebStatic.ETag(info);
+        DateTimeOffset modified = new DateTimeOffset(info.LastWriteTimeUtc).AddTicks(-(info.LastWriteTimeUtc.Ticks % TimeSpan.TicksPerSecond));
+        response.Headers["ETag"] = etag;
+        response.Headers["Last-Modified"] = modified.ToString("r", System.Globalization.CultureInfo.InvariantCulture);
+        response.Headers["Cache-Control"] = cacheForever ? "public, max-age=31536000, immutable" : "no-cache";
+
+        // Conditional requests: If-None-Match wins over If-Modified-Since.
+        string ifNoneMatch = context.Request.Headers.IfNoneMatch.ToString();
+        bool notModified;
+        if (ifNoneMatch.Length > 0)
+        {
+            notModified = ifNoneMatch.Split(',').Select(v => v.Trim()).Any(v => v == "*" || v == etag || v == "W/" + etag);
+        }
+        else
+        {
+            notModified = DateTimeOffset.TryParse(context.Request.Headers.IfModifiedSince.ToString(), System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.AssumeUniversal, out DateTimeOffset since) && modified <= since;
+        }
+        if (notModified)
+        {
+            response.StatusCode = 304;
+            return;
+        }
+        response.StatusCode = 200;
+        response.ContentType = OtterWebStatic.ContentType(path);
+        response.ContentLength = info.Length;
+        if (head) return;
+        // Streamed from the file: memory use does not grow with its size.
+        await response.SendFileAsync(path, context.RequestAborted);
     }
 
     static OtterWebResponse BadRequest(string message) =>
