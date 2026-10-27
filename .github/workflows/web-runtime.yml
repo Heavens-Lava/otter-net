@@ -104,7 +104,7 @@ jobs:
       - name: Native AOT prerequisites, the .NET 10 SDK and PowerShell 7 (for the test tool)
         run: |
           apt-get update
-          apt-get install -y --no-install-recommends ca-certificates curl git clang zlib1g-dev libicu72 procps
+          apt-get install -y --no-install-recommends ca-certificates curl git clang zlib1g-dev libicu72 libsqlite3-0 procps
           curl -sSL https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 10.0 --install-dir "$DOTNET_ROOT"
           echo "$DOTNET_ROOT" >> "$GITHUB_PATH"
           echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
@@ -160,3 +160,8 @@ jobs:
             echo
             for f in collected/*/web-runtime-*.md; do echo "- $(basename "$f" .md): $(sed -n 3p "$f")"; done
           } >> "$GITHUB_STEP_SUMMARY"
+      - name: Fail when any platform failed
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: |
+          echo "native: ${{ needs.native.result }}, linux: ${{ needs.linux.result }}"
+          exit 1
