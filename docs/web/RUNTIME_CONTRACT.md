@@ -84,6 +84,12 @@ site is a web server
 
   `.well-known/` is a dot-folder too: leave it to the reverse proxy in this
   version.
+- **The static folder must be trusted** (docs/SECURITY_LEDGER.md, S-8): only
+  whoever deploys the site may write in it; never put user uploads there.
+  The containment check resolves a path and then opens it, so a process that
+  can write in the folder could swap a checked file for a link between the
+  two. Hardening (checking the opened file itself) is planned before any
+  internet-facing production use.
 - **MIME types** (fixed table; `X-Content-Type-Options: nosniff` always)
   **[T]**:
 

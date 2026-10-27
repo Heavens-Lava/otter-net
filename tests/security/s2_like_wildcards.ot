@@ -1,0 +1,41 @@
+# S-2 regression (docs/SECURITY_LEDGER.md): in the query language, a value
+# used with contains / starts with / ends with is matched as written; its
+# LIKE wildcards (% and _) never widen the match.
+connect ":memory:" into db
+execute db with "create table items (name text)"
+execute db with "insert into items (name) values ('100%')"
+execute db with "insert into items (name) values ('a_b')"
+execute db with "insert into items (name) values ('axb')"
+execute db with "insert into items (name) values ('apple')"
+execute db with "insert into items (name) values ('pineapple')"
+
+say "-- contains %: only the row with a percent sign"
+get all from items in db where name contains "%" order by name into rows
+each row in rows
+    say name of row
+.
+say "-- contains _: only the row with an underscore"
+get all from items in db where name contains "_" order by name into rows
+each row in rows
+    say name of row
+.
+say "-- starts with a_: not axb"
+get all from items in db where name starts with "a_" order by name into rows
+each row in rows
+    say name of row
+.
+say "-- ends with %: only 100%"
+get all from items in db where name ends with "%" order by name into rows
+each row in rows
+    say name of row
+.
+say "-- ordinary matches still work"
+get all from items in db where name contains "apple" order by name into rows
+each row in rows
+    say name of row
+.
+get all from items in db where name starts with "pine" order by name into rows
+each row in rows
+    say name of row
+.
+disconnect db

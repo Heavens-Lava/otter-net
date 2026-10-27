@@ -1,6 +1,7 @@
 # The Otter Web runtime 0.1 (docs/web/RUNTIME_CONTRACT.md) on all six
-# platforms: the Native AOT otter built from this commit runs the black-box
-# HTTP tests (tools/test-web-runtime.ps1, loopback only), and its size is
+# platforms: the Native AOT otter built from this commit runs the security
+# regression tests (tools/test-security.ps1) and the black-box HTTP tests
+# (tools/test-web-runtime.ps1, loopback only), and its size is
 # compared with main's (the cost of Kestrel). Nothing is published.
 name: web runtime
 
@@ -10,7 +11,7 @@ on:
     branches: ['web/**']
   pull_request:
     branches: [main]
-    paths: ['src/**', 'tests/web-runtime/**', 'tools/test-web-runtime.ps1', '.github/workflows/web-runtime.yml']
+    paths: ['src/**', 'tests/web-runtime/**', 'tests/security/**', 'tools/test-web-runtime.ps1', 'tools/test-security.ps1', '.github/workflows/web-runtime.yml']
 
 permissions:
   contents: read
@@ -56,6 +57,9 @@ jobs:
           $line = "| ${{ matrix.rid }} | {0:N0} | {1:N0} | +{2:N0} (+{3:N1} MB) |" -f $base, $new, ($new - $base), (($new - $base) / 1MB)
           $line | Out-File -Encoding utf8 results/size-${{ matrix.rid }}.md
           "### Size of otter (${{ matrix.rid }})`n`n| Target | main | this commit | difference |`n|---|---:|---:|---:|`n$line" | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+      - name: Security regression tests (tests/security)
+        shell: pwsh
+        run: ./tools/test-security.ps1 -OtterNet artifacts/new/${{ matrix.exe }}
       - name: Black-box HTTP tests (loopback)
         shell: pwsh
         run: |
@@ -100,7 +104,7 @@ jobs:
       - name: Native AOT prerequisites, the .NET 10 SDK and PowerShell 7 (for the test tool)
         run: |
           apt-get update
-          apt-get install -y --no-install-recommends ca-certificates curl git clang zlib1g-dev libicu72 procps
+          apt-get install -y --no-install-recommends ca-certificates curl git clang zlib1g-dev libicu72 libsqlite3-0 procps
           curl -sSL https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 10.0 --install-dir "$DOTNET_ROOT"
           echo "$DOTNET_ROOT" >> "$GITHUB_PATH"
           echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
@@ -118,6 +122,8 @@ jobs:
         run: |
           mkdir -p results
           pwsh -NoProfile -Command '$new = (Get-Item artifacts/new/otter).Length; $base = (Get-Item artifacts/base/otter).Length; $line = "| ${{ matrix.rid }} | {0:N0} | {1:N0} | +{2:N0} (+{3:N1} MB) |" -f $base, $new, ($new - $base), (($new - $base) / 1MB); $line | Out-File -Encoding utf8 results/size-${{ matrix.rid }}.md; "### Size of otter (${{ matrix.rid }})`n`n| Target | main | this commit | difference |`n|---|---:|---:|---:|`n$line" | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY'
+      - name: Security regression tests (tests/security)
+        run: pwsh -NoProfile -File tools/test-security.ps1 -OtterNet artifacts/new/otter
       - name: Black-box HTTP tests (loopback)
         run: |
           code=0
@@ -154,3 +160,8 @@ jobs:
             echo
             for f in collected/*/web-runtime-*.md; do echo "- $(basename "$f" .md): $(sed -n 3p "$f")"; done
           } >> "$GITHUB_STEP_SUMMARY"
+      - name: Fail when any platform failed
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: |
+          echo "native: ${{ needs.native.result }}, linux: ${{ needs.linux.result }}"
+          exit 1

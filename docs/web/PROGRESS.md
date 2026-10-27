@@ -6,7 +6,8 @@
 | 2026-10-23 | security: S-1 fix | private advisory fork (GHSA-w4wm-qr4q-9qvr) | `093e325` | regression test passes; 202 compat programs identical before/after; awaiting coordinated publication |
 | 2026-10-23 | 1a: secure HTTP core | `web/phase1a-runtime`, PR #6 | `c877125` (product code = `309dfe0`) | web runtime 6/6 platforms (46/46; Windows 44 + 1 skipped); certify 309dfe0 every gate on 6 platforms, same totals as f4e5134 (`release/certification/309dfe0...md`); ci, desktop, package green; 202 compat programs identical to the preview binary; size +4.4 to +5.4 MB |
 
-| 2026-10-24 | 1b: path parameters, static files, web response | `web/phase1b` (PR) | see the PR | local macOS arm64: 106/106 black-box checks; negative controls: removing the dot-name or the symlink containment check makes the suite fail |
+| 2026-10-24 | 1b: path parameters, static files, web response | PR #7, **merged** 2026-10-25 as `d3a7796` | `351251b` | **complete** (internal development milestone): web runtime 6/6 platforms (106/106; Windows 103 + 2 skipped + Ctrl+C 3/3), certified on 6 platforms, ci/desktop/package green; negative controls for the dot-name and symlink checks |
+| 2026-10-27 | security: S-2 (LIKE wildcards) | `security/s2-like-wildcards` (PR) | see the PR | fixes the last open injection finding before database-backed web features (Phase 2) |
 
 ## Phase 1b checklist (owner's authorisation, 2026-10-24)
 
