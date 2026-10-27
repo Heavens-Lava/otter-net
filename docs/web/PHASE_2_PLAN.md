@@ -1,6 +1,9 @@
 # Otter Web runtime: Phase 2 plan (proposal)
 
-**Status: planning, for the owner's review (2026-10-27). Not implemented.**
+**Status: the owner approved the six decisions in §6 on 2026-10-27.
+This document is the plan; the code comes in separate PRs (2a, 2b, 2c),
+none merged without the owner's approval.** Reconciled with `main` at
+`9caa3af` (PR #8 merged).
 Phase 2 brings forms, safely escaped HTML templates, SQLite improvements,
 and a working **Otter Guestbook** (otter-web-plan `EXAMPLE_APPS.md` A).
 
@@ -8,10 +11,11 @@ and a working **Otter Guestbook** (otter-web-plan `EXAMPLE_APPS.md` A).
 `web server` and `web response` do. The examples ([samples/phase2/phase2.ot](samples/phase2/phase2.ot)) pass
 `otter-net check` today; what they *do* is the proposal.
 
-**Prerequisites, done or in review:**
-- Phase 1a/1b merged;
-- S-2 (LIKE wildcards) fixed in its own PR;
-- S-1 handled privately.
+**Prerequisites, all done:**
+- Phase 1a and 1b merged (`9d8fcaa`, `d3a7796`);
+- S-2 (LIKE wildcards) fixed and merged (PR #8, `9caa3af`), so it is in
+  place before any database-backed app reaches testers;
+- S-1 handled privately (security release in preparation).
 
 React, Vite, Three.js and React Three Fiber stay on the roadmap (Phases
 4-5) and are not started.
@@ -35,9 +39,11 @@ when site receives POST at "/sign" into req
 - **Missing fields** follow D41: `x of form of req` is an error, and
   `get "x" from form of req` gives `gone`.
 - **Body errors:**
-  - a body that is not form-encoded (wrong `Content-Type`) gives an empty
+  - a body that is not form-encoded (another `Content-Type`) gives an empty
     `form`; the raw body stays in `body of req`;
-  - invalid encoding or UTF-8 gives **400** before the handler runs;
+  - a malformed `%` escape or invalid UTF-8 gives **400** before the
+    handler runs, decoded with the same rules as the query string;
+  - a `charset` other than UTF-8 gives **415**;
   - the size limit is `maxbody` (default 1 MiB).
 - **Not in Phase 2:** `multipart/form-data` (file uploads). Uploads need
   their own limits, storage outside the static folder (S-8) and scanning
@@ -52,8 +58,9 @@ when site receives POST at "/sign" into req
 
 ## 2. HTML templates, escaped by default (resolves S-4 for pages)
 
-**Proposed (ADR WEB-003):** a runtime-rendered **`web template`** object,
-in the same `X is a TYPE` form as `web response`.
+**Decided (decision 1, ADR WEB-003):** a native, runtime-rendered **`web
+template`** object with secure, context-aware HTML escaping, in the same
+`X is a TYPE` form as `web response`.
 
 ```otter
 page is a web template
@@ -79,7 +86,8 @@ The template language is a small, logic-less Mustache subset:
 - **Templates are files in a `views` folder of the project**, with the same
   path rules as static files: no `..`, no dot names, no links out. They are
   never served as static files.
-- **Context safety:**
+- **Context safety (context-aware escaping):**
+  - in text and in quoted attribute values, values are HTML-escaped;
   - a placeholder inside `<script>` or `<style>`, or in an unquoted
     attribute value, is refused **when the template is loaded**, naming the
     file and line;
@@ -92,29 +100,35 @@ The template language is a small, logic-less Mustache subset:
 - **Response:** `text/html; charset=utf-8`. It combines with
   `web response`: `body is page` sends the rendered page with any status.
 
-**Alternative considered:** a plain-Otter library (`render`) built on
-`replace`. It works today, but it is slow, cannot know the HTML context,
-and makes escaping depend on every caller. It is not recommended as the
-main path.
+**Alternative not chosen:** a plain-Otter library (`render`) built on
+`replace`. It is slow, cannot know the HTML context, and makes escaping
+depend on every caller.
 
 ## 3. SQLite improvements (fixes S-7; keeps D97)
 
-| Problem (1.0.1) | Proposal |
+| Problem (1.0.1) | Decided change |
 |---|---|
-| `execute` silently runs only the **first** of several statements | **Refused**, with an error naming the second statement's start: "execute runs one statement; use a transaction for several" |
+| `execute` (and `query`, found when reconciling with `main`: both use `sqlite3_prepare_v2` and drop the rest) silently run only the **first** of several statements | **Refused before anything runs** (decision 2), with an error that quotes the start of the second statement and suggests one `execute` per statement inside a transaction |
 | A bytes parameter is stored as the text "OtterBytes" | bound as a BLOB (`sqlite3_bind_blob`) |
 | BLOB columns are read back as text | read as bytes |
-| Integers above 2^53 lose precision | exact up to 2^53; beyond it, an error naming the column (or text, owner's choice) |
+| Integers above 2^53 lose precision | **an integer that an Otter number cannot hold exactly is refused** (decision 3), with an error naming the column and suggesting `cast(x as text)`. Every integer up to 2^53 is exact; a larger one that a number holds exactly (2^60, for example) is still read. The same rule applies to `last inserted id` |
 | No busy timeout | 5 s by default (`PRAGMA busy_timeout`), so concurrent tools do not fail at once |
 | No migrations | a plain-Otter SDK library, `migrations.ot`: numbered `migrations/NNN-name.sql` files applied in order, each in a transaction, recorded in `schema_migrations`. No grammar change |
 
+- **Scope (decision 4):** throughout otter-net, not only with the web
+  runtime, since the old behaviour loses data. otterPS 1.0.1 is unchanged.
 - **Compatibility:** each row above changes 1.0.1 behaviour for programs
-  that hit the problem, so each is recorded in `SECURITY_LEDGER.md` or
-  `SPEC-QUESTIONS.md` as an intended difference, with a test.
-- **Recommendation:** in otter-net generally, not only with the web
-  runtime, since the old behaviour loses data.
-- **Owner decision:** whether some of these should apply only inside the
-  web runtime.
+  that hit the problem. Each is recorded under S-7 in `SECURITY_LEDGER.md`
+  with a pinned test in `tests/security` (run on all six platforms).
+- **What the corpora hit (checked on `main`):**
+  - in `tests/compat`, only `data_db.ot`: one two-statement `execute` (it
+    documents the 1.0.1 behaviour) and one BLOB read (`x'414243'`). These
+    two checks move to `tests/security`, so the live comparison with
+    otterPS keeps covering the rest;
+  - no program in otterPS's corpus (conformance, examples, docs) uses
+    several statements, BLOBs, bytes parameters or 64-bit integers;
+  - the busy timeout changes only what happens when another connection
+    holds a lock (otterPS sets none, so it fails at once).
 
 ## 4. The Otter Guestbook
 
@@ -153,27 +167,32 @@ main path.
   warnings, path rules;
 - negative controls: removing escaping makes the suite fail.
 
-A real-browser end-to-end test (Playwright) needs Node, so it is
-proposed as an optional job (owner decision).
+**Browser tests (decision 6):** Playwright runs in CI as its own job.
+Node is installed **only in that CI job**. It is never a runtime
+dependency: an ordinary Otter project, `otter-net` and its packages need
+no Node.
 
 ## 5. Order and gates
 
 | PR | Content | Gate |
 |---|---|---|
-| 2a | `form`/`forms`, the SQLite fixes (S-7), busy timeout | contract rows **[T]**; six-platform HTTP tests; certification (S-7 changes are recorded differences) |
+| 2a | `form`/`forms`, the SQLite fixes (S-7), busy timeout | contract rows **[T]**; six-platform HTTP and security tests; certification (S-7 changes are recorded differences) |
 | 2b | `web template` (ADR WEB-003) | escaping and context tests with negative controls |
-| 2c | Guestbook, `migrations.ot`, docs | EXAMPLE_APPS A pass criteria |
+| 2c | Guestbook, `migrations.ot`, the Playwright job, docs | EXAMPLE_APPS A pass criteria, in a real browser |
 
 Every PR: the exact tested SHA, all six platforms, ci, certify, desktop,
 package, and the security tests. **No PR is merged without the owner's
 approval.**
 
-## 6. Owner decisions needed before 2a
+## 6. Owner decisions (approved 2026-10-27)
 
-1. Templates: the `web template` runtime object (recommended) or a library.
-2. `execute` with several statements: refuse (recommended) or run all.
-3. Integers above 2^53: an error (recommended) or text.
-4. SQLite fixes everywhere (recommended) or only in the web runtime.
-5. File uploads (multipart) in Phase 3 with cookies and CSRF (recommended).
-6. A Playwright browser test job (needs Node in CI only), or HTTP-level
-   tests only.
+1. **Templates:** a native `web template` object with secure,
+   context-aware HTML escaping.
+2. **Several statements** in one `execute` (and `query`): refused, with an
+   explicit message.
+3. **Integers** that an Otter number cannot hold exactly: refused.
+4. **SQLite fixes** throughout otter-net.
+5. **File uploads** (multipart): deferred to Phase 3, with cookies and
+   CSRF protection.
+6. **Playwright** browser tests in CI; Node is never a runtime dependency
+   of ordinary Otter projects.
