@@ -50,7 +50,9 @@ site is a web server
 | `port` | number 1-65535 | 8080 | An address already in use stops the program with a runtime error **[T]** |
 | `host` | text | `"127.0.0.1"` | `"127.0.0.1"`, `"localhost"` and `"::1"` are loopback. Any other host is refused unless `web.allowPublicBind` is `true`, which also prints a warning **[T]** |
 | `maxbody` | number of bytes, 0 to 104857600 | 1048576 (1 MiB) | A larger body is answered 413 **[T]** |
-| anything else | - | - | A runtime error that names the property. Static files (`static`) arrive in Phase 1b |
+| `static` | text: a folder in the project | none | Serves the folder's files (§2b). It must be a folder inside the project, not the project folder itself (which holds `otter.json` and the program), and is resolved once, links included **[T]** |
+| `fallback` | text: a file in the `static` folder | **none: off** | The SPA fallback (§2b). Needs `static` **[T]** |
+| anything else | - | - | A runtime error that names the property **[T]** |
 
 - `listen on port N` (D51) declares a server named `server`, used by
   routes whose server name is not a defined web server.
@@ -60,6 +62,66 @@ site is a web server
   error.
 - The program keeps running while a server is running (the event loop,
   D121).
+
+## 2b. Static files (Phase 1b)
+
+- **Order:** a request is answered by a route if any route matches its path;
+  otherwise by a static file; otherwise by the fallback; otherwise **404**
+  **[T]**. Static files are read and sent by the host, streamed, without
+  reaching the program (a 100 MB file: no memory growth) **[T]**.
+- **What is served:** GET and HEAD of a file inside the folder; a folder's
+  `index.html` (also for `/`). There is no directory listing: a folder
+  without `index.html` is 404 **[T]**. Other methods on a file: **405**,
+  `Allow: GET, HEAD` **[T]**.
+- **What is never served (404), in every encoding** **[T]**:
+  - `..`, `.` and empty segments;
+  - backslashes, `:` (drive letters, Windows streams), NUL and control
+    characters;
+  - **dotfiles and dot-folders** (`.env`, `.git/`, `.hidden/x`), also when a
+    link points at one;
+  - **anything whose real path, through symbolic links or junctions at any
+    level, leaves the folder** (links that stay inside are served).
+
+  `.well-known/` is a dot-folder too: leave it to the reverse proxy in this
+  version.
+- **MIME types** (fixed table; `X-Content-Type-Options: nosniff` always)
+  **[T]**:
+
+| Extensions | Content-Type |
+|---|---|
+| `.html` `.htm` | `text/html; charset=utf-8` |
+| `.css` | `text/css; charset=utf-8` |
+| `.js` `.mjs` | `text/javascript; charset=utf-8` |
+| `.json` `.map` | `application/json; charset=utf-8` |
+| `.txt` | `text/plain; charset=utf-8` |
+| `.wasm` | `application/wasm` |
+| `.glb` | `model/gltf-binary` |
+| `.gltf` | `model/gltf+json` |
+| `.bin` | `application/octet-stream` |
+| `.ktx2` | `image/ktx2` |
+| `.hdr` | `image/vnd.radiance` |
+| images | `.png`, `.jpg`/`.jpeg`, `.gif`, `.webp`, `.avif`, `.svg` (`image/svg+xml`), `.ico` |
+| fonts | `.woff`, `.woff2`, `.ttf`, `.otf` (`font/...`) |
+| audio and video | `.mp3`, `.ogg`, `.wav`, `.mp4`, `.webm` |
+| anything else | `application/octet-stream` |
+
+- **Caching** **[T]**:
+  - every file gets an `ETag` (size and modification time) and
+    `Last-Modified`;
+  - `If-None-Match` or `If-Modified-Since` give **304**;
+  - a **Vite-style hashed name** (`name-[hash].ext` or `name.[hash].ext`,
+    8-16 characters of `A-Za-z0-9_-` with a letter and a digit) gets
+    `Cache-Control: public, max-age=31536000, immutable`;
+  - anything else gets `no-cache`.
+
+  A hashed name the rule misses only loses caching. Build-manifest
+  integration comes in Phase 4.
+- **Fallback** (only with `fallback`) **[T]**:
+  - It is served for **GET/HEAD navigations**: requests whose `Accept`
+    includes `text/html`, that match no route and no file, are not under
+    `/api/` or `/ws/`, and have no file extension.
+  - It is sent with `no-cache`.
+  - Everything else stays 404.
 
 ## 3. Routes
 
@@ -78,8 +140,20 @@ site is a web server
   - unknown path → **404**, `{"error":"Not Found"}`, `application/json` (as
     the stub) **[T]**;
   - known path, other method → **405**, with an `Allow` header **[T]**.
-- Path parameters (`/users/:id`) arrive in Phase 1b. In 0.1 a `:` in a
-  path is matched literally.
+- **Path parameters (Phase 1b)** **[T]**:
+  - `:name` in a route's path matches one non-empty segment;
+  - the values are percent-decoded UTF-8, keep their capitals, and are read
+    with `parameters of req`;
+  - invalid UTF-8, or a decoded `/`, in a parameter gives **400**.
+- **Precedence** **[T]**:
+  - routes with more literal segments win (`/users/me` beats `/users/:id`);
+  - then the first declared;
+  - a route whose method does not fit gives way to the next matching route.
+- **Duplicates:** two routes with the same method and the same path shape
+  (`/users/:id` and `/users/:name`) stop the program when the server
+  starts, with an error naming both lines **[T]**.
+- (Unreleased preview 0.1 matched `:` literally; nothing was released with
+  that behaviour.)
 
 ## 4. The request: `into req`
 
@@ -93,6 +167,7 @@ A thing of type `web request`. Its properties are D51's five plus one:
 | `queries` | thing | Each query name with a **list of every value, in order**: the explicit multi-value form **[T]** |
 | `body` | text | The body as UTF-8 text. Empty when there is none. A body that is not valid UTF-8 is answered **400** before the handler runs **[T]** |
 | `headers` | thing | Header names **ignore capitals** **[T]**. A repeated header gives its values joined with `", "` (RFC 9110) |
+| `parameters` | thing | The route's `:name` values (Phase 1b) **[T]** |
 
 - **Query decoding:** `+` is a space and `%XX` is decoded as UTF-8. A query
   or path that is not valid UTF-8 after decoding is answered **400**
@@ -137,9 +212,37 @@ when site receives GET at "/hello" into req
 - **Plain text with a status cannot be written in Otter 1.0.1:**
   `respond with "x" and status 404` is a syntax error, because without
   `as json` the `and` is read as a logical "and" (checked). Use `as json
-  and status N`, or `respond with status N`. Phase 1b's `web response`
-  object (approved in principle) will cover a text body with any status,
-  without a grammar change.
+  and status N`, or `respond with status N`, or the `web response`
+  object below.
+
+### 5b. The `web response` object (Phase 1b)
+
+```otter
+reply is a web response
+    status is 404
+    type is "text/plain"
+    body is "Nothing here"
+.
+respond with reply
+```
+
+A `web response` given to `respond with` (without `as json`) is sent as
+its properties say. Each rule below is tested **[T]**:
+
+| Property | Meaning and rules |
+|---|---|
+| `status` | 200-599, default 200. A 3xx needs `location` |
+| `type` | the Content-Type, default `text/plain; charset=utf-8`; `text/...` without a charset gets `charset=utf-8` |
+| `body` | text, sent as UTF-8 (`Content-Length` counts bytes); a thing or list is refused (use `as json`) |
+| `location` | the redirect target: a path on this site (`/new`, `page?x=1`), or an `http(s)` URL whose host is the request's own `Host`. `//other`, other sites, `javascript:` and anything with whitespace or a backslash are refused (open redirects) |
+| `headers` | a thing of extra headers, named with D41 (`set "Content-Disposition" to "..." in extra`). Names must be header tokens, values may not contain CR, LF or NUL. The runtime's own headers cannot be set: `Content-Length`, `Transfer-Encoding`, `Connection`, `Server`, `Date`, `X-Request-Id`, `X-Content-Type-Options`, `Content-Type` (use `type`) |
+| `cookie`, `Set-Cookie` | refused until Phase 3 (cookies with safe defaults) |
+| anything else | refused |
+
+- A refused response object fails the handler: 500 with the request id
+  (§6), and nothing of the refused response is sent.
+- `respond with reply as json` sends the object as JSON data, like any
+  thing.
 - **Headers on every response** **[T]**:
   - `X-Request-Id`, a random id for this request;
   - `X-Content-Type-Options: nosniff`;

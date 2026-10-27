@@ -111,7 +111,7 @@ internal static class Cli
             {
                 Project project = LoadProjectOrExit(target, ExitCheckError, 845);
                 // The Otter Web runtime runs routes only for `run` of a project that opts in.
-                FileMode.WebSettings? web = !check && project.WebRuntime != null ? new FileMode.WebSettings(project.WebAllowPublicBind) : null;
+                FileMode.WebSettings? web = !check && project.WebRuntime != null ? new FileMode.WebSettings(project.WebAllowPublicBind, project.RootDirectory) : null;
                 return FileMode.Invoke(line, project.ResolvedEntryPoint, check ? FileMode.Kind.Check : FileMode.Kind.Run, arguments, displayTarget: target, web: web);
             }
             string? resolvedDirectory = Project.PsResolvePath(target);

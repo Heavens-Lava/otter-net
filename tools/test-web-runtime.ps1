@@ -127,6 +127,42 @@ function Send-Raw([int]$Port, [byte[]]$Bytes, [int]$TimeoutMs = 15000) {
 
 function Ascii([string]$Text) { [System.Text.Encoding]::ASCII.GetBytes($Text) }
 
+# The static folder of a Phase 1b case: every MIME type, a hashed asset,
+# hidden files, a folder without an index, a 100 MB file, a secret file
+# OUTSIDE the folder, and links out of it. Returns how many links out were
+# made (symbolic links; junctions too on Windows).
+function New-StaticFiles([string]$Project, [string]$Marker) {
+    $public = Join-Path $Project 'public'
+    New-Item -ItemType Directory -Force (Join-Path $public 'assets'), (Join-Path $public 'docs'), (Join-Path $public 'sub'), (Join-Path $public '.hidden') | Out-Null
+    $files = @{
+        'index.html' = '<html>INDEX-PAGE</html>'; 'docs/index.html' = 'DOCS-PAGE'; 'app.js' = 'file app.js'; 'styles.css' = 'body{}'; 'main.mjs' = 'export {}'
+        'data.json' = '{}'; 'mod.wasm' = 'wasm'; 'model.glb' = 'glb'; 'scene.gltf' = '{}'; 'buffer.bin' = 'bin'; 'tex.ktx2' = 'ktx2'; 'sky.hdr' = 'hdr'
+        'img.png' = 'png'; 'pic.svg' = '<svg/>'; 'font.woff2' = 'woff2'; 'note.txt' = 'note'; 'sound.ogg' = 'ogg'; 'unknown.xyz' = 'xyz'
+        'assets/index-B3x9k2Lq.js' = 'hashed'; 'assets/component.js' = 'plain'; 'sub/file.txt' = 'in sub'; 'inside.txt' = 'inside'
+        '.env' = $Marker; '.hidden/secret.txt' = $Marker
+    }
+    foreach ($name in $files.Keys) { [System.IO.File]::WriteAllText((Join-Path $public $name), $files[$name]) }
+    [System.IO.File]::WriteAllText((Join-Path $Project 'secret.txt'), $Marker)
+    # A name with no dot and longer than "public": a containment check that
+    # only looked at part of the path could not refuse it by accident.
+    [System.IO.File]::WriteAllText((Join-Path $Project 'topsecretfile'), $Marker)
+    $big = [System.IO.File]::Create((Join-Path $public 'big.bin')); $big.SetLength(100MB); $big.Dispose()
+    $made = 0
+    $links = @(
+        @{ Path = 'link-out.txt'; Target = (Join-Path $Project 'secret.txt'); Type = 'SymbolicLink'; Out = $true },
+        @{ Path = 'linkoutplain'; Target = (Join-Path $Project 'topsecretfile'); Type = 'SymbolicLink'; Out = $true },
+        @{ Path = 'linkdir'; Target = $Project; Type = 'SymbolicLink'; Out = $true },
+        @{ Path = 'link-in.txt'; Target = (Join-Path $public 'inside.txt'); Type = 'SymbolicLink'; Out = $false },
+        @{ Path = 'link-hidden.txt'; Target = (Join-Path $public '.env'); Type = 'SymbolicLink'; Out = $false }
+    )
+    if ($IsWindows) { $links += @{ Path = 'junction-out'; Target = $Project; Type = 'Junction'; Out = $true } }
+    foreach ($l in $links) {
+        try { New-Item -ItemType $l.Type -Path (Join-Path $public $l.Path) -Target $l.Target -ErrorAction Stop | Out-Null; if ($l.Out) { $made++ } }
+        catch { Write-Host "(could not create $($l.Type) $($l.Path): $($_.Exception.Message))" }
+    }
+    $made
+}
+
 try {
     # ================= the main program =================
     $port = Get-FreePort
@@ -339,10 +375,130 @@ try {
         Write-Host 'SKIP  shutdown with requests waiting (§8): POSIX signal, see the Windows Ctrl+C test'
     }
 
+    # ================= Phase 1b: path parameters, static files, the web response object =================
+    $p = Get-FreePort; $d = New-Case 'static' $p
+    $marker = 'TOPSECRET-' + [Guid]::NewGuid().ToString('N')
+    $linksMade = New-StaticFiles $d $marker
+    $x = Start-Otter @('run', $d) $d
+    if (Wait-Until { $x.Err.ToString().Contains('listening') } 60) {
+        $b = "http://127.0.0.1:$p"
+        # §3 path parameters and precedence
+        Check 'a path parameter (§3)' ((Send GET "$b/api/users/42").Body -eq '42')
+        Check 'a literal route beats a parameter, whatever the order (§3)' ((Send GET "$b/api/users/me").Body -eq 'me')
+        Check 'a route whose method does not fit gives way to the next matching route (§3)' ((Send POST "$b/api/users/me" 'x').Body -eq 'posted me')
+        Check 'two parameters (§3)' ((Send GET "$b/api/files/docs/a.txt").Body -eq 'docs|a.txt')
+        Check 'parameters are percent-decoded UTF-8 (§3)' ((Send GET "$b/api/users/caf%C3%A9%20au%20lait").Body -eq 'café au lait')
+        Check 'parameters keep their capitals (§3)' ((Send GET "$b/api/users/AdaL").Body -eq 'AdaL')
+        Check 'equal precedence: the first declared route wins (§3)' ((Send GET "$b/order/fixed/fixed").Body -eq 'first')
+        $r = Send-Raw $p (Ascii "GET /api/users/a%2Fb HTTP/1.1`r`nHost: x`r`nConnection: close`r`n`r`n")
+        Check 'an encoded slash in a parameter: 400 (§3)' ($r -match '^HTTP/1\.1 400') ($r -split "`r`n")[0]
+        $r = Send-Raw $p (Ascii "GET /api/users/%FF HTTP/1.1`r`nHost: x`r`nConnection: close`r`n`r`n")
+        Check 'invalid UTF-8 in a parameter: 400 (§3)' ($r -match '^HTTP/1\.1 400') ($r -split "`r`n")[0]
+        Check 'an empty parameter matches nothing: 404 (§3)' ((Send GET "$b/api/users//").Status -in 404, 400)
+
+        # §2b static files
+        $r = Send GET "$b/app.js"
+        Check 'a route wins over a static file with the same path (§2b)' ($r.Body -eq 'route wins') $r.Body
+        $html = @{ Accept = 'text/html' }
+        $r = Send GET "$b/"
+        Check '"/" serves index.html (§2b)' ($r.Status -eq 200 -and $r.Body.Contains('INDEX-PAGE') -and $r.Headers['Content-Type'] -eq 'text/html; charset=utf-8') "$($r.Status) $($r.Headers['Content-Type'])"
+        $r = Send GET "$b/docs/"
+        Check 'a folder serves its index.html (§2b)' ($r.Status -eq 200 -and $r.Body.Contains('DOCS-PAGE')) "$($r.Status)"
+        Check 'a folder without index.html: 404, no listing (§2b)' ((Send GET "$b/sub/").Status -eq 404)
+        $types = [ordered]@{
+            'styles.css' = 'text/css; charset=utf-8'; 'main.mjs' = 'text/javascript; charset=utf-8'; 'data.json' = 'application/json; charset=utf-8'
+            'mod.wasm' = 'application/wasm'; 'model.glb' = 'model/gltf-binary'; 'scene.gltf' = 'model/gltf+json'; 'buffer.bin' = 'application/octet-stream'
+            'tex.ktx2' = 'image/ktx2'; 'sky.hdr' = 'image/vnd.radiance'; 'img.png' = 'image/png'; 'pic.svg' = 'image/svg+xml'; 'font.woff2' = 'font/woff2'
+            'note.txt' = 'text/plain; charset=utf-8'; 'sound.ogg' = 'audio/ogg'; 'unknown.xyz' = 'application/octet-stream'
+        }
+        $wrong = @()
+        foreach ($name in $types.Keys) { $r = Send GET "$b/$name"; if ($r.Status -ne 200 -or $r.Headers['Content-Type'] -ne $types[$name]) { $wrong += "$name=$($r.Status) $($r.Headers['Content-Type'])" } }
+        Check 'MIME types: JavaScript, WASM, GLB, glTF, KTX2, HDR and the rest of the table (§2b)' ($wrong.Count -eq 0) ($wrong -join '; ')
+        $r = Send GET "$b/styles.css"
+        Check 'nosniff on static files (§2b)' ($r.Headers['X-Content-Type-Options'] -eq 'nosniff')
+        Check 'ETag, Last-Modified and no-cache on an ordinary file (§2b)' ($r.Headers['ETag'] -match '^"[0-9a-f]+-[0-9a-f]+"$' -and $r.Headers['Last-Modified'] -and $r.Headers['Cache-Control'] -eq 'no-cache') "$($r.Headers['ETag']) $($r.Headers['Cache-Control'])"
+        $again = Send GET "$b/styles.css" -Headers @{ 'If-None-Match' = $r.Headers['ETag'] }
+        Check 'If-None-Match with the ETag: 304 (§2b)' ($again.Status -eq 304 -and $again.Body -eq '') "$($again.Status)"
+        $since = Send GET "$b/styles.css" -Headers @{ 'If-Modified-Since' = $r.Headers['Last-Modified'] }
+        Check 'If-Modified-Since: 304 (§2b)' ($since.Status -eq 304) "$($since.Status)"
+        $r = Send GET "$b/assets/index-B3x9k2Lq.js"
+        Check 'a Vite-hashed file is cached as immutable (§2b)' ($r.Status -eq 200 -and $r.Headers['Cache-Control'] -eq 'public, max-age=31536000, immutable') $r.Headers['Cache-Control']
+        $r = Send GET "$b/assets/component.js"
+        Check 'a file without a hash is not cached as immutable (§2b)' ($r.Headers['Cache-Control'] -eq 'no-cache') $r.Headers['Cache-Control']
+        $r = Send HEAD "$b/styles.css"
+        Check 'HEAD on a static file: headers, no body (§2b)' ($r.Status -eq 200 -and $r.Body -eq '' -and [int]$r.Headers['Content-Length'] -gt 0) "$($r.Status)"
+        $r = Send POST "$b/styles.css" 'x'
+        Check 'other methods on a static file: 405 with Allow (§2b)' ($r.Status -eq 405 -and $r.Headers['Allow'] -eq 'GET, HEAD') "$($r.Status) $($r.Headers['Allow'])"
+        # the SPA fallback
+        $r = Send GET "$b/dashboard/users" -Headers $html
+        Check 'fallback: a page navigation gets index.html (§2b)' ($r.Status -eq 200 -and $r.Body.Contains('INDEX-PAGE') -and $r.Headers['Cache-Control'] -eq 'no-cache') "$($r.Status)"
+        Check 'fallback: never under /api/ (§2b)' ((Send GET "$b/api/nothing/here" -Headers $html).Status -eq 404)
+        Check 'fallback: never under /ws/ (§2b)' ((Send GET "$b/ws/room" -Headers $html).Status -eq 404)
+        Check 'fallback: never for a missing asset (an extension) (§2b)' ((Send GET "$b/missing.js" -Headers $html).Status -eq 404)
+        Check 'fallback: only for requests that accept HTML (§2b)' ((Send GET "$b/dashboard" -Headers @{ Accept = 'application/json' }).Status -eq 404)
+        # §2b traversal, hidden files and links: never 200, never the secret
+        $attacks = @('/../secret.txt', '/%2e%2e/secret.txt', '/%2E%2E%2Fsecret.txt', '/%252e%252e/secret.txt', '/..%5csecret.txt', '/%5c..%5csecret.txt',
+                     '/sub/..%2f..%2fsecret.txt', '/docs/../../secret.txt', '/./../secret.txt', '/.env', '/%2eenv', '/.hidden/secret.txt', '/.hidden%2fsecret.txt',
+                     '/index.html%00.js', '/C:/Windows/win.ini', '/c%3a/secret.txt', '/secret.txt', '/link-out.txt', '/linkdir/secret.txt', '/linkdir/', '/link-hidden.txt',
+                     '/linkoutplain', '/linkdir/topsecretfile', '/topsecretfile')
+        if ($IsWindows) { $attacks += @('/junction-out/secret.txt', '/junction-out/topsecretfile', '/..\secret.txt', '/sub/..\..\secret.txt') }
+        $leaks = @()
+        foreach ($a in $attacks) {
+            $raw = Send-Raw $p (Ascii "GET $a HTTP/1.1`r`nHost: x`r`nConnection: close`r`n`r`n")
+            if ($raw -match '^HTTP/1\.1 200' -or $raw.Contains($marker)) { $leaks += "$a -> $(($raw -split "`r`n")[0])" }
+        }
+        Check "traversal, encoded traversal, backslashes, NUL, drive letters, dotfiles and links out: never served ($($attacks.Count) cases) (§2b)" ($leaks.Count -eq 0) ($leaks -join '; ')
+        Check 'symbolic links out of the folder were really created for the test' ($linksMade -ge 3) "$linksMade made"
+        $r = Send GET "$b/link-in.txt"
+        Check 'a symbolic link that stays inside the folder is served (§2b)' ($r.Status -eq 200 -and $r.Body -eq 'inside') "$($r.Status) $($r.Body)"
+        # streaming: a 100 MB file without memory growth
+        $x.Process.Refresh(); $before = $x.Process.WorkingSet64
+        $stream = $client.GetStreamAsync("$b/big.bin").GetAwaiter().GetResult()
+        $buffer = [byte[]]::new(1MB); $total = 0L
+        while (($n = $stream.Read($buffer, 0, $buffer.Length)) -gt 0) { $total += $n }
+        $stream.Dispose(); $x.Process.Refresh(); $after = $x.Process.WorkingSet64
+        $growth = ($after - $before) / 1MB
+        Check 'a 100 MB file is streamed whole without memory growth (§2b)' ($total -eq 100MB -and $growth -lt 64) ("{0:N0} bytes, working set {1:N1} MB" -f $total, $growth)
+
+        # §5 the web response object
+        $r = Send GET "$b/resp/text404"
+        Check 'web response: status, type, body (§5)' ($r.Status -eq 404 -and $r.Body -eq 'Nothing here' -and $r.Headers['Content-Type'] -eq 'text/plain; charset=utf-8') "$($r.Status) $($r.Headers['Content-Type'])"
+        $r = Send GET "$b/resp/html"
+        $expected = '<p>héllo ✓ 日本</p>'
+        Check 'web response: UTF-8 body, charset added, Content-Length in bytes (§5)' ($r.Body -eq $expected -and $r.Headers['Content-Type'] -eq 'text/html; charset=utf-8' -and [int]$r.Headers['Content-Length'] -eq [System.Text.Encoding]::UTF8.GetByteCount($expected)) "$($r.Headers['Content-Length'])"
+        $r = Send GET "$b/resp/redirect"
+        Check 'web response: a redirect with a path (§5)' ($r.Status -eq 302 -and $r.Headers['Location'] -eq '/new') "$($r.Status) $($r.Headers['Location'])"
+        $r = Send GET "$b/resp/redirect-same"
+        Check 'web response: a redirect to this same host (§5)' ($r.Status -eq 303 -and $r.Headers['Location'] -eq "http://127.0.0.1:$p/ok") "$($r.Status) $($r.Headers['Location'])"
+        foreach ($case in @(@('/resp/redirect-noloc', 'a redirect without a location'), @('/resp/redirect-evil1', 'an open redirect (//host)'), @('/resp/redirect-evil2', 'an open redirect (another site)'),
+                            @('/resp/redirect-js', 'a javascript: location'), @('/resp/header-crlf', 'a line break in a header (injection)'), @('/resp/header-forbidden', 'a runtime header (Content-Length)'),
+                            @('/resp/header-requestid', 'a runtime header (X-Request-Id)'), @('/resp/header-badname', 'an invalid header name'), @('/resp/setcookie', 'Set-Cookie (Phase 3)'),
+                            @('/resp/cookie', 'a cookie (Phase 3)'), @('/resp/bodything', 'a thing as the body'), @('/resp/unknown', 'an unknown property'))) {
+            $r = Send GET "$b$($case[0])"
+            Check "web response refused: $($case[1]) - 500, nothing leaked (§5)" ($r.Status -eq 500 -and -not $r.Headers.ContainsKey('Location') -and -not $r.Headers.ContainsKey('Injected')) "$($r.Status)"
+        }
+        $r = Send GET "$b/resp/header"
+        Check 'web response: extra headers (§5)' ($r.Headers['Content-Disposition'] -eq 'attachment; filename=data.csv' -and $r.Headers['X-Custom'] -eq 'yes' -and $r.Headers['Content-Type'] -eq 'text/csv; charset=utf-8') "$($r.Headers['Content-Disposition'])"
+        $r = Send GET "$b/resp/json"
+        Check 'respond with a web response as json sends it as JSON data (§5)' ($r.Status -eq 200 -and ($r.Body | ConvertFrom-Json).status -eq 202) "$($r.Status) $($r.Body)"
+    } else { Check 'Phase 1b server starts' $false "$($x.Out) $($x.Err)" }
+    Stop-Otter $x
+    # No fallback unless declared
+    $p = Get-FreePort; $d = New-Case 'nofallback' $p
+    [void](New-StaticFiles $d 'unused')
+    $x = Start-Otter @('run', $d) $d
+    if (Wait-Until { $x.Err.ToString().Contains('listening') } 60) {
+        $r = Send GET "http://127.0.0.1:$p/dashboard" -Headers @{ Accept = 'text/html' }
+        Check 'the fallback is off unless declared: 404 (§2b)' ($r.Status -eq 404) "$($r.Status)"
+        Check 'static files without a fallback still work (§2b)' ((Send GET "http://127.0.0.1:$p/styles.css").Status -eq 200)
+    } else { Check 'the fallback is off unless declared (§2b)' $false 'did not start' }
+    Stop-Otter $x
+
     # ================= refusals =================
     foreach ($case in @(
         @{ Name = 'publicbind'; Code = 3; Text = 'only this computer'; Title = 'a public host is refused without allowPublicBind (§2)' },
-        @{ Name = 'badprop'; Code = 3; Text = 'has no property called "static"'; Title = 'an unknown server property is refused (§2)' },
+        @{ Name = 'badprop'; Code = 3; Text = 'has no property called "timeout"'; Title = 'an unknown server property is refused (§2)' },
+        @{ Name = 'duproutes'; Code = 3; Text = 'answer the same requests'; Title = 'two routes for the same requests stop the program at start (§3)' },
         @{ Name = 'badruntime'; Code = 2; Text = 'is not supported'; Title = 'an unknown web.runtime is a manifest error (§1)' }
     )) {
         $p = Get-FreePort; $d = New-Case $case.Name $p

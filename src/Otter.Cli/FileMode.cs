@@ -10,7 +10,7 @@ internal static class FileMode
     public enum Kind { Run, Check }
 
     // The Otter Web runtime's settings, for a project that opts in.
-    public sealed record WebSettings(bool AllowPublicBind);
+    public sealed record WebSettings(bool AllowPublicBind, string ProjectRoot);
 
     // Kestrel, set by WebHosting.cs in the otter command only: otter-desktop
     // compiles these sources too and has no web host.
@@ -130,6 +130,7 @@ internal static class FileMode
                 // The Otter Web runtime (opt-in): Kestrel serves the program's routes.
                 WebHostFactory = web == null ? null : WebHostFactory ?? throw new InvalidOperationException("The Otter Web runtime is not part of this host."),
                 WebAllowPublicBind = web?.AllowPublicBind ?? false,
+                WebRoot = web?.ProjectRoot,
                 WebLog = web == null ? null : message => Console.Error.WriteLine(message),
                 WebHandlerFailed = web == null ? null : failure =>
                 {

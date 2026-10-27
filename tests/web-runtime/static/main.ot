@@ -1,0 +1,175 @@
+# Phase 1b black-box test program (docs/web/RUNTIME_CONTRACT.md §2b, §3, §5):
+# path parameters, static files and the web response object.
+# tools/test-web-runtime.ps1 replaces 18080 and creates public/ with its files.
+site is a web server
+    port is 18080
+    host is "127.0.0.1"
+    static is "public"
+    fallback is "index.html"
+.
+
+# A route wins over a static file with the same path.
+when site receives GET at "/app.js"
+    respond with "route wins"
+.
+
+# Path parameters and precedence: the literal route wins, whatever the order.
+when site receives GET at "/api/users/:id" into req
+    respond with id of parameters of req
+.
+when site receives GET at "/api/users/me"
+    respond with "me"
+.
+# The literal route above takes only GET: a POST gives way to this one.
+when site receives POST at "/api/users/:id" into req
+    respond with "posted " plus id of parameters of req
+.
+when site receives GET at "/api/files/:folder/:name" into req
+    get "folder" from parameters of req into folder
+    get "name" from parameters of req into name
+    respond with folder plus "|" plus name
+.
+# Same number of literal segments: the first declared wins.
+when site receives GET at "/order/:a/fixed"
+    respond with "first"
+.
+when site receives GET at "/order/fixed/:b"
+    respond with "second"
+.
+
+# The web response object.
+when site receives GET at "/resp/text404"
+    reply is a web response
+        status is 404
+        type is "text/plain"
+        body is "Nothing here"
+    .
+    respond with reply
+.
+when site receives GET at "/resp/html"
+    reply is a web response
+        type is "text/html"
+        body is "<p>héllo ✓ 日本</p>"
+    .
+    respond with reply
+.
+when site receives GET at "/resp/redirect"
+    reply is a web response
+        status is 302
+        location is "/new"
+    .
+    respond with reply
+.
+when site receives GET at "/resp/redirect-same" into req
+    get "host" from headers of req into hostname
+    reply is a web response
+        status is 303
+        location is "http://" plus hostname plus "/ok"
+    .
+    respond with reply
+.
+when site receives GET at "/resp/redirect-noloc"
+    reply is a web response
+        status is 302
+    .
+    respond with reply
+.
+when site receives GET at "/resp/redirect-evil1"
+    reply is a web response
+        status is 302
+        location is "//evil.example/x"
+    .
+    respond with reply
+.
+when site receives GET at "/resp/redirect-evil2"
+    reply is a web response
+        status is 302
+        location is "https://evil.example/"
+    .
+    respond with reply
+.
+when site receives GET at "/resp/redirect-js"
+    reply is a web response
+        status is 302
+        location is "javascript:alert(1)"
+    .
+    respond with reply
+.
+when site receives GET at "/resp/header"
+    extra is a thing
+    set "Content-Disposition" to "attachment; filename=data.csv" in extra
+    set "X-Custom" to "yes" in extra
+    reply is a web response
+        type is "text/csv"
+        body is "a,b\n1,2"
+        headers is extra
+    .
+    respond with reply
+.
+when site receives GET at "/resp/header-crlf"
+    extra is a thing
+    set "X-Bad" to "a\nInjected: 1" in extra
+    reply is a web response
+        headers is extra
+    .
+    respond with reply
+.
+when site receives GET at "/resp/header-forbidden"
+    extra is a thing
+    set "Content-Length" to "5" in extra
+    reply is a web response
+        headers is extra
+    .
+    respond with reply
+.
+when site receives GET at "/resp/header-requestid"
+    extra is a thing
+    set "X-Request-Id" to "mine" in extra
+    reply is a web response
+        headers is extra
+    .
+    respond with reply
+.
+when site receives GET at "/resp/header-badname"
+    extra is a thing
+    set "Bad Name" to "x" in extra
+    reply is a web response
+        headers is extra
+    .
+    respond with reply
+.
+when site receives GET at "/resp/setcookie"
+    extra is a thing
+    set "Set-Cookie" to "a=b" in extra
+    reply is a web response
+        headers is extra
+    .
+    respond with reply
+.
+when site receives GET at "/resp/cookie"
+    reply is a web response
+        cookie is "a=b"
+    .
+    respond with reply
+.
+when site receives GET at "/resp/bodything"
+    inner has
+        amount is 1
+    .
+    reply is a web response
+        body is inner
+    .
+    respond with reply
+.
+when site receives GET at "/resp/unknown"
+    reply is a web response
+        colour is "blue"
+    .
+    respond with reply
+.
+when site receives GET at "/resp/json" into req
+    reply is a web response
+        status is 202
+    .
+    respond with reply as json
+.

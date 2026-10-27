@@ -1,0 +1,8 @@
+# Static files without a fallback: the fallback is off unless declared.
+site is a web server
+    port is 18080
+    static is "public"
+.
+when site receives GET at "/api/ping"
+    respond with "pong"
+.
