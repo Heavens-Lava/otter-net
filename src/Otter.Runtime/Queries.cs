@@ -114,6 +114,9 @@ public sealed partial class Interpreter
         return value ?? (count ? 0.0 : null);
     }
 
+    // A value inside a LIKE pattern, matched literally (with ESCAPE '\').
+    static string LikeLiteral(string text) => text.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_");
+
     // ConvertTo-OtterQuerySqlExpression: names stay names, everything else
     // is evaluated in the program and bound as a parameter.
     string QuerySql(Expr node, Scope scope, QueryParameters parameters)
@@ -149,18 +152,22 @@ public sealed partial class Interpreter
                 var names = list.Select(item => "@" + parameters.Add(item)).ToList();
                 return $"({column} {(inList.IsNot ? "NOT IN" : "IN")} ({string.Join(", ", names)}))";
             }
+            // starts with / ends with / contains: the value is matched as
+            // written. Its LIKE wildcards (% and _) and the escape character
+            // are escaped, so a value can never widen the match (S-2, a
+            // security exception to otterPS 1.0.1 parity: docs/SECURITY_LEDGER.md).
             case TextMatchExpr textMatch:
             {
                 string column = QuerySql(textMatch.Text, scope, parameters);
-                string pattern = PowerShellText.Of(Evaluate(textMatch.Part, scope));
+                string pattern = LikeLiteral(PowerShellText.Of(Evaluate(textMatch.Part, scope)));
                 string like = textMatch.Match == TextMatch.StartsWith ? pattern + "%" : "%" + pattern;
-                return $"({column} LIKE @{parameters.Add(like)})";
+                return $"({column} LIKE @{parameters.Add(like)} ESCAPE '\\')";
             }
             case ContainsExpr contains:
             {
                 string column = QuerySql(contains.Collection, scope, parameters);
-                string pattern = PowerShellText.Of(Evaluate(contains.Item, scope));
-                return $"({column} LIKE @{parameters.Add("%" + pattern + "%")})";
+                string pattern = LikeLiteral(PowerShellText.Of(Evaluate(contains.Item, scope)));
+                return $"({column} LIKE @{parameters.Add("%" + pattern + "%")} ESCAPE '\\')";
             }
             case ComparisonExpr comparison:
             {

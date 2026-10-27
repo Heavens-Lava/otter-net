@@ -1,0 +1,13 @@
+exit: 0
+-- contains %: only the row with a percent sign
+100%
+-- contains _: only the row with an underscore
+a_b
+-- starts with a_: not axb
+a_b
+-- ends with %: only 100%
+100%
+-- ordinary matches still work
+apple
+pineapple
+pineapple
