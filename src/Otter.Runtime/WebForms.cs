@@ -32,6 +32,7 @@ public static class OtterWebForms
     {
         decoded = "";
         using var stream = new MemoryStream(source.Length);
+        Span<byte> buffer = stackalloc byte[4];
         for (int i = 0; i < source.Length;)
         {
             char c = source[i];
@@ -53,7 +54,6 @@ public static class OtterWebForms
             {
                 var status = Rune.DecodeFromUtf16(source.AsSpan(i), out Rune rune, out int consumed);
                 if (status != OperationStatus.Done) return false;
-                Span<byte> buffer = stackalloc byte[4];
                 int length = rune.EncodeToUtf8(buffer);
                 stream.Write(buffer[..length]);
                 i += consumed;
