@@ -1,0 +1,10 @@
+exit: 0
+three blob 3
+empty blob 0
+text text 10
+hex: 00FF41
+the same bytes came back
+empty: 0 bytes
+text stays text: plain text
+a BLOB literal is bytes: ABC
+a bytes parameter matches the BLOB: 1

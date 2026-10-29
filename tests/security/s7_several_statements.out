@@ -1,0 +1,11 @@
+exit: 0
+-- two statements: refused, nothing runs
+Database command error: execute runs one statement, but this text has another after the first one, starting with "insert into users (name) values ('Second...". Run each statement with its own execute (inside a transaction to apply them together).
+Database query error: query runs one statement, but this text has another after the first one, starting with "drop table users". Run each statement on its own.
+Database command error: execute runs one statement, but this text has another after the first one, starting with "this is not sql". Run each statement with its own execute (inside a transaction to apply them together).
+rows after the refusals: 0
+-- one statement with a trailing semicolon or comment still runs
+rows affected: 1
+rows affected: 1
+Only
+Two

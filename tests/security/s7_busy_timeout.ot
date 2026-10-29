@@ -1,0 +1,26 @@
+# S-7 (docs/SECURITY_LEDGER.md): a connection waits up to five seconds for
+# another connection's lock before "database is locked"; otterPS 1.0.1
+# failed at once.
+connect "busy.db" into first
+execute first with "create table t (x integer)"
+connect "busy.db" into second
+begin transaction on first into tx
+execute tx with "insert into t values (1)"
+start timer waited
+try
+    execute second with "insert into t values (2)"
+otherwise into reason
+    say reason
+.
+ms is elapsed milliseconds of waited
+if ms is at least 4500
+    say "waited about five seconds before giving up"
+otherwise
+    say "gave up after" ms "ms"
+.
+commit tx
+execute second with "insert into t values (2)"
+query second with "select count(*) as n from t" into rows
+say "rows:" n of first of rows
+disconnect second
+disconnect first

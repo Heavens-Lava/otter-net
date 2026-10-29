@@ -270,16 +270,29 @@ public sealed class KestrelWebHost : IOtterWebHost
         // every value is checked and every repeated name is kept in order.
         string path = request.Path.HasValue ? request.Path.Value! : "/";
         if (path.Contains('�')) return BadRequest("The request path is not valid UTF-8.");
-        var query = new List<KeyValuePair<string, string>>();
         string raw = request.QueryString.HasValue ? request.QueryString.Value!.TrimStart('?') : "";
-        foreach (string pair in raw.Split('&', StringSplitOptions.RemoveEmptyEntries))
+        if (!OtterWebForms.TryParse(raw, out List<KeyValuePair<string, string>> query))
+            return BadRequest("The query string is not valid UTF-8.");
+
+        // Forms are decoded only for the form MIME type. Reject unsupported
+        // charsets and malformed escapes before dispatching to Otter code.
+        var form = new List<KeyValuePair<string, string>>();
+        string? contentType = request.ContentType;
+        if (contentType != null)
         {
-            int equals = pair.IndexOf('=');
-            string name = equals < 0 ? pair : pair[..equals];
-            string value = equals < 0 ? "" : pair[(equals + 1)..];
-            if (!TryDecode(name, out string decodedName) || !TryDecode(value, out string decodedValue))
-                return BadRequest("The query string is not valid UTF-8.");
-            if (decodedName.Length > 0) query.Add(new(decodedName, decodedValue));
+            string[] media = contentType.Split(';');
+            if (media[0].Trim().Equals("application/x-www-form-urlencoded", StringComparison.OrdinalIgnoreCase))
+            {
+                foreach (string parameter in media.Skip(1))
+                {
+                    string[] parts = parameter.Trim().Split('=', 2);
+                    if (parts.Length == 2 && parts[0].Trim().Equals("charset", StringComparison.OrdinalIgnoreCase) &&
+                        !parts[1].Trim().Trim('"').Equals("utf-8", StringComparison.OrdinalIgnoreCase))
+                        return OtterWebResponse.Json(415, "{\"error\":\"Unsupported Media Type\"}");
+                }
+                if (!OtterWebForms.TryParse(body, out form))
+                    return BadRequest("The form body is not valid UTF-8.");
+            }
         }
 
         var headers = new List<KeyValuePair<string, string>>();
@@ -295,6 +308,7 @@ public sealed class KestrelWebHost : IOtterWebHost
             Path = path,
             RawPath = RawPath(context),
             Query = query,
+            Form = form,
             Headers = headers,
             Body = body,
             Aborted = context.RequestAborted,
@@ -402,29 +416,6 @@ public sealed class KestrelWebHost : IOtterWebHost
 
     static OtterWebResponse BadRequest(string message) =>
         OtterWebResponse.Json(400, "{\"error\":\"Bad Request\",\"message\":\"" + message + "\"}");
-
-    // application/x-www-form-urlencoded decoding: + is a space, %XX bytes
-    // are UTF-8; anything else is refused.
-    static bool TryDecode(string text, out string decoded)
-    {
-        decoded = "";
-        var bytes = new List<byte>(text.Length);
-        for (int i = 0; i < text.Length; i++)
-        {
-            char c = text[i];
-            if (c == '+') bytes.Add((byte)' ');
-            else if (c == '%')
-            {
-                if (i + 2 >= text.Length || !Uri.IsHexDigit(text[i + 1]) || !Uri.IsHexDigit(text[i + 2])) return false;
-                bytes.Add(Convert.ToByte(text.Substring(i + 1, 2), 16));
-                i += 2;
-            }
-            else if (c < 0x80) bytes.Add((byte)c);
-            else bytes.AddRange(Encoding.UTF8.GetBytes(c.ToString()));
-        }
-        try { decoded = StrictUtf8.GetString(bytes.ToArray()); return true; }
-        catch (DecoderFallbackException) { return false; }
-    }
 
     static string Reason(int status) => status switch
     {

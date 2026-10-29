@@ -50,6 +50,7 @@ public sealed class OtterWebRequest
     public required IReadOnlyList<KeyValuePair<string, string>> Query { get; init; }
     public required IReadOnlyList<KeyValuePair<string, string>> Headers { get; init; }
     public required string Body { get; init; }
+    public IReadOnlyList<KeyValuePair<string, string>> Form { get; init; } = Array.Empty<KeyValuePair<string, string>>();
     public TaskCompletionSource<OtterWebResponse> Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 }
 
@@ -577,6 +578,20 @@ public sealed partial class Interpreter
         thing.WriteProperty("query", query);
         thing.WriteProperty("queries", queries);
         thing.WriteProperty("body", request.Body);
+        var form = new OtterThing("thing");
+        var forms = new OtterThing("thing");
+        foreach (var (name, value) in request.Form)
+        {
+            if (!form.HasProperty(name)) form.WriteProperty(name, value);
+            if (forms.ReadProperty(name) is not OtterList list)
+            {
+                list = new OtterList();
+                forms.WriteProperty(name, list);
+            }
+            list.Add(value);
+        }
+        thing.WriteProperty("form", form);
+        thing.WriteProperty("forms", forms);
         thing.WriteProperty("headers", headers);
         thing.WriteProperty("parameters", parameterThing);
         return thing;

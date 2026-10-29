@@ -102,3 +102,23 @@ when site receives GET at "/trycatch"
 when site receives a request at "/any" into req
     respond with method of req
 .
+
+# Phase 2a: first and repeated fields, including Unicode and empty values.
+when site receives POST at "/form" into req
+    get "name" from form of req into name
+    if name is gone
+        name is "missing"
+    .
+    respond with name
+.
+when site receives POST at "/forms" into req
+    get "tag" from forms of req into tags
+    respond with tags as json
+.
+when site receives POST at "/form-empty" into req
+    get "name" from form of req into name
+    if name is gone
+        respond with "missing"
+    .
+    respond with name
+.

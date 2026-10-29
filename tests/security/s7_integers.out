@@ -1,0 +1,13 @@
+exit: 0
+9007199254740990
+1152921504606850000
+-9223372036854780000
+2^53 is exact
+2^60 is exact
+-- 2^53 + 1 cannot be held exactly
+Database query error: the whole number 9007199254740993 in "x" is too large for an Otter number to hold exactly. Read it as text instead, for example with cast(... as text).
+as text: 9007199254740993
+1152921504606850000
+-- last inserted id follows the same rule
+4611686018427390000
+Database command error: the whole number 4611686018427387905 in "last inserted id" is too large for an Otter number to hold exactly. Read it as text instead, for example with cast(... as text).
