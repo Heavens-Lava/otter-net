@@ -351,4 +351,127 @@ its properties say. Each rule below is tested **[T]**:
 
 The opt-in host accepts `application/x-www-form-urlencoded` bodies as `form of req` (first value for each name) and `forms of req` (ordered list of all values). Missing fields follow ordinary Otter D41 lookup semantics. Query and form strings share a strict UTF-8 decoder preserving supplementary Unicode characters; `+` is a space, and malformed percent escapes or invalid UTF-8 return 400 before handler execution. A form media type declaring a non-UTF-8 charset returns 415; non-form bodies yield empty `form` and `forms` objects. Existing Kestrel request-body limits still apply.
 
-**This is a development-only contract extension.** The S-7 SQLite corrections of the same phase apply to every otter-net program, not only the web runtime (`docs/SECURITY_LEDGER.md`, S-7). HTML templates, sessions and the Guestbook are not implemented yet.
+**This is a development-only contract extension.** The S-7 SQLite corrections of the same phase apply to every otter-net program, not only the web runtime (`docs/SECURITY_LEDGER.md`, S-7). Sessions and the Guestbook are not implemented yet; HTML templates are §10 (Phase 2b).
+
+**Known limitations (nonblocking, tracked for a later phase):**
+
+- **Form charset precedence:** a body that is not UTF-8 *and* declares a
+  non-UTF-8 charset gets 400 (invalid UTF-8) rather than 415 (unsupported
+  charset), because the body is decoded before the charset is looked at.
+  Both refuse the request before the handler runs; only the status differs.
+- **`last inserted id` precision:** the check that the id fits an Otter
+  number exactly (S-7) runs after the insert, so when it fails the row is
+  already stored and the error comes after it. Inside a transaction the
+  program can roll back; ids above 2^53 need more than 9 quadrillion rows
+  or an explicit large id.
+
+## 10. Web templates (Phase 2b; development branch, not released)
+
+ADR WEB-003, owner decision 1 of 2026-10-27: a native `web template`
+object with context-aware HTML escaping. No grammar change: it is an
+object in the same `X is a TYPE` form as `web response`. Every rule below
+is tested **[T]** (`tests/web-runtime/templates`, six platforms).
+
+```otter
+data has
+    title is "Guestbook"
+    entries is entries
+.
+page is a web template
+    file is "views/guestbook.html"
+    values is data
+.
+respond with page
+```
+
+| Property | Meaning |
+|---|---|
+| `file` | the template: an `.html` file in the project's `views` folder, written `"views/name.html"` (subfolders allowed) |
+| `values` | a thing whose values the template shows; optional |
+| anything else | refused |
+
+**Responses:**
+
+- `respond with page` renders it: 200, `text/html; charset=utf-8`.
+- **Another status:** `body is page` in a `web response` (`status is 400`,
+  say). Without its own `type`, the response is `text/html;
+  charset=utf-8`. (`respond with page and status 400` is not Otter: as in
+  §5, without `as json` the 1.0.1 grammar reads `page and status` as one
+  value.)
+- `respond with page as json` sends the object itself as data, like any
+  thing.
+- Rendering happens when the handler responds. Any template error fails
+  the handler: 500 with the request id (§6), the error on standard error
+  naming the file and line, and nothing of the page sent.
+
+**The template language** (a logic-less Mustache subset; no expressions,
+calls or arithmetic):
+
+| In the template | Meaning |
+|---|---|
+| `{{name}}`, `{{entry.name}}` | the value, HTML-escaped: `&` `<` `>` `"` `'` become `&amp;` `&lt;` `&gt;` `&quot;` `&#39;`. Text, numbers and true/false show as `say` shows them; `gone` shows as nothing; a thing or list is an error |
+| `{{.}}` | the current item of `{{#each}}` (a list of text, say) |
+| `{{{name}}}` | the value **unescaped**: only in text, never in an attribute. Logged as a warning (`Otter Web: warning: views/x.html, line N writes {{{name}}} without HTML escaping.`) each time the file is loaded |
+| `{{#each list}}...{{/each}}` | once per item; a name is looked up in the item first, then outward (`{{title}}` inside reads the page's title). Not a list: error |
+| `{{#if value}}...{{else}}...{{/if}}` | the first part unless the value is `gone`, `false`, `""` or an empty list |
+| `{{> header}}`, `{{> parts/footer}}` | the partial `views/header.html` (`views/parts/footer.html`), with the same values. Only in text. Partials that include each other are refused |
+
+- **A missing name is an error** naming the template and line (D41
+  style), also in `{{#if}}`: give the value, even as `gone`.
+- A placeholder opens and closes on one line.
+
+**Context checks, when the file is loaded** (and again whenever it
+changes). The runtime reads the HTML around each placeholder and refuses
+the template, naming the file, line and reason, when a value could become
+code or markup:
+
+- inside `<script>` or `<style>` (any capitals), or an HTML comment;
+- in an unquoted attribute value (`href={{u}}`): quote it;
+- in a tag or attribute name (`<{{t}}>`, `<p {{a}}>`, `data-{{n}}=`);
+- in an event-handler attribute (`on...`), a `style` attribute, or
+  `srcdoc`;
+- in any attribute of an element that loads code or changes every URL:
+  `script`, `style`, `base`, `object`, `embed`, `applet`, `frame`,
+  `frameset`, and SVG `set`/`animate*`/`handler`/`listener`;
+- `{{{ }}}` or a partial anywhere but text;
+- a block whose `{{#...}}`, `{{else}}` and `{{/...}}` are not in the same
+  place (both in text, or inside the same tag or the same attribute
+  value). Inside a tag, a block goes between attributes with a space on
+  both sides (`<input {{#if on}} checked {{/if}}>`), so that no branch can
+  join two names into one;
+- a template (or partial) that ends inside a tag, a comment or a script.
+
+**URLs from values:** when an `href`, `src`, `action`, `formaction`,
+`poster`, `cite`, `background`, `data`, `codebase`, `classid`,
+`manifest`, `longdesc`, `usemap`, `profile`, `icon`, `lowsrc`, `dynsrc`,
+`archive` or `xlink:href` value has a placeholder in it, the whole
+rendered value is read as the browser reads it (spaces and controls at
+the ends dropped, tabs and line breaks removed). It is kept when it is
+relative or `http:`, `https:` or `mailto:`; anything else (`javascript:`,
+`data:`, `vbscript:`, any other scheme) becomes `#`. `srcset`,
+`imagesrcset` and `ping` check every URL in them. A URL written in the
+template file itself is not changed.
+
+**Files:**
+
+- Templates are files in the project's `views` folder. The folder must be
+  inside the project (not a link out of it). `file` must start with
+  `views/`; `..`, `.`-names (hidden files), `%` escapes, backslashes on
+  every platform, and links that lead out of `views` are refused, with
+  the static-file rules of §2b.
+- **Templates are never served as files:** a `static` folder that is, or
+  contains, or is inside `views` stops the program at start (exit 3).
+- A template is read whole, as UTF-8, at most 1 MiB.
+- Like the static folder (S-8), the views folder must be **trusted**:
+  written only by whoever deploys the site.
+
+**Caching and reloads:** a template is parsed (and checked) once and kept;
+before each render the runtime compares the file's size and time, and
+parses it again when either changed, so an edit during development is
+used on the next request, and an edit that breaks a rule is refused on
+the next request.
+
+**Not in Phase 2b:** layouts beyond partials, loops with an index,
+`{{!comments}}`, escaping for JavaScript or CSS contexts (refused
+instead), and an `escapeHtml` for hand-built HTML outside templates (S-4
+remains open for those).

@@ -524,12 +524,152 @@ try {
     } else { Check 'the fallback is off unless declared (§2b)' $false 'did not start' }
     Stop-Otter $x
 
+    # ================= Phase 2b: the web template object (§10) =================
+    $p = Get-FreePort; $d = New-Case 'templates' $p
+    $marker = 'TEMPLATE-SECRET-' + [Guid]::NewGuid().ToString('N')
+    $outside = Join-Path $scratch ("outside-" + [Guid]::NewGuid().ToString('N').Substring(0, 8))
+    New-Item -ItemType Directory $outside | Out-Null
+    [System.IO.File]::WriteAllText((Join-Path $outside 'far.html'), "<p>$marker</p>")
+    [System.IO.File]::WriteAllText((Join-Path $d 'secret.html'), "<p>$marker</p>")
+    [System.IO.File]::WriteAllText((Join-Path $d 'views/.hidden.html'), "<p>$marker</p>")
+    $views = Join-Path $d 'views'
+    $tlinks = @(
+        @{ Path = 'link-out.html'; Target = (Join-Path $d 'secret.html'); Type = 'SymbolicLink'; Out = $true },
+        @{ Path = 'link-far.html'; Target = (Join-Path $outside 'far.html'); Type = 'SymbolicLink'; Out = $true },
+        @{ Path = 'linkdir'; Target = $d; Type = 'SymbolicLink'; Out = $true },
+        @{ Path = 'link-in.html'; Target = (Join-Path $views 'sub/inner.html'); Type = 'SymbolicLink'; Out = $false }
+    )
+    if ($IsWindows) { $tlinks += @{ Path = 'junction-out'; Target = $d; Type = 'Junction'; Out = $true } }
+    $tmade = 0
+    foreach ($l in $tlinks) {
+        try { New-Item -ItemType $l.Type -Path (Join-Path $views $l.Path) -Target $l.Target -ErrorAction Stop | Out-Null; if ($l.Out) { $tmade++ } }
+        catch { Write-Host "(could not create $($l.Type) $($l.Path): $($_.Exception.Message))" }
+    }
+    $x = Start-Otter @('run', $d) $d
+    if (Wait-Until { $x.Err.ToString().Contains('listening') } 60) {
+        $b = "http://127.0.0.1:$p"
+        $q = { param($t) [Uri]::EscapeDataString($t) }
+        # escaping
+        $evil = "<script>alert('x')</script>`"&"
+        $r = Send GET "$b/t/hello?name=$(& $q $evil)"
+        $esc = '&lt;script&gt;alert(&#39;x&#39;)&lt;/script&gt;&quot;&amp;'
+        Check 'template: a value is HTML-escaped in text (§10)' ($r.Status -eq 200 -and $r.Body.Contains("Hello, $esc</h1>")) $r.Body
+        Check 'template: a value is HTML-escaped in double- and single-quoted attributes (§10)' ($r.Body.Contains("title=`"$esc`"") -and $r.Body.Contains("data-name='$esc'") -and $r.Body.Contains("value=`"$esc`"")) $r.Body
+        Check 'template: no raw markup from a value reaches the page (§10)' (-not $r.Body.Contains('<script>') -and -not $r.Body.Contains("alert('x')")) $r.Body
+        Check 'template: text/html utf-8, nosniff, no-store (§10)' ($r.Headers['Content-Type'] -eq 'text/html; charset=utf-8' -and $r.Headers['X-Content-Type-Options'] -eq 'nosniff' -and $r.Headers['Cache-Control'] -eq 'no-store') "$($r.Headers['Content-Type'])"
+        $r = Send GET "$b/t/hello?name=$(& $q 'Jürgen 日本 😀')"
+        Check 'template: UTF-8 values (§10)' ($r.Body.Contains('Hello, Jürgen 日本 😀</h1>') -and [int]$r.Headers['Content-Length'] -eq [System.Text.Encoding]::UTF8.GetByteCount($r.Body)) $r.Body
+        $r = Send HEAD "$b/t/hello"
+        Check 'template: HEAD gives the headers without the page (§10)' ($r.Status -eq 200 -and $r.Body -eq '' -and $r.Headers['Content-Type'] -eq 'text/html; charset=utf-8') "$($r.Status)"
+        # lists, nesting, conditions, partials
+        $r = Send GET "$b/t/list?who=$(& $q '<img src=x onerror=alert(1)>')"
+        Check 'template: {{#each}} repeats for every item, in order (§10)' ($r.Status -eq 200 -and ([regex]::Matches($r.Body, '<li class="entry">')).Count -eq 2 -and $r.Body.IndexOf('first message') -lt $r.Body.IndexOf('second message')) $r.Body
+        Check 'template: values in {{#each}} items are escaped (§10)' ($r.Body.Contains('<b>&lt;img src=x onerror=alert(1)&gt;</b>') -and -not $r.Body.Contains('<img src=x')) $r.Body
+        Check 'template: an item name, else the outer values ({{title}} inside {{#each}}) (§10)' ($r.Body.Contains('first message <i>starred</i> in Guest list') -and $r.Body.Contains('second message <i>plain</i> in Guest list')) $r.Body
+        Check 'template: nested values ({{owner.name}}) and {{.}} for a list of text, escaped (§10)' ($r.Body.Contains('Owner: Site &lt;owner&gt;') -and $r.Body.Contains('<span>&lt;b&gt;tag&lt;/b&gt;</span><span>plain</span>')) $r.Body
+        Check 'template: {{#if}} is false for an empty list, "" and gone (§10)' ($r.Body.Contains('EMPTY-LIST') -and $r.Body.Contains('NO-NOTE') -and $r.Body.Contains('GONE-VALUE') -and -not $r.Body.Contains('NOT-EMPTY')) $r.Body
+        Check 'template: a block between attributes (§10)' ($r.Body -match '<input type="checkbox"\s+checked\s*>') $r.Body
+        Check 'template: partials, also in a subfolder (§10)' ($r.Body.Contains('HEADER-PARTIAL Guest list') -and $r.Body.Contains('FOOTER-PARTIAL')) $r.Body
+        # statuses
+        $r = Send GET "$b/t/status"
+        Check 'template: a rendered page with status 400 (web response body) (§10)' ($r.Status -eq 400 -and $r.Headers['Content-Type'] -eq 'text/html; charset=utf-8' -and $r.Body.Contains('Not valid')) "$($r.Status) $($r.Headers['Content-Type'])"
+        $r = Send GET "$b/t/response"
+        Check 'template: a rendered page with status 201 (§10)' ($r.Status -eq 201 -and $r.Headers['Content-Type'] -eq 'text/html; charset=utf-8' -and $r.Body.Contains('Hello, y')) "$($r.Status)"
+        $r = Send GET "$b/t/response-typed"
+        Check "template: the web response's own type wins (§10)" ($r.Status -eq 404 -and $r.Headers['Content-Type'] -eq 'text/plain; charset=utf-8' -and $r.Body.Contains('Hello, z')) "$($r.Status) $($r.Headers['Content-Type'])"
+        # URLs
+        $bad = @()
+        foreach ($u in @('javascript:alert(1)', ' JaVaScRiPt:alert(1)', "java`tscript:alert(1)", "`n javascript:alert(1)", 'data:text/html;base64,PHNjcmlwdD4=', 'vbscript:msgbox(1)', 'file:///etc/passwd', 'a:b')) {
+            $r = Send GET "$b/t/url?u=$(& $q $u)"
+            foreach ($id in @('a', 'i', 'f', 's')) { if ($r.Body -notmatch "id=`"$id`" (href|src|action|srcset)=`"#`"") { $bad += "$id <- $u" } }
+        }
+        Check 'template: unsafe URL schemes in href, src, action and srcset become # (8 kinds) (§10)' ($bad.Count -eq 0) ($bad -join '; ')
+        $r = Send GET "$b/t/url?u=$(& $q 'https://example.com/a?b=1&c=2')"
+        Check 'template: http(s) URLs are kept, escaped (§10)' ($r.Body.Contains('id="a" href="https://example.com/a?b=1&amp;c=2"') -and $r.Body.Contains('srcset="https://example.com/a?b=1&amp;c=2 1x, /b.png 2x"')) $r.Body
+        $r = Send GET "$b/t/url?u=$(& $q 'mailto:a@example.com')"
+        $r2 = Send GET "$b/t/url?u=$(& $q 'javascript:alert(1)')"
+        Check 'template: mailto and relative URLs are kept; the template''s own text is not changed (§10)' ($r.Body.Contains('href="mailto:a@example.com"') -and $r2.Body.Contains('id="p" href="/users/javascript:alert(1)"') -and $r2.Body.Contains('href="javascript:void(0)"')) $r2.Body
+        # unescaped on purpose
+        $r = Send GET "$b/t/raw?x=$(& $q '<b>bold</b>')"
+        Check 'template: {{{x}}} writes the value unescaped, and is logged (§10)' ($r.Body.Contains('<div><b>bold</b></div>') -and $x.Err.ToString().Contains('views/raw.html, line 1 writes {{{x}}} without HTML escaping')) $r.Body
+        # refused when loaded, naming the file and line
+        $refused = [ordered]@{
+            'script' = 'cannot go inside <script>'; 'script-caps' = 'line 3: {{x}} cannot go inside <script>'; 'style' = 'line 2: {{x}} cannot go inside <style>'
+            'unquoted' = 'unquoted attribute value'; 'unquoted2' = 'unquoted attribute value'; 'onclick' = 'onclick attribute'; 'styleattr' = 'style attribute'
+            'comment' = 'HTML comment'; 'tagname' = 'tag or attribute name'; 'attrname' = 'tag or attribute name'; 'attrname2' = 'tag or attribute name'
+            'srcdoc' = 'srcdoc'; 'rawattr' = 'can only be used in text'; 'scriptsrc' = 'attribute of <script>'; 'base' = 'attribute of <base>'
+            'svgset' = 'attribute of <set>'; 'partialattr' = 'can only be used in text'; 'blockspan' = 'inside <script>'; 'blockjoin' = 'put a space before and after'
+            'unclosed' = 'is not closed'; 'expression' = 'no expressions'; 'neverclosed' = 'never closed'; 'strayclose' = 'does not close'; 'endsintag' = 'template ends inside'
+        }
+        $wrong = @()
+        foreach ($name in $refused.Keys) {
+            $r = Send GET "$b/t/file?f=$(& $q "views/bad/$name.html")"
+            if ($r.Status -ne 500 -or $r.Body.Contains('value') -or -not (Wait-Until { $x.Err.ToString().Contains("views/bad/$name.html") -and $x.Err.ToString().Contains($refused[$name]) } 5)) { $wrong += $name }
+        }
+        Check "template: placeholders in script, style, unquoted attributes, event handlers, names, comments and code elements are refused when loaded, with file and line ($($refused.Count) cases) (§10)" ($wrong.Count -eq 0) ($wrong -join ', ')
+        # files: only in views, no traversal, no links out
+        $attacks = @('views/../secret.html', 'views/sub/../../secret.html', 'views\..\secret.html', 'views/%2e%2e/secret.html', 'views/.hidden.html', 'secret.html', 'main.ot',
+                     '/etc/passwd', 'views/link-out.html', 'views/link-far.html', 'views/linkdir/secret.html', 'views/linkdir/views/hello.html', 'views/linkpartial.html',
+                     'views/escape-partial.html', 'views/nothere.html', 'views/sub', "views/../$(Split-Path -Leaf $outside)/far.html")
+        if ($IsWindows) { $attacks += @('views/junction-out/secret.html', 'C:\Windows\win.ini', 'views/hello.html::$DATA') }
+        $leaks = @()
+        foreach ($a in $attacks) {
+            $r = Send GET "$b/t/file?f=$(& $q $a)"
+            if ($r.Status -ne 500 -or $r.Body.Contains($marker)) { $leaks += "$a -> $($r.Status)" }
+        }
+        Check "template: files outside views, traversal, hidden names and links out are refused ($($attacks.Count) cases) (§10)" ($leaks.Count -eq 0) ($leaks -join '; ')
+        Check 'template: links out of views were really created for the test' ($tmade -ge 3) "$tmade made"
+        $r = Send GET "$b/t/file?f=$(& $q 'views/link-in.html')"
+        Check 'template: a link that stays inside views is rendered (§10)' ($r.Status -eq 200 -and $r.Body.Contains('INNER value')) "$($r.Status) $($r.Body)"
+        Check 'template: templates are never served as static files (§10)' ((Send GET "$b/views/hello.html").Status -eq 404 -and (Send GET "$b/hello.html").Status -eq 404 -and (Send GET "$b/file.txt").Status -eq 200)
+        $r = Send GET "$b/t/file?f=$(& $q 'views/loop.html')"
+        Check 'template: partials that include each other are refused (§10)' ($r.Status -eq 500 -and (Wait-Until { $x.Err.ToString().Contains('includes itself through its partials') } 5)) "$($r.Status)"
+        # errors while rendering
+        $r = Send GET "$b/t/missing"
+        Check 'template: a missing value is an error naming the line: 500 (§10, D41)' ($r.Status -eq 500 -and (Wait-Until { $x.Err.ToString().Contains('views/hello.html, line 5: there is no value called name') } 5)) "$($r.Status)"
+        $r = Send GET "$b/t/notlist"
+        Check 'template: {{#each}} over something that is not a list: 500 (§10)' ($r.Status -eq 500 -and (Wait-Until { $x.Err.ToString().Contains('needs a list') } 5)) "$($r.Status)"
+        $r = Send GET "$b/t/badprop"
+        Check 'template: an unknown property: 500 (§10)' ($r.Status -eq 500 -and (Wait-Until { $x.Err.ToString().Contains('has no property called "colour"') } 5)) "$($r.Status)"
+        $r = Send GET "$b/t/json"
+        Check 'template: respond with a web template as json sends it as data (§10)' ($r.Status -eq 200 -and ($r.Body | ConvertFrom-Json).file -eq 'views/hello.html') $r.Body
+        # development reloads
+        $r1 = Send GET "$b/t/reload"
+        Start-Sleep -Milliseconds 1100
+        [System.IO.File]::WriteAllText((Join-Path $views 'reload.html'), "<p>VERSION-TWO {{x}}, longer</p>`n")
+        $r2 = Send GET "$b/t/reload"
+        $r3 = Send GET "$b/t/reload"
+        Check 'template: an edited template is used on the next request (§10)' ($r1.Body.Contains('VERSION-ONE value') -and $r2.Body.Contains('VERSION-TWO value, longer') -and $r3.Body -eq $r2.Body) "$($r1.Body) / $($r2.Body)"
+        [System.IO.File]::WriteAllText((Join-Path $views 'reload.html'), "<script>{{x}}</script>`n")
+        $r4 = Send GET "$b/t/reload"
+        Check 'template: an edit that breaks the rules is refused on the next request (§10)' ($r4.Status -eq 500) "$($r4.Status)"
+        Check 'template: the server keeps running after template errors (§10)' ((Send GET "$b/ok").Body -eq 'ok')
+    } else { Check 'Phase 2b template server starts' $false "$($x.Out) $($x.Err)" }
+    Stop-Otter $x
+    # The views folder itself linked out of the project
+    $p = Get-FreePort; $d = New-Case 'viewslink' $p
+    $farViews = Join-Path $scratch ("farviews-" + [Guid]::NewGuid().ToString('N').Substring(0, 8))
+    New-Item -ItemType Directory $farViews | Out-Null
+    [System.IO.File]::WriteAllText((Join-Path $farViews 'page.html'), "<p>$marker</p>")
+    $linked = $false
+    foreach ($type in @('SymbolicLink', 'Junction')) {
+        if ($linked -or ($type -eq 'Junction' -and -not $IsWindows)) { continue }
+        try { New-Item -ItemType $type -Path (Join-Path $d 'views') -Target $farViews -ErrorAction Stop | Out-Null; $linked = $true } catch { Write-Host "(could not create $type views: $($_.Exception.Message))" }
+    }
+    $x = Start-Otter @('run', $d) $d
+    if ($linked -and (Wait-Until { $x.Err.ToString().Contains('listening') } 60)) {
+        $r = Send GET "http://127.0.0.1:$p/"
+        Check 'template: a views folder that links out of the project is refused (§10)' ($r.Status -eq 500 -and -not $r.Body.Contains($marker) -and (Wait-Until { $x.Err.ToString().Contains('views folder must be a folder inside the project') } 5)) "$($r.Status)"
+    } else { Check 'template: a views folder that links out of the project is refused (§10)' $false "linked=$linked $($x.Out) $($x.Err)" }
+    Stop-Otter $x
+
     # ================= refusals =================
     foreach ($case in @(
         @{ Name = 'publicbind'; Code = 3; Text = 'only this computer'; Title = 'a public host is refused without allowPublicBind (§2)' },
         @{ Name = 'badprop'; Code = 3; Text = 'has no property called "timeout"'; Title = 'an unknown server property is refused (§2)' },
         @{ Name = 'duproutes'; Code = 3; Text = 'answer the same requests'; Title = 'two routes for the same requests stop the program at start (§3)' },
-        @{ Name = 'badruntime'; Code = 2; Text = 'is not supported'; Title = 'an unknown web.runtime is a manifest error (§1)' }
+        @{ Name = 'badruntime'; Code = 2; Text = 'is not supported'; Title = 'an unknown web.runtime is a manifest error (§1)' },
+        @{ Name = 'viewsstatic'; Code = 3; Text = 'and the views folder overlap'; Title = 'a static folder that is the views folder is refused (§10)' }
     )) {
         $p = Get-FreePort; $d = New-Case $case.Name $p
         $x = Start-Otter @('run', $d) $d
