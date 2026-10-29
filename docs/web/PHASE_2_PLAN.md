@@ -3,7 +3,9 @@
 **Status: the owner approved the six decisions in §6 on 2026-10-27.
 This document is the plan; the code comes in separate PRs (2a, 2b, 2c),
 none merged without the owner's approval.** Reconciled with `main` at
-`9caa3af` (PR #8 merged).
+`fcba67c` (PR #10 merged: **Phase 2a complete**, 2026-10-29). Phase 2b
+(`web template`) is in its own PR; 2c (the Guestbook) starts after the
+owner reviews 2b.
 Phase 2 brings forms, safely escaped HTML templates, SQLite improvements,
 and a working **Otter Guestbook** (otter-web-plan `EXAMPLE_APPS.md` A).
 
@@ -75,6 +77,7 @@ The template language is a small, logic-less Mustache subset:
 | In the template | Meaning |
 |---|---|
 | `{{name}}`, `{{entry.name}}` | the value, **HTML-escaped** (`& < > " '`) |
+| `{{.}}` | the current item of `{{#each}}` (added in 2b, for lists of text) |
 | `{{{name}}}` | the value unescaped. Explicit, greppable, and logged as a warning the first time each template uses it |
 | `{{#each entries}}...{{/each}}` | repeat for each item of a list (inside it, `{{name}}` reads the item) |
 | `{{#if flag}}...{{else}}...{{/if}}` | on a value that is not `gone`, `false`, `""` or an empty list |
@@ -99,6 +102,16 @@ The template language is a small, logic-less Mustache subset:
   so editing during development works.
 - **Response:** `text/html; charset=utf-8`. It combines with
   `web response`: `body is page` sends the rendered page with any status.
+  (`respond with page and status 400` is not Otter: without `as json` the
+  1.0.1 grammar reads `page and status` as one value, as for plain text
+  in Phase 1a. No grammar change is proposed; the `web response` covers it.)
+- **As built in 2b** (RUNTIME_CONTRACT §10): the context checks also refuse
+  placeholders in HTML comments, tag and attribute names, `style` and
+  `srcdoc` attributes, and in any attribute of elements that load code
+  (`script`, `base`, `object`, `embed`, SVG animation elements); a block
+  inside a tag needs a space on both sides. The URL check covers every
+  URL attribute (`action`, `formaction`, `poster`, `srcset`, ...), not
+  only `href`/`src`.
 
 **Alternative not chosen:** a plain-Otter library (`render`) built on
 `replace`. It is slow, cannot know the HTML context, and makes escaping
@@ -172,11 +185,23 @@ Node is installed **only in that CI job**. It is never a runtime
 dependency: an ordinary Otter project, `otter-net` and its packages need
 no Node.
 
+## 4b. Known limitations from Phase 2a (nonblocking, tracked)
+
+Recorded in RUNTIME_CONTRACT (Phase 2a). Neither is a security issue;
+both are candidates for a later phase:
+
+- **Form charset precedence:** a body that is not UTF-8 *and* declares a
+  non-UTF-8 charset gets 400 rather than 415: the body is decoded before
+  the charset is looked at. Both refuse the request before the handler.
+- **`last inserted id` precision:** the exactness check (S-7) runs after
+  the insert, so the row is already stored when the error comes. Inside a
+  transaction the program can roll back.
+
 ## 5. Order and gates
 
 | PR | Content | Gate |
 |---|---|---|
-| 2a | `form`/`forms`, the SQLite fixes (S-7), busy timeout | contract rows **[T]**; six-platform HTTP and security tests; certification (S-7 changes are recorded differences) |
+| 2a (**merged**, `fcba67c`) | `form`/`forms`, the SQLite fixes (S-7), busy timeout | contract rows **[T]**; six-platform HTTP and security tests; certification (S-7 changes are recorded differences) |
 | 2b | `web template` (ADR WEB-003) | escaping and context tests with negative controls |
 | 2c | Guestbook, `migrations.ot`, the Playwright job, docs | EXAMPLE_APPS A pass criteria, in a real browser |
 
