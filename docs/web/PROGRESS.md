@@ -8,7 +8,8 @@
 
 | 2026-10-24 | 1b: path parameters, static files, web response | PR #7, **merged** 2026-10-25 as `d3a7796` | `351251b` | **complete** (internal development milestone): web runtime 6/6 platforms (106/106; Windows 103 + 2 skipped + Ctrl+C 3/3), certified on 6 platforms, ci/desktop/package green; negative controls for the dot-name and symlink checks |
 | 2026-10-27 | security: S-2 (LIKE wildcards) | PR #8, **merged** 2026-10-27 as `9caa3af` | `4e6cbe4` | fixes the last open injection finding before database-backed web features (Phase 2) |
-| 2026-10-29 | 2a: forms, SQLite corrections (S-7), busy timeout | `web/phase2a-assistant`, PR #10 (draft) | see the PR | in review; not merged |
+| 2026-10-29 | 2a: forms, SQLite corrections (S-7), busy timeout | PR #10, **merged** 2026-10-29 as `fcba67c` | `98b0c5b` | **complete**: security 5/5 and HTTP suite on 6 platforms (116/116; Windows 113 + 2 skipped + Ctrl+C 3/3), certified, ci/desktop/package green. Two nonblocking limitations tracked (RUNTIME_CONTRACT, Phase 2a) |
+| 2026-10-29 | 2b: `web template` (ADR WEB-003) | `web/phase2b` (draft PR) | see the PR | in review; not merged |
 
 ## Phase 1b checklist (owner's authorisation, 2026-10-24)
 

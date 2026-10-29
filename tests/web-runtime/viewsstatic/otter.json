@@ -1,0 +1,7 @@
+{
+  "name": "web-runtime-viewsstatic",
+  "version": "0.1.0",
+  "target": "server",
+  "entryPoint": "main.ot",
+  "web": { "runtime": "otter-web-0.1" }
+}

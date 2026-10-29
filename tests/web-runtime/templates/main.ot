@@ -1,0 +1,226 @@
+# Phase 2b black-box test program: the web template object
+# (docs/web/RUNTIME_CONTRACT.md §10, ADR WEB-003).
+# tools/test-web-runtime.ps1 replaces 18080, and adds the files that test
+# links out of the views folder.
+site is a web server
+    port is 18080
+    host is "127.0.0.1"
+    static is "public"
+.
+
+# Values from the query, escaped wherever they land.
+when site receives GET at "/t/hello" into req
+    get "name" from query of req into name
+    if name is gone
+        name is "stranger"
+    .
+    data has
+        title is "Hello page"
+        name is name
+    .
+    page is a web template
+        file is "views/hello.html"
+        values is data
+    .
+    respond with page
+.
+
+# Lists, nested values, conditions, partials.
+when site receives GET at "/t/list" into req
+    get "who" from query of req into who
+    if who is gone
+        who is "Ada"
+    .
+    first has
+        name is who
+        message is "first message"
+        starred is true
+    .
+    second has
+        name is "Grace"
+        message is "second message"
+        starred is false
+    .
+    entries are
+        first
+        second
+    .
+    tags are
+        "<b>tag</b>"
+        "plain"
+    .
+    owner has
+        name is "Site <owner>"
+    .
+    nothing are
+        "x"
+    .
+    remove "x" from nothing
+    data has
+        title is "Guest list"
+        entries is entries
+        tags is tags
+        owner is owner
+        nothing is nothing
+        note is ""
+        missing is gone
+    .
+    page is a web template
+        file is "views/list.html"
+        values is data
+    .
+    respond with page
+.
+
+# A rendered page with another status: a web response whose body is the
+# template (`respond with page and status 400` is not Otter: the 1.0.1
+# grammar reads `page and status` as one value).
+when site receives GET at "/t/status" into req
+    data has
+        title is "Not valid"
+        name is "x"
+    .
+    page is a web template
+        file is "views/hello.html"
+        values is data
+    .
+    reply is a web response
+        status is 400
+        body is page
+    .
+    respond with reply
+.
+when site receives GET at "/t/response" into req
+    data has
+        title is "Created"
+        name is "y"
+    .
+    page is a web template
+        file is "views/hello.html"
+        values is data
+    .
+    reply is a web response
+        status is 201
+        body is page
+    .
+    respond with reply
+.
+when site receives GET at "/t/response-typed" into req
+    data has
+        title is "Typed"
+        name is "z"
+    .
+    page is a web template
+        file is "views/hello.html"
+        values is data
+    .
+    reply is a web response
+        status is 404
+        type is "text/plain"
+        body is page
+    .
+    respond with reply
+.
+
+# URLs from values.
+when site receives GET at "/t/url" into req
+    get "u" from query of req into u
+    data has
+        u is u
+    .
+    page is a web template
+        file is "views/url.html"
+        values is data
+    .
+    respond with page
+.
+
+# Unescaped on purpose: {{{x}}}.
+when site receives GET at "/t/raw" into req
+    get "x" from query of req into x
+    data has
+        x is x
+    .
+    page is a web template
+        file is "views/raw.html"
+        values is data
+    .
+    respond with page
+.
+
+# Any template file by name (the harness sends the refused ones here).
+when site receives GET at "/t/file" into req
+    get "f" from query of req into f
+    data has
+        x is "value"
+        u is "/ok"
+    .
+    page is a web template
+        file is f
+        values is data
+    .
+    respond with page
+.
+
+# Development reloads.
+when site receives GET at "/t/reload"
+    data has
+        x is "value"
+    .
+    page is a web template
+        file is "views/reload.html"
+        values is data
+    .
+    respond with page
+.
+
+# Errors at render time.
+when site receives GET at "/t/missing"
+    data has
+        title is "t"
+    .
+    page is a web template
+        file is "views/hello.html"
+        values is data
+    .
+    respond with page
+.
+when site receives GET at "/t/notlist"
+    boss has
+        name is "o"
+    .
+    data has
+        title is "t"
+        name is "n"
+        entries is "text"
+        tags is "x"
+        owner is boss
+        nothing is "x"
+        note is ""
+        missing is gone
+    .
+    page is a web template
+        file is "views/list.html"
+        values is data
+    .
+    respond with page
+.
+when site receives GET at "/t/badprop"
+    page is a web template
+        file is "views/hello.html"
+        colour is "red"
+    .
+    respond with page
+.
+
+# As JSON, a web template is data like any thing.
+when site receives GET at "/t/json"
+    page is a web template
+        file is "views/hello.html"
+    .
+    respond with page as json
+.
+
+when site receives GET at "/ok"
+    respond with "ok"
+.
