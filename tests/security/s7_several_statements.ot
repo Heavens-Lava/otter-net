@@ -1,0 +1,35 @@
+# S-7 (docs/SECURITY_LEDGER.md): execute and query run one statement. Text
+# holding a second statement is refused before anything runs; otterPS 1.0.1
+# ran the first and silently dropped the rest.
+connect ":memory:" into db
+execute db with "create table users (name text)"
+
+say "-- two statements: refused, nothing runs"
+try
+    execute db with "insert into users (name) values ('First'); insert into users (name) values ('Second')"
+otherwise into reason
+    say reason
+.
+try
+    query db with "select name from users; drop table users" into rows
+otherwise into reason
+    say reason
+.
+try
+    execute db with "insert into users (name) values ('Nope'); this is not sql"
+otherwise into reason
+    say reason
+.
+query db with "select count(*) as n from users" into counted
+say "rows after the refusals:" n of first of counted
+
+say "-- one statement with a trailing semicolon or comment still runs"
+execute db with "insert into users (name) values ('Only');  -- a note" into result
+say "rows affected:" rows affected of result
+execute db with "insert into users (name) values ('Two'); ;" into result
+say "rows affected:" rows affected of result
+query db with "select name from users order by name; /* done */" into rows
+each row in rows
+    say name of row
+.
+disconnect db

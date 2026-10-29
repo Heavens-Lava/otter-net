@@ -1,0 +1,4 @@
+exit: 0
+Database command execution error: database is locked
+waited about five seconds before giving up
+rows: 2

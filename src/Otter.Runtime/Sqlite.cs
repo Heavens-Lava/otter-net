@@ -18,6 +18,7 @@ static partial class SqliteNative
     public const int Integer = 1;
     public const int Float = 2;
     public const int Text = 3;
+    public const int Blob = 4;
     public const int Null = 5;
     public const int OpenReadOnly = 0x00000001;
     public const int OpenReadWrite = 0x00000002;
@@ -57,6 +58,14 @@ static partial class SqliteNative
     [LibraryImport(Library, EntryPoint = "sqlite3_prepare_v2")]
     private static partial int PrepareV2(nint db, byte[] sql, int bytes, out nint statement, nint tail);
 
+    // The same function with the text in memory we own, so `tail` (where
+    // the first statement ends) stays valid after the call.
+    [LibraryImport(Library, EntryPoint = "sqlite3_prepare_v2")]
+    private static partial int PrepareV2At(nint db, nint sql, int bytes, out nint statement, out nint tail);
+
+    [LibraryImport(Library, EntryPoint = "sqlite3_busy_timeout")]
+    public static partial int BusyTimeout(nint db, int milliseconds);
+
     [LibraryImport(Library, EntryPoint = "sqlite3_step")]
     public static partial int Step(nint statement);
 
@@ -78,6 +87,12 @@ static partial class SqliteNative
     [LibraryImport(Library, EntryPoint = "sqlite3_column_text")]
     private static partial nint ColumnTextPointer(nint statement, int column);
 
+    [LibraryImport(Library, EntryPoint = "sqlite3_column_blob")]
+    private static partial nint ColumnBlobPointer(nint statement, int column);
+
+    [LibraryImport(Library, EntryPoint = "sqlite3_column_bytes")]
+    private static partial int ColumnBytes(nint statement, int column);
+
     [LibraryImport(Library, EntryPoint = "sqlite3_bind_parameter_index")]
     private static partial int BindParameterIndex(nint statement, byte[] name);
 
@@ -92,6 +107,12 @@ static partial class SqliteNative
 
     [LibraryImport(Library, EntryPoint = "sqlite3_bind_text")]
     private static partial int BindTextBytes(nint statement, int index, byte[] value, int length, nint destructor);
+
+    [LibraryImport(Library, EntryPoint = "sqlite3_bind_blob")]
+    private static partial int BindBlobBytes(nint statement, int index, byte[] value, int length, nint destructor);
+
+    [LibraryImport(Library, EntryPoint = "sqlite3_bind_zeroblob")]
+    private static partial int BindZeroBlob(nint statement, int index, int length);
 
     [LibraryImport(Library, EntryPoint = "sqlite3_changes")]
     public static partial int Changes(nint db);
@@ -118,9 +139,56 @@ static partial class SqliteNative
 
     public static int Open(string path, out nint db, int flags) => OpenV2(Utf8(path), out db, flags, 0);
     public static int Prepare(nint db, string sql, out nint statement) => PrepareV2(db, Utf8(sql), -1, out statement, 0);
+    // S-7: prepares the first statement of `sql`, and gives in `rest` the
+    // text from the start of a second statement, or null when only spaces,
+    // comments and semicolons follow (sqlite3_prepare_v2 compiles only the
+    // first statement and would silently drop the others).
+    public static int PrepareFirst(nint db, string sql, out nint statement, out string? rest)
+    {
+        rest = null;
+        byte[] bytes = Utf8(sql);
+        nint buffer = Marshal.AllocHGlobal(bytes.Length);
+        try
+        {
+            Marshal.Copy(bytes, 0, buffer, bytes.Length);
+            int rc = PrepareV2At(db, buffer, bytes.Length, out statement, out nint tail);
+            if (rc != Ok || statement == 0) return rc;
+            nint end = buffer + (bytes.Length - 1);   // the terminating zero
+            while (tail != 0 && tail < end)
+            {
+                int next = PrepareV2At(db, tail, (int)(end - tail), out nint other, out nint after);
+                if (other != 0) Finalize(other);
+                if (next != Ok || other != 0)
+                {
+                    rest = Marshal.PtrToStringUTF8(tail, (int)(end - tail));
+                    break;
+                }
+                if (after == 0 || after <= tail) break;
+                tail = after;
+            }
+            return Ok;
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(buffer);
+        }
+    }
+
     public static string? ColumnName(nint statement, int column) => FromUtf8(ColumnNamePointer(statement, column));
     public static string? ColumnText(nint statement, int column) => FromUtf8(ColumnTextPointer(statement, column));
     public static int ParameterIndex(nint statement, string name) => BindParameterIndex(statement, Utf8(name));
     public static int BindText(nint statement, int index, string value) => BindTextBytes(statement, index, Utf8(value), -1, Transient);
+    // A BLOB's bytes (an empty BLOB has no pointer).
+    public static byte[] ColumnBlob(nint statement, int column)
+    {
+        nint pointer = ColumnBlobPointer(statement, column);
+        int length = ColumnBytes(statement, column);
+        byte[] value = new byte[pointer == 0 ? 0 : length];
+        if (value.Length > 0) Marshal.Copy(pointer, value, 0, value.Length);
+        return value;
+    }
+
+    public static int BindBlob(nint statement, int index, byte[] value) =>
+        value.Length == 0 ? BindZeroBlob(statement, index, 0) : BindBlobBytes(statement, index, value, value.Length, Transient);
     public static string? ErrorMessage(nint db) => FromUtf8(ErrorMessagePointer(db));
 }

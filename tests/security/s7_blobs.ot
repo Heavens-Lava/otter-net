@@ -1,0 +1,44 @@
+# S-7 (docs/SECURITY_LEDGER.md): bytes are stored as a BLOB and a BLOB is
+# read back as bytes. otterPS 1.0.1 stored the text "OtterBytes" and read
+# BLOBs as text.
+connect ":memory:" into db
+execute db with "create table files (name text, data blob)"
+data is bytes from hex "00FF41"
+execute db with
+    "insert into files (name, data) values (@name, @data)"
+    parameter "name" is "three"
+    parameter "data" is data
+empty is bytes from text ""
+execute db with
+    "insert into files (name, data) values (@name, @data)"
+    parameter "name" is "empty"
+    parameter "data" is empty
+execute db with "insert into files (name, data) values ('text', 'plain text')"
+
+query db with "select name, typeof(data) as kind, length(data) as size from files order by rowid" into rows
+each row in rows
+    say name of row kind of row size of row
+.
+query db with "select data from files where name = 'three'" into rows
+back is data of first of rows
+backHex is hex from bytes back
+dataHex is hex from bytes data
+say "hex:" backHex
+if backHex is dataHex
+    say "the same bytes came back"
+.
+query db with "select data from files where name = 'empty'" into rows
+emptyBack is data of first of rows
+say "empty:" length of emptyBack "bytes"
+query db with "select data from files where name = 'text'" into rows
+say "text stays text:" data of first of rows
+
+query db with "select x'414243' as literal" into rows
+literal is literal of first of rows
+say "a BLOB literal is bytes:" text from bytes literal
+query db with
+    "select count(*) as n from files where data = @data"
+    parameter "data" is data
+into rows
+say "a bytes parameter matches the BLOB:" n of first of rows
+disconnect db

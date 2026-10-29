@@ -201,7 +201,8 @@ system's SQLite on every platform (`/usr/lib/libsqlite3.dylib`,
 `libsqlite3.so.0`), as the porting brief asks, so databases work there.
 Also: D97's text says "Otter 1.1 introduces" databases, but they ship in
 1.0.1; and only the first statement of an `execute`/`query` text runs (the
-rest is silently ignored).
+rest is silently ignored). Since Phase 2a, otter-net refuses such text
+instead (S-7 in `docs/SECURITY_LEDGER.md`, owner decision of 2026-10-27).
 
 **Status:** otter-net behaves as otterPS on Windows. Needs a decision on
 whether databases are part of Otter on macOS and Linux (and on SQLite's own

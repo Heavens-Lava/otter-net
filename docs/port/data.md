@@ -33,17 +33,24 @@ Where things live in otter-net:
 | `rows affected of r`, `last inserted id of r`, `primary key of c`, ... | already native (two-word properties) | native | `data_db` |
 | SQLite library missing | otterPS: `Add-Type` + `DllImport("winsqlite3.dll")`, always present on Windows | native: runtime error `I could not load SQLite (<library>), which Otter needs to use a database.` | none (cannot be produced in CI) |
 
-How it matches otterPS:
+How it matches otterPS (except for the five S-7 corrections of Phase 2a,
+`docs/SECURITY_LEDGER.md`, marked **S-7** below):
 
 - Values: SQLite integers become numbers (double), reals numbers, text
-  text, NULL `gone`, a blob its text up to the first zero byte (otterPS
-  reads every non-number column with `sqlite3_column_text`).
+  text, NULL `gone`. otterPS reads a blob as its text up to the first zero
+  byte; **S-7:** otter-net reads it as bytes, and refuses a whole number a
+  double cannot hold exactly (otterPS rounds it).
 - Parameters bind by name to `name`, `@name`, `:name` or `$name`; names
   ignore case (a PowerShell hashtable), unused ones are ignored; `gone` binds
   NULL, true/false 1/0, a whole number an integer, other numbers a real,
-  anything else PowerShell's `[string]` of it.
-- Only the first statement of the SQL text runs (one `sqlite3_prepare_v2`,
-  the tail is ignored); `execute` steps it once.
+  anything else PowerShell's `[string]` of it (**S-7:** bytes bind as a
+  BLOB; otterPS binds the text "OtterBytes").
+- otterPS runs only the first statement of the SQL text (one
+  `sqlite3_prepare_v2`; the tail is ignored). **S-7:** otter-net refuses
+  text holding a second statement before anything runs. `execute` steps
+  its statement once.
+- **S-7:** a connection waits up to 5 s for another connection's lock
+  (otterPS sets no busy timeout and fails at once).
 - Every check otterPS makes, in its order, with its words; a mandatory
   PowerShell parameter that is `gone` or empty (`query gone with ...`,
   `query db with "" ...`, a provider of `gone`) fails as otterPS does, as an
