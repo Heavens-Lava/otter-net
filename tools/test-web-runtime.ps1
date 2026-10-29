@@ -113,6 +113,16 @@ function Send([string]$Method, [string]$Url, [string]$Body = $null, [hashtable]$
     [pscustomobject]@{ Status = [int]$response.StatusCode; Body = $text; Headers = $all }
 }
 
+# Form requests use the actual application/x-www-form-urlencoded MIME type.
+function Send-Form([string]$Url, [string]$Encoded, [string]$ContentType = 'application/x-www-form-urlencoded; charset=utf-8') {
+    $request = [System.Net.Http.HttpRequestMessage]::new([System.Net.Http.HttpMethod]::Post, $Url)
+    $request.Content = [System.Net.Http.StringContent]::new($Encoded, [System.Text.Encoding]::UTF8)
+    $request.Content.Headers.ContentType = [System.Net.Http.Headers.MediaTypeHeaderValue]::Parse($ContentType)
+    $response = $client.SendAsync($request).GetAwaiter().GetResult()
+    $body = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+    [pscustomobject]@{ Status = [int]$response.StatusCode; Body = $body }
+}
+
 # Raw bytes over TCP; returns what the server sent (until it closes or the timeout).
 function Send-Raw([int]$Port, [byte[]]$Bytes, [int]$TimeoutMs = 15000) {
     $tcp = [System.Net.Sockets.TcpClient]::new('127.0.0.1', $Port)
@@ -187,6 +197,26 @@ try {
     $r = Send GET "$base/queries?tag=a&tag=b&tag=c"
     $tags = $r.Body | ConvertFrom-Json
     Check 'queries keeps every value in order (§4)' ($r.Status -eq 200 -and ($tags -join ',') -eq 'a,b,c') $r.Body
+    $r = Send GET "$base/hello?name=%F0%9F%98%80"
+    Check 'query decoder keeps supplementary UTF-8 characters' ($r.Status -eq 200 -and $r.Body -eq 'Hello, 😀') $r.Body
+    $r = Send-Form "$base/form" 'name=Ada+Lovelace'
+    Check 'urlencoded form values and plus-as-space' ($r.Status -eq 200 -and $r.Body -eq 'Ada Lovelace') $r.Body
+    $r = Send-Form "$base/form" 'name=%F0%9F%98%80'
+    Check 'urlencoded form UTF-8 emoji' ($r.Status -eq 200 -and $r.Body -eq '😀') $r.Body
+    $r = Send-Form "$base/form" 'name=first&name=second'
+    Check 'form keeps the first duplicate' ($r.Status -eq 200 -and $r.Body -eq 'first') $r.Body
+    $r = Send-Form "$base/forms" 'tag=a&tag=b&tag=c'
+    Check 'forms keeps all duplicate values in order' ($r.Status -eq 200 -and (($r.Body | ConvertFrom-Json) -join ',') -eq 'a,b,c') $r.Body
+    $r = Send-Form "$base/form-empty" 'other=value'
+    Check 'missing form key gives gone via get from' ($r.Status -eq 200 -and $r.Body -eq 'missing') $r.Body
+    $r = Send-Form "$base/form" 'name=%ZZ'
+    Check 'malformed form percent escape rejected before handler' ($r.Status -eq 400) "$($r.Status) $($r.Body)"
+    $r = Send-Form "$base/form" 'name=%FF'
+    Check 'invalid UTF-8 form rejected before handler' ($r.Status -eq 400) "$($r.Status) $($r.Body)"
+    $r = Send-Form "$base/form" 'name=Ada' 'application/x-www-form-urlencoded; charset=iso-8859-1'
+    Check 'unsupported form charset is refused' ($r.Status -eq 415) "$($r.Status) $($r.Body)"
+    $r = Send POST "$base/form" 'name=Ada'
+    Check 'non-form body does not become form fields' ($r.Status -eq 200 -and $r.Body -eq 'missing') "$($r.Status) $($r.Body)"
     $r = Send GET "$base/header" -Headers @{ 'X-Otter-Test' = 'Case Works' }
     Check 'header names ignore capitals (§4)' ($r.Body -eq 'Case Works') $r.Body
     $r = Send GET "$base/request?x=1"

@@ -346,3 +346,9 @@ its properties say. Each rule below is tested **[T]**:
 - **One addition to the runtime's types:** a thing whose names ignore
   capitals (used only for `headers`). Every other thing keeps Otter's
   case-sensitive names.
+
+## Phase 2a (development branch; not released)
+
+The opt-in host accepts `application/x-www-form-urlencoded` bodies as `form of req` (first value for each name) and `forms of req` (ordered list of all values). Missing fields follow ordinary Otter D41 lookup semantics. Query and form strings share a strict UTF-8 decoder preserving supplementary Unicode characters; `+` is a space, and malformed percent escapes or invalid UTF-8 return 400 before handler execution. A form media type declaring a non-UTF-8 charset returns 415; non-form bodies yield empty `form` and `forms` objects. Existing Kestrel request-body limits still apply.
+
+**This is a development-only contract extension.** The S-7 SQLite corrections of the same phase apply to every otter-net program, not only the web runtime (`docs/SECURITY_LEDGER.md`, S-7). HTML templates, sessions and the Guestbook are not implemented yet.

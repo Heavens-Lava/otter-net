@@ -1,0 +1,49 @@
+# S-7 (docs/SECURITY_LEDGER.md): a whole number that an Otter number cannot
+# hold exactly is refused instead of silently rounded (otterPS 1.0.1 rounded
+# it). Every whole number up to 2^53 is exact, and so are some larger ones.
+connect ":memory:" into db
+execute db with "create table t (x integer)"
+execute db with "insert into t values (9007199254740992)"
+execute db with "insert into t values (1152921504606846976)"
+execute db with "insert into t values (-9223372036854775808)"
+query db with "select x from t order by rowid" into rows
+each row in rows
+    say x of row
+.
+# Otter prints 15 significant digits; the values themselves are exact.
+x is x of first of rows
+less is x minus 1
+if x is 9007199254740992 and less is 9007199254740991
+    say "2^53 is exact"
+.
+query db with "select x from t where x > 9007199254740992" into rows
+x is x of first of rows
+if x is 1152921504606846976
+    say "2^60 is exact"
+.
+say "-- 2^53 + 1 cannot be held exactly"
+execute db with "insert into t values (9007199254740993)"
+try
+    query db with "select x from t" into rows
+otherwise into reason
+    say reason
+.
+query db with "select cast(x as text) as x from t where x = 9007199254740993" into rows
+say "as text:" x of first of rows
+try
+    query db with "select max(x) as biggest from t where x > 0" into rows
+    say biggest of first of rows
+otherwise into reason
+    say reason
+.
+
+say "-- last inserted id follows the same rule"
+execute db with "create table ids (id integer primary key, v text)"
+execute db with "insert into ids values (4611686018427387904, 'exact')" into result
+say last inserted id of result
+try
+    execute db with "insert into ids values (4611686018427387905, 'inexact')"
+otherwise into reason
+    say reason
+.
+disconnect db

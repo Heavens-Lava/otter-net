@@ -53,9 +53,11 @@ into older
 each row in older
     say "older:" name of row
 .
-query db with "select count(*) as n, sum(age) as total, avg(score) as mean, 1.0 * 3 as three, x'414243' as blob from users" into stats
+# A BLOB literal (x'414243') is read as bytes by otter-net since S-7:
+# tests/security/s7_blobs.ot.
+query db with "select count(*) as n, sum(age) as total, avg(score) as mean, 1.0 * 3 as three from users" into stats
 row is first of stats
-say n of row total of row mean of row three of row blob of row
+say n of row total of row mean of row three of row
 
 execute db with "update users set age = age + 1 where age is not null" into updated
 say "updated:" rows affected of updated "last id:" last inserted id of updated
@@ -63,9 +65,11 @@ execute db with "select * from users" into selected
 say "select as execute:" rows affected of selected
 query db with "create table empty (x integer)" into created
 say "query as execute:" length of created
-execute db with "insert into users (name) values ('First'); insert into users (name) values ('Second')"
+# Several statements in one execute are refused by otter-net since S-7
+# (otterPS 1.0.1 ran the first): tests/security/s7_several_statements.ot.
+execute db with "insert into users (name) values ('First')"
 query db with "select name from users where name in ('First', 'Second')" into firstOnly
-say "first statement only:" length of firstOnly
+say "one statement:" length of firstOnly
 
 begin transaction on db into tx
 say tx

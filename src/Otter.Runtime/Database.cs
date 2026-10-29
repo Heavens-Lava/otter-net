@@ -48,6 +48,8 @@ public static class OtterDatabase
 
     public static string Mask(string connection) => Secret.Replace(connection, "$1=****");
 
+    public const int BusyTimeoutMilliseconds = 5000;
+
     static bool IsType(OtterThing thing, string typeName) => string.Equals(thing.TypeName, typeName, StringComparison.OrdinalIgnoreCase);
 
     // Get-OtterDatabaseProvider: SQLite is the only provider.
@@ -135,6 +137,9 @@ public static class OtterDatabase
             if (db != 0) SqliteNative.CloseV2(db);
             throw new DatabaseProblem($"Could not open SQLite database \"{Mask(connection)}\": {error}");
         }
+        // S-7: wait up to five seconds for another connection's lock instead
+        // of failing at once (otterPS sets no busy timeout).
+        SqliteNative.BusyTimeout(db, BusyTimeoutMilliseconds);
         return new OtterDatabaseConnection("sqlite", connection, db);
     }
 
@@ -221,6 +226,10 @@ public static class OtterDatabase
                 case int i:
                     SqliteNative.BindInt64(statement, index, i);
                     break;
+                case OtterBytes bytes:
+                    // S-7: bytes are a BLOB (otterPS stored the text "OtterBytes").
+                    SqliteNative.BindBlob(statement, index, bytes.Value);
+                    break;
                 case double d:
                     if (d == Math.Floor(d) && d >= long.MinValue && d < 9223372036854775808.0) SqliteNative.BindInt64(statement, index, (long)d);
                     else SqliteNative.BindDouble(statement, index, d);
@@ -237,12 +246,13 @@ public static class OtterDatabase
     {
         RequireTargetAndSql(target, sql);
         nint db = Handle(target);
-        if (SqliteNative.Prepare(db, sql, out nint statement) != SqliteNative.Ok)
+        if (SqliteNative.PrepareFirst(db, sql, out nint statement, out string? rest) != SqliteNative.Ok)
         {
             throw new DatabaseProblem($"Database query error: {SqliteNative.ErrorMessage(db)}");
         }
         try
         {
+            if (rest != null) throw new DatabaseProblem($"Database query error: query runs one statement, but this text has another after the first one, starting with \"{Opening(rest)}\". Run each statement on its own.");
             Bind(statement, parameters);
             var rows = new OtterList();
             int rc;
@@ -255,10 +265,11 @@ public static class OtterDatabase
                     string name = SqliteNative.ColumnName(statement, column) ?? "";
                     object? value = SqliteNative.ColumnType(statement, column) switch
                     {
-                        SqliteNative.Integer => (double)SqliteNative.ColumnInt64(statement, column),
+                        SqliteNative.Integer => ExactNumber(SqliteNative.ColumnInt64(statement, column), "query", name),
                         SqliteNative.Float => SqliteNative.ColumnDouble(statement, column),
                         SqliteNative.Null => null,
-                        // Text, and a blob read as text.
+                        // S-7: a BLOB is bytes (otterPS read it as text).
+                        SqliteNative.Blob => new OtterBytes(SqliteNative.ColumnBlob(statement, column)),
                         _ => SqliteNative.ColumnText(statement, column),
                     };
                     row.WriteProperty(name, value);
@@ -288,12 +299,13 @@ public static class OtterDatabase
     static OtterThing Command(object? target, string sql, IReadOnlyDictionary<string, object?> parameters)
     {
         nint db = Handle(target);
-        if (SqliteNative.Prepare(db, sql, out nint statement) != SqliteNative.Ok)
+        if (SqliteNative.PrepareFirst(db, sql, out nint statement, out string? rest) != SqliteNative.Ok)
         {
             throw new DatabaseProblem($"Database command error: {SqliteNative.ErrorMessage(db)}");
         }
         try
         {
+            if (rest != null) throw new DatabaseProblem($"Database command error: execute runs one statement, but this text has another after the first one, starting with \"{Opening(rest)}\". Run each statement with its own execute (inside a transaction to apply them together).");
             Bind(statement, parameters);
             int rc = SqliteNative.Step(statement);
             if (rc != SqliteNative.Done && rc != SqliteNative.Row)
@@ -304,7 +316,7 @@ public static class OtterDatabase
             long lastRowId = SqliteNative.LastInsertRowId(db);
             var result = new OtterThing("database result");
             result.WriteProperty("rows affected", (double)changes);
-            result.WriteProperty("last inserted id", lastRowId > 0 ? (double)lastRowId : null);
+            result.WriteProperty("last inserted id", lastRowId > 0 ? ExactNumber(lastRowId, "command", "last inserted id") : null);
             return result;
         }
         finally
@@ -314,6 +326,24 @@ public static class OtterDatabase
     }
 
     static readonly Dictionary<string, object?> NoParameters = new();
+
+    // S-7: an Otter number is a double, which holds every whole number up to
+    // 2^53 and some larger ones exactly. A whole number it cannot hold
+    // exactly is refused rather than silently rounded (otterPS rounded it).
+    static double ExactNumber(long value, string kind, string column)
+    {
+        double number = value;
+        if (number < 9223372036854775808.0 && (long)number == value) return number;
+        throw new DatabaseProblem($"Database {kind} error: the whole number {value} in \"{column}\" is too large for an Otter number to hold exactly. Read it as text instead, for example with cast(... as text).");
+    }
+
+    // The start of a second statement, for the S-7 message: spaces and
+    // semicolons skipped, at most 40 characters.
+    static string Opening(string rest)
+    {
+        string text = string.Join(' ', rest.TrimStart(' ', '\t', '\r', '\n', ';').Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        return text.Length <= 40 ? text : text[..40] + "...";
+    }
 
     // ---- transactions ------------------------------------------------------
 
