@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://otter-lang.org/schemas/composition-proposal.schema.json",
+  "title": "Otter AI Composition Proposal",
+  "description": "Provider-independent schema for AI assistants proposing reusable Otter library compositions.",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "proposalId",
+    "intent",
+    "recommendedComponents",
+    "compositionPlan",
+    "generatedSourcePreview",
+    "approvalRequired",
+    "verification"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "proposalId": {
+      "type": "string",
+      "pattern": "^prop-[a-f0-9]{8,16}$"
+    },
+    "intent": {
+      "type": "string",
+      "description": "The interpreted user feature request in natural language"
+    },
+    "recommendedComponents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "kind", "version", "rationale"],
+        "properties": {
+          "id": { "type": "string" },
+          "kind": { "type": "string", "enum": ["snippet", "pack", "blueprint", "recipe"] },
+          "version": { "type": "string" },
+          "rationale": { "type": "string", "description": "Why this component was recommended for the user intent" }
+        }
+      }
+    },
+    "compositionPlan": {
+      "type": "object",
+      "required": ["target", "composedPacks", "composedBlueprints", "connections"],
+      "properties": {
+        "target": { "type": "string", "enum": ["console", "desktop", "server", "game"] },
+        "composedPacks": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "composedBlueprints": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "connections": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["source", "destination", "description"],
+            "properties": {
+              "source": { "type": "string" },
+              "destination": { "type": "string" },
+              "description": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "generatedSourcePreview": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "sourceCode", "sourceMappings"],
+        "properties": {
+          "path": { "type": "string" },
+          "sourceCode": { "type": "string" },
+          "sourceMappings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["lines", "componentId"],
+              "properties": {
+                "lines": { "type": "string", "description": "e.g. 1-15" },
+                "componentId": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "approvalRequired": {
+      "type": "boolean",
+      "description": "True if user must approve before any file system write"
+    },
+    "verification": {
+      "type": "object",
+      "required": ["command", "syntaxValid"],
+      "properties": {
+        "command": { "type": "string", "description": "Native Otter CLI command used to validate output" },
+        "syntaxValid": { "type": "boolean" },
+        "diagnostics": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}

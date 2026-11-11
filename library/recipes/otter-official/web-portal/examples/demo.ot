@@ -1,0 +1,62 @@
+# ==============================================================================
+# Demo: Web Portal Logic & Form Handler
+# ==============================================================================
+
+use "../../../../packs/otter-official/file-helpers/src/main.ot"
+use "../../../../packs/otter-official/text-utils/src/main.ot"
+
+a Submission has
+    name
+    email
+    message
+    timestamp
+.
+
+to validateSubmission name email message
+    if name is ""
+        return false
+    .
+    if not email contains "@"
+        return false
+    .
+    if not email contains "."
+        return false
+    .
+    if message is ""
+        return false
+    .
+    return true
+.
+
+to createSubmission name email message
+    s is a Submission
+    name of s is name
+    email of s is email
+    message of s is message
+    timestamp of s is "2026-11-10T18:00:00Z"
+    return s
+.
+
+to getNavigation
+    nav are empty
+    add "Home" to nav
+    add "Submissions API" to nav
+    add "Contact" to nav
+    return nav
+.
+
+say "=== Web Portal Demo ==="
+nav is getNavigation
+say "Portal Navigation:"
+for each item in nav
+    say "  - " plus item
+.
+
+say "Validating incoming contact submission..."
+isValid is validateSubmission "Ada Lovelace" "ada@analytical.org" "Enjoying the portal design!"
+if isValid
+    sub is createSubmission "Ada Lovelace" "ada@analytical.org" "Enjoying the portal design!"
+    say "Submission accepted from: " plus name of sub
+.
+
+say "Web-portal demo finished successfully."

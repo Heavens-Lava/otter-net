@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "id": "otter-official/web-portal",
+  "version": "1.0.0",
+  "title": "Web Portal Application",
+  "summary": "Full-stack web portal with HTTP routes, navigation menus, feedback forms, input validation, and persistent JSON storage.",
+  "target": "server",
+  "requiresOtter": ">=1.0.1",
+  "capabilities": ["web", "files"],
+  "packs": [
+    { "id": "otter-official/file-helpers", "version": "1.0.0" },
+    { "id": "otter-official/text-utils", "version": "1.0.0" }
+  ],
+  "configuration": [
+    { "id": "portalName", "title": "Portal Title", "type": "text", "default": "Community Hub", "description": "Brand title for portal header and pages" },
+    { "id": "portNumber", "title": "HTTP Port", "type": "number", "default": 8080, "description": "Local TCP port for web server" }
+  ],
+  "steps": [
+    {
+      "id": "setup-routes",
+      "kind": "pack-call",
+      "description": "Establish HTTP endpoints for portal pages, submission forms, and JSON API",
+      "source": "otter-official/text-utils",
+      "inputs": [{ "name": "routePath", "type": "text" }],
+      "outputs": [{ "name": "response", "type": "text" }]
+    },
+    {
+      "id": "persist-submissions",
+      "kind": "pack-call",
+      "description": "Store validated feedback and form submissions in persistent JSON storage",
+      "source": "otter-official/file-helpers",
+      "inputs": [{ "name": "submissions", "type": "list" }],
+      "outputs": [{ "name": "saved", "type": "boolean" }]
+    }
+  ],
+  "generatedFiles": [
+    { "path": "src/server.ot", "template": "templates/server.ot.tmpl" },
+    { "path": "public/index.html", "template": "templates/index.html.tmpl" }
+  ],
+  "tests": [
+    "tests/test.ot"
+  ],
+  "explanations": {
+    "beginner": "This application creates a web website with multiple pages, a navigation bar, and an online submission form. Messages sent through the form are checked for valid email addresses and saved to a file.",
+    "intermediate": "The recipe combines Otter's native HTTP routing and static file serving with `otter-official/file-helpers` for saving form submissions and `otter-official/text-utils` for string formatting.",
+    "advanced": "Implements RESTful HTTP routes on Kestrel/HttpListener. Static assets are served from the `public` directory while API routes validate payloads and persist records into JSON storage."
+  }
+}

@@ -65,6 +65,7 @@ internal static class Cli
         if (Is(command, "snippet")) return LibraryCommands.RunSnippet(line);
         if (Is(command, "pack")) return LibraryCommands.RunPack(line);
         if (Is(command, "blueprint")) return LibraryCommands.RunBlueprint(line);
+        if (Is(command, "recipe")) return LibraryCommands.RunRecipe(line);
         if (line.HasPath) return RunPath(line);
         return Repl.Start(line);
     }

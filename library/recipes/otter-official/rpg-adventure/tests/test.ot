@@ -1,0 +1,97 @@
+# ==============================================================================
+# Test: RPG Adventure Game Mechanics
+# ==============================================================================
+
+use "../../../../packs/otter-official/game-entity/src/main.ot"
+use "../../../../packs/otter-official/math-utils/src/main.ot"
+use "../../../../packs/otter-official/file-helpers/src/main.ot"
+
+# Test 1: Actor creation and damage
+hero is createActor "Aria" 100 1
+enemy is createActor "Goblin Chief" 80 2
+
+if health of hero is not 100
+    say "FAIL: expected hero hp 100"
+.
+if isAlive of enemy is not true
+    say "FAIL: expected enemy alive"
+.
+
+# Test 2: Damage application and defeat condition
+remHp is applyDamage enemy 50
+if remHp is not 30
+    say "FAIL: expected 30 remaining enemy hp"
+.
+
+remHp2 is applyDamage enemy 40
+if remHp2 is not 0
+    say "FAIL: expected 0 hp after fatal damage"
+.
+if isAlive of enemy is not false
+    say "FAIL: expected enemy defeated"
+.
+
+# Test 3: Ability cooldown timing
+skill is createCooldown "Lightning" 5
+readyAt0 is isCooldownReady skill 10
+if readyAt0 is not true
+    say "FAIL: expected skill to be ready initially"
+.
+
+triggerCooldown skill 10
+readyAt12 is isCooldownReady skill 12
+if readyAt12 is not false
+    say "FAIL: expected skill to be on cooldown at +2s"
+.
+
+readyAt16 is isCooldownReady skill 16
+if readyAt16 is not true
+    say "FAIL: expected skill ready after 6s (cd=5s)"
+.
+
+# Test 4: Inventory management and loot
+inv is createInventory 4
+sword is createItem "Excalibur" "weapon" 50
+shield is createItem "Aegis" "armor" 25
+
+addOk1 is addItemToInventory inv sword
+addOk2 is addItemToInventory inv shield
+
+if addOk1 is not true
+    say "FAIL: expected item 1 added"
+.
+if currentCount of inv is not 2
+    say "FAIL: expected 2 inventory items"
+.
+
+# Test 5: Hero level up progression
+lvlBefore is level of hero
+maxHpBefore is maxHealth of hero
+newLvl is levelUp hero
+
+if newLvl is not 2
+    say "FAIL: expected level 2 after levelUp"
+.
+if maxHealth of hero is not 120
+    say "FAIL: expected 120 maxHealth after levelUp"
+.
+
+# Test 6: Persistence of game state
+saveFile is "test_rpg_save.json"
+a SaveRecord has
+    heroLevel
+    heroHealth
+.
+saveRecord is a SaveRecord
+heroLevel of saveRecord is level of hero
+heroHealth of saveRecord is health of hero
+writeJsonObject saveFile saveRecord
+
+loadedRecord is readJsonObject saveFile
+if heroLevel of loadedRecord is not 2
+    say "FAIL: expected loaded hero level 2"
+.
+
+writeSafe saveFile ""
+
+say "RPG adventure tests passed."

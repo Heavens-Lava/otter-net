@@ -1,58 +1,182 @@
 # ==============================================================================
-# Test: Contact Manager Application
+# End-to-End Test: Contact Manager Application
+# Tests: Creation, validation, search, edit, delete, persistence, and recovery
 # ==============================================================================
 
 use "../../../../packs/otter-official/file-helpers/src/main.ot"
 use "../../../../packs/otter-official/text-utils/src/main.ot"
 
 a Contact has
+    id
     name
     email
     phone
 .
 
 to validateEmail emailAddress
-    parts are emailAddress . split parts by "@" into atParts
-    atCount is count of atParts
+    if emailAddress is ""
+        return false
+    .
+    if not emailAddress contains "@"
+        return false
+    .
+    if not emailAddress contains "."
+        return false
+    .
+    split emailAddress by "@" into atParts
+    atCount is length of atParts
     if atCount is not 2
-        give false
+        return false
     .
-    domain is atParts[1]
-    dotParts are domain . split dotParts by "." into domainParts
-    dotCount is count of domainParts
+    domain is last of atParts
+    split domain by "." into domainParts
+    dotCount is length of domainParts
     if dotCount is at least 2
-        give true
+        return true
     .
-    give false
+    return false
 .
 
-# Test 1: Valid email formats
-if validateEmail "user@example.com" is not true
-    say "FAIL: user@example.com should be valid"
-.
-if validateEmail "dev@otterprogramming.org" is not true
-    say "FAIL: dev@otterprogramming.org should be valid"
-.
-
-# Test 2: Invalid email formats
-if validateEmail "plainaddress" is not false
-    say "FAIL: plainaddress should be invalid"
-.
-if validateEmail "missingdomain@" is not false
-    say "FAIL: missingdomain@ should be invalid"
-.
-if validateEmail "user@nodot" is not false
-    say "FAIL: user@nodot should be invalid"
+to createContact cid name email phone
+    if not validateEmail email
+        say "Error: Invalid email format"
+        return gone
+    .
+    c is a Contact
+    id of c is cid
+    name of c is name
+    email of c is email
+    phone of c is phone
+    return c
 .
 
-# Test 3: Contact structure creation
-c is a Contact
-name of c is "Katherine Johnson"
-email of c is "katherine@nasa.gov"
-phone of c is "555-0303"
-
-if name of c is not "Katherine Johnson"
-    say "FAIL: contact name mismatch"
+to searchContacts contacts term
+    matches are empty
+    for each c in contacts
+        cName is name of c
+        if cName contains term
+            add c to matches
+        .
+    .
+    return matches
 .
+
+to editContactPhone contacts targetId newPhone
+    updated are empty
+    for each c in contacts
+        cid is id of c
+        if cid is targetId
+            phone of c is newPhone
+        .
+        add c to updated
+    .
+    return updated
+.
+
+to deleteContact contacts targetId
+    remaining are empty
+    for each c in contacts
+        cid is id of c
+        if cid is not targetId
+            add c to remaining
+        .
+    .
+    return remaining
+.
+
+to saveContactsToFile contacts filePath
+    convert contacts to json into rawJson
+    writeSafe filePath rawJson
+    return true
+.
+
+to loadContactsFromFile filePath
+    raw is readOrFallback filePath "[]"
+    loaded is a thing
+    convert raw from json into loaded
+    return loaded
+.
+
+# ------------------------------------------------------------------------------
+# Test 1: Email Validation
+# ------------------------------------------------------------------------------
+if not validateEmail "ada@example.org"
+    say "FAIL: valid email rejected"
+.
+if validateEmail "invalid-email"
+    say "FAIL: invalid email accepted"
+.
+if validateEmail "missing@domain"
+    say "FAIL: email without dot accepted"
+.
+
+# ------------------------------------------------------------------------------
+# Test 2: Contact Creation & Invalid Data Rejection
+# ------------------------------------------------------------------------------
+cGood is createContact 1 "Ada Lovelace" "ada@example.org" "555-0101"
+if cGood is gone
+    say "FAIL: valid contact creation failed"
+.
+
+cBad is createContact 2 "Bad Email" "notanemail" "555-0102"
+if cBad is not gone
+    say "FAIL: invalid email should yield gone"
+.
+
+# ------------------------------------------------------------------------------
+# Test 3: Search, Edit, and Delete Operations
+# ------------------------------------------------------------------------------
+directory are empty
+add cGood to directory
+c2 is createContact 2 "Charles Babbage" "charles@engines.org" "555-0102"
+add c2 to directory
+c3 is createContact 3 "Alan Turing" "alan@bletchley.uk" "555-0103"
+add c3 to directory
+
+if length of directory is not 3
+    say "FAIL: expected 3 initial contacts"
+.
+
+# Search by substring
+adaMatches is searchContacts directory "Ada"
+if length of adaMatches is not 1
+    say "FAIL: search Ada expected 1 match"
+.
+
+# Edit phone
+directory is editContactPhone directory 2 "555-9999"
+charlesFound is searchContacts directory "Charles"
+cCharles is first of charlesFound
+if phone of cCharles is not "555-9999"
+    say "FAIL: phone update failed"
+.
+
+# Delete contact
+directory is deleteContact directory 3
+if length of directory is not 2
+    say "FAIL: expected 2 contacts after delete"
+.
+
+# ------------------------------------------------------------------------------
+# Test 4: End-to-End Persistence and Session Restart
+# ------------------------------------------------------------------------------
+testStorePath is "test_contacts_session.json"
+
+# Save session 1
+saveContactsToFile directory testStorePath
+
+# Simulate session restart by reading from disk in new scope
+reloadedBook is loadContactsFromFile testStorePath
+if length of reloadedBook is not 2
+    say "FAIL: expected 2 reloaded contacts after restart"
+.
+
+firstContact is first of reloadedBook
+if name of firstContact is not "Ada Lovelace"
+    say "FAIL: reloaded contact name mismatch"
+.
+
+# Clean up test file
+writeSafe testStorePath ""
 
 say "Contact-manager tests passed."

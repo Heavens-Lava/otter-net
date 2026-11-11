@@ -1,5 +1,5 @@
 # ==============================================================================
-# Demo: Task Manager Application (Console Target)
+# Demo: Task Manager Application
 # ==============================================================================
 
 use "../../../../packs/otter-official/file-helpers/src/main.ot"
@@ -11,42 +11,98 @@ a TaskItem has
     done
 .
 
-to createTask tid and title
+to createTask tid title
     t is a TaskItem
     id of t is tid
     title of t is title
     done of t is "pending"
-    give t
+    return t
 .
 
-to completeTask item
-    done of item is "completed"
-    give item
+to completeTask tasks targetId
+    updated are empty
+    for each t in tasks
+        tid is id of t
+        if tid is targetId
+            done of t is "completed"
+        .
+        add t to updated
+    .
+    return updated
 .
 
-to displayTasks items
-    say "=== Task Manager Demo ==="
+to deleteTask tasks targetId
+    remaining are empty
+    for each t in tasks
+        tid is id of t
+        if tid is not targetId
+            add t to remaining
+        .
+    .
+    return remaining
+.
+
+to filterTasksByStatus tasks targetStatus
+    filtered are empty
+    for each t in tasks
+        s is done of t
+        if s is targetStatus
+            add t to filtered
+        .
+    .
+    return filtered
+.
+
+to displayTasks items headerTitle
+    say "=== " plus headerTitle plus " ==="
+    countVal is length of items
+    if countVal is 0
+        say "(No tasks found)"
+        return false
+    .
     for each t in items
         status is done of t
         desc is title of t
         tid is id of t
-        statusPadded is padRight status and 12
-        line is statusPadded plus " | Task #"
-        fullLine is line plus tid
-        fullLine is fullLine plus ": "
-        fullLine is fullLine plus desc
-        say fullLine
+        statusPadded is padRight status 12 " "
+        descPadded is padRight desc 30 " "
+        lineParts are
+            "#"
+            tid
+            ": ["
+            statusPadded
+            "] "
+            descPadded
+        .
+        join lineParts with "" into line
+        say line
     .
+    return true
 .
 
-tasks are []
-t1 is createTask 1 and "Audit existing library"
-tasks make t1
-t2 is createTask 2 and "Build Recipe engine"
-tasks make t2
-t3 is createTask 3 and "Deliver Phase 3 application examples"
-tasks make t3
+# 1. Initialize task collection
+tasks are empty
+t1 is createTask 1 "Review project specification"
+add t1 to tasks
+t2 is createTask 2 "Implement composable recipes"
+add t2 to tasks
+t3 is createTask 3 "Verify test suite execution"
+add t3 to tasks
 
-t1 is completeTask t1
-displayTasks tasks
-say "Demo finished successfully."
+displayTasks tasks "Initial Tasks"
+
+# 2. Mark task 2 completed
+tasks is completeTask tasks 2
+
+# 3. Filter and display
+activeList is filterTasksByStatus tasks "pending"
+displayTasks activeList "Active Tasks"
+
+completedList is filterTasksByStatus tasks "completed"
+displayTasks completedList "Completed Tasks"
+
+# 4. Delete task 1
+tasks is deleteTask tasks 1
+displayTasks tasks "After Deleting Task #1"
+
+say "Task-tracker demo finished successfully."

@@ -11,21 +11,63 @@ a TaskItem has
     done
 .
 
-to createTask tid and title
+to createTask tid title
     t is a TaskItem
     id of t is tid
     title of t is title
     done of t is "pending"
-    give t
+    return t
 .
 
-to completeTask item
-    done of item is "completed"
-    give item
+to completeTask tasks targetId
+    updated are empty
+    for each t in tasks
+        tid is id of t
+        if tid is targetId
+            done of t is "completed"
+        .
+        add t to updated
+    .
+    return updated
+.
+
+to deleteTask tasks targetId
+    remaining are empty
+    for each t in tasks
+        tid is id of t
+        if tid is not targetId
+            add t to remaining
+        .
+    .
+    return remaining
+.
+
+to filterTasksByStatus tasks targetStatus
+    filtered are empty
+    for each t in tasks
+        s is done of t
+        if s is targetStatus
+            add t to filtered
+        .
+    .
+    return filtered
+.
+
+to saveTasksToFile tasks filePath
+    convert tasks to json into rawJson
+    writeSafe filePath rawJson
+    return true
+.
+
+to loadTasksFromFile filePath
+    raw is readOrFallback filePath "[]"
+    loaded is a thing
+    convert raw from json into loaded
+    return loaded
 .
 
 # Test 1: Task creation
-task1 is createTask 101 and "Write recipe unit test"
+task1 is createTask 101 "Write recipe unit test"
 if id of task1 is not 101
     say "FAIL: expected task id 101"
 .
@@ -33,16 +75,42 @@ if done of task1 is not "pending"
     say "FAIL: expected task status pending"
 .
 
-# Test 2: Task completion
-task1 is completeTask task1
-if done of task1 is not "completed"
-    say "FAIL: expected task status completed"
+# Test 2: Task list and completion
+taskList are empty
+add task1 to taskList
+task2 is createTask 102 "Implement task persistence"
+add task2 to taskList
+
+if length of taskList is not 2
+    say "FAIL: expected task list count 2"
 .
 
-# Test 3: Formatting and listing
-padResult is padRight "pending" and 10
-if padResult is not "pending   "
-    say "FAIL: expected padded pending"
+taskList is completeTask taskList 101
+activeTasks is filterTasksByStatus taskList "pending"
+completedTasks is filterTasksByStatus taskList "completed"
+
+if length of activeTasks is not 1
+    say "FAIL: expected 1 active task"
 .
+if length of completedTasks is not 1
+    say "FAIL: expected 1 completed task"
+.
+
+# Test 3: Task deletion
+taskList is deleteTask taskList 102
+if length of taskList is not 1
+    say "FAIL: expected 1 task after deletion"
+.
+
+# Test 4: Persistence across restart
+testStore is "test_tasks_store.json"
+saveTasksToFile taskList testStore
+
+loadedList is loadTasksFromFile testStore
+if length of loadedList is not 1
+    say "FAIL: expected 1 task loaded from disk"
+.
+
+writeSafe testStore ""
 
 say "Task-tracker tests passed."

@@ -1,0 +1,52 @@
+# ==============================================================================
+# Demo: RPG Adventure Mechanics
+# ==============================================================================
+
+use "../../../../packs/otter-official/game-entity/src/main.ot"
+use "../../../../packs/otter-official/math-utils/src/main.ot"
+use "../../../../packs/otter-official/file-helpers/src/main.ot"
+
+say "=== RPG Adventure Combat Demo ==="
+
+hero is createActor "Aria" 100 1
+boss is createActor "Shadow Knight" 90 2
+inv is createInventory 6
+
+starterDagger is createItem "Rune Dagger" "weapon" 20
+addItemToInventory inv starterDagger
+
+strikeSkill is createCooldown "Shadow Strike" 8
+
+say "Hero entered the dungeon with:"
+say itemName of starterDagger
+
+# Strike 1 with skill
+canStrike is isCooldownReady strikeSkill 50
+if canStrike is true
+    triggerCooldown strikeSkill 50
+    dmg is 45
+    rem is applyDamage boss dmg
+    say "Hero executes Shadow Strike! Boss HP remaining:"
+    say rem
+.
+
+# Strike 2 with weapon
+wAtk is 25 plus itemPower of starterDagger
+rem2 is applyDamage boss wAtk
+say "Hero strikes with weapon! Boss HP remaining:"
+remClamped is maxVal rem2 0
+say remClamped
+
+# Defeat check and reward
+if isAlive of boss is false
+    say "Boss defeated! Granting loot and XP."
+    loot is createItem "Dark Knight Armor" "armor" 35
+    addItemToInventory inv loot
+    say "Acquired:"
+    say itemName of loot
+    lvl is levelUp hero
+    say "Hero reached level:"
+    say lvl
+.
+
+say "RPG adventure demo finished successfully."

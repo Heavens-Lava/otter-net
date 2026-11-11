@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "id": "otter-official/rpg-adventure",
+  "version": "1.0.0",
+  "title": "RPG Adventure Game Engine",
+  "summary": "Complete RPG adventure featuring combat with ability cooldowns, inventory equipment, enemy loot drops, and experience progression.",
+  "target": "console",
+  "requiresOtter": ">=1.0.1",
+  "capabilities": ["game", "files"],
+  "packs": [
+    { "id": "otter-official/game-entity", "version": "1.0.0" },
+    { "id": "otter-official/math-utils", "version": "1.0.0" },
+    { "id": "otter-official/file-helpers", "version": "1.0.0" }
+  ],
+  "blueprints": [
+    { "id": "otter-official/game-combat", "version": "1.0.0" }
+  ],
+  "configuration": [
+    { "id": "heroName", "title": "Hero Name", "type": "text", "default": "Aria", "description": "Name of the playable hero" },
+    { "id": "enemyName", "title": "Boss Opponent Name", "type": "text", "default": "Dungeon Dragon", "description": "Name of the boss monster" },
+    { "id": "startingEnemyHp", "title": "Enemy Starting Health", "type": "number", "default": 120, "description": "Starting health of the boss opponent" }
+  ],
+  "steps": [
+    {
+      "id": "spawn-entities",
+      "kind": "pack-call",
+      "description": "Initialize player hero and enemy boss actors",
+      "source": "otter-official/game-entity",
+      "inputs": [{ "name": "name", "type": "text" }, { "name": "hp", "type": "number" }, { "name": "lvl", "type": "number" }],
+      "outputs": [{ "name": "actor", "type": "object" }]
+    },
+    {
+      "id": "resolve-combat-loop",
+      "kind": "pack-call",
+      "description": "Execute attack sequence applying equipment bonuses and ability cooldowns",
+      "source": "otter-official/game-entity",
+      "inputs": [{ "name": "enemy", "type": "object" }, { "name": "damage", "type": "number" }],
+      "outputs": [{ "name": "remainingHp", "type": "number" }]
+    },
+    {
+      "id": "award-loot-and-exp",
+      "kind": "pack-call",
+      "description": "Grant loot drop into inventory and level up hero upon victory",
+      "source": "otter-official/game-entity",
+      "inputs": [{ "name": "hero", "type": "object" }, { "name": "xp", "type": "number" }],
+      "outputs": [{ "name": "newLevel", "type": "number" }]
+    }
+  ],
+  "generatedFiles": [
+    { "path": "src/game.ot", "template": "templates/game.ot.tmpl" }
+  ],
+  "tests": [
+    "tests/test.ot"
+  ],
+  "explanations": {
+    "beginner": "This application creates an RPG battle game. Your hero fights monsters using special abilities with cooldowns, collects weapons into an inventory, equips items for extra power, and levels up when enemies are defeated.",
+    "intermediate": "Composes `otter-official/game-entity` actors, inventory, and cooldown systems with `otter-official/math-utils`. Evaluates turn damage including equipment bonuses, manages skill readiness via timestamp differences, and levels up upon defeating the enemy.",
+    "advanced": "Architected as a composable RPG engine. Blueprints provide the base combat math while recipe orchestration adds weapon equipment slots, loot tables, ability cooldown timers, and serialized save states via `file-helpers`."
+  }
+}

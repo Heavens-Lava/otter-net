@@ -1,0 +1,100 @@
+# ==============================================================================
+# Test: Web Portal Application Logic
+# ==============================================================================
+
+use "../../../../packs/otter-official/file-helpers/src/main.ot"
+use "../../../../packs/otter-official/text-utils/src/main.ot"
+
+a Submission has
+    name
+    email
+    message
+    timestamp
+.
+
+to validateSubmission name email message
+    if name is ""
+        return false
+    .
+    if not email contains "@"
+        return false
+    .
+    if not email contains "."
+        return false
+    .
+    if message is ""
+        return false
+    .
+    return true
+.
+
+to createSubmission name email message
+    s is a Submission
+    name of s is name
+    email of s is email
+    message of s is message
+    timestamp of s is "2026-11-10T18:00:00Z"
+    return s
+.
+
+to saveSubmissions list filePath
+    convert list to json into rawJson
+    writeSafe filePath rawJson
+    return true
+.
+
+to loadSubmissions filePath
+    raw is readOrFallback filePath "[]"
+    loaded is a thing
+    convert raw from json into loaded
+    return loaded
+.
+
+to getNavigation
+    nav are empty
+    add "Home" to nav
+    add "Submissions API" to nav
+    add "Contact" to nav
+    return nav
+.
+
+# Test 1: Navigation routes
+navItems is getNavigation
+if length of navItems is not 3
+    say "FAIL: expected 3 navigation items"
+.
+
+# Test 2: Form validation
+validPass is validateSubmission "Ada" "ada@analytical.org" "Great portal!"
+if not validPass
+    say "FAIL: expected valid submission to pass"
+.
+
+invalidEmail is validateSubmission "Charles" "charles-no-at" "Missing at"
+if invalidEmail
+    say "FAIL: expected invalid email to fail"
+.
+
+invalidMessage is validateSubmission "Alan" "alan@bletchley.uk" ""
+if invalidMessage
+    say "FAIL: expected empty message to fail"
+.
+
+# Test 3: Data persistence
+storeFile is "test_web_submissions.json"
+testSubs are empty
+s1 is createSubmission "Ada Lovelace" "ada@analytical.org" "First comment"
+add s1 to testSubs
+s2 is createSubmission "Charles Babbage" "charles@engines.org" "Second comment"
+add s2 to testSubs
+
+saveSubmissions testSubs storeFile
+loadedSubs is loadSubmissions storeFile
+
+if length of loadedSubs is not 2
+    say "FAIL: expected 2 loaded submissions"
+.
+
+writeSafe storeFile ""
+
+say "Web-portal tests passed."

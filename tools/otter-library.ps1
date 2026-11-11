@@ -370,6 +370,40 @@ switch ($Action.ToLowerInvariant()) {
         & dotnet $OtterCli blueprint apply $Query --project $p
     }
 
+    "recipe-search" {
+        $OtterCli = Join-Path "src" "Otter.Cli" "bin" "Debug" "net10.0" "otter.dll"
+        & dotnet $OtterCli recipe search $Query --explain
+    }
+
+    "recipe-inspect" {
+        $OtterCli = Join-Path "src" "Otter.Cli" "bin" "Debug" "net10.0" "otter.dll"
+        & dotnet $OtterCli recipe inspect $Query
+    }
+
+    "recipe-explain" {
+        $OtterCli = Join-Path "src" "Otter.Cli" "bin" "Debug" "net10.0" "otter.dll"
+        $lvl = if ($Target) { $Target } else { "beginner" }
+        & dotnet $OtterCli recipe explain $Query --level $lvl
+    }
+
+    "recipe-plan" {
+        $OtterCli = Join-Path "src" "Otter.Cli" "bin" "Debug" "net10.0" "otter.dll"
+        $p = if ($Target) { $Target } else { "." }
+        & dotnet $OtterCli recipe plan $Query --project $p
+    }
+
+    "recipe-apply" {
+        $OtterCli = Join-Path "src" "Otter.Cli" "bin" "Debug" "net10.0" "otter.dll"
+        $p = if ($Target) { $Target } else { "." }
+        & dotnet $OtterCli recipe apply $Query --project $p
+    }
+
+    "recipe-verify" {
+        $OtterCli = Join-Path "src" "Otter.Cli" "bin" "Debug" "net10.0" "otter.dll"
+        $p = if ($Query) { $Query } else { "." }
+        & dotnet $OtterCli recipe verify --project $p
+    }
+
     "test" {
         Write-Host "Running all validation suites..." -ForegroundColor Cyan
         & pwsh tools/test-snippets.ps1
