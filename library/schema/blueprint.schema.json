@@ -1,0 +1,182 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OtterBlueprintDefinition",
+  "description": "Schema for Otter visual-to-code Blueprints (Section 4 & 15)",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "id",
+    "version",
+    "title",
+    "summary",
+    "targets",
+    "requiresOtter",
+    "packs",
+    "nodes",
+    "edges",
+    "generatedFiles",
+    "tests"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1,
+      "description": "Blueprint schema specification version"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*/[a-z0-9]+(-[a-z0-9]+)*$",
+      "description": "Canonical namespaced blueprint ID: publisher/name"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(-[a-zA-Z0-9.]+)?$",
+      "description": "Semantic versioning string"
+    },
+    "title": {
+      "type": "string",
+      "description": "Human-readable title"
+    },
+    "summary": {
+      "type": "string",
+      "description": "One-line summary of what this blueprint builds"
+    },
+    "targets": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["console", "desktop", "web", "game"]
+      },
+      "minItems": 1,
+      "description": "Supported Otter runtime targets"
+    },
+    "requiresOtter": {
+      "type": "string",
+      "description": "Minimum Otter version constraint"
+    },
+    "packs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "version"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string" },
+          "version": { "type": "string" }
+        }
+      },
+      "description": "Required Otter Pack dependencies"
+    },
+    "configuration": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "type", "default"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string" },
+          "label": { "type": "string" },
+          "type": { "type": "string", "enum": ["number", "text", "boolean"] },
+          "default": {},
+          "minimum": { "type": "number" },
+          "maximum": { "type": "number" },
+          "description": { "type": "string" }
+        }
+      },
+      "default": [],
+      "description": "Customizable user configuration parameters"
+    },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "kind"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-zA-Z0-9_-]+$" },
+          "title": { "type": "string" },
+          "kind": {
+            "type": "string",
+            "enum": ["input", "output", "pack-call", "condition", "calculation", "event"]
+          },
+          "capability": { "type": "string" },
+          "inputs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["name", "type"],
+              "additionalProperties": false,
+              "properties": {
+                "name": { "type": "string" },
+                "type": { "type": "string", "enum": ["number", "text", "boolean", "list", "object", "file", "event", "any"] },
+                "required": { "type": "boolean", "default": false }
+              }
+            },
+            "default": []
+          },
+          "outputs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["name", "type"],
+              "additionalProperties": false,
+              "properties": {
+                "name": { "type": "string" },
+                "type": { "type": "string", "enum": ["number", "text", "boolean", "list", "object", "file", "event", "any"] }
+              }
+            },
+            "default": []
+          },
+          "description": { "type": "string" }
+        }
+      },
+      "minItems": 1,
+      "description": "Visual data-flow nodes"
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["from", "to"],
+        "additionalProperties": false,
+        "properties": {
+          "from": { "type": "string", "pattern": "^[a-zA-Z0-9_-]+\\.[a-zA-Z0-9_-]+$" },
+          "to": { "type": "string", "pattern": "^[a-zA-Z0-9_-]+\\.[a-zA-Z0-9_-]+$" },
+          "label": { "type": "string" }
+        }
+      },
+      "description": "Directed data-flow edges between node ports"
+    },
+    "generatedFiles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "template"],
+        "additionalProperties": false,
+        "properties": {
+          "path": { "type": "string" },
+          "template": { "type": "string" }
+        }
+      },
+      "minItems": 1,
+      "description": "Files generated into the target project"
+    },
+    "explanations": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "beginner": { "type": "string" },
+        "intermediate": { "type": "string" },
+        "advanced": { "type": "string" }
+      },
+      "description": "Plain-English 3-level explanations of the blueprint architecture"
+    },
+    "tests": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "description": "Integration test files validating the generated blueprint output"
+    }
+  }
+}

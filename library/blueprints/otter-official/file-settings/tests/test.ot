@@ -1,0 +1,24 @@
+# Integration tests for file-settings Blueprint
+use "../../../../packs/otter-official/file-helpers/src/main.ot"
+
+testSettingsFile is "test_suite_settings.json"
+
+cfg has
+    app is "Otter Studio"
+    version is 1
+.
+
+# Test 1: Write JSON settings
+writeOk is writeJsonObject testSettingsFile cfg
+if writeOk is true
+    say "test 1 passed: settings written"
+.
+
+# Test 2: Read JSON settings
+readCfg is readJsonObject testSettingsFile
+if app of readCfg is "Otter Studio"
+    say "test 2 passed: settings read accurately"
+.
+
+delete file testSettingsFile
+say "All file-settings tests passed."

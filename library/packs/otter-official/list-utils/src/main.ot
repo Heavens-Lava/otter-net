@@ -1,0 +1,38 @@
+# list-utils - Otter Reusable Collection Library
+# Provides hasItem, dedupeList, countMatches, and joinWithPrefix
+
+to hasItem items target
+    if items contains target
+        return true
+    .
+    return false
+.
+
+to dedupeList items
+    result are empty
+    for each item in items
+        if not result contains item
+            add item to result
+        .
+    .
+    return result
+.
+
+to countMatches items target
+    totalMatches is 0
+    for each item in items
+        if item is target
+            increase totalMatches by 1
+        .
+    .
+    return totalMatches
+.
+
+to joinWithPrefix items prefix
+    result are empty
+    for each item in items
+        combined is prefix plus item
+        add combined to result
+    .
+    return result
+.

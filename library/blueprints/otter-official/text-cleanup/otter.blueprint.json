@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "id": "otter-official/text-cleanup",
+  "version": "1.0.0",
+  "title": "Text Sanitization and Slug Generator",
+  "summary": "Clean raw user input into URL-safe slugs and padded identifier codes.",
+  "targets": ["console", "desktop", "web"],
+  "requiresOtter": ">=1.0.1",
+  "packs": [
+    { "id": "otter-official/text-utils", "version": "1.0.0" }
+  ],
+  "configuration": [
+    {
+      "id": "codeTargetLength",
+      "label": "Code Target Length",
+      "type": "number",
+      "default": 8,
+      "minimum": 2,
+      "description": "Total length for zero-padded identifier codes"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "rawInput",
+      "title": "Raw Text Input",
+      "kind": "input",
+      "inputs": [],
+      "outputs": [{ "name": "text", "type": "text" }],
+      "description": "Unformatted input title"
+    },
+    {
+      "id": "slugifyNode",
+      "title": "Slugify Text",
+      "kind": "pack-call",
+      "capability": "text-utils.slugify",
+      "inputs": [{ "name": "text", "type": "text", "required": true }],
+      "outputs": [{ "name": "slug", "type": "text" }],
+      "description": "Convert string to lowercase hyphenated format"
+    },
+    {
+      "id": "padNode",
+      "title": "Pad Left",
+      "kind": "pack-call",
+      "capability": "text-utils.padLeft",
+      "inputs": [
+        { "name": "text", "type": "text", "required": true },
+        { "name": "length", "type": "number", "required": true },
+        { "name": "char", "type": "text", "required": true }
+      ],
+      "outputs": [{ "name": "padded", "type": "text" }],
+      "description": "Prepend zero padding"
+    },
+    {
+      "id": "outputNode",
+      "title": "Sanitized Output",
+      "kind": "output",
+      "inputs": [
+        { "name": "slug", "type": "text", "required": true },
+        { "name": "code", "type": "text", "required": true }
+      ],
+      "outputs": [],
+      "description": "Display generated slug and formatted code"
+    }
+  ],
+  "edges": [
+    { "from": "rawInput.text", "to": "slugifyNode.text", "label": "raw title" },
+    { "from": "slugifyNode.slug", "to": "outputNode.slug", "label": "clean slug" },
+    { "from": "padNode.padded", "to": "outputNode.code", "label": "padded code" }
+  ],
+  "generatedFiles": [
+    {
+      "path": "src/cleanup.ot",
+      "template": "templates/cleanup.ot.tmpl"
+    }
+  ],
+  "explanations": {
+    "beginner": "Converts titles into web-safe URL slugs (like 'my-first-post') and formats invoice numbers with zeros.",
+    "intermediate": "Combines text-utils.slugify and text-utils.padLeft to produce normalized keys and formatted ID numbers.",
+    "advanced": "Standardized text normalization pipeline avoiding regex dependencies by using Otter core text operations."
+  },
+  "tests": [
+    "tests/test.ot"
+  ]
+}

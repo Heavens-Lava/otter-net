@@ -1,0 +1,16 @@
+# Integration tests for text-cleanup Blueprint
+use "../../../../packs/otter-official/text-utils/src/main.ot"
+
+# Test 1: Slugify
+s is slugify "Otter Programming Language"
+if s is "otter-programming-language"
+    say "test 1 passed: slug generated correctly"
+.
+
+# Test 2: Pad left
+p is padLeft "99" 5 "0"
+if p is "00099"
+    say "test 2 passed: padLeft formatted correctly"
+.
+
+say "All text-cleanup tests passed."

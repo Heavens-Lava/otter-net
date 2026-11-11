@@ -1,0 +1,39 @@
+# Demo for game-entity
+use "../src/main.ot"
+
+say "=== Game Entity Demo ==="
+
+hero is createActor "Sir Galahad" 150 1
+say "Hero created:" name of hero "with" health of hero "HP, Level:" level of hero
+
+potion is createItem "Greater Health Potion" "consumable" 50
+say "Item found:" itemName of potion "power:" itemPower of potion
+
+say "An ambush strikes!"
+hpAfterHit is applyDamage hero 65
+say name of hero "takes 65 damage! Remaining HP:" health of hero
+
+say "Drinking potion..."
+hpAfterHeal is restoreHealth hero itemPower of potion
+say name of hero "healed to" health of hero "HP"
+
+say "Gaining battle experience..."
+newLvl is levelUp hero
+say name of hero "leveled up to" level of hero "! Max HP increased to" maxHealth of hero
+
+say "Equipping inventory..."
+pouch is createInventory 2
+addItemToInventory pouch "Iron Key"
+addItemToInventory pouch "Magic Scroll"
+say "Inventory items:" items of pouch
+
+say "Testing skill cooldown..."
+shieldBlock is createCooldown "Shield Block" 5
+readyNow is isCooldownReady shieldBlock 0
+say "Shield Block ready at t=0:" readyNow
+triggerCooldown shieldBlock 0
+readyMid is isCooldownReady shieldBlock 2
+say "Shield Block ready at t=2:" readyMid
+readyLater is isCooldownReady shieldBlock 6
+say "Shield Block ready at t=6:" readyLater
+

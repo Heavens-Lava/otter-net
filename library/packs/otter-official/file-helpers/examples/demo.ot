@@ -1,0 +1,25 @@
+# Demo for file-helpers
+use "../src/main.ot"
+
+say "=== File Helpers Demo ==="
+demoFile is "demo_store.json"
+
+appSettings has
+    theme is "dark"
+    fontSize is 14
+    autoSave is true
+.
+
+saved is writeJsonObject demoFile appSettings
+say "Settings saved to JSON:" saved
+
+loaded is readJsonObject demoFile
+say "Theme loaded:" theme of loaded
+say "Font size loaded:" fontSize of loaded
+
+missingVal is readOrFallback "missing_notes.txt" "No notes found."
+say "Missing file fallback:" missingVal
+
+# Clean up demo artifact
+delete file demoFile
+say "Demo complete."

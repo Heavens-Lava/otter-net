@@ -1,0 +1,25 @@
+# Demo for game-combat Blueprint
+use "../../../../packs/otter-official/game-entity/src/main.ot"
+use "../../../../packs/otter-official/math-utils/src/main.ot"
+
+say "=== RPG Combat Blueprint Demo ==="
+
+# Step 1: Spawn Opponent
+enemyHp is 100
+enemy is createActor "Dungeon Goblin" enemyHp 1
+say "Enemy encountered:" name of enemy "with" health of enemy "HP"
+
+# Step 2: Player Attack
+attackDmg is 35
+say "Player attacks for" attackDmg "damage!"
+
+# Step 3: Apply Combat Damage
+remHp is applyDamage enemy attackDmg
+say name of enemy "remaining HP:" remHp
+
+# Step 4: Check Defeat Condition
+if remHp is at most 0
+    say "Victory! The enemy has been defeated."
+otherwise
+    say "The battle continues! Enemy is still standing."
+.

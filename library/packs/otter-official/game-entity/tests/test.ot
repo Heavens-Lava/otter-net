@@ -1,0 +1,84 @@
+# Tests for game-entity
+use "../src/main.ot"
+
+goblin is createActor "Goblin Scout" 60 1
+
+# Test creation
+if name of goblin is "Goblin Scout"
+    say "test 1 passed: actor name"
+.
+if health of goblin is 60
+    say "test 2 passed: actor health"
+.
+if isAlive of goblin is true
+    say "test 3 passed: actor isAlive"
+.
+
+# Test damage
+remHp is applyDamage goblin 25
+if remHp is 35
+    say "test 4 passed: partial damage"
+.
+
+# Test healing
+healedHp is restoreHealth goblin 10
+if healedHp is 45
+    say "test 5 passed: heal within bounds"
+.
+
+overHeal is restoreHealth goblin 100
+if overHeal is 60
+    say "test 6 passed: overheal capped at maxHealth"
+.
+
+# Test fatal damage
+fatalHp is applyDamage goblin 100
+if fatalHp is 0
+    say "test 7 passed: fatal damage zeroes health"
+.
+if isAlive of goblin is false
+    say "test 8 passed: fatal damage sets isAlive to false"
+.
+
+# Test level up
+hero is createActor "Knight" 100 1
+newLvl is levelUp hero
+if newLvl is 2
+    say "test 9 passed: level increments"
+.
+if maxHealth of hero is 120
+    say "test 10 passed: maxHealth increases on level up"
+.
+
+# Test cooldowns
+slashCd is createCooldown "Slash" 4
+readyAt0 is isCooldownReady slashCd 0
+if readyAt0 is true
+    say "test 11 passed: cooldown ready initially"
+.
+trigOk is triggerCooldown slashCd 0
+if trigOk is true
+    say "test 12 passed: cooldown triggered"
+.
+readyAt2 is isCooldownReady slashCd 2
+if readyAt2 is false
+    say "test 13 passed: cooldown not ready during duration"
+.
+readyAt5 is isCooldownReady slashCd 5
+if readyAt5 is true
+    say "test 14 passed: cooldown ready after duration"
+.
+
+# Test inventory
+bag is createInventory 2
+added1 is addItemToInventory bag "Dagger"
+added2 is addItemToInventory bag "Shield"
+added3 is addItemToInventory bag "Potion"
+if added1 is true and added2 is true
+    say "test 15 passed: items added within capacity"
+.
+if added3 is false
+    say "test 16 passed: item rejected when capacity reached"
+.
+
+say "All game-entity tests passed."

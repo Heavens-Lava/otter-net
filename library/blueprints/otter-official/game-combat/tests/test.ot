@@ -1,0 +1,26 @@
+# Integration tests for game-combat Blueprint
+use "../../../../packs/otter-official/game-entity/src/main.ot"
+use "../../../../packs/otter-official/math-utils/src/main.ot"
+
+# Test 1: Spawn Opponent
+enemyHp is 100
+enemy is createActor "Dungeon Goblin" enemyHp 1
+if health of enemy is 100
+    say "test 1 passed: enemy spawned with configured hp"
+.
+
+# Test 2: Apply Damage
+attackDmg is 35
+remHp is applyDamage enemy attackDmg
+if remHp is 65
+    say "test 2 passed: damage deducted accurately"
+.
+
+# Test 3: Defeat condition
+fatalDmg is 70
+remAfterFatal is applyDamage enemy fatalDmg
+if remAfterFatal is 0 and isAlive of enemy is false
+    say "test 3 passed: defeat condition triggers properly"
+.
+
+say "All game-combat tests passed."

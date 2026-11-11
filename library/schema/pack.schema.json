@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OtterPackageManifest",
+  "description": "Manifest schema for Otter Reusable Source Packs (RFC Section 5)",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "name",
+    "publisher",
+    "version",
+    "kind",
+    "description",
+    "entry",
+    "license"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "enum": [1],
+      "description": "Schema version of this manifest"
+    },
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "description": "Kebab-case package identifier"
+    },
+    "publisher": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "description": "Publisher or author namespace"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(-[a-zA-Z0-9.]+)?$",
+      "description": "Semantic version of the package"
+    },
+    "kind": {
+      "type": "string",
+      "enum": ["pack", "kit"],
+      "description": "Distribution kind"
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable summary of package contents and purpose"
+    },
+    "entry": {
+      "type": "string",
+      "pattern": "^src/.*\\.ot$",
+      "description": "Relative entry point to an Otter source file (e.g. src/main.ot)"
+    },
+    "license": {
+      "type": "string",
+      "description": "SPDX identifier or package license note"
+    },
+    "platforms": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["console", "desktop", "web", "all"]
+      },
+      "default": ["console"]
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["files", "network", "ui", "database", "crypto", "process"]
+      },
+      "default": []
+    },
+    "dependencies": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "default": {}
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "examples": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    }
+  },
+  "additionalProperties": false
+}

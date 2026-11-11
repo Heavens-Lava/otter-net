@@ -1,0 +1,44 @@
+# Tests for list-utils
+use "../src/main.ot"
+
+fruits are
+    "apple"
+    "banana"
+    "apple"
+    "cherry"
+.
+
+# Test hasItem
+if hasItem fruits "banana" is true
+    say "test 1 passed: hasItem present"
+.
+
+if hasItem fruits "orange" is false
+    say "test 2 passed: hasItem absent"
+.
+
+# Test countMatches
+c1 is countMatches fruits "apple"
+if c1 is 2
+    say "test 3 passed: countMatches multiple"
+.
+
+c2 is countMatches fruits "cherry"
+if c2 is 1
+    say "test 4 passed: countMatches single"
+.
+
+# Test dedupeList
+deduped is dedupeList fruits
+if length of deduped is 3
+    say "test 5 passed: dedupeList length"
+.
+
+# Test joinWithPrefix
+prefixed is joinWithPrefix deduped "> "
+firstPrefixed is first of prefixed
+if firstPrefixed is "> apple"
+    say "test 6 passed: joinWithPrefix"
+.
+
+say "All list-utils tests passed."

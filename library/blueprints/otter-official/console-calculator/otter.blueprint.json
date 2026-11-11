@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "id": "otter-official/console-calculator",
+  "version": "1.0.0",
+  "title": "Console Calculator",
+  "summary": "Arithmetic calculator with range clamping, interpolation, and formatted output.",
+  "targets": ["console"],
+  "requiresOtter": ">=1.0.1",
+  "packs": [
+    { "id": "otter-official/math-utils", "version": "1.0.0" }
+  ],
+  "configuration": [
+    {
+      "id": "clampMin",
+      "label": "Minimum Allowed Value",
+      "type": "number",
+      "default": 0,
+      "description": "Lower bound constraint for calculations"
+    },
+    {
+      "id": "clampMax",
+      "label": "Maximum Allowed Value",
+      "type": "number",
+      "default": 100,
+      "description": "Upper bound constraint for calculations"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "inputVal",
+      "title": "Raw Number Input",
+      "kind": "input",
+      "inputs": [],
+      "outputs": [{ "name": "val", "type": "number" }],
+      "description": "Source numeric value to process"
+    },
+    {
+      "id": "clampOperation",
+      "title": "Clamp within Range",
+      "kind": "pack-call",
+      "capability": "math-utils.clamp",
+      "inputs": [
+        { "name": "val", "type": "number", "required": true },
+        { "name": "min", "type": "number", "required": true },
+        { "name": "max", "type": "number", "required": true }
+      ],
+      "outputs": [{ "name": "clamped", "type": "number" }],
+      "description": "Bound the number between minimum and maximum"
+    },
+    {
+      "id": "displayResult",
+      "title": "Display Result",
+      "kind": "output",
+      "inputs": [
+        { "name": "result", "type": "number", "required": true }
+      ],
+      "outputs": [],
+      "description": "Print the clamped outcome"
+    }
+  ],
+  "edges": [
+    { "from": "inputVal.val", "to": "clampOperation.val", "label": "raw value" },
+    { "from": "clampOperation.clamped", "to": "displayResult.result", "label": "bounded value" }
+  ],
+  "generatedFiles": [
+    {
+      "path": "src/calculator.ot",
+      "template": "templates/calculator.ot.tmpl"
+    }
+  ],
+  "explanations": {
+    "beginner": "Takes an input number, clamps it between the minimum and maximum boundaries, and prints the result.",
+    "intermediate": "Uses math-utils.clamp to ensure numbers stay within defined limits, preventing overflow or unexpected values.",
+    "advanced": "Demonstrates pure functional composition of arithmetic bounds checking using otter-official/math-utils."
+  },
+  "tests": [
+    "tests/test.ot"
+  ]
+}

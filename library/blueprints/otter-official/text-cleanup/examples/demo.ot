@@ -1,0 +1,12 @@
+# Demo for text-cleanup Blueprint
+use "../../../../packs/otter-official/text-utils/src/main.ot"
+
+say "=== Text Cleanup Blueprint Demo ==="
+
+rawTitle is "Otter Language 2026 Release"
+cleanSlug is slugify rawTitle
+say "Slug:" cleanSlug
+
+rawCode is "7"
+paddedCode is padLeft rawCode 6 "0"
+say "Zero-padded code:" paddedCode

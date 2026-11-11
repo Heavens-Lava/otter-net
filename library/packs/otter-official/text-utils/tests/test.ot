@@ -1,0 +1,38 @@
+# Tests for text-utils
+use "../src/main.ot"
+
+# Test repeatText
+r1 is repeatText "*" 4
+if r1 is "****"
+    say "test 1 passed: repeatText"
+.
+
+# Test padLeft
+p1 is padLeft "42" 5 "0"
+if p1 is "00042"
+    say "test 2 passed: padLeft shorter string"
+.
+
+p2 is padLeft "12345" 3 "0"
+if p2 is "12345"
+    say "test 3 passed: padLeft longer string untouched"
+.
+
+# Test padRight
+p3 is padRight "Hi" 5 "!"
+if p3 is "Hi!!!"
+    say "test 4 passed: padRight"
+.
+
+# Test slugify
+s1 is slugify "Hello World Project"
+if s1 is "hello-world-project"
+    say "test 5 passed: slugify spaces"
+.
+
+s2 is slugify "user_auth_token"
+if s2 is "user-auth-token"
+    say "test 6 passed: slugify underscores"
+.
+
+say "All text-utils tests passed."

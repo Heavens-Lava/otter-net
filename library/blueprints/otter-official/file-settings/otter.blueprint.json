@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "id": "otter-official/file-settings",
+  "version": "1.0.0",
+  "title": "File-Backed JSON Application Settings",
+  "summary": "Load persistent JSON configuration with default fallbacks and write updates safely.",
+  "targets": ["console", "desktop"],
+  "requiresOtter": ">=1.0.1",
+  "packs": [
+    { "id": "otter-official/file-helpers", "version": "1.0.0" }
+  ],
+  "configuration": [
+    {
+      "id": "settingsFileName",
+      "label": "Settings File Name",
+      "type": "text",
+      "default": "settings.json",
+      "description": "Path to persistent JSON settings file"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "defaults",
+      "title": "Default Settings",
+      "kind": "input",
+      "inputs": [],
+      "outputs": [{ "name": "config", "type": "object" }],
+      "description": "Fallback configuration values"
+    },
+    {
+      "id": "loadConfig",
+      "title": "Load or Fallback",
+      "kind": "pack-call",
+      "capability": "file-helpers.readJsonObject",
+      "inputs": [
+        { "name": "path", "type": "file", "required": true }
+      ],
+      "outputs": [{ "name": "loadedConfig", "type": "object" }],
+      "description": "Read settings file from disk"
+    },
+    {
+      "id": "saveConfig",
+      "title": "Save Settings",
+      "kind": "pack-call",
+      "capability": "file-helpers.writeJsonObject",
+      "inputs": [
+        { "name": "path", "type": "file", "required": true },
+        { "name": "data", "type": "object", "required": true }
+      ],
+      "outputs": [{ "name": "success", "type": "boolean" }],
+      "description": "Persist configuration back to disk"
+    }
+  ],
+  "edges": [
+    { "from": "loadConfig.loadedConfig", "to": "saveConfig.data", "label": "active config" }
+  ],
+  "generatedFiles": [
+    {
+      "path": "src/settings.ot",
+      "template": "templates/settings.ot.tmpl"
+    }
+  ],
+  "explanations": {
+    "beginner": "Reads your application's settings.json file. If the file does not exist yet, it creates one with default values.",
+    "intermediate": "Uses file-helpers.readJsonObject to parse existing configuration safely, and file-helpers.writeJsonObject to save modified properties.",
+    "advanced": "Safely encapsulates file read/write I/O with JSON serialization and disk error fallback handling."
+  },
+  "tests": [
+    "tests/test.ot"
+  ]
+}

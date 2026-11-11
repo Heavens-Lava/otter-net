@@ -1,0 +1,48 @@
+# Tests for file-helpers
+use "../src/main.ot"
+
+tmpFile is "tmp_test_file.txt"
+tmpJson is "tmp_test_data.json"
+
+# Test writeSafe and readOrFallback
+wOk is writeSafe tmpFile "Hello Otter File System"
+if wOk is true
+    say "test 1 passed: writeSafe"
+.
+
+readBack is readOrFallback tmpFile "default"
+if readBack is "Hello Otter File System"
+    say "test 2 passed: readOrFallback on existing file"
+.
+
+fallbackRes is readOrFallback "non_existent_file_xyz.txt" "fallback_reached"
+if fallbackRes is "fallback_reached"
+    say "test 3 passed: readOrFallback on missing file"
+.
+
+# Test JSON helpers
+record has
+    title is "Project Tracker"
+    version is 1
+.
+
+jOk is writeJsonObject tmpJson record
+if jOk is true
+    say "test 4 passed: writeJsonObject"
+.
+
+loadedRecord is readJsonObject tmpJson
+if title of loadedRecord is "Project Tracker"
+    say "test 5 passed: readJsonObject property access"
+.
+
+missingJson is readJsonObject "missing_data_xyz.json"
+if missingJson is gone
+    say "test 6 passed: readJsonObject on missing file returns gone"
+.
+
+# Clean up temporary test files
+delete file tmpFile
+delete file tmpJson
+
+say "All file-helpers tests passed."

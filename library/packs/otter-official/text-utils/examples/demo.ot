@@ -1,0 +1,19 @@
+# Demo for text-utils
+use "../src/main.ot"
+
+say "=== Text Utils Demo ==="
+title is "Otter Language Overview 2026"
+slug is slugify title
+say "Original:" title
+say "Slugified:" slug
+
+numStr is "7"
+paddedNum is padLeft numStr 4 "0"
+say "Padded Number (width 4):" paddedNum
+
+label is "User"
+paddedLabel is padRight label 10 "."
+say "Padded Label (width 10):" paddedLabel
+
+separator is repeatText "-" 30
+say separator

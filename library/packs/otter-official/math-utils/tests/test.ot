@@ -1,0 +1,49 @@
+# Tests for math-utils
+use "../src/main.ot"
+
+# Test clamp
+res1 is clamp 50 0 100
+if res1 is 50
+    say "test 1 passed: clamp inside range"
+.
+
+res2 is clamp 150 0 100
+if res2 is 100
+    say "test 2 passed: clamp upper bound"
+.
+
+negVal is 0 minus 20
+res3 is clamp negVal 0 100
+if res3 is 0
+    say "test 3 passed: clamp lower bound"
+.
+
+# Test lerp
+res4 is lerp 0 100 0.25
+if res4 is 25
+    say "test 4 passed: lerp quarter"
+.
+
+# Test min / max
+res5 is minVal 12 34
+if res5 is 12
+    say "test 5 passed: minVal"
+.
+
+res6 is maxVal 12 34
+if res6 is 34
+    say "test 6 passed: maxVal"
+.
+
+# Test calcAverage
+numbers are
+    10
+    20
+    30
+.
+res7 is calcAverage numbers
+if res7 is 20
+    say "test 7 passed: calcAverage"
+.
+
+say "All math-utils tests passed."

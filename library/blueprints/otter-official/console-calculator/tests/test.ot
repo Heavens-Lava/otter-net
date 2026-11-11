@@ -1,0 +1,25 @@
+# Integration tests for console-calculator Blueprint
+use "../../../../packs/otter-official/math-utils/src/main.ot"
+
+# Test 1: Value below lower bound
+lowVal is 0 minus 20
+clampedLow is clamp lowVal 0 100
+if clampedLow is 0
+    say "test 1 passed: low value clamped to 0"
+.
+
+# Test 2: Value in range
+midVal is 55
+clampedMid is clamp midVal 0 100
+if clampedMid is 55
+    say "test 2 passed: mid value unchanged"
+.
+
+# Test 3: Value above upper bound
+highVal is 200
+clampedHigh is clamp highVal 0 100
+if clampedHigh is 100
+    say "test 3 passed: high value clamped to 100"
+.
+
+say "All console-calculator tests passed."

@@ -1,0 +1,102 @@
+{
+  "schemaVersion": 1,
+  "id": "otter-official/game-combat",
+  "version": "1.0.0",
+  "title": "RPG Combat Starter",
+  "summary": "Connect actor creation, damage calculation, defeat conditions, and rewards.",
+  "targets": ["console", "game"],
+  "requiresOtter": ">=1.0.1",
+  "packs": [
+    { "id": "otter-official/math-utils", "version": "1.0.0" },
+    { "id": "otter-official/game-entity", "version": "1.0.0" }
+  ],
+  "configuration": [
+    {
+      "id": "startingHealth",
+      "label": "Enemy Starting Health",
+      "type": "number",
+      "default": 100,
+      "minimum": 1,
+      "description": "Initial health pool of the combat opponent"
+    },
+    {
+      "id": "baseAttackDamage",
+      "label": "Player Base Attack Damage",
+      "type": "number",
+      "default": 35,
+      "minimum": 1,
+      "description": "Base damage dealt before defense or level multipliers"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "enemyInit",
+      "title": "Spawn Enemy",
+      "kind": "pack-call",
+      "capability": "game-entity.createActor",
+      "inputs": [],
+      "outputs": [{ "name": "enemy", "type": "object" }],
+      "description": "Instantiate the opponent entity with starting health"
+    },
+    {
+      "id": "attack",
+      "title": "Player Attack",
+      "kind": "input",
+      "inputs": [],
+      "outputs": [{ "name": "damage", "type": "number" }],
+      "description": "Player triggers an attack delivering base damage"
+    },
+    {
+      "id": "applyDamage",
+      "title": "Apply Combat Damage",
+      "kind": "pack-call",
+      "capability": "game-entity.applyDamage",
+      "inputs": [
+        { "name": "actor", "type": "object", "required": true },
+        { "name": "amount", "type": "number", "required": true }
+      ],
+      "outputs": [{ "name": "remainingHealth", "type": "number" }],
+      "description": "Deduct damage from enemy health and update alive state"
+    },
+    {
+      "id": "defeatCheck",
+      "title": "Check Defeat Condition",
+      "kind": "condition",
+      "inputs": [
+        { "name": "health", "type": "number", "required": true }
+      ],
+      "outputs": [{ "name": "isDefeated", "type": "boolean" }],
+      "description": "Branch when enemy health drops to or below zero"
+    },
+    {
+      "id": "reward",
+      "title": "Grant Victory Reward",
+      "kind": "output",
+      "inputs": [
+        { "name": "isDefeated", "type": "boolean", "required": true }
+      ],
+      "outputs": [],
+      "description": "Display battle outcome and grant experience points"
+    }
+  ],
+  "edges": [
+    { "from": "enemyInit.enemy", "to": "applyDamage.actor", "label": "target" },
+    { "from": "attack.damage", "to": "applyDamage.amount", "label": "damage amount" },
+    { "from": "applyDamage.remainingHealth", "to": "defeatCheck.health", "label": "remaining hp" },
+    { "from": "defeatCheck.isDefeated", "to": "reward.isDefeated", "label": "victory flag" }
+  ],
+  "generatedFiles": [
+    {
+      "path": "src/combat.ot",
+      "template": "templates/combat.ot.tmpl"
+    }
+  ],
+  "explanations": {
+    "beginner": "This blueprint sets up a game combat fight. It spawns an enemy with 100 health, deals 35 damage with an attack, checks if the enemy was defeated, and prints the result.",
+    "intermediate": "Data flows from enemyInit and attack into game-entity.applyDamage. The remaining health is evaluated by a conditional defeat check, which activates victory reward output when health is at most 0.",
+    "advanced": "Composes otter-official/game-entity Actor state and applyDamage pure mutation with otter-official/math-utils. Emits idiomatic relative imports: use \".otter/packages/otter-official/game-entity/src/main.ot\"."
+  },
+  "tests": [
+    "tests/test.ot"
+  ]
+}

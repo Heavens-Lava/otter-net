@@ -1,0 +1,19 @@
+# Demo for file-settings Blueprint
+use "../../../../packs/otter-official/file-helpers/src/main.ot"
+
+say "=== File Settings Blueprint Demo ==="
+
+demoFile is "test_demo_settings.json"
+
+defaults has
+    theme is "light"
+    volume is 80
+.
+
+writeJsonObject demoFile defaults
+loaded is readJsonObject demoFile
+say "Theme from disk:" theme of loaded
+say "Volume from disk:" volume of loaded
+
+delete file demoFile
+say "Cleaned up demo file."

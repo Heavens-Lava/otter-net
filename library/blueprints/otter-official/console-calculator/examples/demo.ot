@@ -1,0 +1,19 @@
+# Demo for console-calculator Blueprint
+use "../../../../packs/otter-official/math-utils/src/main.ot"
+
+say "=== Console Calculator Blueprint Demo ==="
+
+minBound is 0
+maxBound is 100
+
+negVal is 0 minus 15
+testValues are
+    negVal
+    42
+    150
+.
+
+for each v in testValues
+    clamped is clamp v minBound maxBound
+    say "Input:" v "=> Clamped:" clamped
+.

@@ -61,6 +61,10 @@ internal static class Cli
         {
             return UiCommand(line);
         }
+        if (Is(command, "library")) return LibraryCommands.RunLibrary(line);
+        if (Is(command, "snippet")) return LibraryCommands.RunSnippet(line);
+        if (Is(command, "pack")) return LibraryCommands.RunPack(line);
+        if (Is(command, "blueprint")) return LibraryCommands.RunBlueprint(line);
         if (line.HasPath) return RunPath(line);
         return Repl.Start(line);
     }

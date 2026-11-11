@@ -1,0 +1,27 @@
+# Demo for list-utils
+use "../src/main.ot"
+
+say "=== List Utils Demo ==="
+inventory are
+    "sword"
+    "shield"
+    "potion"
+    "shield"
+.
+
+hasPotion is hasItem inventory "potion"
+say "Has potion in inventory:" hasPotion
+
+shieldCount is countMatches inventory "shield"
+say "Number of shields:" shieldCount
+
+uniqueInv is dedupeList inventory
+say "Deduplicated items:"
+for each item in uniqueInv
+    say " -" item
+.
+
+prefixed is joinWithPrefix uniqueInv "item: "
+for each p in prefixed
+    say p
+.

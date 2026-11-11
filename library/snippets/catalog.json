@@ -1,0 +1,948 @@
+{
+  "$schema": "../schema/snippet.schema.json",
+  "version": "1.0.0",
+  "publisher": "otter-official",
+  "snippets": [
+    {
+      "id": "cf-for-each",
+      "title": "For Each Loop",
+      "kind": "snippet",
+      "category": "Control Flow",
+      "description": "Iterate over elements in a list using the idiomatic Otter loop syntax.",
+      "tags": [
+        "loop",
+        "for",
+        "for each",
+        "each",
+        "iterate",
+        "list",
+        "array",
+        "collection"
+      ],
+      "capabilities": [],
+      "platforms": [
+        "console",
+        "desktop",
+        "web"
+      ],
+      "template": "for each ${item} in ${items}\n    say ${item}\n.",
+      "example": "items are\n    \"Ruby\"\n    \"Otter\"\n    \"C#\"\n.\n\nfor each item in items\n    say \"Language:\" item\n.",
+      "attribution": "Otter Core Language Spec (D13, D36)"
+    },
+    {
+      "id": "cf-count-range",
+      "title": "Count Range Counter Loop",
+      "kind": "snippet",
+      "category": "Control Flow",
+      "description": "Count sequentially through an inclusive numeric range from start to finish.",
+      "tags": [
+        "count",
+        "range",
+        "from to",
+        "counter",
+        "step",
+        "number loop",
+        "repeat"
+      ],
+      "capabilities": [],
+      "platforms": [
+        "console",
+        "desktop",
+        "web"
+      ],
+      "template": "count from ${start} to ${finish} as ${number}\n    say ${number}\n.",
+      "example": "count from 1 to 5 as n\n    say \"Counting:\" n\n.",
+      "attribution": "Otter Core Language Spec (D5)"
+    },
+    {
+      "id": "cf-while-loop",
+      "title": "While Loop",
+      "kind": "snippet",
+      "category": "Control Flow",
+      "description": "Execute statements repeatedly while a condition evaluates to true.",
+      "tags": [
+        "while",
+        "loop",
+        "condition",
+        "repeat until",
+        "iteration"
+      ],
+      "capabilities": [],
+      "platforms": [
+        "console",
+        "desktop",
+        "web"
+      ],
+      "template": "while ${condition}\n    # statements\n.",
+      "example": "counter is 3\nwhile counter is greater than 0\n    say \"Countdown:\" counter\n    decrease counter\n.",
+      "attribution": "Otter Core Language Spec (D35)"
+    },
+    {
+      "id": "cf-if-otherwise",
+      "title": "Multi-Branch Conditional (If / Otherwise)",
+      "kind": "snippet",
+      "category": "Control Flow",
+      "description": "Evaluate multiple conditions sequentially with fallback branch handling.",
+      "tags": [
+        "if",
+        "otherwise",
+        "else",
+        "else if",
+        "condition",
+        "branch",
+        "switch"
+      ],
+      "capabilities": [],
+      "platforms": [
+        "console",
+        "desktop",
+        "web"
+      ],
+      "template": "if ${condition}\n    say \"branch 1\"\notherwise if ${otherCondition}\n    say \"branch 2\"\notherwise\n    say \"fallback\"\n.",
+      "example": "score is 85\nif score is at least 90\n    say \"Grade: A\"\notherwise if score is at least 80\n    say \"Grade: B\"\notherwise\n    say \"Grade: C\"\n.",
+      "attribution": "Otter Core Language Spec (D2)"
+    },
+    {
+      "id": "cf-try-otherwise",
+      "title": "Safe Error Handling (Try / Otherwise)",
+      "kind": "snippet",
+      "category": "Control Flow",
+      "description": "Safely capture and handle runtime errors without terminating execution.",
+      "tags": [
+        "try",
+        "catch",
+        "otherwise",
+        "error",
+        "reason",
+        "exception",
+        "safe"
+      ],
+      "capabilities": [],
+      "platforms": [
+        "console",
+        "desktop",
+        "web"
+      ],
+      "template": "try\n    ${riskyOperation}\notherwise into ${reason}\n    say \"Error encountered:\" ${reason}\n.",
+      "example": "try\n    badMath is 10 divided by 0\n    say badMath\notherwise into reason\n    say \"Handled error safely:\" reason\n.",
+      "attribution": "Otter Core Language Spec (D23, D68)"
+    },
+    {
+      "id": "text-slugify",
+      "title": "Convert Text to URL Slug",
+      "kind": "snippet",
+      "category": "Text & Strings",
+      "description": "Transform titles and text into clean, lowercase, hyphenated URL slugs.",
+      "tags": [
+        "slug",
+        "slugify",
+        "url",
+        "kebab-case",
+        "text",
+        "lowercase",
+        "replace"
+      ],
+      "capabilities": [],
+      "platforms": [
+        "console",
+        "desktop",
+        "web"
+      ],
+      "template": "to slugify text\n    clean is lowercase of text\n    replace \" \" with \"-\" in clean\n    replace \"_\" with \"-\" in clean\n    return clean\n.",
+      "example": "to slugify text\n    clean is lowercase of text\n    replace \" \" with \"-\" in clean\n    replace \"_\" with \"-\" in clean\n    return clean\n.\n\nslug is slugify \"Otter Language Release 2026\"\nsay \"Slug:\" slug",
+      "attribution": "Otter Reusable Library (Official)"
+    },
+    {
+      "id": "text-pad-left",
+      "title": "Pad Number / Text Left",
+      "kind": "snippet",
+      "category": "Text & Strings",
+      "description": "Prepend repeating pad characters until text reaches desired target length.",
+      "tags": [
+        "pad",
+        "padLeft",
+        "align",
+        "format",
+        "number format",
+        "zero pad"
+      ],
+      "capabilities": [],
+      "platforms": [
+        "console",
+        "desktop",
+        "web"
+      ],
+      "template": "to padLeft text targetLen padChar\n    curLen is length of text\n    if curLen is at least targetLen\n        return text\n    .\n    needed is targetLen minus curLen\n    padding is \"\"\n    count from 1 to needed as idx\n        padding is padding plus padChar\n    .\n    return padding plus text\n.",
+      "example": "to padLeft text targetLen padChar\n    curLen is length of text\n    if curLen is at least targetLen\n        return text\n    .\n    needed is targetLen minus curLen\n    padding is \"\"\n    count from 1 to needed as idx\n        padding is padding plus padChar\n    .\n    return padding plus text\n.\n\nsay \"Invoice #\" padLeft \"42\" 6 \"0\"",
+      "attribution": "Otter Reusable Library (Official)"
+    },
+    {
+      "id": "text-split-join",
+      "title": "Split Text and Rejoin with Delimiter",
+      "kind": "snippet",
+      "category": "Text & Strings",
+      "description": "Deconstruct text by delimiter and reassemble parts with a new separator.",
+      "tags": [
+        "split",
+        "join",
+        "csv",
+        "delimiter",
+        "separator",
+        "words",
+        "string"
+      ],
+      "capabilities": [],
+      "platforms": [
+        "console",
+        "desktop",
+        "web"
+      ],
+      "template": "split ${sourceText} by \"${delimiter}\" into ${parts}\njoin ${parts} with \"${newSeparator}\" into ${result}",
+      "example": "sentence is \"alpha,beta,gamma,delta\"\nsplit sentence by \",\" into items\njoin items with \" -> \" into pipeline\nsay pipeline",
+      "attribution": "Otter Core Language Spec (D25)"
+    },
+    {
+      "id": "text-replace-all",
+      "title": "Replace Text Substrings",
+      "kind": "snippet",
+      "category": "Text & Strings",
+      "description": "Replace matching substrings with replacement text inside variable.",
+      "tags": [
+        "replace",
+        "substitute",
+        "string",
+        "modify",
+        "find and replace"
+      ],
+      "capabilities": [],
+      "platforms": [
+        "console",
+        "desktop",
+        "web"
+      ],
+      "template": "replace \"${findText}\" with \"${replacementText}\" in ${targetVariable}",
+      "example": "greeting is \"Hello world! Welcome to world.\"\nreplace \"world\" with \"Otter\" in greeting\nsay greeting",
+      "attribution": "Otter Core Language Spec (D27)"
+    },
+    {
+      "id": "math-clamp",
+      "title": "Clamp Value Within Range",
+      "kind": "snippet",
+      "category": "Math & Numbers",
+      "description": "Constrain a numeric value between minimum and maximum boundaries.",
+      "tags": [
+        "clamp",
+        "math",
+        "limit",
+        "bound",
+        "range",
+        "min max"
+      ],
+      "capabilities": [],
+      "platforms": [
+        "console",
+        "desktop",
+        "web"
+      ],
+      "template": "to clamp val minLimit maxLimit\n    if val is less than minLimit\n        return minLimit\n    .\n    if val is greater than maxLimit\n        return maxLimit\n    .\n    return val\n.",
+      "example": "to clamp val minLimit maxLimit\n    if val is less than minLimit\n        return minLimit\n    .\n    if val is greater than maxLimit\n        return maxLimit\n    .\n    return val\n.\n\nsay clamp 150 0 100",
+      "attribution": "Otter Reusable Library (Official)"
+    },
+    {
+      "id": "math-lerp",
+      "title": "Linear Interpolation (Lerp)",
+      "kind": "snippet",
+      "category": "Math & Numbers",
+      "description": "Calculate linear interpolation between start and end values by factor t.",
+      "tags": [
+        "lerp",
+        "interpolation",
+        "animation",
+        "transition",
+        "blend",
+        "smooth"
+      ],
+      "capabilities": [],
+      "platforms": [
+        "console",
+        "desktop",
+        "web"
+      ],
+      "template": "to lerp startVal endVal t\n    diff is endVal minus startVal\n    offset is diff times t\n    return startVal plus offset\n.",
+      "example": "to lerp startVal endVal t\n    diff is endVal minus startVal\n    offset is diff times t\n    return startVal plus offset\n.\n\nsay \"Midpoint:\" lerp 10 20 0.5",
+      "attribution": "Otter Reusable Library (Official)"
+    },
+    {
+      "id": "math-map-range",
+      "title": "Map Range (Scale Values)",
+      "kind": "snippet",
+      "category": "Math & Numbers",
+      "description": "Re-map a number from an incoming range into an outgoing target range.",
+      "tags": [
+        "map",
+        "range",
+        "scale",
+        "normalize",
+        "remap",
+        "math"
+      ],
+      "capabilities": [],
+      "platforms": [
+        "console",
+        "desktop",
+        "web"
+      ],
+      "template": "to mapRange val inMin inMax outMin outMax\n    inSpan is inMax minus inMin\n    outSpan is outMax minus outMin\n    valDelta is val minus inMin\n    fraction is valDelta divided by inSpan\n    scaled is fraction times outSpan\n    return outMin plus scaled\n.",
+      "example": "to mapRange val inMin inMax outMin outMax\n    inSpan is inMax minus inMin\n    outSpan is outMax minus outMin\n    valDelta is val minus inMin\n    fraction is valDelta divided by inSpan\n    scaled is fraction times outSpan\n    return outMin plus scaled\n.\n\nsay \"Percentage to fraction:\" mapRange 75 0 100 0 1",
+      "attribution": "Otter Reusable Library (Official)"
+    },
+    {
+      "id": "math-calc-average",
+      "title": "Calculate List Average",
+      "kind": "snippet",
+      "category": "Math & Numbers",
+      "description": "Compute the arithmetic mean of all numeric elements in a list.",
+      "tags": [
+        "average",
+        "mean",
+        "statistics",
+        "sum",
+        "math",
+        "numbers"
+      ],
+      "capabilities": [],
+      "platforms": [
+        "console",
+        "desktop",
+        "web"
+      ],
+      "template": "to calcAverage items\n    total is 0\n    count is 0\n    for each item in items\n        total is total plus item\n        increase count by 1\n    .\n    if count is 0\n        return 0\n    .\n    return total divided by count\n.",
+      "example": "to calcAverage items\n    total is 0\n    count is 0\n    for each item in items\n        total is total plus item\n        increase count by 1\n    .\n    if count is 0\n        return 0\n    .\n    return total divided by count\n.\n\ngrades are\n    85\n    90\n    95\n.\nsay \"Class average:\" calcAverage grades",
+      "attribution": "Otter Reusable Library (Official)"
+    },
+    {
+      "id": "list-contains-check",
+      "title": "Check if List Contains Element",
+      "kind": "snippet",
+      "category": "Collections & Lists",
+      "description": "Determine if an item exists within a list using the natural contains condition.",
+      "tags": [
+        "contains",
+        "exists",
+        "search",
+        "list",
+        "array",
+        "membership"
+      ],
+      "capabilities": [],
+      "platforms": [
+        "console",
+        "desktop",
+        "web"
+      ],
+      "template": "if ${items} contains ${targetItem}\n    say \"Item found in list\"\n.",
+      "example": "allowedRoles are\n    \"admin\"\n    \"moderator\"\n.\n\nuserRole is \"admin\"\nif allowedRoles contains userRole\n    say \"Access granted\"\n.",
+      "attribution": "Otter Core Language Spec (D13)"
+    },
+    {
+      "id": "list-deduplicate",
+      "title": "Deduplicate List Items",
+      "kind": "snippet",
+      "category": "Collections & Lists",
+      "description": "Construct a new list retaining only unique occurrences of elements.",
+      "tags": [
+        "dedupe",
+        "distinct",
+        "unique",
+        "list",
+        "array",
+        "collection"
+      ],
+      "capabilities": [],
+      "platforms": [
+        "console",
+        "desktop",
+        "web"
+      ],
+      "template": "to dedupeList items\n    result are empty\n    for each item in items\n        if not result contains item\n            add item to result\n        .\n    .\n    return result\n.",
+      "example": "to dedupeList items\n    result are empty\n    for each item in items\n        if not result contains item\n            add item to result\n        .\n    .\n    return result\n.\n\nraw are\n    \"cat\"\n    \"dog\"\n    \"cat\"\n    \"bird\"\n.\nuniquePets is dedupeList raw\nsay \"Unique count:\" length of uniquePets",
+      "attribution": "Otter Reusable Library (Official)"
+    },
+    {
+      "id": "list-filter-items",
+      "title": "Filter List by Condition",
+      "kind": "snippet",
+      "category": "Collections & Lists",
+      "description": "Filter elements from a list into a new target list using a condition.",
+      "tags": [
+        "filter",
+        "where",
+        "select",
+        "list",
+        "array",
+        "query"
+      ],
+      "capabilities": [],
+      "platforms": [
+        "console",
+        "desktop",
+        "web"
+      ],
+      "template": "filtered are empty\nfor each ${item} in ${items}\n    if ${condition}\n        add ${item} to filtered\n    .\n.",
+      "example": "numbers are\n    12\n    5\n    28\n    3\n    45\n.\nhighNumbers are empty\nfor each n in numbers\n    if n is at least 10\n        add n to highNumbers\n    .\n.\nsay \"Found numbers >= 10:\" length of highNumbers",
+      "attribution": "Otter Reusable Library (Official)"
+    },
+    {
+      "id": "file-read-safe",
+      "title": "Safe File Read with Fallback",
+      "kind": "snippet",
+      "category": "Files & I/O",
+      "description": "Verify file existence before reading to return fallback content when absent.",
+      "tags": [
+        "file",
+        "read",
+        "exists",
+        "fallback",
+        "safe file",
+        "io"
+      ],
+      "capabilities": [
+        "files"
+      ],
+      "platforms": [
+        "console",
+        "desktop"
+      ],
+      "template": "if file \"${filePath}\" exists\n    read \"${filePath}\" into ${content}\notherwise\n    ${content} is \"${fallbackDefault}\"\n.",
+      "example": "if file \"version.txt\" exists\n    read \"version.txt\" into appVersion\notherwise\n    appVersion is \"1.0.0-dev\"\n.\nsay \"App Version:\" appVersion",
+      "attribution": "Otter Core Language Spec (D20)"
+    },
+    {
+      "id": "file-write-text",
+      "title": "Write Text File",
+      "kind": "snippet",
+      "category": "Files & I/O",
+      "description": "Write or overwrite content to a file path cleanly.",
+      "tags": [
+        "file",
+        "write",
+        "save",
+        "output",
+        "io",
+        "text"
+      ],
+      "capabilities": [
+        "files"
+      ],
+      "platforms": [
+        "console",
+        "desktop"
+      ],
+      "template": "write ${content} to \"${filePath}\"",
+      "example": "message is \"Session started at 2026-11-10\"\nwrite message to \"session.log\"\nsay \"Session written to disk.\"",
+      "attribution": "Otter Core Language Spec (D20)"
+    },
+    {
+      "id": "file-json-storage",
+      "title": "Read & Write JSON Objects to File",
+      "kind": "snippet",
+      "category": "Files & I/O",
+      "description": "Serialize structured Otter objects to JSON on disk and load them back.",
+      "tags": [
+        "json",
+        "save json",
+        "load json",
+        "config",
+        "persistence",
+        "file"
+      ],
+      "capabilities": [
+        "files"
+      ],
+      "platforms": [
+        "console",
+        "desktop"
+      ],
+      "template": "to saveJsonObject filePath obj\n    convert obj to json into rawJson\n    write rawJson to filePath\n    return true\n.\n\nto loadJsonObject filePath\n    if file filePath exists\n        read filePath into rawJson\n        loaded is a thing\n        convert rawJson from json into loaded\n        return loaded\n    .\n    return gone\n.",
+      "example": "to saveJsonObject filePath obj\n    convert obj to json into rawJson\n    write rawJson to filePath\n    return true\n.\n\nto loadJsonObject filePath\n    if file filePath exists\n        read filePath into rawJson\n        loaded is a thing\n        convert rawJson from json into loaded\n        return loaded\n    .\n    return gone\n.\n\ncfg has\n    appName is \"Otter App\"\n    port is 3000\n.\n\nok is saveJsonObject \"app.json\" cfg\nreadCfg is loadJsonObject \"app.json\"\nsay \"Loaded app:\" appName of readCfg\ndelete file \"app.json\"",
+      "attribution": "Otter Reusable Library (Official)"
+    },
+    {
+      "id": "data-custom-type",
+      "title": "Define & Instantiate Custom Type",
+      "kind": "snippet",
+      "category": "Data & Records",
+      "description": "Declare a strongly named domain record type with fields and instantiate it.",
+      "tags": [
+        "type",
+        "struct",
+        "class",
+        "record",
+        "has",
+        "is a",
+        "model"
+      ],
+      "capabilities": [],
+      "platforms": [
+        "console",
+        "desktop",
+        "web"
+      ],
+      "template": "a ${TypeName} has\n    ${field1}\n    ${field2}\n.\n\n${variable} is a ${TypeName}\n${field1} of ${variable} is ${value1}\n${field2} of ${variable} is ${value2}",
+      "example": "a Profile has\n    username\n    email\n.\n\nuser is a Profile\nusername of user is \"jeffrey\"\nemail of user is \"jeffrey@example.com\"\nsay username of user \"<\" email of user \">\"",
+      "attribution": "Otter Core Language Spec (D15)"
+    },
+    {
+      "id": "data-object-thing",
+      "title": "Dynamic Object Literal (has block)",
+      "kind": "snippet",
+      "category": "Data & Records",
+      "description": "Construct an ad-hoc key-value data structure with named properties.",
+      "tags": [
+        "object",
+        "thing",
+        "map",
+        "dictionary",
+        "has",
+        "properties"
+      ],
+      "capabilities": [],
+      "platforms": [
+        "console",
+        "desktop",
+        "web"
+      ],
+      "template": "${variable} has\n    ${property} is ${value}\n.",
+      "example": "serverConfig has\n    host is \"127.0.0.1\"\n    port is 8080\n    active is true\n.\nsay \"Listening on\" host of serverConfig \":\" port of serverConfig",
+      "attribution": "Otter Core Language Spec (D40)"
+    },
+    {
+      "id": "game-actor-damage",
+      "title": "Game Actor Combat & Damage",
+      "kind": "snippet",
+      "category": "Game & Simulation",
+      "description": "Declare RPG entity state and compute clamped damage with death detection.",
+      "tags": [
+        "game",
+        "rpg",
+        "actor",
+        "enemy",
+        "damage",
+        "health",
+        "combat"
+      ],
+      "capabilities": [],
+      "platforms": [
+        "console",
+        "desktop",
+        "web"
+      ],
+      "template": "a Entity has\n    name\n    health\n    isAlive\n.\n\nto takeDamage entity amount\n    cur is health of entity\n    newHp is cur minus amount\n    if newHp is at most 0\n        health of entity is 0\n        isAlive of entity is false\n        return 0\n    .\n    health of entity is newHp\n    return newHp\n.",
+      "example": "a Entity has\n    name\n    health\n    isAlive\n.\n\nto takeDamage entity amount\n    cur is health of entity\n    newHp is cur minus amount\n    if newHp is at most 0\n        health of entity is 0\n        isAlive of entity is false\n        return 0\n    .\n    health of entity is newHp\n    return newHp\n.\n\nboss is a Entity\nname of boss is \"Ancient Dragon\"\nhealth of boss is 100\nisAlive of boss is true\n\nsay name of boss \"takes 40 damage:\"\nremHp is takeDamage boss 40\nsay \"Remaining HP:\" health of boss",
+      "attribution": "Otter Reusable Library (Official)"
+    },
+    {
+      "id": "web-http-json-response",
+      "title": "Web Server JSON Route",
+      "kind": "snippet",
+      "category": "Web & Network",
+      "description": "Respond to incoming HTTP GET request with a JSON structured payload.",
+      "tags": [
+        "web",
+        "server",
+        "http",
+        "api",
+        "route",
+        "json",
+        "rest"
+      ],
+      "capabilities": [
+        "network"
+      ],
+      "platforms": [
+        "console",
+        "desktop"
+      ],
+      "template": "site is a web server\n    port is ${portNumber}\n    host is \"127.0.0.1\"\n.\n\nwhen site receives GET at \"${path}\"\n    payload has\n        status is \"ok\"\n    .\n    respond with payload as json\n.",
+      "example": "site is a web server\n    port is 18090\n    host is \"127.0.0.1\"\n.\n\nwhen site receives GET at \"/health\"\n    payload has\n        status is \"healthy\"\n        uptime is \"active\"\n    .\n    respond with payload as json\n.",
+      "attribution": "Otter Web Runtime Contract (WEB-001)"
+    },
+    {
+      "id": "db-sqlite-query",
+      "title": "SQLite Table Query (Parameterized)",
+      "kind": "snippet",
+      "category": "Data & Records",
+      "description": "Execute parameterized SQLite queries and iterate over record rows safely.",
+      "tags": [
+        "database",
+        "sqlite",
+        "sql",
+        "query",
+        "parameter",
+        "rows",
+        "records",
+        "data"
+      ],
+      "capabilities": [
+        "database"
+      ],
+      "platforms": [
+        "console",
+        "desktop"
+      ],
+      "template": "database has\n    provider is \"sqlite\"\n    connection is \"${dbPath}\"\n.\nconnect database into ${db}\nexecute ${db} with\n    \"${sqlCreateTable}\"\n\nexecute ${db} with\n    \"${sqlInsert}\"\n    parameter \"${paramName}\" is ${paramValue}\ninto ${insertResult}\n\nquery ${db} with\n    \"${sqlSelect}\"\ninto ${rows}\nfor each ${row} in ${rows}\n    say ${row}\n.",
+      "example": "database has\n    provider is \"sqlite\"\n    connection is \":memory:\"\n.\nconnect database into db\nexecute db with\n    \"create table items (id integer primary key autoincrement, name text not null)\"\nexecute db with\n    \"insert into items (name) values (@name)\"\n    parameter \"name\" is \"Otter Net\"\ninto result\nquery db with\n    \"select id, name from items\"\ninto rows\nfor each r in rows\n    say \"ID:\" id of r \"Name:\" name of r\n.",
+      "attribution": "Otter Core Language Spec (D97, D98, RFC Sec 9)"
+    },
+    {
+      "id": "conv-number-format",
+      "title": "Format Number as Currency",
+      "kind": "snippet",
+      "category": "Math & Numbers",
+      "description": "Format a numeric amount into a currency string with 2-decimal precision.",
+      "tags": [
+        "format",
+        "currency",
+        "number",
+        "decimal",
+        "dollar",
+        "money",
+        "conversion"
+      ],
+      "capabilities": [],
+      "platforms": [
+        "console",
+        "desktop",
+        "web"
+      ],
+      "template": "to formatCurrency amount\n    parts are\n        amount\n    .\n    join parts with \"\" into amountStr\n    if amountStr contains \".\"\n        split amountStr by \".\" into decParts\n        whole is first of decParts\n        cents is last of decParts\n        if length of cents is 1\n            cents is cents plus \"0\"\n        .\n        outParts are\n            \"$\"\n            whole\n            \".\"\n            cents\n        .\n        join outParts with \"\" into result\n        return result\n    otherwise\n        outParts are\n            \"$\"\n            amountStr\n            \".00\"\n        .\n        join outParts with \"\" into result\n        return result\n    .\n.",
+      "example": "to formatCurrency amount\n    parts are\n        amount\n    .\n    join parts with \"\" into amountStr\n    if amountStr contains \".\"\n        split amountStr by \".\" into decParts\n        whole is first of decParts\n        cents is last of decParts\n        if length of cents is 1\n            cents is cents plus \"0\"\n        .\n        outParts are\n            \"$\"\n            whole\n            \".\"\n            cents\n        .\n        join outParts with \"\" into result\n        return result\n    otherwise\n        outParts are\n            \"$\"\n            amountStr\n            \".00\"\n        .\n        join outParts with \"\" into result\n        return result\n    .\n.\n\nsay \"Price:\" formatCurrency 42.5",
+      "attribution": "Otter Reusable Library (Official)"
+    },
+    {
+      "id": "conv-bytes-hex",
+      "title": "Encode and Decode Hex Strings",
+      "kind": "snippet",
+      "category": "Text & Strings",
+      "description": "Transform between hexadecimal text strings and raw binary byte sequences.",
+      "tags": [
+        "hex",
+        "bytes",
+        "encode",
+        "decode",
+        "binary",
+        "conversion",
+        "string"
+      ],
+      "capabilities": [],
+      "platforms": [
+        "console",
+        "desktop",
+        "web"
+      ],
+      "template": "rawBytes is bytes from hex ${hexInput}\ndecodedText is text from bytes rawBytes\nencodedHex is hex from bytes rawBytes",
+      "example": "hexInput is \"4F74746572\"\nrawBytes is bytes from hex hexInput\ndecodedText is text from bytes rawBytes\nsay \"Decoded text:\" decodedText\nencodedHex is hex from bytes rawBytes\nsay \"Encoded back:\" encodedHex",
+      "attribution": "Otter Core Language Spec (D115)"
+    },
+    {
+      "id": "date-diff-days",
+      "title": "Calculate Days Between Two Dates",
+      "kind": "snippet",
+      "category": "Dates & Times",
+      "description": "Compute the calendar difference in days between two date instances.",
+      "tags": [
+        "date",
+        "time",
+        "days between",
+        "duration",
+        "calendar",
+        "difference"
+      ],
+      "capabilities": [],
+      "platforms": [
+        "console",
+        "desktop",
+        "web"
+      ],
+      "template": "startDay is date from \"${startDate}\"\nendDay is date from \"${endDate}\"\ndiffDays is days between startDay and endDay",
+      "example": "startDay is date from \"2026-01-01\"\nendDay is date from \"2026-01-15\"\ndiffDays is days between startDay and endDay\nsay \"Days between dates:\" diffDays",
+      "attribution": "Otter Core Language Spec (D96)"
+    },
+    {
+      "id": "date-add-days",
+      "title": "Add Days to Calculate Due Date",
+      "kind": "snippet",
+      "category": "Dates & Times",
+      "description": "Add or advance calendar days on a date instance to calculate deadlines.",
+      "tags": [
+        "date",
+        "add days",
+        "deadline",
+        "due date",
+        "calendar",
+        "future date"
+      ],
+      "capabilities": [],
+      "platforms": [
+        "console",
+        "desktop",
+        "web"
+      ],
+      "template": "targetDate is date from \"${initialDate}\"\nadd ${numDays} days to targetDate",
+      "example": "invoiceDate is date from \"2026-03-01\"\nadd 30 days to invoiceDate\nsay \"Invoice due date:\" invoiceDate",
+      "attribution": "Otter Core Language Spec (D96)"
+    },
+    {
+      "id": "list-sort-reverse",
+      "title": "In-Place Sort and Reverse List",
+      "kind": "snippet",
+      "category": "Collections",
+      "description": "Sort list elements in ascending order and reverse for descending order.",
+      "tags": [
+        "sort",
+        "reverse",
+        "order",
+        "descending",
+        "ascending",
+        "list",
+        "collection"
+      ],
+      "capabilities": [],
+      "platforms": [
+        "console",
+        "desktop",
+        "web"
+      ],
+      "template": "sort ${targetList}\nreverse ${targetList}",
+      "example": "scores are\n    88\n    42\n    95\n    17\n.\nsort scores\nsay \"Sorted ascending:\" scores\nreverse scores\nsay \"Sorted descending:\" scores",
+      "attribution": "Otter Core Language Spec (D25, D26)"
+    },
+    {
+      "id": "file-csv-parse",
+      "title": "Parse CSV Text Into Structured Rows",
+      "kind": "snippet",
+      "category": "Files & Storage",
+      "description": "Convert delimiter-separated text data into an array of typed property records.",
+      "tags": [
+        "csv",
+        "table",
+        "parse",
+        "data",
+        "convert",
+        "records",
+        "import"
+      ],
+      "capabilities": [],
+      "platforms": [
+        "console",
+        "desktop",
+        "web"
+      ],
+      "template": "convert ${csvText} from csv into ${rows}\nfor each ${row} in ${rows}\n    say ${row}\n.",
+      "example": "csvContent is \"name,department,level\\nAlice,Engineering,4\\nBob,Design,3\"\nconvert csvContent from csv into staff\nsay \"Staff count:\" length of staff\nfor each member in staff\n    say name of member \"|\" department of member \"|\" level of member\n.",
+      "attribution": "Otter Core Language Spec (D95)"
+    },
+    {
+      "id": "file-append-log",
+      "title": "Safe Append Line to Log File",
+      "kind": "snippet",
+      "category": "Files & Storage",
+      "description": "Atomically append a text log entry to a file with fallback creation.",
+      "tags": [
+        "file",
+        "append",
+        "log",
+        "write",
+        "storage",
+        "audit"
+      ],
+      "capabilities": [
+        "files"
+      ],
+      "platforms": [
+        "console",
+        "desktop"
+      ],
+      "template": "to appendLogEntry path msg\n    line is msg plus \"\\n\"\n    try\n        read path into existing\n        updated is existing plus line\n        write updated to path\n    otherwise into reason\n        write line to path\n    .\n.",
+      "example": "logFilePath is \"audit.log\"\nto appendLogEntry path msg\n    line is msg plus \"\\n\"\n    try\n        read path into existing\n        updated is existing plus line\n        write updated to path\n    otherwise into reason\n        write line to path\n    .\n.\n\nappendLogEntry logFilePath \"Server starting\"\nappendLogEntry logFilePath \"Ready to receive\"\nread logFilePath into auditContents\nsay \"Audit log:\" auditContents\ndelete file logFilePath",
+      "attribution": "Otter Reusable Library (Official)"
+    },
+    {
+      "id": "db-sqlite-transaction",
+      "title": "SQLite Atomic Transaction (Commit / Rollback)",
+      "kind": "snippet",
+      "category": "Database",
+      "description": "Execute multiple database mutations inside an atomic transaction block.",
+      "tags": [
+        "database",
+        "sqlite",
+        "transaction",
+        "commit",
+        "rollback",
+        "sql",
+        "acid"
+      ],
+      "capabilities": [
+        "database"
+      ],
+      "platforms": [
+        "console",
+        "desktop"
+      ],
+      "template": "begin transaction on ${db} into ${tx}\nexecute ${tx} with\n    \"${sqlMutation}\"\ncommit ${tx}",
+      "example": "database has\n    provider is \"sqlite\"\n    connection is \":memory:\"\n.\nconnect database into memDb\nexecute memDb with\n    \"create table balances (account text primary key, balance real)\"\nexecute memDb with\n    \"insert into balances (account, balance) values ('ACC-1', 500)\"\n\nbegin transaction on memDb into tx\nexecute tx with\n    \"update balances set balance = balance - 50 where account = 'ACC-1'\"\ncommit tx\n\nquery memDb with\n    \"select balance from balances where account = 'ACC-1'\"\ninto rows\nrow is first of rows\nsay \"Committed balance:\" balance of row",
+      "attribution": "Otter Core Language Spec (D97, D98)"
+    },
+    {
+      "id": "http-get-request",
+      "title": "HTTP GET Request with Client Lifecycle",
+      "kind": "snippet",
+      "category": "Web & Network",
+      "description": "Issue an asynchronous HTTP GET request and await completion response.",
+      "tags": [
+        "http",
+        "get",
+        "request",
+        "api",
+        "network",
+        "client",
+        "fetch"
+      ],
+      "capabilities": [
+        "network"
+      ],
+      "platforms": [
+        "console",
+        "desktop"
+      ],
+      "template": "start get from ${url} and call it ${req}\ntries is 0\nwhile ${req} is pending and tries is less than 50\n    wait 20 milliseconds\n    tries is tries plus 1\n.\nif ${req} is completed\n    say \"Response:\" response of ${req}\n.",
+      "example": "listen for tcp on port 0 and call it srv\nport is local port of srv\nbaseParts are\n    \"http://127.0.0.1:\"\n    port\n.\njoin baseParts with \"\" into baseUrl\non connection to srv\n    c is incoming connection\n    on data from c\n        send bytes from text \"HTTP/1.1 200 OK\\r\\nContent-Type: text/plain\\r\\nContent-Length: 12\\r\\nConnection: close\\r\\n\\r\\nHello Otter!\" through c\n        close tcp c\n    .\n.\n\nurl is baseUrl plus \"/api/ping\"\nstart get from url and call it req\ntries is 0\nwhile req is pending and tries is less than 50\n    wait 20 milliseconds\n    tries is tries plus 1\n.\nif req is completed\n    say \"HTTP Response:\" response of req\n.\nstop tcp srv",
+      "attribution": "Otter Core Language Spec (D116B)"
+    },
+    {
+      "id": "ui-page-layout",
+      "title": "Declarative UI Page Layout",
+      "kind": "snippet",
+      "category": "User Interface",
+      "description": "Define a hierarchical declarative UI page structure with headings, cards, and buttons.",
+      "tags": [
+        "ui",
+        "page",
+        "card",
+        "button",
+        "heading",
+        "desktop",
+        "web",
+        "layout"
+      ],
+      "capabilities": [],
+      "platforms": [
+        "desktop",
+        "web"
+      ],
+      "template": "page \"${pageTitle}\"\n    heading \"${headingText}\"\n    card \"${cardTitle}\"\n        text \"${bodyText}\"\n        button \"${buttonLabel}\"\n            click\n                say \"Clicked ${buttonLabel}\"\n    primary button \"Submit\"",
+      "example": "page \"User Management\"\n    heading \"All Users\"\n    card \"Directory\"\n        text \"Showing 25 active members\"\n        button \"Export CSV\"\n            click\n                say \"Exporting CSV...\"\n    primary button \"Add User\"\nsay \"Page layout defined\"",
+      "attribution": "Otter Declarative UI Spec (D56)"
+    },
+    {
+      "id": "game-cooldown-system",
+      "title": "Ability Cooldown System",
+      "kind": "snippet",
+      "category": "Game Systems",
+      "description": "Track ability cooldown durations and check ready status against elapsed timestamps.",
+      "tags": [
+        "game",
+        "cooldown",
+        "ability",
+        "skill",
+        "combat",
+        "timer",
+        "rpg"
+      ],
+      "capabilities": [],
+      "platforms": [
+        "console",
+        "desktop",
+        "web"
+      ],
+      "template": "a AbilityCooldown has\n    abilityName\n    cooldownSeconds\n    lastUsedAt\n.\n\nto createAbility name cd\n    ability is a AbilityCooldown\n    abilityName of ability is name\n    cooldownSeconds of ability is cd\n    lastUsedAt of ability is 0 minus 9999\n    return ability\n.\n\nto isAbilityReady ability nowSeconds\n    last is lastUsedAt of ability\n    duration is cooldownSeconds of ability\n    elapsed is nowSeconds minus last\n    if elapsed is at least duration\n        return true\n    otherwise\n        return false\n    .\n.\n\nto useAbility ability nowSeconds\n    ready is isAbilityReady ability nowSeconds\n    if ready is true\n        lastUsedAt of ability is nowSeconds\n        return true\n    otherwise\n        return false\n    .\n.",
+      "example": "a AbilityCooldown has\n    abilityName\n    cooldownSeconds\n    lastUsedAt\n.\n\nto createAbility name cd\n    ability is a AbilityCooldown\n    abilityName of ability is name\n    cooldownSeconds of ability is cd\n    lastUsedAt of ability is 0 minus 9999\n    return ability\n.\n\nto isAbilityReady ability nowSeconds\n    last is lastUsedAt of ability\n    duration is cooldownSeconds of ability\n    elapsed is nowSeconds minus last\n    if elapsed is at least duration\n        return true\n    otherwise\n        return false\n    .\n.\n\nto useAbility ability nowSeconds\n    ready is isAbilityReady ability nowSeconds\n    if ready is true\n        lastUsedAt of ability is nowSeconds\n        return true\n    otherwise\n        return false\n    .\n.\n\nspinAttack is createAbility \"Whirlwind\" 4\nreadyInitial is isAbilityReady spinAttack 0\nsay \"Whirlwind ready initially:\" readyInitial\nusedOk is useAbility spinAttack 0\nsay \"Whirlwind used at t=0:\" usedOk\nreadyAt2 is isAbilityReady spinAttack 2\nsay \"Whirlwind ready at t=2:\" readyAt2\nreadyAt5 is isAbilityReady spinAttack 5\nsay \"Whirlwind ready at t=5:\" readyAt5",
+      "attribution": "Otter Reusable Library (Official)"
+    },
+    {
+      "id": "game-inventory-capacity",
+      "title": "Inventory Bag with Capacity Limits",
+      "kind": "snippet",
+      "category": "Game Systems",
+      "description": "Manage player inventory slots with strict maximum capacity checks.",
+      "tags": [
+        "game",
+        "inventory",
+        "bag",
+        "items",
+        "capacity",
+        "slots",
+        "rpg"
+      ],
+      "capabilities": [],
+      "platforms": [
+        "console",
+        "desktop",
+        "web"
+      ],
+      "template": "a InventoryBag has\n    maxSlots\n    currentCount\n    items\n.\n\nto createInventoryBag slots\n    bag is a InventoryBag\n    maxSlots of bag is slots\n    currentCount of bag is 0\n    bagItems are empty\n    items of bag is bagItems\n    return bag\n.\n\nto addItemToBag bag item\n    cur is currentCount of bag\n    slots is maxSlots of bag\n    if cur is at least slots\n        return false\n    .\n    currentCount of bag is cur plus 1\n    itemList is items of bag\n    add item to itemList\n    return true\n.",
+      "example": "a InventoryBag has\n    maxSlots\n    currentCount\n    items\n.\n\nto createInventoryBag slots\n    bag is a InventoryBag\n    maxSlots of bag is slots\n    currentCount of bag is 0\n    bagItems are empty\n    items of bag is bagItems\n    return bag\n.\n\nto addItemToBag bag item\n    cur is currentCount of bag\n    slots is maxSlots of bag\n    if cur is at least slots\n        return false\n    .\n    currentCount of bag is cur plus 1\n    itemList is items of bag\n    add item to itemList\n    return true\n.\n\nplayerBag is createInventoryBag 2\nsay \"Add bow:\" addItemToBag playerBag \"Wooden Bow\"\nsay \"Add arrows:\" addItemToBag playerBag \"Quiver\"\nsay \"Add shield (should fail):\" addItemToBag playerBag \"Iron Shield\"\nsay \"Bag contents:\" items of playerBag",
+      "attribution": "Otter Reusable Library (Official)"
+    },
+    {
+      "id": "val-email-check",
+      "title": "Structural Email Format Validation",
+      "kind": "snippet",
+      "category": "Validation & Errors",
+      "description": "Validate email address structure by checking username, '@' symbol, and domain suffix.",
+      "tags": [
+        "validation",
+        "email",
+        "check",
+        "string",
+        "verify",
+        "form"
+      ],
+      "capabilities": [],
+      "platforms": [
+        "console",
+        "desktop",
+        "web"
+      ],
+      "template": "to validateEmail email\n    if email contains \"@\"\n        split email by \"@\" into parts\n        if length of parts is 2\n            userPart is first of parts\n            domainPart is last of parts\n            if length of userPart is greater than 0\n                if domainPart contains \".\"\n                    return true\n                .\n            .\n        .\n    .\n    return false\n.",
+      "example": "to validateEmail email\n    if email contains \"@\"\n        split email by \"@\" into parts\n        if length of parts is 2\n            userPart is first of parts\n            domainPart is last of parts\n            if length of userPart is greater than 0\n                if domainPart contains \".\"\n                    return true\n                .\n            .\n        .\n    .\n    return false\n.\n\nsay \"Check dev@otter.org:\" validateEmail \"dev@otter.org\"\nsay \"Check invalid-email:\" validateEmail \"invalid-email\"",
+      "attribution": "Otter Reusable Library (Official)"
+    },
+    {
+      "id": "val-numeric-range",
+      "title": "Numeric Range Boundary Assertion",
+      "kind": "snippet",
+      "category": "Validation & Errors",
+      "description": "Assert that a numeric parameter falls within inclusive lower and upper bounds.",
+      "tags": [
+        "validation",
+        "range",
+        "boundary",
+        "assert",
+        "min",
+        "max",
+        "error",
+        "check"
+      ],
+      "capabilities": [],
+      "platforms": [
+        "console",
+        "desktop",
+        "web"
+      ],
+      "template": "to validateRange value minVal maxVal fieldName\n    if value is less than minVal\n        say \"Validation error:\" fieldName \"is below minimum\" minVal\n        return false\n    .\n    if value is greater than maxVal\n        say \"Validation error:\" fieldName \"exceeds maximum\" maxVal\n        return false\n    .\n    return true\n.",
+      "example": "to validateRange value minVal maxVal fieldName\n    if value is less than minVal\n        say \"Validation error:\" fieldName \"is below minimum\" minVal\n        return false\n    .\n    if value is greater than maxVal\n        say \"Validation error:\" fieldName \"exceeds maximum\" maxVal\n        return false\n    .\n    return true\n.\n\nsay \"Age 28 valid:\" validateRange 28 18 65 \"age\"\nsay \"Age 90 valid:\" validateRange 90 18 65 \"age\"",
+      "attribution": "Otter Reusable Library (Official)"
+    }
+  ]
+}

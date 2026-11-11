@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OtterSnippetDefinition",
+  "description": "Schema for reusable Otter language snippets (RFC Section 2 & 8)",
+  "type": "object",
+  "required": [
+    "id",
+    "title",
+    "kind",
+    "category",
+    "description",
+    "tags",
+    "template",
+    "example"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "description": "Unique kebab-case snippet identifier"
+    },
+    "title": {
+      "type": "string",
+      "description": "Human-friendly display title"
+    },
+    "kind": {
+      "type": "string",
+      "enum": ["snippet"]
+    },
+    "category": {
+      "type": "string",
+      "description": "Functional category grouping (e.g. 'Control Flow', 'Math & Numbers')"
+    },
+    "description": {
+      "type": "string",
+      "description": "Brief explanation of purpose and usage"
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Keywords for literal and natural-language search"
+    },
+    "capabilities": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": [],
+      "description": "Platform permissions required by this snippet (empty if pure language)"
+    },
+    "platforms": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": ["console", "desktop", "web"],
+      "description": "Supported target runtimes"
+    },
+    "template": {
+      "type": "string",
+      "description": "The insertable source template in valid Otter 1.0.1 syntax"
+    },
+    "example": {
+      "type": "string",
+      "description": "A complete, self-contained, executable Otter program demonstrating the snippet"
+    },
+    "attribution": {
+      "type": "string",
+      "default": "Otter Reusable Library (Official)",
+      "description": "Author or source package reference"
+    }
+  },
+  "additionalProperties": false
+}
