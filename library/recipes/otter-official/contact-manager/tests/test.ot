@@ -1,0 +1,58 @@
+# ==============================================================================
+# Test: Contact Manager Application
+# ==============================================================================
+
+use "../../../../packs/otter-official/file-helpers/src/main.ot"
+use "../../../../packs/otter-official/text-utils/src/main.ot"
+
+a Contact has
+    name
+    email
+    phone
+.
+
+to validateEmail emailAddress
+    parts are emailAddress . split parts by "@" into atParts
+    atCount is count of atParts
+    if atCount is not 2
+        give false
+    .
+    domain is atParts[1]
+    dotParts are domain . split dotParts by "." into domainParts
+    dotCount is count of domainParts
+    if dotCount is at least 2
+        give true
+    .
+    give false
+.
+
+# Test 1: Valid email formats
+if validateEmail "user@example.com" is not true
+    say "FAIL: user@example.com should be valid"
+.
+if validateEmail "dev@otterprogramming.org" is not true
+    say "FAIL: dev@otterprogramming.org should be valid"
+.
+
+# Test 2: Invalid email formats
+if validateEmail "plainaddress" is not false
+    say "FAIL: plainaddress should be invalid"
+.
+if validateEmail "missingdomain@" is not false
+    say "FAIL: missingdomain@ should be invalid"
+.
+if validateEmail "user@nodot" is not false
+    say "FAIL: user@nodot should be invalid"
+.
+
+# Test 3: Contact structure creation
+c is a Contact
+name of c is "Katherine Johnson"
+email of c is "katherine@nasa.gov"
+phone of c is "555-0303"
+
+if name of c is not "Katherine Johnson"
+    say "FAIL: contact name mismatch"
+.
+
+say "Contact-manager tests passed."

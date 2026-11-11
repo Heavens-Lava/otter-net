@@ -1,0 +1,52 @@
+# ==============================================================================
+# Demo: Task Manager Application (Console Target)
+# ==============================================================================
+
+use "../../../../packs/otter-official/file-helpers/src/main.ot"
+use "../../../../packs/otter-official/text-utils/src/main.ot"
+
+a TaskItem has
+    id
+    title
+    done
+.
+
+to createTask tid and title
+    t is a TaskItem
+    id of t is tid
+    title of t is title
+    done of t is "pending"
+    give t
+.
+
+to completeTask item
+    done of item is "completed"
+    give item
+.
+
+to displayTasks items
+    say "=== Task Manager Demo ==="
+    for each t in items
+        status is done of t
+        desc is title of t
+        tid is id of t
+        statusPadded is padRight status and 12
+        line is statusPadded plus " | Task #"
+        fullLine is line plus tid
+        fullLine is fullLine plus ": "
+        fullLine is fullLine plus desc
+        say fullLine
+    .
+.
+
+tasks are []
+t1 is createTask 1 and "Audit existing library"
+tasks make t1
+t2 is createTask 2 and "Build Recipe engine"
+tasks make t2
+t3 is createTask 3 and "Deliver Phase 3 application examples"
+tasks make t3
+
+t1 is completeTask t1
+displayTasks tasks
+say "Demo finished successfully."

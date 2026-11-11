@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "id": "otter-official/task-tracker",
+  "version": "1.0.0",
+  "title": "Personal Task Manager Application",
+  "summary": "Complete CLI task tracking application with persistent JSON storage and formatted listings.",
+  "target": "console",
+  "requiresOtter": ">=1.0.1",
+  "capabilities": ["files"],
+  "packs": [
+    { "id": "otter-official/file-helpers", "version": "1.0.0" },
+    { "id": "otter-official/text-utils", "version": "1.0.0" }
+  ],
+  "blueprints": [
+    { "id": "otter-official/file-settings", "version": "1.0.0" }
+  ],
+  "configuration": [
+    { "id": "appName", "title": "Application Name", "type": "text", "default": "My Tasks", "description": "Title shown on CLI header" },
+    { "id": "maxTasks", "title": "Maximum Tasks", "type": "number", "default": 50, "description": "Maximum number of active tasks allowed" }
+  ],
+  "steps": [
+    {
+      "id": "init-storage",
+      "kind": "pack-call",
+      "description": "Initialize file persistence layer and read existing tasks JSON file",
+      "source": "otter-official/file-helpers",
+      "inputs": [{ "name": "path", "type": "text" }],
+      "outputs": [{ "name": "tasks", "type": "list" }]
+    },
+    {
+      "id": "format-display",
+      "kind": "pack-call",
+      "description": "Format table rows with text padding and alignment",
+      "source": "otter-official/text-utils",
+      "inputs": [{ "name": "rawText", "type": "text" }],
+      "outputs": [{ "name": "formattedText", "type": "text" }]
+    }
+  ],
+  "generatedFiles": [
+    { "path": "src/tasks.ot", "template": "templates/tasks.ot.tmpl" }
+  ],
+  "tests": [
+    "tests/test.ot"
+  ],
+  "explanations": {
+    "beginner": "This application lets you track your daily to-do tasks from the command line. When you add a task, it gets saved to a file on your disk so it stays there even after you close the program.",
+    "intermediate": "The recipe combines `otter-official/file-helpers` for JSON persistence with `otter-official/text-utils` for padded column formatting. State is represented as a list of Task objects, serialized to disk on mutation.",
+    "advanced": "Implements an ACID-like file save pattern using `writeSafe`. Tasks are held in an in-memory list of typed objects and persisted as JSON. Column formatting uses deterministic spacing."
+  }
+}

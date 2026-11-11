@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "id": "otter-official/contact-manager",
+  "version": "1.0.0",
+  "title": "Contact Manager with Validation",
+  "summary": "Desktop contact management application with input validation and file-backed persistence.",
+  "target": "desktop",
+  "requiresOtter": ">=1.0.1",
+  "capabilities": ["files", "ui"],
+  "packs": [
+    { "id": "otter-official/file-helpers", "version": "1.0.0" },
+    { "id": "otter-official/text-utils", "version": "1.0.0" }
+  ],
+  "configuration": [
+    { "id": "companyBookName", "title": "Address Book Name", "type": "text", "default": "Team Directory", "description": "Header title for the contact directory" },
+    { "id": "allowDuplicates", "title": "Allow Duplicate Emails", "type": "boolean", "default": false, "description": "Whether multiple contacts can share an email address" }
+  ],
+  "steps": [
+    {
+      "id": "validate-input",
+      "kind": "pack-call",
+      "description": "Perform email address structure and non-empty name assertions",
+      "source": "otter-official/text-utils",
+      "inputs": [{ "name": "email", "type": "text" }],
+      "outputs": [{ "name": "isValid", "type": "boolean" }]
+    },
+    {
+      "id": "persist-contacts",
+      "kind": "pack-call",
+      "description": "Save validated contact cards into JSON storage",
+      "source": "otter-official/file-helpers",
+      "inputs": [{ "name": "contacts", "type": "list" }],
+      "outputs": [{ "name": "bytesWritten", "type": "number" }]
+    }
+  ],
+  "generatedFiles": [
+    { "path": "src/contacts.ot", "template": "templates/contacts.ot.tmpl" }
+  ],
+  "tests": [
+    "tests/test.ot"
+  ],
+  "explanations": {
+    "beginner": "This application stores your contact list with names, emails, and phone numbers. It checks that every email address looks valid before saving it to your computer.",
+    "intermediate": "The recipe defines a custom `Contact` type and combines `otter-official/text-utils` with structural string scanning to validate email format `@` and `.`. Valid entries are appended to a persistent list.",
+    "advanced": "Separates validation business logic from UI and storage. On Windows, the contact cards bind to the desktop WebView2 bridge. On macOS/Linux and headless CI, the validation and contact storage execute natively via standard IO."
+  }
+}

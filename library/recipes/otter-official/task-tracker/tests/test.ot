@@ -1,0 +1,48 @@
+# ==============================================================================
+# Test: Task Manager Application
+# ==============================================================================
+
+use "../../../../packs/otter-official/file-helpers/src/main.ot"
+use "../../../../packs/otter-official/text-utils/src/main.ot"
+
+a TaskItem has
+    id
+    title
+    done
+.
+
+to createTask tid and title
+    t is a TaskItem
+    id of t is tid
+    title of t is title
+    done of t is "pending"
+    give t
+.
+
+to completeTask item
+    done of item is "completed"
+    give item
+.
+
+# Test 1: Task creation
+task1 is createTask 101 and "Write recipe unit test"
+if id of task1 is not 101
+    say "FAIL: expected task id 101"
+.
+if done of task1 is not "pending"
+    say "FAIL: expected task status pending"
+.
+
+# Test 2: Task completion
+task1 is completeTask task1
+if done of task1 is not "completed"
+    say "FAIL: expected task status completed"
+.
+
+# Test 3: Formatting and listing
+padResult is padRight "pending" and 10
+if padResult is not "pending   "
+    say "FAIL: expected padded pending"
+.
+
+say "Task-tracker tests passed."
