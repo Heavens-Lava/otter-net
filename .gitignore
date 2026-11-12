@@ -9,3 +9,6 @@ bench-results/
 dist/
 *.otterpack
 *.otterrecipe
+**/node_modules/
+editors/vscode/out/
+editors/vscode/.vscode-test/

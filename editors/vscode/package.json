@@ -1,0 +1,178 @@
+{
+    "name": "otter-lang",
+    "displayName": "Otter Programming Language",
+    "description": "Rich language support, visual debugging, LSP, and reusable library explorer for Otter.",
+    "version": "1.0.1",
+    "publisher": "heavens-lava",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/Heavens-Lava/otter-net.git"
+    },
+    "engines": {
+        "vscode": "^1.85.0"
+    },
+    "categories": [
+        "Programming Languages",
+        "Linters",
+        "Snippets",
+        "Debuggers"
+    ],
+    "keywords": [
+        "otter",
+        "human-readable",
+        "compiler",
+        "visual-debugging"
+    ],
+    "main": "./out/extension.js",
+    "activationEvents": [
+        "onLanguage:otter",
+        "onCommand:otter.runFile",
+        "onCommand:otter.runTests",
+        "onCommand:otter.openLibrary",
+        "onCommand:otter.applyRecipe",
+        "onCommand:otter.doctor"
+    ],
+    "contributes": {
+        "languages": [
+            {
+                "id": "otter",
+                "aliases": [
+                    "Otter",
+                    "otter"
+                ],
+                "extensions": [
+                    ".ot"
+                ],
+                "configuration": "./language-configuration.json"
+            }
+        ],
+        "grammars": [
+            {
+                "language": "otter",
+                "scopeName": "source.otter",
+                "path": "./syntaxes/otter.tmLanguage.json"
+            }
+        ],
+        "commands": [
+            {
+                "command": "otter.runFile",
+                "title": "Run Current File",
+                "category": "Otter",
+                "icon": "$(play)"
+            },
+            {
+                "command": "otter.runTests",
+                "title": "Run Project Tests",
+                "category": "Otter",
+                "icon": "$(beaker)"
+            },
+            {
+                "command": "otter.openLibrary",
+                "title": "Search Reusable Library (Snippets, Packs, Blueprints, Recipes)",
+                "category": "Otter",
+                "icon": "$(book)"
+            },
+            {
+                "command": "otter.applyRecipe",
+                "title": "Preview and Apply Application Recipe",
+                "category": "Otter",
+                "icon": "$(sparkle)"
+            },
+            {
+                "command": "otter.doctor",
+                "title": "Run Doctor Diagnostics",
+                "category": "Otter"
+            },
+            {
+                "command": "otter.restartLsp",
+                "title": "Restart Language Server",
+                "category": "Otter"
+            }
+        ],
+        "menus": {
+            "editor/title": [
+                {
+                    "when": "resourceExtname == .ot",
+                    "command": "otter.runFile",
+                    "group": "navigation"
+                }
+            ],
+            "editor/context": [
+                {
+                    "when": "resourceExtname == .ot",
+                    "command": "otter.runFile",
+                    "group": "Otter"
+                },
+                {
+                    "when": "resourceExtname == .ot",
+                    "command": "otter.openLibrary",
+                    "group": "Otter"
+                }
+            ]
+        },
+        "debuggers": [
+            {
+                "type": "otter",
+                "label": "Otter Debugger",
+                "program": "otter",
+                "args": ["dap"],
+                "configurationAttributes": {
+                    "launch": {
+                        "required": ["program"],
+                        "properties": {
+                            "program": {
+                                "type": "string",
+                                "description": "The Otter program (.ot) to run and debug.",
+                                "default": "${file}"
+                            },
+                            "stopOnEntry": {
+                                "type": "boolean",
+                                "description": "Automatically pause execution on entry.",
+                                "default": false
+                            }
+                        }
+                    }
+                },
+                "initialConfigurations": [
+                    {
+                        "type": "otter",
+                        "request": "launch",
+                        "name": "Debug Current Otter File",
+                        "program": "${file}",
+                        "stopOnEntry": false
+                    }
+                ]
+            }
+        ],
+        "configuration": {
+            "type": "object",
+            "title": "Otter",
+            "properties": {
+                "otter.executablePath": {
+                    "type": "string",
+                    "default": "otter",
+                    "description": "Path to the native Otter CLI executable (defaults to 'otter' on PATH)."
+                },
+                "otter.trace.server": {
+                    "type": "string",
+                    "enum": ["off", "messages", "verbose"],
+                    "default": "off",
+                    "description": "Traces the communication between VS Code and the Otter language server."
+                }
+            }
+        }
+    },
+    "scripts": {
+        "vscode:prepublish": "npm run compile",
+        "compile": "tsc -p ./",
+        "watch": "tsc -watch -p ./"
+    },
+    "devDependencies": {
+        "@types/node": "^20.11.0",
+        "@types/vscode": "^1.85.0",
+        "typescript": "^5.3.3"
+    },
+    "dependencies": {
+        "vscode-languageclient": "^9.0.1"
+    }
+}

@@ -58,14 +58,20 @@ else
 fi
 
 # Ensure launcher script is in place
-cat << EOF > "$BIN_DIR/otter"
+cat << 'EOF' > "$BIN_DIR/otter"
 #!/usr/bin/env bash
 set -e
-BIN_DIR="\$(cd "\$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
-OTTER_HOME="\$(cd "\$BIN_DIR/.." && pwd)"
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do
+    DIR="$(cd -P "$(dirname "$SOURCE")" >/dev/null 2>&1 && pwd)"
+    SOURCE="$(readlink "$SOURCE")"
+    [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+BIN_DIR="$(cd -P "$(dirname "$SOURCE")" >/dev/null 2>&1 && pwd)"
+OTTER_HOME="$(cd "$BIN_DIR/.." && pwd)"
 
-DOTNET_BIN="\$(command -v dotnet 2>/dev/null || true)"
-if [ -z "\$DOTNET_BIN" ]; then
+DOTNET_BIN="$(command -v dotnet 2>/dev/null || true)"
+if [ -z "$DOTNET_BIN" ]; then
     if [ -x "/opt/homebrew/bin/dotnet" ]; then
         DOTNET_BIN="/opt/homebrew/bin/dotnet"
     elif [ -x "/usr/local/share/dotnet/dotnet" ]; then
@@ -75,20 +81,20 @@ if [ -z "\$DOTNET_BIN" ]; then
     fi
 fi
 
-if [ -z "\$DOTNET_BIN" ]; then
+if [ -z "$DOTNET_BIN" ]; then
     echo "Error: .NET runtime not found on PATH." >&2
     exit 1
 fi
 
-if [ -z "\${OTTER_LIBRARY_PATH:-}" ]; then
-    if [ -d "\$OTTER_HOME/library" ]; then
-        export OTTER_LIBRARY_PATH="\$OTTER_HOME/library"
-    elif [ -d "\$BIN_DIR/library" ]; then
-        export OTTER_LIBRARY_PATH="\$BIN_DIR/library"
+if [ -z "${OTTER_LIBRARY_PATH:-}" ]; then
+    if [ -d "$OTTER_HOME/library" ]; then
+        export OTTER_LIBRARY_PATH="$OTTER_HOME/library"
+    elif [ -d "$BIN_DIR/library" ]; then
+        export OTTER_LIBRARY_PATH="$BIN_DIR/library"
     fi
 fi
 
-exec "\$DOTNET_BIN" "\$BIN_DIR/otter.dll" "\$@"
+exec "$DOTNET_BIN" "$BIN_DIR/otter.dll" "$@"
 EOF
 chmod +x "$BIN_DIR/otter"
 
@@ -106,13 +112,22 @@ elif [ "$CURRENT_SHELL" = "bash" ]; then
     fi
 fi
 
+# Link to user's standard binary directory if available on PATH
+if [ "$INSTALL_DIR" = "$HOME/.otter" ] && [ -d "$HOME/.local/bin" ] && [ -w "$HOME/.local/bin" ]; then
+    ln -sf "$BIN_DIR/otter" "$HOME/.local/bin/otter"
+    echo "Linked $BIN_DIR/otter -> $HOME/.local/bin/otter"
+fi
+
 PATH_CMD="export PATH=\"$BIN_DIR:\$PATH\""
 if [ "$INSTALL_DIR" = "$HOME/.otter" ] && [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
-    if [ -n "$RC_FILE" ] && [ -f "$RC_FILE" ] && ! grep -q "$BIN_DIR" "$RC_FILE"; then
-        echo "" >> "$RC_FILE"
-        echo "# Otter Programming Language" >> "$RC_FILE"
-        echo "$PATH_CMD" >> "$RC_FILE"
-        echo "Added $BIN_DIR to $RC_FILE"
+    if [ -n "$RC_FILE" ]; then
+        touch "$RC_FILE"
+        if ! grep -q "$BIN_DIR" "$RC_FILE"; then
+            echo "" >> "$RC_FILE"
+            echo "# Otter Programming Language" >> "$RC_FILE"
+            echo "$PATH_CMD" >> "$RC_FILE"
+            echo "Added $BIN_DIR to $RC_FILE"
+        fi
     fi
 fi
 

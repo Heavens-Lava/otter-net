@@ -75,6 +75,8 @@ internal static class Cli
         if (Is(command, "references")) return ToolingCommands.References(line);
         if (Is(command, "rename")) return ToolingCommands.Rename(line);
         if (Is(command, "doc")) return ToolingCommands.Doc(line);
+        if (Is(command, "lsp")) return LspServer.Run(line);
+        if (Is(command, "dap")) return DapServer.Run(line);
         if (line.HasPath) return RunPath(line);
         return Repl.Start(line);
     }
@@ -92,6 +94,8 @@ internal static class Cli
         Host.Line("  otter publish [target] Publish an Otter project into a distributable archive (publish/)");
         Host.Line("  otter new <type> <name> Create a new Otter project (console, desktop, web, automation, game)");
         Host.Line("  otter test [target]    Run tests in an Otter project or test file");
+        Host.Line("  otter lsp              Start native Language Server Protocol server (JSON-RPC stdio)");
+        Host.Line("  otter dap              Start native Debug Adapter Protocol server (JSON-RPC stdio)");
         Host.Line("  otter format <file.ot> Format Otter code with standard indentation");
         Host.Line("  otter doc <symbol>     Show documentation and examples for symbol or pack");
         Host.Line("  otter complete <f> <L> <C> Autocomplete suggestions at cursor position");

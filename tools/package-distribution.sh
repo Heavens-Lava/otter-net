@@ -39,7 +39,13 @@ echo "Generating universal launchers..."
 cat << 'EOF' > "$OUTPUT_DIR/bin/otter"
 #!/usr/bin/env bash
 set -e
-BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do
+    DIR="$(cd -P "$(dirname "$SOURCE")" >/dev/null 2>&1 && pwd)"
+    SOURCE="$(readlink "$SOURCE")"
+    [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+BIN_DIR="$(cd -P "$(dirname "$SOURCE")" >/dev/null 2>&1 && pwd)"
 OTTER_HOME="$(cd "$BIN_DIR/.." && pwd)"
 
 # Resolve .NET runtime

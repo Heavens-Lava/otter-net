@@ -36,18 +36,35 @@ internal static class DoctorCommand
         string userOtterBin = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".otter", "bin");
 
         bool inPath = false;
-        if (currentExeDir != null && pathDirs.Any(p => string.Equals(p.TrimEnd('/', '\\'), currentExeDir.TrimEnd('/', '\\'), StringComparison.OrdinalIgnoreCase)))
+        string? matchedLocation = null;
+        foreach (var dir in pathDirs)
         {
-            inPath = true;
-        }
-        else if (pathDirs.Any(p => string.Equals(p.TrimEnd('/', '\\'), userOtterBin.TrimEnd('/', '\\'), StringComparison.OrdinalIgnoreCase)))
-        {
-            inPath = true;
+            if (string.IsNullOrWhiteSpace(dir)) continue;
+            string cleanDir = dir.TrimEnd('/', '\\');
+            if (currentExeDir != null && string.Equals(cleanDir, currentExeDir.TrimEnd('/', '\\'), StringComparison.OrdinalIgnoreCase))
+            {
+                inPath = true;
+                matchedLocation = cleanDir;
+                break;
+            }
+            if (string.Equals(cleanDir, userOtterBin.TrimEnd('/', '\\'), StringComparison.OrdinalIgnoreCase))
+            {
+                inPath = true;
+                matchedLocation = cleanDir;
+                break;
+            }
+            string candidate = Path.Combine(dir, OperatingSystem.IsWindows() ? "otter.exe" : "otter");
+            if (File.Exists(candidate))
+            {
+                inPath = true;
+                matchedLocation = candidate;
+                break;
+            }
         }
 
         if (inPath)
         {
-            checks.Add(("Configuration", "PATH Environment", "OK", "Otter binary directory is on system PATH", null));
+            checks.Add(("Configuration", "PATH Environment", "OK", $"Otter binary is available on system PATH ({matchedLocation})", null));
         }
         else
         {
