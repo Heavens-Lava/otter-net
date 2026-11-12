@@ -239,14 +239,30 @@ internal static partial class ProjectCommands
         if (!Directory.Exists(testsDirectory))
         {
             if (trimmed != "." && Path.GetFileName(projectRoot).ToLowerInvariant() == "tests") testsDirectory = projectRoot;
-            else return new List<string>();
+            else
+            {
+                var rootTests = Directory.GetFiles(projectRoot, "*.ot", SearchOption.TopDirectoryOnly)
+                    .Where(f =>
+                    {
+                        string name = Path.GetFileName(f).ToLowerInvariant();
+                        return name == "test.ot" ||
+                               name.EndsWith(".test.ot", StringComparison.Ordinal) ||
+                               name.EndsWith("_test.ot", StringComparison.Ordinal) ||
+                               name.StartsWith("test_", StringComparison.Ordinal);
+                    }).ToList();
+                rootTests.Sort(PowerShellFiles.SortObjectComparer);
+                return rootTests;
+            }
         }
         var files = PowerShellFiles.ChildItems(testsDirectory, recurse: true, files: true)
             .Where(f => f.EndsWith(".ot", StringComparison.OrdinalIgnoreCase))
             .Where(f =>
             {
                 string name = Path.GetFileName(f).ToLowerInvariant();
-                return name.EndsWith("_test.ot", StringComparison.Ordinal) || name.StartsWith("test_", StringComparison.Ordinal);
+                return name == "test.ot" ||
+                       name.EndsWith(".test.ot", StringComparison.Ordinal) ||
+                       name.EndsWith("_test.ot", StringComparison.Ordinal) ||
+                       name.StartsWith("test_", StringComparison.Ordinal);
             })
             .ToList();
         files.Sort(PowerShellFiles.SortObjectComparer);
@@ -353,7 +369,7 @@ internal static partial class ProjectCommands
 
     // `& otter run <file> 2>&1`: this same otter, its exit code, and every
     // line it wrote. The child reads this process's standard input.
-    static (int Code, List<string> Lines) RunChildOtter(params string[] arguments)
+    internal static (int Code, List<string> Lines) RunChildOtter(params string[] arguments)
     {
         string executable = Environment.ProcessPath ?? "otter";
         var start = new ProcessStartInfo(executable)

@@ -35,7 +35,7 @@ internal static class Cli
         };
         // -Verbose: the VERBOSE lines of otterPS's Import-Module calls (VerboseImports.cs).
         VerboseImports.Enabled = line.Verbose;
-        if (line.Version || Is(line.Path, "--version"))
+        if (line.Version || Is(line.Path, "--version") || Is(line.Path, "version"))
         {
             Program.Trace("native: --version");
             Host.Line(VersionText, site: PsSite.Otter(692));
@@ -48,6 +48,7 @@ internal static class Cli
             return ExitSuccess;
         }
         string? command = line.Path;
+        if (Is(command, "doctor")) return DoctorCommand.Run(line);
         if (Is(command, "new")) return ProjectCommands.New(line);
         if (Is(command, "test")) return ProjectCommands.Test(line);
         if (Is(command, "build") || Is(command, "publish"))
@@ -66,6 +67,14 @@ internal static class Cli
         if (Is(command, "pack")) return LibraryCommands.RunPack(line);
         if (Is(command, "blueprint")) return LibraryCommands.RunBlueprint(line);
         if (Is(command, "recipe")) return LibraryCommands.RunRecipe(line);
+        if (Is(command, "compose")) return ComposeCommand.Run(line);
+        if (Is(command, "tutorial")) return TutorialCommand.Run(line);
+        if (Is(command, "format")) return ToolingCommands.Format(line);
+        if (Is(command, "complete")) return ToolingCommands.Complete(line);
+        if (Is(command, "definition")) return ToolingCommands.Definition(line);
+        if (Is(command, "references")) return ToolingCommands.References(line);
+        if (Is(command, "rename")) return ToolingCommands.Rename(line);
+        if (Is(command, "doc")) return ToolingCommands.Doc(line);
         if (line.HasPath) return RunPath(line);
         return Repl.Start(line);
     }
@@ -83,6 +92,14 @@ internal static class Cli
         Host.Line("  otter publish [target] Publish an Otter project into a distributable archive (publish/)");
         Host.Line("  otter new <type> <name> Create a new Otter project (console, desktop, web, automation, game)");
         Host.Line("  otter test [target]    Run tests in an Otter project or test file");
+        Host.Line("  otter format <file.ot> Format Otter code with standard indentation");
+        Host.Line("  otter doc <symbol>     Show documentation and examples for symbol or pack");
+        Host.Line("  otter complete <f> <L> <C> Autocomplete suggestions at cursor position");
+        Host.Line("  otter definition <f> <L> <C> Go to symbol definition");
+        Host.Line("  otter references <f> <L> <C> Find all references to symbol");
+        Host.Line("  otter compose <cmd>    AI-assisted intelligent library composition");
+        Host.Line("  otter tutorial         Interactive first-run guided tutorial");
+        Host.Line("  otter doctor           Diagnose environment, PATH, and library subsystem");
         Host.Line("  otter profile <file.ot> Run a program and report which functions and lines took the time");
         Host.Line("  otter web <file.ot>    Compile an Otter web application to HTML/JS");
         Host.Line("  otter serve <file.ot> [-Port N] Run an Otter web server program");

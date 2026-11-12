@@ -193,3 +193,69 @@ This checklist operationalizes [OTTER_REUSABLE_LIBRARY_RFC.md](../OTTER_REUSABLE
 - [x] **3F.1 Recipe Test Suite (`tools/test-recipes.ps1`)**: 16/16 dual-engine tests pass cleanly (100%).
 - [x] **3F.2 Full Regression Battery**: 38 snippets + 10 pack tests + 8 blueprint tests + 16 recipe tests + 10 Studio tests pass with 0 failures.
 - [x] **3F.3 12-Step Definition of Done Walkthrough**: Executed and verified from clean outside directory `/tmp/new-user-walkthrough`.
+
+---
+
+## 4. Phase 4 — Developer Experience, AI Integration & Distribution
+
+### 4A. Distribution & Multi-Platform Installation
+- [x] **4A.1 Automated Distribution Packaging (`tools/package-distribution.sh`)**
+  - [x] Multi-platform packaging generating standalone runnable bundles (`otter-1.0.1-portable.tar.gz`).
+  - [x] Universal POSIX shell launcher (`bin/otter`) and Windows launcher scripts (`bin/otter.cmd`, `bin/otter.ps1`).
+  - [x] Bundles standard library, 38 snippets, 5 official packs, 4 blueprints, 4 recipes, and JSON schemas.
+- [x] **4A.2 Clean-Machine Installers (`tools/install.sh`, `tools/install.ps1`)**
+  - [x] POSIX installer with .NET runtime detection, global launcher symlinking, library sync, and PATH configuration.
+  - [x] Windows PowerShell installer with User PATH modification and launcher script deployment.
+  - [x] Automated sandbox clean-machine verification script (`tools/test-installer.sh`) passing 100% in isolated environment.
+- [x] **4A.3 Environment Diagnostics (`otter doctor`)**
+  - [x] Comprehensive diagnostics for OS, .NET runtime, binary location, PATH environment, package cache permissions, and standard library components.
+  - [x] Human-readable format and structured JSON mode (`otter doctor --json`).
+
+### 4B. Developer Tooling & Shared Language Service
+- [x] **4B.1 Shared Language Service (`src/Otter.Language/LanguageService.cs`)**
+  - [x] Single compiler-derived architecture without logic duplication across editors.
+  - [x] `FormatDocument`: Enforces standard 4-space block indentation, period block closures, and trailing whitespace cleanup.
+  - [x] `GetDiagnostics`: Lexer/parser error collection with exact line and column locations and actionable suggestions.
+  - [x] `GetCompletions`: Cursor autocomplete for keywords, operators, user functions, types, and variables.
+  - [x] `GetDefinition`: Go-to-definition resolution across local files and imported packages.
+  - [x] `FindReferences`: Cross-file symbol references discovery.
+  - [x] `RenameSymbol`: Safe semantic symbol renaming with syntax validation and keyword collision guards.
+  - [x] `LookupDocumentation`: Instant lookup for Otter statements, keywords, and snippet catalog items.
+- [x] **4B.2 Tooling CLI Commands (`src/Otter.Cli/ToolingCommands.cs`)**
+  - [x] `otter format <file.ot> [--check]`
+  - [x] `otter complete <file.ot> <line> <col> [--json]`
+  - [x] `otter definition <file.ot> <line> <col> [--json]`
+  - [x] `otter references <file.ot> <line> <col> [--json]`
+  - [x] `otter rename <file.ot> <line> <col> <new-name> [--dry-run]`
+  - [x] `otter doc <query> [--json]`
+
+### 4C. AI-Assisted Library Composition
+- [x] **4C.1 Deterministic Composition CLI (`src/Otter.Cli/ComposeCommand.cs`)**
+  - [x] Provider-independent implementation of the AI Composition Protocol.
+  - [x] `otter compose search <query>`: Natural language library query.
+  - [x] `otter compose inspect <id>`: Manifest, inputs, outputs, and dependency inspection.
+  - [x] `otter compose check <id>`: Transitive dependency and version compatibility check.
+  - [x] `otter compose propose "<intent>"`: Generates structured proposal conforming to `composition-proposal.schema.json`.
+  - [x] `otter compose preview <proposal.json>`: Line-numbered source code preview with source mappings.
+  - [x] `otter compose explain <proposal.json>`: Architectural explanation and connection topology.
+  - [x] `otter compose apply <proposal.json> [--yes]`: Strict user approval gate before mutating the filesystem.
+
+### 4D. Debugging and Test Discovery
+- [x] **4D.1 Universal Test Discovery (`src/Otter.Cli/ProjectCommands.cs`)**
+  - [x] Extended `otter test` to discover `test.ot`, `*.test.ot`, `*_test.ot`, and `test_*.ot` in `tests/` and project root.
+  - [x] Structured test runner output with distinct PASS, FAIL (syntax error), and FAIL (runtime error) classifications.
+  - [x] Dual-engine verification for all official recipe test suites.
+
+### 4E. Local-First Publishing Foundation
+- [x] **4E.1 Pack Packaging & Verification (`src/Otter.Cli/PublishCommands.cs`)**
+  - [x] `otter pack pack <dir>`: Manifest validation, syntax check, security scan against binary executables, unit test execution, archive generation, and SHA-256 calculation.
+  - [x] `otter pack publish <archive> [--dry-run]`: ZipSlip prevention, integrity verification, dry-run security checks, and local cache publication.
+- [x] **4E.2 Recipe Packaging & Verification**
+  - [x] `otter recipe pack <dir>`: Template validation, unit test execution, and `.otterrecipe` archive generation.
+  - [x] `otter recipe publish <archive> [--dry-run]`: Archive integrity verification and local publication.
+
+### 4F. First-Run Guided Onboarding
+- [x] **4F.1 Interactive Tutorial CLI (`src/Otter.Cli/TutorialCommand.cs`)**
+  - [x] 7-step guided walkthrough demonstrating writing code, running, searching library, installing packs, applying recipes, using tooling, and debugging tests.
+  - [x] `otter tutorial` (interactive) and `otter tutorial --demo` (scripted/automated).
+

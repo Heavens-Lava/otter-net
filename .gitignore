@@ -6,3 +6,6 @@ artifacts/
 compat-results/
 bench-results/
 .claude/
+dist/
+*.otterpack
+*.otterrecipe

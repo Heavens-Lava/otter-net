@@ -48,6 +48,25 @@ public static class ReservedWords
         return table;
     }
 
+    public static bool IsReserved(string word)
+    {
+        if (string.IsNullOrEmpty(word)) return false;
+        string lower = word.ToLowerInvariant();
+        return FunctionNames.ContainsKey(lower) || VariableNames.ContainsKey(lower);
+    }
+
+    public static bool TryGetReason(string word, out string? reason)
+    {
+        if (!string.IsNullOrEmpty(word))
+        {
+            string lower = word.ToLowerInvariant();
+            if (FunctionNames.TryGetValue(lower, out reason)) return true;
+            if (VariableNames.TryGetValue(lower, out reason)) return true;
+        }
+        reason = null;
+        return false;
+    }
+
     enum Role { Function, Variable }
 
     // Get-OtterLanguageContractDiagnostics: every reserved declaration,

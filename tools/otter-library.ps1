@@ -404,11 +404,20 @@ switch ($Action.ToLowerInvariant()) {
         & dotnet $OtterCli recipe verify --project $p
     }
 
+    "doctor" {
+        $OtterCli = Join-Path "src" "Otter.Cli" "bin" "Release" "net10.0" "otter.dll"
+        if (-not (Test-Path $OtterCli)) {
+            $OtterCli = Join-Path "src" "Otter.Cli" "bin" "Debug" "net10.0" "otter.dll"
+        }
+        & dotnet $OtterCli doctor
+    }
+
     "test" {
         Write-Host "Running all validation suites..." -ForegroundColor Cyan
         & pwsh tools/test-snippets.ps1
         & pwsh tools/test-packs.ps1
         & pwsh tools/test-blueprints.ps1
+        & pwsh tools/test-recipes.ps1
     }
 
     default {

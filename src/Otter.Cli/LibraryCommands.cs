@@ -242,6 +242,23 @@ internal static class LibraryCommands
             string projectDir = GetOption(raw, "--project") ?? Directory.GetCurrentDirectory();
             return UninstallPack(packId, projectDir, json);
         }
+        if (string.Equals(subCommand, "pack", StringComparison.OrdinalIgnoreCase))
+        {
+            string packDir = raw.Length > 2 && !raw[2].StartsWith("-") ? raw[2] : ".";
+            string? outArchive = GetOption(raw, "--out");
+            return PublishCommands.PackagePack(packDir, outArchive, json);
+        }
+        if (string.Equals(subCommand, "publish", StringComparison.OrdinalIgnoreCase))
+        {
+            if (raw.Length < 3 || raw[2].StartsWith("-"))
+            {
+                Console.Error.WriteLine("Error: pack archive required. Example: otter pack publish math-utils-1.0.0.otterpack --dry-run");
+                return ExitUsageError;
+            }
+            string archivePath = raw[2];
+            bool dryRun = HasFlag(raw, "--dry-run");
+            return PublishCommands.PublishPack(archivePath, dryRun, json);
+        }
 
         Console.WriteLine("Usage: otter pack <command> [options]");
         Console.WriteLine("Commands:");
@@ -250,6 +267,8 @@ internal static class LibraryCommands
         Console.WriteLine("  list [--json]");
         Console.WriteLine("  verify [--project <dir>] [--offline] [--json]");
         Console.WriteLine("  uninstall <id> [--project <dir>] [--json]");
+        Console.WriteLine("  pack <dir> [--out <archive.otterpack>] [--json]");
+        Console.WriteLine("  publish <archive.otterpack> [--dry-run] [--json]");
         return ExitUsageError;
     }
 
@@ -389,6 +408,23 @@ internal static class LibraryCommands
             string projectDir = GetOption(raw, "--project") ?? Directory.GetCurrentDirectory();
             return VerifyRecipe(projectDir, json);
         }
+        if (string.Equals(subCommand, "pack", StringComparison.OrdinalIgnoreCase))
+        {
+            string recipeDir = raw.Length > 2 && !raw[2].StartsWith("-") ? raw[2] : ".";
+            string? outArchive = GetOption(raw, "--out");
+            return PublishCommands.PackageRecipe(recipeDir, outArchive, json);
+        }
+        if (string.Equals(subCommand, "publish", StringComparison.OrdinalIgnoreCase))
+        {
+            if (raw.Length < 3 || raw[2].StartsWith("-"))
+            {
+                Console.Error.WriteLine("Error: recipe archive required. Example: otter recipe publish rpg-adventure-1.0.0.otterrecipe --dry-run");
+                return ExitUsageError;
+            }
+            string archivePath = raw[2];
+            bool dryRun = HasFlag(raw, "--dry-run");
+            return PublishCommands.PublishRecipe(archivePath, dryRun, json);
+        }
 
         Console.WriteLine("Usage: otter recipe <command> [options]");
         Console.WriteLine("Commands:");
@@ -398,6 +434,8 @@ internal static class LibraryCommands
         Console.WriteLine("  plan <id> [--config <file>] [--project <dir>] [--json]");
         Console.WriteLine("  apply <id> [--config <file>] [--project <dir>] [--dry-run] [--force] [--json]");
         Console.WriteLine("  verify [--project <dir>] [--json]");
+        Console.WriteLine("  pack <dir> [--out <archive.otterrecipe>] [--json]");
+        Console.WriteLine("  publish <archive.otterrecipe> [--dry-run] [--json]");
         return ExitUsageError;
     }
 
@@ -1164,7 +1202,7 @@ internal static class LibraryCommands
 
         string ver = pkgs[packId]?["version"]?.ToString() ?? "";
         pkgs.Remove(packId);
-        File.WriteAllText(lockPath, lockObj.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine, new UTF8Encoding(false));
+        File.WriteAllText(lockPath, lockObj!.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine, new UTF8Encoding(false));
 
         string[] parts = packId.Split('/');
         string pub = parts.Length > 1 ? parts[0] : "otter-official";
