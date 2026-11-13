@@ -1,38 +1,109 @@
-# Tests for text-utils
+# Tests for text-utils (Strict Behavioral Assertions)
 use "../src/main.ot"
 
-# Test repeatText
+say "Running text-utils behavioral tests..."
+
+# 1. RepeatText
 r1 is repeatText "*" 4
-if r1 is "****"
-    say "test 1 passed: repeatText"
+if r1 is not "****"
+    fail with "repeatText failed: expected ****"
+.
+rZero is repeatText "*" 0
+if rZero is not ""
+    fail with "repeatText at 0 failed: expected empty string"
 .
 
-# Test padLeft
-p1 is padLeft "42" 5 "0"
-if p1 is "00042"
-    say "test 2 passed: padLeft shorter string"
+# 2. PadLeft
+p1 is padLeft "item" 7 "x"
+if p1 is not "xxxitem"
+    fail with "padLeft shorter string failed: expected xxxitem"
 .
-
+if length of p1 is not 7
+    fail with "padLeft length failed: expected 7"
+.
 p2 is padLeft "12345" 3 "0"
-if p2 is "12345"
-    say "test 3 passed: padLeft longer string untouched"
+if p2 is not "12345"
+    fail with "padLeft longer string failed: expected 12345"
 .
 
-# Test padRight
+# 3. PadRight
 p3 is padRight "Hi" 5 "!"
-if p3 is "Hi!!!"
-    say "test 4 passed: padRight"
+if p3 is not "Hi!!!"
+    fail with "padRight failed: expected Hi!!!"
 .
 
-# Test slugify
+# 4. Slugify
 s1 is slugify "Hello World Project"
-if s1 is "hello-world-project"
-    say "test 5 passed: slugify spaces"
+if s1 is not "hello-world-project"
+    fail with "slugify spaces failed: expected hello-world-project"
 .
-
 s2 is slugify "user_auth_token"
-if s2 is "user-auth-token"
-    say "test 6 passed: slugify underscores"
+if s2 is not "user-auth-token"
+    fail with "slugify underscores failed: expected user-auth-token"
 .
 
-say "All text-utils tests passed."
+# 5. Case conversion (toUpper, toLower)
+up is toUpper "hello otter"
+if up is not "HELLO OTTER"
+    fail with "toUpper failed: expected HELLO OTTER"
+.
+low is toLower "HELLO OTTER"
+if low is not "hello otter"
+    fail with "toLower failed: expected hello otter"
+.
+
+# 6. Case-insensitive equality
+eq1 is isEqualIgnoreCase "OtterLang" "otterlang"
+if eq1 is not true
+    fail with "isEqualIgnoreCase failed for matching text"
+.
+eq2 is isEqualIgnoreCase "OtterLang" "csharp"
+if eq2 is not false
+    fail with "isEqualIgnoreCase failed for non-matching text"
+.
+
+# 7. isNonEmpty validation
+if isNonEmpty "" is true
+    fail with "isNonEmpty failed: empty string reported as non-empty"
+.
+if isNonEmpty "valid" is false
+    fail with "isNonEmpty failed: valid string reported as empty"
+.
+
+# 8. replaceText
+rep is replaceText "foo bar baz" "bar" "qux"
+if rep is not "foo qux baz"
+    fail with "replaceText failed: expected foo qux baz"
+.
+
+# 9. containsText, startsWithText, endsWithText
+cCheck is containsText "The quick brown fox" "brown"
+if cCheck is not true
+    fail with "containsText failed: expected true"
+.
+swCheck is startsWithText "HelloWorld" "Hello"
+if swCheck is not true
+    fail with "startsWithText failed: expected true"
+.
+ewCheck is endsWithText "HelloWorld" "World"
+if ewCheck is not true
+    fail with "endsWithText failed: expected true"
+.
+
+# 10. splitText and joinText
+parts is splitText "alpha,beta,gamma" ","
+if length of parts is not 3
+    fail with "splitText failed: expected 3 items"
+.
+rejoined is joinText parts " - "
+if rejoined is not "alpha - beta - gamma"
+    fail with "joinText failed: expected alpha - beta - gamma"
+.
+
+# 11. normalizeSpaces
+norm is normalizeSpaces "hello    world   otter"
+if norm is not "hello world otter"
+    fail with "normalizeSpaces failed: expected single spaces"
+.
+
+say "All text-utils behavioral tests passed successfully!"

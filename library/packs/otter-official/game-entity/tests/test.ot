@@ -1,84 +1,178 @@
-# Tests for game-entity
+# Tests for game-entity (Strict Behavioral Assertions)
 use "../src/main.ot"
 
-goblin is createActor "Goblin Scout" 60 1
+say "Running game-entity behavioral tests..."
 
-# Test creation
-if name of goblin is "Goblin Scout"
-    say "test 1 passed: actor name"
+# 1. Actor creation
+hero is createActor "Sir Galahad" 100 1
+if name of hero is not "Sir Galahad"
+    fail with "createActor failed: name mismatch"
 .
-if health of goblin is 60
-    say "test 2 passed: actor health"
+if health of hero is not 100
+    fail with "createActor failed: health mismatch"
 .
-if isAlive of goblin is true
-    say "test 3 passed: actor isAlive"
-.
-
-# Test damage
-remHp is applyDamage goblin 25
-if remHp is 35
-    say "test 4 passed: partial damage"
+if isAlive of hero is not true
+    fail with "createActor failed: expected isAlive to be true"
 .
 
-# Test healing
-healedHp is restoreHealth goblin 10
-if healedHp is 45
-    say "test 5 passed: heal within bounds"
+# 2. Damage & Death State
+applyDamage hero 40
+if health of hero is not 60
+    fail with "applyDamage failed: expected 60 HP"
+.
+applyDamage hero 70
+if health of hero is not 0
+    fail with "applyDamage death failed: expected 0 HP"
+.
+if isAlive of hero is not false
+    fail with "applyDamage death failed: expected isAlive to be false"
 .
 
-overHeal is restoreHealth goblin 100
-if overHeal is 60
-    say "test 6 passed: overheal capped at maxHealth"
+# 3. Dead Actor cannot be healed without revive
+healedDead is restoreHealth hero 50
+if healedDead is not 0
+    fail with "restoreHealth failed: dead actor was healed"
+.
+if isAlive of hero is not false
+    fail with "dead actor was unexpectedly revived by restoreHealth"
 .
 
-# Test fatal damage
-fatalHp is applyDamage goblin 100
-if fatalHp is 0
-    say "test 7 passed: fatal damage zeroes health"
+# 4. Revive Actor & Healing Cap
+reviveActor hero 20
+if isAlive of hero is not true
+    fail with "reviveActor failed: expected isAlive to be true"
 .
-if isAlive of goblin is false
-    say "test 8 passed: fatal damage sets isAlive to false"
+if health of hero is not 20
+    fail with "reviveActor failed: expected 20 HP"
 .
-
-# Test level up
-hero is createActor "Knight" 100 1
-newLvl is levelUp hero
-if newLvl is 2
-    say "test 9 passed: level increments"
-.
-if maxHealth of hero is 120
-    say "test 10 passed: maxHealth increases on level up"
+restoreHealth hero 200
+if health of hero is not 100
+    fail with "restoreHealth cap failed: health exceeded maxHealth 100"
 .
 
-# Test cooldowns
-slashCd is createCooldown "Slash" 4
-readyAt0 is isCooldownReady slashCd 0
-if readyAt0 is true
-    say "test 11 passed: cooldown ready initially"
+# 5. Experience & Leveling
+leveledUp is gainExperience hero 150 100
+if leveledUp is not true
+    fail with "gainExperience failed: expected level-up to trigger"
 .
-trigOk is triggerCooldown slashCd 0
-if trigOk is true
-    say "test 12 passed: cooldown triggered"
+if level of hero is not 2
+    fail with "levelUp failed: expected level 2"
 .
-readyAt2 is isCooldownReady slashCd 2
-if readyAt2 is false
-    say "test 13 passed: cooldown not ready during duration"
+if maxHealth of hero is not 125
+    fail with "levelUp failed: expected maxHealth 125"
 .
-readyAt5 is isCooldownReady slashCd 5
-if readyAt5 is true
-    say "test 14 passed: cooldown ready after duration"
+if attackBonus of hero is not 5
+    fail with "levelUp failed: expected attackBonus 5"
+.
+if defenseBonus of hero is not 3
+    fail with "levelUp failed: expected defenseBonus 3"
+.
+if experience of hero is not 50
+    fail with "gainExperience failed: expected 50 remaining experience"
 .
 
-# Test inventory
+# 6. Cooldowns
+slashCd is createCooldown "Slash" 3
+if isCooldownReady slashCd 10 is not true
+    fail with "isCooldownReady initial check failed"
+.
+triggerCooldown slashCd 10
+if isCooldownReady slashCd 11 is not false
+    fail with "isCooldownReady check after 1s failed: should be cooling down"
+.
+if isCooldownReady slashCd 13 is not true
+    fail with "isCooldownReady check after 3s failed: should be ready"
+.
+
+# 7. Inventory & Capacity
 bag is createInventory 2
-added1 is addItemToInventory bag "Dagger"
-added2 is addItemToInventory bag "Shield"
-added3 is addItemToInventory bag "Potion"
-if added1 is true and added2 is true
-    say "test 15 passed: items added within capacity"
+potion1 is createItem "Health Potion" "consumable" 25
+potion2 is createItem "Mana Potion" "consumable" 15
+swordItem is createItem "Broadsword" "weapon" 12
+
+ok1 is addItemToInventory bag potion1
+if ok1 is not true
+    fail with "addItemToInventory 1 failed"
 .
-if added3 is false
-    say "test 16 passed: item rejected when capacity reached"
+ok2 is addItemToInventory bag potion2
+if ok2 is not true
+    fail with "addItemToInventory 2 failed"
+.
+# Exceeds capacity
+ok3 is addItemToInventory bag swordItem
+if ok3 is not false
+    fail with "addItemToInventory should fail when capacity is full"
+.
+if getInventoryCount bag is not 2
+    fail with "getInventoryCount mismatch"
 .
 
-say "All game-entity tests passed."
+# 8. Find and Remove Items
+foundPot is findItemInInventory bag "Health Potion"
+if foundPot is gone
+    fail with "findItemInInventory failed to find item"
+.
+remOk is removeItemFromInventory bag "Health Potion"
+if remOk is not true
+    fail with "removeItemFromInventory failed to remove item"
+.
+if getInventoryCount bag is not 1
+    fail with "getInventoryCount mismatch after removal"
+.
+missingPot is findItemInInventory bag "Health Potion"
+if missingPot is not gone
+    fail with "removed item is still found in inventory"
+.
+
+# 9. Stackable Items
+arrow1 is createStackableItem "Iron Arrow" "ammo" 1 10 30
+arrow2 is createStackableItem "Iron Arrow" "ammo" 1 15 30
+addItemToInventory bag arrow1
+addItemToInventory bag arrow2
+stackedArrow is findItemInInventory bag "Iron Arrow"
+if itemCount of stackedArrow is not 25
+    fail with "stackable item failed: expected stacked count 25"
+.
+
+# 10. Equipment System & Stat Bonuses
+equip is createEquipment
+weaponItem is createItem "Excalibur" "weapon" 20
+armorItem is createItem "Dragon Plate" "armor" 15
+equipItem equip weaponItem
+equipItem equip armorItem
+
+atkBonus is getEquipmentAttackBonus equip
+if atkBonus is not 20
+    fail with "getEquipmentAttackBonus failed: expected 20"
+.
+defBonus is getEquipmentDefenseBonus equip
+if defBonus is not 15
+    fail with "getEquipmentDefenseBonus failed: expected 15"
+.
+
+# 11. State Serialization & Deserialization
+savedState is serializeGameState hero bag equip
+if name of savedState is not "Sir Galahad"
+    fail with "serializeGameState failed: name mismatch"
+.
+
+# Restore into fresh objects
+restoredBundle is deserializeGameState savedState
+restoredHero is actor of restoredBundle
+restoredBag is inventory of restoredBundle
+restoredEquip is equipment of restoredBundle
+
+if name of restoredHero is not "Sir Galahad"
+    fail with "deserializeGameState failed: restored name mismatch"
+.
+if level of restoredHero is not 2
+    fail with "deserializeGameState failed: restored level mismatch"
+.
+if getEquipmentAttackBonus restoredEquip is not 20
+    fail with "deserializeGameState failed: restored equipment attack mismatch"
+.
+if getEquipmentDefenseBonus restoredEquip is not 15
+    fail with "deserializeGameState failed: restored equipment defense mismatch"
+.
+
+say "All game-entity behavioral tests passed successfully!"

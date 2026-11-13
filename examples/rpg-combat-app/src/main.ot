@@ -1,0 +1,234 @@
+# RPG Inventory and Combat Application
+# Consumes installed packs: game-entity, math-utils, file-helpers
+
+use "../.otter/packages/otter-official/game-entity/1.0.0/src/main.ot"
+use "../.otter/packages/otter-official/math-utils/1.0.0/src/main.ot"
+use "../.otter/packages/otter-official/file-helpers/1.0.0/src/main.ot"
+
+saveGamePath is "hero_savegame.json"
+
+say "=========================================================="
+say " RPG Inventory & Combat Application (Phase 7 Real App)"
+say " Consuming: game-entity, math-utils, file-helpers"
+say "=========================================================="
+
+# 1. Character Creation
+say "1. Creating Hero..."
+hero is createActor "Aurelius" 150 1
+if name of hero is not "Aurelius"
+    fail with "RPGApp: Hero name mismatch"
+.
+if health of hero is not 150
+    fail with "RPGApp: Hero health mismatch"
+.
+if level of hero is not 1
+    fail with "RPGApp: Hero level mismatch"
+.
+say "   Hero Aurelius created (HP: 150/150, Level 1)."
+
+# 2. Equipment Setup
+say "2. Setting up equipment slots and equipping gear..."
+eq is createEquipment
+sunblade is createItem "Sunblade" "weapon" 25
+mithrilMail is createItem "Mithril Mail" "armor" 18
+
+equipWeaponOk is equipItem eq sunblade
+if equipWeaponOk is not true
+    fail with "RPGApp: Failed to equip Sunblade"
+.
+
+equipArmorOk is equipItem eq mithrilMail
+if equipArmorOk is not true
+    fail with "RPGApp: Failed to equip Mithril Mail"
+.
+
+eqAtt is getEquipmentAttackBonus eq
+attRating is attackBonus of hero plus eqAtt
+
+eqDef is getEquipmentDefenseBonus eq
+defRating is defenseBonus of hero plus eqDef
+
+if attRating is not 25
+    fail with "RPGApp: Attack rating mismatch: expected 25"
+.
+if defRating is not 18
+    fail with "RPGApp: Defense rating mismatch: expected 18"
+.
+say "   Equipped Sunblade (+25 ATK) and Mithril Mail (+18 DEF)."
+say "   Total Hero Attack:" attRating "Total Hero Defense:" defRating
+
+# 3. Inventory Setup and Item Management
+say "3. Setting up inventory bag and adding items..."
+inv is createInventory 5
+potions is createStackableItem "Health Potion" "consumable" 40 3 5
+feather is createItem "Phoenix Feather" "consumable" 100
+keyItem is createItem "Dungeon Key" "quest" 1
+
+addPotOk is addItemToInventory inv potions
+addFeatOk is addItemToInventory inv feather
+addKeyOk is addItemToInventory inv keyItem
+
+if addPotOk is not true
+    fail with "RPGApp: Failed to add Health Potions"
+.
+if addFeatOk is not true
+    fail with "RPGApp: Failed to add Phoenix Feather"
+.
+if addKeyOk is not true
+    fail with "RPGApp: Failed to add Dungeon Key"
+.
+if currentCount of inv is not 3
+    fail with "RPGApp: Inventory currentCount mismatch"
+.
+
+foundPotions is findItemInInventory inv "Health Potion"
+if foundPotions is gone
+    fail with "RPGApp: Health Potions not found in inventory"
+.
+if itemCount of foundPotions is not 3
+    fail with "RPGApp: Potion stack count mismatch: expected 3"
+.
+say "   Inventory filled with 3 items (Health Potion x3, Phoenix Feather, Dungeon Key)."
+
+# 4. Combat Simulation with Math Mechanics
+say "4. Entering combat with Shadow Stalker..."
+stalker is createActor "Shadow Stalker" 80 1
+say "   Enemy appeared:" name of stalker "(HP: 80, Level 1)"
+
+# Stalker attacks hero: base damage 35, mitigated by armor (18 DEF)
+rawDmg is 35 minus defRating
+# Clamp minimum damage to at least 5
+minDmg is 5
+maxDmg is 100
+netDmg is clamp rawDmg minDmg maxDmg
+say "   Shadow Stalker strikes! Raw: 35, Mitigated: 17, Net Damage dealt:" netDmg
+
+heroHpAfterHit is applyDamage hero netDmg
+if heroHpAfterHit is not 133
+    fail with "RPGApp: Hero HP mismatch after taking hit: expected 133"
+.
+say "   Hero Aurelius HP:" health of hero "/ 150"
+
+# 5. Using Consumables from Inventory
+say "5. Using 1 Health Potion from inventory..."
+curPotionCount is itemCount of foundPotions
+itemCount of foundPotions is curPotionCount minus 1
+healedHp is restoreHealth hero 40
+if healedHp is not 150
+    fail with "RPGApp: Hero HP mismatch after healing: expected 150 (clamped to max)"
+.
+if itemCount of foundPotions is not 2
+    fail with "RPGApp: Potion count mismatch after use: expected 2"
+.
+say "   Drank potion: restored 17 HP to max 150. Remaining potions:" itemCount of foundPotions
+
+# 6. Hero Counters and Defeats Enemy
+say "6. Hero executes counter-strike with Sunblade..."
+# Hero damage: attack rating 25 + base 60 = 85 damage
+stalkerHpAfterHit is applyDamage stalker 85
+if stalkerHpAfterHit is not 0
+    fail with "RPGApp: Stalker expected defeated with 0 HP"
+.
+if isAlive of stalker is not false
+    fail with "RPGApp: Stalker alive flag expected false"
+.
+say "   Shadow Stalker took 85 damage and has been DEFEATED!"
+
+# 7. Gaining Experience & Leveling Up
+say "7. Gaining 120 EXP (threshold 100 EXP)..."
+leveledUp is gainExperience hero 120 100
+if leveledUp is not true
+    fail with "RPGApp: Hero expected to level up"
+.
+if level of hero is not 2
+    fail with "RPGApp: Hero level mismatch: expected 2"
+.
+if experience of hero is not 20
+    fail with "RPGApp: Hero leftover EXP mismatch: expected 20"
+.
+if maxHealth of hero is not 175
+    fail with "RPGApp: Hero max HP after level-up mismatch: expected 175"
+.
+if attackBonus of hero is not 5
+    fail with "RPGApp: Hero attack bonus after level-up mismatch: expected 5"
+.
+say "   LEVEL UP! Aurelius is now Level 2 (HP: 175/175, +5 ATK bonus, 20 leftover EXP)."
+
+# 8. Save Progress to Disk
+say "8. Serializing and saving game state to disk..."
+gameState is serializeGameState hero inv eq
+saveOk is writeJsonObject saveGamePath gameState
+if saveOk is not true
+    fail with "RPGApp: Failed to write savegame JSON to disk"
+.
+say "   Game saved successfully to" saveGamePath
+
+# 9. Restart and State Recovery Verification
+say "9. Simulating fresh restart and state restoration..."
+fallbackSave has
+    name is "None"
+.
+loadedRawState is readJsonObjectSafe saveGamePath fallbackSave
+if name of loadedRawState is not "Aurelius"
+    fail with "RPGApp: Loaded savegame name mismatch"
+.
+
+restoredState is deserializeGameState loadedRawState
+restoredHero is actor of restoredState
+restoredInv is inventory of restoredState
+restoredEq is equipment of restoredState
+
+if name of restoredHero is not "Aurelius"
+    fail with "RPGApp: Restored hero name mismatch"
+.
+if level of restoredHero is not 2
+    fail with "RPGApp: Restored hero level mismatch: expected 2"
+.
+if health of restoredHero is not 175
+    fail with "RPGApp: Restored hero HP mismatch: expected 175"
+.
+if maxHealth of restoredHero is not 175
+    fail with "RPGApp: Restored hero max HP mismatch: expected 175"
+.
+if attackBonus of restoredHero is not 5
+    fail with "RPGApp: Restored hero attack bonus mismatch: expected 5"
+.
+
+# Verify restored equipment
+restoredWeapon is weapon of restoredEq
+if itemName of restoredWeapon is not "Sunblade"
+    fail with "RPGApp: Restored equipped weapon mismatch: expected Sunblade"
+.
+restoredArmor is armor of restoredEq
+if itemName of restoredArmor is not "Mithril Mail"
+    fail with "RPGApp: Restored equipped armor mismatch: expected Mithril Mail"
+.
+
+# Verify restored inventory items and stack counts
+if currentCount of restoredInv is not 3
+    fail with "RPGApp: Restored inventory item count mismatch: expected 3"
+.
+restoredPotions is findItemInInventory restoredInv "Health Potion"
+if restoredPotions is gone
+    fail with "RPGApp: Restored inventory missing Health Potion"
+.
+if itemCount of restoredPotions is not 2
+    fail with "RPGApp: Restored inventory potion count mismatch: expected 2"
+.
+
+restoredFeather is findItemInInventory restoredInv "Phoenix Feather"
+if restoredFeather is gone
+    fail with "RPGApp: Restored inventory missing Phoenix Feather"
+.
+
+say "   State recovery 100% verified: character, stats, equipment, and inventory intact!"
+
+# 10. Clean up save file
+delSaveOk is deleteFileSafe saveGamePath
+if delSaveOk is not true
+    fail with "RPGApp: Failed to clean up savegame file"
+.
+
+say "=========================================================="
+say " RPG Inventory & Combat Application verification 100% PASSED"
+say "=========================================================="

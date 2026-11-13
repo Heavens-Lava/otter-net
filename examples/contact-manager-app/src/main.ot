@@ -1,0 +1,277 @@
+# Contact Manager Application
+# Consumes installed packs: file-helpers, text-utils, list-utils
+
+use "../.otter/packages/otter-official/file-helpers/1.0.0/src/main.ot"
+use "../.otter/packages/otter-official/text-utils/1.0.0/src/main.ot"
+use "../.otter/packages/otter-official/list-utils/1.0.0/src/main.ot"
+
+a Contact has
+    id
+    name
+    email
+    phone
+    tag
+.
+
+a ContactStore has
+    contacts
+    count
+    lastId
+.
+
+to createContactStore
+    store is a ContactStore
+    emptyList are empty
+    contacts of store is emptyList
+    count of store is 0
+    lastId of store is 0
+    return store
+.
+
+to createContact cid cname cemail cphone ctag
+    c is a Contact
+    id of c is cid
+    name of c is cname
+    email of c is cemail
+    phone of c is cphone
+    tag of c is ctag
+    return c
+.
+
+to addContact store name email phone tag
+    curLast is lastId of store
+    newId is curLast plus 1
+    lastId of store is newId
+    
+    c is createContact newId name email phone tag
+    cList is contacts of store
+    add c to cList
+    count of store is count of store plus 1
+    return c
+.
+
+to findContactById store targetId
+    cList is contacts of store
+    for each c in cList
+        if id of c is targetId
+            return c
+        .
+    .
+    return gone
+.
+
+to editContact store targetId newEmail newPhone newTag
+    c is findContactById store targetId
+    if c is gone
+        return false
+    .
+    email of c is newEmail
+    phone of c is newPhone
+    tag of c is newTag
+    return true
+.
+
+to deleteContact store targetId
+    cList is contacts of store
+    remaining are empty
+    deleted is false
+    for each c in cList
+        if id of c is targetId
+            deleted is true
+        otherwise
+            add c to remaining
+        .
+    .
+    if deleted is true
+        contacts of store is remaining
+        count of store is length of remaining
+        return true
+    .
+    return false
+.
+
+to searchContacts store query
+    matches are empty
+    cList is contacts of store
+    qLower is toLower query
+    for each c in cList
+        nLower is toLower name of c
+        eLower is toLower email of c
+        tLower is toLower tag of c
+        matched is false
+        if containsText nLower qLower is true
+            matched is true
+        otherwise if containsText eLower qLower is true
+            matched is true
+        otherwise if containsText tLower qLower is true
+            matched is true
+        .
+        if matched is true
+            add c to matches
+        .
+    .
+    return matches
+.
+
+to buildContactRecord it
+    record has
+        id is id of it
+        name is name of it
+        email is email of it
+        phone is phone of it
+        tag is tag of it
+    .
+    return record
+.
+
+to saveContactStore store filePath
+    rawList are empty
+    cList is contacts of store
+    for each c in cList
+        r is buildContactRecord c
+        add r to rawList
+    .
+    payload has
+        count is count of store
+        lastId is lastId of store
+        contacts is rawList
+    .
+    return writeJsonObject filePath payload
+.
+
+to loadContactStore filePath
+    emptyItems are empty
+    fallback has
+        count is 0
+        lastId is 0
+        contacts is emptyItems
+    .
+    loaded is readJsonObjectSafe filePath fallback
+    store is createContactStore
+    count of store is count of loaded
+    lastId of store is lastId of loaded
+    rawList is contacts of loaded
+    rebuilt are empty
+    for each item in rawList
+        c is createContact id of item name of item email of item phone of item tag of item
+        add c to rebuilt
+    .
+    contacts of store is rebuilt
+    return store
+.
+
+# ==============================================================================
+# Application Lifecycle & Behavioral Assertions
+# ==============================================================================
+
+storePath is "contacts_store.json"
+
+say "=========================================================="
+say " Contact Manager Application (Phase 7 Real App)"
+say " Consuming: file-helpers, text-utils, list-utils"
+say "=========================================================="
+
+# Stage 1: Create store, add contacts, edit, and delete
+appStore is createContactStore
+say "1. Adding contacts..."
+c1 is addContact appStore "Alice Smith" "alice@example.com" "555-0100" "Engineering"
+c2 is addContact appStore "Bob Jones" "bob@example.com" "555-0200" "Design"
+c3 is addContact appStore "Charlie Brown" "charlie@example.com" "555-0300" "Engineering"
+
+if count of appStore is not 3
+    fail with "ContactManager: Expected 3 contacts added"
+.
+say "   Added 3 contacts successfully."
+
+say "2. Editing contact 1 (Alice Smith)..."
+editOk is editContact appStore 1 "alice.smith@corp.com" "555-0199" "Tech Lead"
+if editOk is not true
+    fail with "ContactManager: editContact failed"
+.
+aliceEdited is findContactById appStore 1
+if email of aliceEdited is not "alice.smith@corp.com"
+    fail with "ContactManager: email update mismatch"
+.
+if phone of aliceEdited is not "555-0199"
+    fail with "ContactManager: phone update mismatch"
+.
+say "   Contact 1 edited and verified."
+
+say "3. Deleting contact 2 (Bob Jones)..."
+delOk is deleteContact appStore 2
+if delOk is not true
+    fail with "ContactManager: deleteContact failed"
+.
+if count of appStore is not 2
+    fail with "ContactManager: count after delete expected 2"
+.
+bobCheck is findContactById appStore 2
+if bobCheck is not gone
+    fail with "ContactManager: deleted contact still found"
+.
+say "   Contact 2 deleted successfully."
+
+say "4. Searching contacts by tag 'Lead'..."
+leadMatches is searchContacts appStore "lead"
+if length of leadMatches is not 1
+    fail with "ContactManager: search by 'lead' expected 1 match"
+.
+matchedAlice is first of leadMatches
+if name of matchedAlice is not "Alice Smith"
+    fail with "ContactManager: search match name mismatch"
+.
+say "   Search 'lead' returned Alice Smith as expected."
+
+say "5. Saving contact store to disk..."
+saveOk is saveContactStore appStore storePath
+if saveOk is not true
+    fail with "ContactManager: saveContactStore failed"
+.
+say "   Saved to" storePath
+
+say "6. Simulating application restart and recovery from disk..."
+restoredStore is loadContactStore storePath
+if count of restoredStore is not 2
+    fail with "ContactManager: restored store count mismatch"
+.
+if lastId of restoredStore is not 3
+    fail with "ContactManager: restored store lastId mismatch"
+.
+
+restoredAlice is findContactById restoredStore 1
+if restoredAlice is gone
+    fail with "ContactManager: restored Alice not found"
+.
+if email of restoredAlice is not "alice.smith@corp.com"
+    fail with "ContactManager: restored Alice email mismatch"
+.
+if phone of restoredAlice is not "555-0199"
+    fail with "ContactManager: restored Alice phone mismatch"
+.
+if tag of restoredAlice is not "Tech Lead"
+    fail with "ContactManager: restored Alice tag mismatch"
+.
+
+restoredBob is findContactById restoredStore 2
+if restoredBob is not gone
+    fail with "ContactManager: deleted Bob unexpectedly restored"
+.
+
+restoredCharlie is findContactById restoredStore 3
+if restoredCharlie is gone
+    fail with "ContactManager: restored Charlie not found"
+.
+if name of restoredCharlie is not "Charlie Brown"
+    fail with "ContactManager: restored Charlie name mismatch"
+.
+
+say "   Restoration and recovery verified successfully across sessions!"
+say "7. Cleaning up test storage..."
+delFileOk is deleteFileSafe storePath
+if delFileOk is not true
+    fail with "ContactManager: cleanup deleteFileSafe failed"
+.
+
+say "=========================================================="
+say " Contact Manager Application verification 100% PASSED"
+say "=========================================================="

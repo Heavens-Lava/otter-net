@@ -1,0 +1,11 @@
+{
+  "name": "rpg-combat-app",
+  "version": "1.0.0",
+  "target": "console",
+  "entryPoint": "src/main.ot",
+  "dependencies": {
+    "otter-official/game-entity": "1.0.0",
+    "otter-official/math-utils": "1.0.0",
+    "otter-official/file-helpers": "1.0.0"
+  }
+}

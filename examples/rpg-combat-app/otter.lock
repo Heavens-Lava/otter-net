@@ -1,0 +1,24 @@
+{
+  "lockfileVersion": 1,
+  "generatedBy": "otter-cli 1.0.1",
+  "packages": {
+    "otter-official/game-entity": {
+      "version": "1.0.0",
+      "entry": "src/main.ot",
+      "sha256": "e6d5078a535ea43b24e3cf9711ccd4c0d1a1adbf30a9a0208380fb1fa2652174",
+      "installedAt": "2026-11-13T17:07:31.4381850Z"
+    },
+    "otter-official/math-utils": {
+      "version": "1.0.0",
+      "entry": "src/main.ot",
+      "sha256": "ed399a531f8f4ea98825da2b8a8f20fc88c1f7f9d346217240986e7ab484012e",
+      "installedAt": "2026-11-13T17:05:16.5365080Z"
+    },
+    "otter-official/file-helpers": {
+      "version": "1.0.0",
+      "entry": "src/main.ot",
+      "sha256": "674a536682dbcc955e13844a34da448d28fd305a4b9dcc8fddc31038ee9d6f8b",
+      "installedAt": "2026-11-13T17:05:16.5792570Z"
+    }
+  }
+}

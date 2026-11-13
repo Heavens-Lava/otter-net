@@ -1,39 +1,43 @@
-# Demo for game-entity
+# game-entity Demo
 use "../src/main.ot"
 
-say "=== Game Entity Demo ==="
+say "=== game-entity Demo ==="
+player is createActor "Paladin" 120 1
+say "Hero created:" name of player "HP:" health of player "/" maxHealth of player
 
-hero is createActor "Sir Galahad" 150 1
-say "Hero created:" name of hero "with" health of hero "HP, Level:" level of hero
+bag is createInventory 6
+potion is createItem "Elixir of Life" "consumable" 50
+sword is createItem "Mithril Sword" "weapon" 25
+shield is createItem "Kite Shield" "armor" 15
+arrows is createStackableItem "Fire Arrow" "ammo" 5 10 20
 
-potion is createItem "Greater Health Potion" "consumable" 50
-say "Item found:" itemName of potion "power:" itemPower of potion
+addItemToInventory bag potion
+addItemToInventory bag sword
+addItemToInventory bag shield
+addItemToInventory bag arrows
+say "Inventory items count:" getInventoryCount bag
 
-say "An ambush strikes!"
-hpAfterHit is applyDamage hero 65
-say name of hero "takes 65 damage! Remaining HP:" health of hero
+equip is createEquipment
+equipItem equip sword
+equipItem equip shield
+say "Equipment Attack Bonus: +" getEquipmentAttackBonus equip
+say "Equipment Defense Bonus: +" getEquipmentDefenseBonus equip
 
-say "Drinking potion..."
-hpAfterHeal is restoreHealth hero itemPower of potion
-say name of hero "healed to" health of hero "HP"
+say "Engaging in combat..."
+applyDamage player 35
+say "HP after combat damage:" health of player "/" maxHealth of player
 
-say "Gaining battle experience..."
-newLvl is levelUp hero
-say name of hero "leveled up to" level of hero "! Max HP increased to" maxHealth of hero
+restoreHealth player 20
+say "HP after recovery:" health of player "/" maxHealth of player
 
-say "Equipping inventory..."
-pouch is createInventory 2
-addItemToInventory pouch "Iron Key"
-addItemToInventory pouch "Magic Scroll"
-say "Inventory items:" items of pouch
+say "Awarding 120 experience..."
+gainExperience player 120 100
+say "Hero is now Level" level of player "with Max HP:" maxHealth of player
 
-say "Testing skill cooldown..."
-shieldBlock is createCooldown "Shield Block" 5
-readyNow is isCooldownReady shieldBlock 0
-say "Shield Block ready at t=0:" readyNow
-triggerCooldown shieldBlock 0
-readyMid is isCooldownReady shieldBlock 2
-say "Shield Block ready at t=2:" readyMid
-readyLater is isCooldownReady shieldBlock 6
-say "Shield Block ready at t=6:" readyLater
+say "Saving full character and inventory state..."
+savedState is serializeGameState player bag equip
+say "State serialized for:" name of savedState "Level:" level of savedState
 
+bundle is deserializeGameState savedState
+heroRestored is actor of bundle
+say "Restored hero name:" name of heroRestored "Level:" level of heroRestored

@@ -1,25 +1,33 @@
-# Demo for file-helpers
+# file-helpers Demo
 use "../src/main.ot"
 
-say "=== File Helpers Demo ==="
+say "=== file-helpers Demo ==="
 demoFile is "demo_store.json"
 
-appSettings has
-    theme is "dark"
-    fontSize is 14
-    autoSave is true
+config has
+    environment is "production"
+    logLevel is "info"
+    maxRetries is 5
 .
 
-saved is writeJsonObject demoFile appSettings
-say "Settings saved to JSON:" saved
+say "Saving configuration object to" demoFile "..."
+writeJsonObject demoFile config
 
+say "File exists:" fileExistsSafe demoFile
+
+say "Reading configuration back..."
 loaded is readJsonObject demoFile
-say "Theme loaded:" theme of loaded
-say "Font size loaded:" fontSize of loaded
+say "Loaded environment:" environment of loaded
+say "Loaded log level:" logLevel of loaded
+say "Loaded max retries:" maxRetries of loaded
 
-missingVal is readOrFallback "missing_notes.txt" "No notes found."
-say "Missing file fallback:" missingVal
+say "Testing corrupt JSON fallback..."
+corruptFallback has
+    environment is "fallback-env"
+.
+safeObj is fromJsonSafe "{ malformed" corruptFallback
+say "Recovered environment from corrupt JSON:" environment of safeObj
 
-# Clean up demo artifact
-delete file demoFile
-say "Demo complete."
+say "Cleaning up demo file..."
+deleteFileSafe demoFile
+say "File exists after delete:" fileExistsSafe demoFile

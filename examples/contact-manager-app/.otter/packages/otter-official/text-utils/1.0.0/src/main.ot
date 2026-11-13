@@ -1,0 +1,114 @@
+# text-utils - Otter Reusable String Library
+# Provides repeatText, padLeft, padRight, slugify, toUpper, toLower,
+# isEqualIgnoreCase, isNonEmpty, replaceText, containsText, startsWithText,
+# endsWithText, splitText, joinText, and normalizeSpaces
+
+to repeatText src timesCount
+    if timesCount is at most 0
+        return ""
+    .
+    result is ""
+    count from 1 to timesCount as idx
+        result is result plus src
+    .
+    return result
+.
+
+to padLeft text targetLen padChar
+    curLen is length of text
+    if curLen is at least targetLen
+        return text
+    .
+    needed is targetLen minus curLen
+    padding is repeatText padChar needed
+    return padding plus text
+.
+
+to padRight text targetLen padChar
+    curLen is length of text
+    if curLen is at least targetLen
+        return text
+    .
+    needed is targetLen minus curLen
+    padding is repeatText padChar needed
+    return text plus padding
+.
+
+to slugify text
+    clean is lowercase of text
+    replace " " with "-" in clean
+    replace "_" with "-" in clean
+    return clean
+.
+
+to toUpper text
+    return uppercase of text
+.
+
+to toLower text
+    return lowercase of text
+.
+
+to isEqualIgnoreCase left right
+    lLeft is lowercase of left
+    lRight is lowercase of right
+    if lLeft is lRight
+        return true
+    .
+    return false
+.
+
+to isNonEmpty text
+    if text is gone
+        return false
+    .
+    if length of text is 0
+        return false
+    .
+    return true
+.
+
+to replaceText source findStr replaceStr
+    buf is source
+    replace findStr with replaceStr in buf
+    return buf
+.
+
+to containsText source searchStr
+    if source contains searchStr
+        return true
+    .
+    return false
+.
+
+to startsWithText text prefix
+    if text starts with prefix
+        return true
+    .
+    return false
+.
+
+to endsWithText text suffix
+    if text ends with suffix
+        return true
+    .
+    return false
+.
+
+to splitText text separator
+    split text by separator into parts
+    return parts
+.
+
+to joinText parts separator
+    join parts with separator into result
+    return result
+.
+
+to normalizeSpaces text
+    clean is text
+    while clean contains "  "
+        replace "  " with " " in clean
+    .
+    return clean
+.

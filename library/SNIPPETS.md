@@ -48,9 +48,16 @@ items are
     "C#"
 .
 
+itemCount is 0
 for each item in items
     say "Language:" item
+    increase itemCount by 1
 .
+
+if itemCount is not 3
+    fail with "for-each count mismatch"
+.
+
 ```
 
 ---
@@ -69,9 +76,16 @@ count from ${start} to ${finish} as ${number}
 
 **Runnable Example:**
 ```otter
+sum is 0
 count from 1 to 5 as n
     say "Counting:" n
+    sum is sum plus n
 .
+
+if sum is not 15
+    fail with "count-range sum mismatch: expected 15"
+.
+
 ```
 
 ---
@@ -95,6 +109,11 @@ while counter is greater than 0
     say "Countdown:" counter
     decrease counter
 .
+
+if counter is not 0
+    fail with "while-loop termination mismatch: expected 0"
+.
+
 ```
 
 ---
@@ -118,13 +137,23 @@ otherwise
 **Runnable Example:**
 ```otter
 score is 85
+grade is "unknown"
+
 if score is at least 90
+    grade is "A"
     say "Grade: A"
 otherwise if score is at least 80
+    grade is "B"
     say "Grade: B"
 otherwise
+    grade is "C"
     say "Grade: C"
 .
+
+if grade is not "B"
+    fail with "if-otherwise evaluation mismatch: expected B"
+.
+
 ```
 
 ---
@@ -145,12 +174,22 @@ otherwise into ${reason}
 
 **Runnable Example:**
 ```otter
+caught is false
+reasonMsg is ""
+
 try
     badMath is 10 divided by 0
     say badMath
 otherwise into reason
+    caught is true
+    reasonMsg is reason
     say "Handled error safely:" reason
 .
+
+if caught is not true
+    fail with "try-otherwise failed: exception was not caught"
+.
+
 ```
 
 ---
@@ -183,6 +222,11 @@ to slugify text
 
 slug is slugify "Otter Language Release 2026"
 say "Slug:" slug
+
+if slug is not "otter-language-release-2026"
+    fail with "slugify mismatch: expected otter-language-release-2026"
+.
+
 ```
 
 ---
@@ -223,7 +267,16 @@ to padLeft text targetLen padChar
     return padding plus text
 .
 
-say "Invoice #" padLeft "42" 6 "0"
+res is padLeft "item" 7 "x"
+say "Padded:" res
+
+if res is not "xxxitem"
+    fail with "padLeft mismatch: expected xxxitem"
+.
+if length of res is not 7
+    fail with "padLeft length mismatch: expected 7"
+.
+
 ```
 
 ---
@@ -245,6 +298,14 @@ sentence is "alpha,beta,gamma,delta"
 split sentence by "," into items
 join items with " -> " into pipeline
 say pipeline
+
+if length of items is not 4
+    fail with "split items count mismatch: expected 4"
+.
+if pipeline is not "alpha -> beta -> gamma -> delta"
+    fail with "split-join pipeline mismatch"
+.
+
 ```
 
 ---
@@ -264,6 +325,11 @@ replace "${findText}" with "${replacementText}" in ${targetVariable}
 greeting is "Hello world! Welcome to world."
 replace "world" with "Otter" in greeting
 say greeting
+
+if greeting is not "Hello Otter! Welcome to Otter."
+    fail with "text replacement mismatch"
+.
+
 ```
 
 ---
@@ -286,8 +352,18 @@ hexInput is "4F74746572"
 rawBytes is bytes from hex hexInput
 decodedText is text from bytes rawBytes
 say "Decoded text:" decodedText
+
+if decodedText is not "Otter"
+    fail with "bytes from hex decode mismatch: expected Otter"
+.
+
 encodedHex is hex from bytes rawBytes
 say "Encoded back:" encodedHex
+
+if uppercase of encodedHex is not "4F74746572"
+    fail with "hex from bytes encode mismatch"
+.
+
 ```
 
 ---
@@ -324,7 +400,23 @@ to clamp val minLimit maxLimit
     return val
 .
 
-say clamp 150 0 100
+c1 is clamp 150 0 100
+negVal is 0 minus 10
+c2 is clamp negVal 0 100
+c3 is clamp 50 0 100
+
+say "Clamped:" c1 c2 c3
+
+if c1 is not 100
+    fail with "clamp upper bound mismatch: expected 100"
+.
+if c2 is not 0
+    fail with "clamp lower bound mismatch: expected 0"
+.
+if c3 is not 50
+    fail with "clamp middle value mismatch: expected 50"
+.
+
 ```
 
 ---
@@ -351,7 +443,13 @@ to lerp startVal endVal t
     return startVal plus offset
 .
 
-say "Midpoint:" lerp 10 20 0.5
+mid is lerp 10 20 0.5
+say "Midpoint:" mid
+
+if mid is not 15
+    fail with "lerp midpoint mismatch: expected 15"
+.
+
 ```
 
 ---
@@ -384,7 +482,13 @@ to mapRange val inMin inMax outMin outMax
     return outMin plus scaled
 .
 
-say "Percentage to fraction:" mapRange 75 0 100 0 1
+res is mapRange 75 0 100 0 1
+say "Percentage to fraction:" res
+
+if res is not 0.75
+    fail with "mapRange calculation mismatch: expected 0.75"
+.
+
 ```
 
 ---
@@ -414,15 +518,15 @@ to calcAverage items
 ```otter
 to calcAverage items
     total is 0
-    count is 0
+    itemCount is 0
     for each item in items
         total is total plus item
-        increase count by 1
+        increase itemCount by 1
     .
-    if count is 0
+    if itemCount is 0
         return 0
     .
-    return total divided by count
+    return total divided by itemCount
 .
 
 grades are
@@ -430,7 +534,13 @@ grades are
     90
     95
 .
-say "Class average:" calcAverage grades
+avg is calcAverage grades
+say "Class average:" avg
+
+if avg is not 90
+    fail with "calcAverage mismatch: expected 90"
+.
+
 ```
 
 ---
@@ -507,7 +617,19 @@ to formatCurrency amount
     .
 .
 
-say "Price:" formatCurrency 42.5
+formatted1 is formatCurrency 42.5
+formatted2 is formatCurrency 100
+
+say "Price 1:" formatted1
+say "Price 2:" formatted2
+
+if formatted1 is not "$42.50"
+    fail with "formatCurrency decimal mismatch: expected $42.50"
+.
+if formatted2 is not "$100.00"
+    fail with "formatCurrency integer mismatch: expected $100.00"
+.
+
 ```
 
 ---
@@ -534,9 +656,28 @@ allowedRoles are
 .
 
 userRole is "admin"
+guestRole is "guest"
+
+hasAdmin is false
 if allowedRoles contains userRole
-    say "Access granted"
+    hasAdmin is true
 .
+
+hasGuest is false
+if allowedRoles contains guestRole
+    hasGuest is true
+.
+
+say "Has admin:" hasAdmin
+say "Has guest:" hasGuest
+
+if hasAdmin is not true
+    fail with "list-contains expected admin to be present"
+.
+if hasGuest is not false
+    fail with "list-contains expected guest to be absent"
+.
+
 ```
 
 ---
@@ -579,6 +720,14 @@ raw are
 .
 uniquePets is dedupeList raw
 say "Unique count:" length of uniquePets
+
+if length of uniquePets is not 3
+    fail with "dedupeList length mismatch: expected 3"
+.
+if not uniquePets contains "dog"
+    fail with "dedupeList missing expected item 'dog'"
+.
+
 ```
 
 ---
@@ -614,6 +763,14 @@ for each n in numbers
     .
 .
 say "Found numbers >= 10:" length of highNumbers
+
+if length of highNumbers is not 3
+    fail with "filter count mismatch: expected 3 items"
+.
+if not highNumbers contains 28
+    fail with "filtered list missing element 28"
+.
+
 ```
 
 ---
@@ -636,12 +793,33 @@ otherwise
 
 **Runnable Example:**
 ```otter
-if file "version.txt" exists
-    read "version.txt" into appVersion
+testPath is "snippet_test_read.txt"
+write "version-2026.1" to testPath
+
+if file testPath exists
+    read testPath into appVersion
 otherwise
-    appVersion is "1.0.0-dev"
+    appVersion is "fallback-version"
 .
+
 say "App Version:" appVersion
+
+if appVersion is not "version-2026.1"
+    fail with "file-read-safe existing file read mismatch"
+.
+
+delete file testPath
+
+if file "non_existent_file_999.txt" exists
+    read "non_existent_file_999.txt" into missingVal
+otherwise
+    missingVal is "safe-fallback"
+.
+
+if missingVal is not "safe-fallback"
+    fail with "file-read-safe fallback branch mismatch"
+.
+
 ```
 
 ---
@@ -658,9 +836,18 @@ write ${content} to "${filePath}"
 
 **Runnable Example:**
 ```otter
+testLogPath is "snippet_session.log"
 message is "Session started at 2026-11-10"
-write message to "session.log"
+write message to testLogPath
 say "Session written to disk."
+
+read testLogPath into readBack
+if readBack is not message
+    fail with "file-write-text content readback mismatch"
+.
+
+delete file testLogPath
+
 ```
 
 ---
@@ -712,10 +899,23 @@ cfg has
     port is 3000
 .
 
-ok is saveJsonObject "app.json" cfg
-readCfg is loadJsonObject "app.json"
+ok is saveJsonObject "app_test.json" cfg
+if ok is not true
+    fail with "saveJsonObject failed"
+.
+
+readCfg is loadJsonObject "app_test.json"
 say "Loaded app:" appName of readCfg
-delete file "app.json"
+
+if appName of readCfg is not "Otter App"
+    fail with "json storage appName mismatch"
+.
+if port of readCfg is not 3000
+    fail with "json storage port mismatch"
+.
+
+delete file "app_test.json"
+
 ```
 
 ---
@@ -750,6 +950,14 @@ user is a Profile
 username of user is "jeffrey"
 email of user is "jeffrey@example.com"
 say username of user "<" email of user ">"
+
+if username of user is not "jeffrey"
+    fail with "profile username mismatch"
+.
+if email of user is not "jeffrey@example.com"
+    fail with "profile email mismatch"
+.
+
 ```
 
 ---
@@ -774,6 +982,17 @@ serverConfig has
     active is true
 .
 say "Listening on" host of serverConfig ":" port of serverConfig
+
+if host of serverConfig is not "127.0.0.1"
+    fail with "serverConfig host mismatch"
+.
+if port of serverConfig is not 8080
+    fail with "serverConfig port mismatch"
+.
+if active of serverConfig is not true
+    fail with "serverConfig active flag mismatch"
+.
+
 ```
 
 ---
@@ -822,9 +1041,17 @@ into result
 query db with
     "select id, name from items"
 into rows
-for each r in rows
-    say "ID:" id of r "Name:" name of r
+
+say "Found rows:" length of rows
+if length of rows is not 1
+    fail with "sqlite query row count mismatch: expected 1"
 .
+
+r is first of rows
+if name of r is not "Otter Net"
+    fail with "sqlite query result mismatch: expected 'Otter Net'"
+.
+
 ```
 
 ---
@@ -882,9 +1109,24 @@ name of boss is "Ancient Dragon"
 health of boss is 100
 isAlive of boss is true
 
-say name of boss "takes 40 damage:"
 remHp is takeDamage boss 40
 say "Remaining HP:" health of boss
+
+if remHp is not 60
+    fail with "damage calculation mismatch: expected 60"
+.
+if health of boss is not 60
+    fail with "boss health state mismatch: expected 60"
+.
+
+fatalHp is takeDamage boss 80
+if fatalHp is not 0
+    fail with "overkill health mismatch: expected 0"
+.
+if isAlive of boss is not false
+    fail with "boss alive state mismatch after lethal damage"
+.
+
 ```
 
 ---
@@ -925,6 +1167,7 @@ when site receives GET at "/health"
     .
     respond with payload as json
 .
+
 ```
 
 ---
@@ -959,7 +1202,7 @@ join baseParts with "" into baseUrl
 on connection to srv
     c is incoming connection
     on data from c
-        send bytes from text "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 12\r\nConnection: close\r\n\r\nHello Otter!" through c
+        send bytes from text "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: 12\nConnection: close\n\nHello Otter!" through c
         close tcp c
     .
 .
@@ -968,13 +1211,22 @@ url is baseUrl plus "/api/ping"
 start get from url and call it req
 tries is 0
 while req is pending and tries is less than 50
-    wait 20 milliseconds
+    wait 30 milliseconds
     tries is tries plus 1
 .
-if req is completed
-    say "HTTP Response:" response of req
+
+if req is not completed
+    fail with "http request did not complete"
 .
+
+say "HTTP Response:" response of req
+
+if not response of req contains "Hello Otter!"
+    fail with "http response body mismatch: expected Hello Otter!"
+.
+
 stop tcp srv
+
 ```
 
 ---
@@ -999,6 +1251,11 @@ startDay is date from "2026-01-01"
 endDay is date from "2026-01-15"
 diffDays is days between startDay and endDay
 say "Days between dates:" diffDays
+
+if diffDays is not 14
+    fail with "days between calculation mismatch: expected 14"
+.
+
 ```
 
 ---
@@ -1019,6 +1276,12 @@ add ${numDays} days to targetDate
 invoiceDate is date from "2026-03-01"
 add 30 days to invoiceDate
 say "Invoice due date:" invoiceDate
+
+expectedDate is date from "2026-03-31"
+if invoiceDate is not expectedDate
+    fail with "date addition mismatch: expected 2026-03-31"
+.
+
 ```
 
 ---
@@ -1046,8 +1309,24 @@ scores are
 .
 sort scores
 say "Sorted ascending:" scores
+
+if first of scores is not 17
+    fail with "sort ascending first element mismatch: expected 17"
+.
+if last of scores is not 95
+    fail with "sort ascending last element mismatch: expected 95"
+.
+
 reverse scores
 say "Sorted descending:" scores
+
+if first of scores is not 95
+    fail with "reverse first element mismatch: expected 95"
+.
+if last of scores is not 17
+    fail with "reverse last element mismatch: expected 17"
+.
+
 ```
 
 ---
@@ -1072,9 +1351,19 @@ for each ${row} in ${rows}
 csvContent is "name,department,level\nAlice,Engineering,4\nBob,Design,3"
 convert csvContent from csv into staff
 say "Staff count:" length of staff
-for each member in staff
-    say name of member "|" department of member "|" level of member
+
+if length of staff is not 2
+    fail with "csv parse staff count mismatch: expected 2"
 .
+
+firstMember is first of staff
+if name of firstMember is not "Alice"
+    fail with "csv parse first member name mismatch: expected Alice"
+.
+if department of firstMember is not "Engineering"
+    fail with "csv parse first member department mismatch: expected Engineering"
+.
+
 ```
 
 ---
@@ -1100,7 +1389,7 @@ to appendLogEntry path msg
 
 **Runnable Example:**
 ```otter
-logFilePath is "audit.log"
+logFilePath is "snippet_audit.log"
 to appendLogEntry path msg
     line is msg plus "\n"
     try
@@ -1116,7 +1405,16 @@ appendLogEntry logFilePath "Server starting"
 appendLogEntry logFilePath "Ready to receive"
 read logFilePath into auditContents
 say "Audit log:" auditContents
+
+if not auditContents contains "Server starting"
+    fail with "append log missing first entry"
+.
+if not auditContents contains "Ready to receive"
+    fail with "append log missing second entry"
+.
+
 delete file logFilePath
+
 ```
 
 ---
@@ -1158,6 +1456,11 @@ query memDb with
 into rows
 row is first of rows
 say "Committed balance:" balance of row
+
+if balance of row is not 450
+    fail with "transaction balance mismatch: expected 450"
+.
+
 ```
 
 ---
@@ -1183,6 +1486,8 @@ page "${pageTitle}"
 
 **Runnable Example:**
 ```otter
+layoutDefined is false
+
 page "User Management"
     heading "All Users"
     card "Directory"
@@ -1191,7 +1496,14 @@ page "User Management"
             click
                 say "Exporting CSV..."
     primary button "Add User"
+
+layoutDefined is true
 say "Page layout defined"
+
+if layoutDefined is not true
+    fail with "page layout failed to define"
+.
+
 ```
 
 ---
@@ -1280,13 +1592,27 @@ to useAbility ability nowSeconds
 
 spinAttack is createAbility "Whirlwind" 4
 readyInitial is isAbilityReady spinAttack 0
-say "Whirlwind ready initially:" readyInitial
+if readyInitial is not true
+    fail with "ability expected ready initially"
+.
+
 usedOk is useAbility spinAttack 0
-say "Whirlwind used at t=0:" usedOk
+if usedOk is not true
+    fail with "ability use expected to succeed at t=0"
+.
+
 readyAt2 is isAbilityReady spinAttack 2
-say "Whirlwind ready at t=2:" readyAt2
+if readyAt2 is not false
+    fail with "ability expected on cooldown at t=2"
+.
+
 readyAt5 is isAbilityReady spinAttack 5
-say "Whirlwind ready at t=5:" readyAt5
+if readyAt5 is not true
+    fail with "ability expected ready at t=5 after 4s cooldown"
+.
+
+say "Cooldown checks passed successfully."
+
 ```
 
 ---
@@ -1356,10 +1682,25 @@ to addItemToBag bag item
 .
 
 playerBag is createInventoryBag 2
-say "Add bow:" addItemToBag playerBag "Wooden Bow"
-say "Add arrows:" addItemToBag playerBag "Quiver"
-say "Add shield (should fail):" addItemToBag playerBag "Iron Shield"
-say "Bag contents:" items of playerBag
+added1 is addItemToBag playerBag "Wooden Bow"
+added2 is addItemToBag playerBag "Quiver"
+added3 is addItemToBag playerBag "Iron Shield"
+
+if added1 is not true
+    fail with "addItemToBag failed to add item 1"
+.
+if added2 is not true
+    fail with "addItemToBag failed to add item 2"
+.
+if added3 is not false
+    fail with "addItemToBag permitted adding item exceeding capacity"
+.
+if length of items of playerBag is not 2
+    fail with "inventory bag item count mismatch: expected 2"
+.
+
+say "Inventory capacity checks passed."
+
 ```
 
 ---
@@ -1408,8 +1749,19 @@ to validateEmail email
     return false
 .
 
-say "Check dev@otter.org:" validateEmail "dev@otter.org"
-say "Check invalid-email:" validateEmail "invalid-email"
+okEmail is validateEmail "dev@otter.org"
+badEmail is validateEmail "invalid-email"
+
+say "Check dev@otter.org:" okEmail
+say "Check invalid-email:" badEmail
+
+if okEmail is not true
+    fail with "validateEmail rejected valid email dev@otter.org"
+.
+if badEmail is not false
+    fail with "validateEmail accepted invalid email invalid-email"
+.
+
 ```
 
 ---
@@ -1448,8 +1800,18 @@ to validateRange value minVal maxVal fieldName
     return true
 .
 
-say "Age 28 valid:" validateRange 28 18 65 "age"
-say "Age 90 valid:" validateRange 90 18 65 "age"
+validAge is validateRange 28 18 65 "age"
+overAge is validateRange 90 18 65 "age"
+
+if validAge is not true
+    fail with "validateRange rejected valid age 28"
+.
+if overAge is not false
+    fail with "validateRange accepted out-of-bounds age 90"
+.
+
+say "Numeric range checks passed."
+
 ```
 
 ---

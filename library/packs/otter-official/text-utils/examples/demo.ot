@@ -1,19 +1,16 @@
-# Demo for text-utils
+# text-utils Demo
 use "../src/main.ot"
 
-say "=== Text Utils Demo ==="
-title is "Otter Language Overview 2026"
-slug is slugify title
-say "Original:" title
-say "Slugified:" slug
+say "=== text-utils Demo ==="
+say "Repeat 5 times:" repeatText "*=" 5
+say "Pad left number:" padLeft "42" 6 "0"
+say "Pad right tag:" padRight "INFO" 8 "."
+say "Slugify title:" slugify "Otter 1.0 Reusable Library Release"
+say "Uppercase:" toUpper "make it loud"
+say "Lowercase:" toLower "KEEP IT CALM"
+say "Case-insensitive equal:" isEqualIgnoreCase "Release" "RELEASE"
+say "Normalize spaces:" normalizeSpaces "Clean    extra   spacing"
 
-numStr is "7"
-paddedNum is padLeft numStr 4 "0"
-say "Padded Number (width 4):" paddedNum
-
-label is "User"
-paddedLabel is padRight label 10 "."
-say "Padded Label (width 10):" paddedLabel
-
-separator is repeatText "-" 30
-say separator
+tags is splitText "parser,lexer,runtime,cli" ","
+say "Split count:" length of tags
+say "Rejoined with arrow:" joinText tags " -> "

@@ -1,27 +1,31 @@
-# Demo for list-utils
+# list-utils Demo
 use "../src/main.ot"
 
-say "=== List Utils Demo ==="
-inventory are
-    "sword"
-    "shield"
-    "potion"
-    "shield"
+say "=== list-utils Demo ==="
+tasks are
+    "Code"
+    "Test"
+    "Code"
+    "Deploy"
+    "Test"
 .
+say "Original tasks count:" length of tasks
+say "Has 'Deploy':" hasItem tasks "Deploy"
+say "Count of 'Code':" countMatches tasks "Code"
 
-hasPotion is hasItem inventory "potion"
-say "Has potion in inventory:" hasPotion
-
-shieldCount is countMatches inventory "shield"
-say "Number of shields:" shieldCount
-
-uniqueInv is dedupeList inventory
-say "Deduplicated items:"
-for each item in uniqueInv
-    say " -" item
-.
-
-prefixed is joinWithPrefix uniqueInv "item: "
+deduped is dedupeList tasks
+say "Unique tasks count:" length of deduped
+say "Prefixed tasks:"
+prefixed is joinWithPrefix deduped "[DONE] "
 for each p in prefixed
-    say p
+    say "  " p
 .
+
+say "Removing 'Deploy':"
+cleaned is removeItemFromList deduped "Deploy"
+for each c in cleaned
+    say "  Remaining:" c
+.
+
+sub is sliceList cleaned 1 2
+say "Subslice (first 2):" length of sub

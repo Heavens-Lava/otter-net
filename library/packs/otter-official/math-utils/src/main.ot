@@ -1,12 +1,19 @@
 # math-utils - Otter Reusable Math Library
-# Provides clamp, lerp, mapRange, minVal, maxVal, and calcAverage
+# Provides clamp, lerp, mapRange, minVal, maxVal, calcAverage, calcSum, calcPercentage, roundVal, roundUpVal, roundDownVal
 
 to clamp value minLimit maxLimit
-    if value is less than minLimit
-        return minLimit
+    low is minLimit
+    high is maxLimit
+    if low is greater than high
+        temp is low
+        low is high
+        high is temp
     .
-    if value is greater than maxLimit
-        return maxLimit
+    if value is less than low
+        return low
+    .
+    if value is greater than high
+        return high
     .
     return value
 .
@@ -19,6 +26,9 @@ to lerp startVal endVal t
 
 to mapRange val inMin inMax outMin outMax
     inSpan is inMax minus inMin
+    if inSpan is 0
+        return outMin
+    .
     outSpan is outMax minus outMin
     valDelta is val minus inMin
     fraction is valDelta divided by inSpan
@@ -45,10 +55,38 @@ to calcAverage items
     count is 0
     for each item in items
         total is total plus item
-        increase count by 1
+        count is count plus 1
     .
     if count is 0
         return 0
     .
     return total divided by count
+.
+
+to calcSum items
+    total is 0
+    for each item in items
+        total is total plus item
+    .
+    return total
+.
+
+to calcPercentage part whole
+    if whole is 0
+        return 0
+    .
+    fraction is part divided by whole
+    return fraction times 100
+.
+
+to roundVal val
+    return round of val
+.
+
+to roundUpVal val
+    return round up of val
+.
+
+to roundDownVal val
+    return round down of val
 .

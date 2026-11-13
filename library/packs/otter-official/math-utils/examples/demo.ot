@@ -1,30 +1,22 @@
-# Demo for math-utils
+# math-utils Demo
 use "../src/main.ot"
 
-say "=== Math Utils Demo ==="
-c1 is clamp 120 0 100
-say "clamp 120 (0-100):" c1
-
-low is 0 minus 5
-c2 is clamp low 0 100
-say "clamp -5 (0-100):" c2
-
-interp is lerp 10 20 0.5
-say "lerp 10 to 20 at 0.5:" interp
-
-scaled is mapRange 50 0 100 0 1
-say "mapRange 50 from (0-100) to (0-1):" scaled
-
-m1 is minVal 15 42
-say "minVal 15 and 42:" m1
-
-m2 is maxVal 15 42
-say "maxVal 15 and 42:" m2
+say "=== math-utils Demo ==="
+say "Clamp 150 to [0, 100]:" clamp 150 0 100
+say "Lerp 0 to 200 at 0.5:" lerp 0 200 0.5
+say "Map 75 from [0, 100] to [0, 1000]:" mapRange 75 0 100 0 1000
+say "Min of 45 and 99:" minVal 45 99
+say "Max of 45 and 99:" maxVal 45 99
 
 scores are
-    80
-    90
-    100
+    85
+    92
+    78
+    95
 .
-avg is calcAverage scores
-say "average of scores:" avg
+say "Total sum:" calcSum scores
+say "Average score:" calcAverage scores
+say "Percentage (45 / 60):" calcPercentage 45 60 "%"
+say "Round 7.4:" roundVal 7.4
+say "Round up 7.2:" roundUpVal 7.2
+say "Round down 7.8:" roundDownVal 7.8

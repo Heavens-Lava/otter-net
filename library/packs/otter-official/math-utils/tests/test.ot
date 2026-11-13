@@ -1,49 +1,115 @@
-# Tests for math-utils
+# Tests for math-utils (Strict Behavioral Assertions)
 use "../src/main.ot"
 
-# Test clamp
-res1 is clamp 50 0 100
-if res1 is 50
-    say "test 1 passed: clamp inside range"
+say "Running math-utils behavioral tests..."
+
+# 1. Clamp inside range
+r1 is clamp 50 0 100
+if r1 is not 50
+    fail with "clamp inside range failed: expected 50"
 .
 
-res2 is clamp 150 0 100
-if res2 is 100
-    say "test 2 passed: clamp upper bound"
+# 2. Clamp upper bound
+r2 is clamp 150 0 100
+if r2 is not 100
+    fail with "clamp upper bound failed: expected 100"
 .
 
+# 3. Clamp lower bound
 negVal is 0 minus 20
-res3 is clamp negVal 0 100
-if res3 is 0
-    say "test 3 passed: clamp lower bound"
+r3 is clamp negVal 0 100
+if r3 is not 0
+    fail with "clamp lower bound failed: expected 0"
 .
 
-# Test lerp
-res4 is lerp 0 100 0.25
-if res4 is 25
-    say "test 4 passed: lerp quarter"
+# 4. Clamp with inverted limits (invalid range: min > max)
+r4 is clamp 50 100 0
+if r4 is not 50
+    fail with "clamp inverted range failed: expected 50"
 .
 
-# Test min / max
-res5 is minVal 12 34
-if res5 is 12
-    say "test 5 passed: minVal"
+# 5. Lerp quarter
+r5 is lerp 0 100 0.25
+if r5 is not 25
+    fail with "lerp quarter failed: expected 25"
 .
 
-res6 is maxVal 12 34
-if res6 is 34
-    say "test 6 passed: maxVal"
+# 6. Lerp zero and one
+r6a is lerp 10 50 0
+if r6a is not 10
+    fail with "lerp at 0 failed: expected 10"
+.
+r6b is lerp 10 50 1
+if r6b is not 50
+    fail with "lerp at 1 failed: expected 50"
 .
 
-# Test calcAverage
-numbers are
+# 7. Map range normal
+r7 is mapRange 5 0 10 0 100
+if r7 is not 50
+    fail with "mapRange normal failed: expected 50"
+.
+
+# 8. Map range with 0 input span (division by zero safeguard)
+r8 is mapRange 5 10 10 0 100
+if r8 is not 0
+    fail with "mapRange zero span safeguard failed: expected outMin 0"
+.
+
+# 9. Min / Max
+r9 is minVal 12 34
+if r9 is not 12
+    fail with "minVal failed: expected 12"
+.
+r10 is maxVal 12 34
+if r10 is not 34
+    fail with "maxVal failed: expected 34"
+.
+
+# 10. CalcSum and CalcAverage with values
+nums are
     10
     20
     30
 .
-res7 is calcAverage numbers
-if res7 is 20
-    say "test 7 passed: calcAverage"
+sumVal is calcSum nums
+if sumVal is not 60
+    fail with "calcSum failed: expected 60"
+.
+avgVal is calcAverage nums
+if avgVal is not 20
+    fail with "calcAverage failed: expected 20"
 .
 
-say "All math-utils tests passed."
+# 11. CalcAverage with empty list
+emptyList are empty
+emptyAvg is calcAverage emptyList
+if emptyAvg is not 0
+    fail with "calcAverage on empty list failed: expected 0"
+.
+
+# 12. Percentage normal & division by zero
+p1 is calcPercentage 25 100
+if p1 is not 25
+    fail with "calcPercentage normal failed: expected 25"
+.
+pZero is calcPercentage 25 0
+if pZero is not 0
+    fail with "calcPercentage division by zero safeguard failed: expected 0"
+.
+
+# 13. Rounding helpers
+roundNorm is roundVal 3.6
+if roundNorm is not 4
+    fail with "roundVal failed: expected 4"
+.
+roundUp is roundUpVal 3.2
+if roundUp is not 4
+    fail with "roundUpVal failed: expected 4"
+.
+roundDown is roundDownVal 3.8
+if roundDown is not 3
+    fail with "roundDownVal failed: expected 3"
+.
+
+say "All math-utils behavioral tests passed successfully!"

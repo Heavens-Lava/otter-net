@@ -1,44 +1,147 @@
-# Tests for list-utils
+# Tests for list-utils (Strict Behavioral Assertions)
 use "../src/main.ot"
 
+say "Running list-utils behavioral tests..."
+
+# 1. hasItem
 fruits are
     "apple"
     "banana"
-    "apple"
     "cherry"
 .
-
-# Test hasItem
-if hasItem fruits "banana" is true
-    say "test 1 passed: hasItem present"
+if hasItem fruits "banana" is not true
+    fail with "hasItem failed: expected true for banana"
+.
+if hasItem fruits "orange" is not false
+    fail with "hasItem failed: expected false for orange"
 .
 
-if hasItem fruits "orange" is false
-    say "test 2 passed: hasItem absent"
+# 2. dedupeList
+duplicates are
+    "a"
+    "b"
+    "a"
+    "c"
+    "b"
+.
+uniqueList is dedupeList duplicates
+if length of uniqueList is not 3
+    fail with "dedupeList failed: expected 3 unique items"
+.
+if hasItem uniqueList "a" is not true
+    fail with "dedupeList failed: missing item a"
+.
+if hasItem uniqueList "b" is not true
+    fail with "dedupeList failed: missing item b"
+.
+if hasItem uniqueList "c" is not true
+    fail with "dedupeList failed: missing item c"
 .
 
-# Test countMatches
-c1 is countMatches fruits "apple"
-if c1 is 2
-    say "test 3 passed: countMatches multiple"
+# 3. countMatches
+repeated are
+    "x"
+    "y"
+    "x"
+    "x"
+    "z"
+.
+xCount is countMatches repeated "x"
+if xCount is not 3
+    fail with "countMatches failed: expected 3 for x"
+.
+wCount is countMatches repeated "w"
+if wCount is not 0
+    fail with "countMatches failed: expected 0 for w"
 .
 
-c2 is countMatches fruits "cherry"
-if c2 is 1
-    say "test 4 passed: countMatches single"
+# 4. joinWithPrefix
+tags are
+    "parser"
+    "lexer"
+.
+prefixed is joinWithPrefix tags "pkg:"
+if length of prefixed is not 2
+    fail with "joinWithPrefix failed: expected 2 items"
+.
+if hasItem prefixed "pkg:parser" is not true
+    fail with "joinWithPrefix failed: expected pkg:parser"
 .
 
-# Test dedupeList
-deduped is dedupeList fruits
-if length of deduped is 3
-    say "test 5 passed: dedupeList length"
+# 5. removeItemFromList
+originalItems are
+    "keep1"
+    "drop"
+    "keep2"
+.
+filtered is removeItemFromList originalItems "drop"
+if length of filtered is not 2
+    fail with "removeItemFromList failed: expected 2 items remaining"
+.
+if hasItem filtered "drop" is not false
+    fail with "removeItemFromList failed: drop item still present"
 .
 
-# Test joinWithPrefix
-prefixed is joinWithPrefix deduped "> "
-firstPrefixed is first of prefixed
-if firstPrefixed is "> apple"
-    say "test 6 passed: joinWithPrefix"
+# 6. findFirstMatch
+foundItem is findFirstMatch originalItems "keep2"
+if foundItem is not "keep2"
+    fail with "findFirstMatch failed: expected keep2"
+.
+missingItem is findFirstMatch originalItems "notFound"
+if missingItem is not gone
+    fail with "findFirstMatch failed: expected gone for missing item"
 .
 
-say "All list-utils tests passed."
+# 7. sortList
+unsortedNums are
+    50
+    20
+    40
+    10
+.
+sortedNums is sortList unsortedNums
+if length of sortedNums is not 4
+    fail with "sortList failed: expected 4 items"
+.
+
+# 8. reverseList
+reversedNums is reverseList sortedNums
+if length of reversedNums is not 4
+    fail with "reverseList failed: expected 4 items"
+.
+
+# 9. calcListSum
+values are
+    10
+    20
+    30
+    40
+.
+totalSum is calcListSum values
+if totalSum is not 100
+    fail with "calcListSum failed: expected 100"
+.
+
+# 10. sliceList
+alphabet are
+    "A"
+    "B"
+    "C"
+    "D"
+    "E"
+.
+subSlice is sliceList alphabet 2 3
+if length of subSlice is not 3
+    fail with "sliceList failed: expected 3 items"
+.
+if hasItem subSlice "B" is not true
+    fail with "sliceList failed: expected item B"
+.
+if hasItem subSlice "D" is not true
+    fail with "sliceList failed: expected item D"
+.
+if hasItem subSlice "A" is not false
+    fail with "sliceList failed: A should not be in subslice"
+.
+
+say "All list-utils behavioral tests passed successfully!"

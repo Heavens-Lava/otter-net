@@ -1,48 +1,97 @@
-# Tests for file-helpers
+# Tests for file-helpers (Strict Behavioral Assertions)
 use "../src/main.ot"
 
-tmpFile is "tmp_test_file.txt"
-tmpJson is "tmp_test_data.json"
+say "Running file-helpers behavioral tests..."
 
-# Test writeSafe and readOrFallback
-wOk is writeSafe tmpFile "Hello Otter File System"
-if wOk is true
-    say "test 1 passed: writeSafe"
+testTxtFile is "test_helpers_temp.txt"
+testJsonFile is "test_helpers_temp.json"
+
+# Clean up before testing
+deleteFileSafe testTxtFile
+deleteFileSafe testJsonFile
+
+# 1. Missing file returns fallback
+m1 is readOrFallback "non_existent_file_12345.txt" "DEFAULT"
+if m1 is not "DEFAULT"
+    fail with "readOrFallback failed: expected DEFAULT for non-existent file"
 .
 
-readBack is readOrFallback tmpFile "default"
-if readBack is "Hello Otter File System"
-    say "test 2 passed: readOrFallback on existing file"
+# 2. fileExistsSafe
+if fileExistsSafe "non_existent_file_12345.txt" is not false
+    fail with "fileExistsSafe failed: expected false for missing file"
 .
 
-fallbackRes is readOrFallback "non_existent_file_xyz.txt" "fallback_reached"
-if fallbackRes is "fallback_reached"
-    say "test 3 passed: readOrFallback on missing file"
+# 3. Write and read text
+wOk is writeSafe testTxtFile "Initial text content\n"
+if wOk is not true
+    fail with "writeSafe failed: write returned false"
+.
+if fileExistsSafe testTxtFile is not true
+    fail with "fileExistsSafe failed: expected file to exist after write"
+.
+readBack is readOrFallback testTxtFile "FAIL"
+if readBack is not "Initial text content\n"
+    fail with "readOrFallback mismatch after write"
 .
 
-# Test JSON helpers
-record has
-    title is "Project Tracker"
-    version is 1
+# 4. Append text
+aOk is appendSafe testTxtFile "Appended second line\n"
+if aOk is not true
+    fail with "appendSafe failed: append returned false"
+.
+appendedContent is readOrFallback testTxtFile "FAIL"
+if not appendedContent contains "Appended second line"
+    fail with "appendSafe failed: content did not contain appended line"
 .
 
-jOk is writeJsonObject tmpJson record
-if jOk is true
-    say "test 4 passed: writeJsonObject"
+# 5. JSON serialization and deserialization
+obj has
+    title is "Config Settings"
+    port is 8080
+    debug is true
+.
+jsonStr is toJsonSafe obj "{}"
+if not jsonStr contains "8080"
+    fail with "toJsonSafe failed: output missing port 8080"
 .
 
-loadedRecord is readJsonObject tmpJson
-if title of loadedRecord is "Project Tracker"
-    say "test 5 passed: readJsonObject property access"
+# 6. Corrupt JSON deserialization safeguard
+corruptJson is "{ this is invalid json !!!"
+fallbackVal has
+    fallbackKey is "active"
+.
+recoveredObj is fromJsonSafe corruptJson fallbackVal
+if fallbackKey of recoveredObj is not "active"
+    fail with "fromJsonSafe failed: corrupt JSON did not return fallback value"
 .
 
-missingJson is readJsonObject "missing_data_xyz.json"
-if missingJson is gone
-    say "test 6 passed: readJsonObject on missing file returns gone"
+# 7. Write and read JSON file
+wJsonOk is writeJsonObject testJsonFile obj
+if wJsonOk is not true
+    fail with "writeJsonObject failed: returned false"
+.
+loadedObj is readJsonObject testJsonFile
+if title of loadedObj is not "Config Settings"
+    fail with "readJsonObject failed: title mismatch"
+.
+if port of loadedObj is not 8080
+    fail with "readJsonObject failed: port mismatch"
 .
 
-# Clean up temporary test files
-delete file tmpFile
-delete file tmpJson
+# 8. Missing JSON file safe read
+missingJsonObj is readJsonObjectSafe "does_not_exist.json" fallbackVal
+if fallbackKey of missingJsonObj is not "active"
+    fail with "readJsonObjectSafe failed: missing file did not return fallback"
+.
 
-say "All file-helpers tests passed."
+# 9. Delete files and confirm removal
+deleteFileSafe testTxtFile
+deleteFileSafe testJsonFile
+if fileExistsSafe testTxtFile is not false
+    fail with "deleteFileSafe failed: text file still exists"
+.
+if fileExistsSafe testJsonFile is not false
+    fail with "deleteFileSafe failed: json file still exists"
+.
+
+say "All file-helpers behavioral tests passed successfully!"
