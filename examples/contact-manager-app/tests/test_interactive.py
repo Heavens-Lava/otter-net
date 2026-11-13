@@ -27,7 +27,9 @@ def main():
     app_dir = os.path.join(root_dir, "examples", "contact-manager-app")
     cli_dll = os.path.join(root_dir, "src", "Otter.Cli", "bin", "Debug", "net10.0", "otter.dll")
     
-    if os.path.exists(cli_dll):
+    if len(sys.argv) > 1 and sys.argv[1]:
+        otter_cmd = [sys.argv[1]]
+    elif os.path.exists(cli_dll):
         otter_cmd = ["dotnet", cli_dll]
     else:
         otter_cmd = ["otter"]
@@ -37,15 +39,26 @@ def main():
         os.remove(db_path)
 
     print("=" * 65)
-    print(" Testing Interactive Contact Manager Workflow (Phase 8)")
+    print(" Testing Interactive Contact Manager Workflow (Phase 8/9)")
     print("=" * 65)
 
     # ---------------------------------------------------------
-    # Session 1: Create, List, View, Search, Edit, Delete, Save
+    # Session 1: Invalid Inputs, Create, List, View, Search, Edit, Delete, Save
     # ---------------------------------------------------------
-    print("Session 1: Driving interactive command prompts...")
+    print("Session 1: Driving interactive command prompts with validation...")
     s1_inputs = [
         "stats",
+        # Test invalid inputs handled without crashing
+        "add",
+        "",                # empty name
+        "add",
+        "Invalid User",
+        "notanemail",      # invalid email format
+        "view",
+        "notanumber",      # non-numeric ID
+        "delete",
+        "badid",           # non-numeric ID
+        # Valid workflows
         "add",
         "Alice Cooper",
         "alice@rock.com",
@@ -82,6 +95,9 @@ def main():
         sys.exit(1)
 
     # Verifications in Session 1 output
+    assert "Error: Contact name cannot be empty." in out, "Failed detecting empty contact name"
+    assert "Error: Invalid email format" in out, "Failed detecting invalid email"
+    assert "Error: Contact ID must be a valid number." in out, "Failed catching non-numeric ID"
     assert "Success: Added contact" in out and "Alice Cooper" in out, "Failed adding Alice"
     assert "Success: Added contact" in out and "Bob Dylan" in out, "Failed adding Bob"
     assert "Alice Cooper" in out, "Alice not listed"

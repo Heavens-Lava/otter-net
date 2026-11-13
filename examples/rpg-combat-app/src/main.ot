@@ -269,6 +269,7 @@ to runInteractiveRpgApp savePath
                 say "  status    - View hero level, health, and equipment"
                 say "  inventory - List all items in backpack"
                 say "  equip     - Equip an item from inventory"
+                say "  unequip   - Unequip an item from equipment slot"
                 say "  heal      - Drink a health potion to restore HP"
                 say "  battle    - Encounter and fight a dungeon enemy"
                 say "  save      - Save character state to disk"
@@ -324,18 +325,26 @@ to runInteractiveRpgApp savePath
                         say "Error: Cannot equip item of kind " itemKind of foundItem
                     .
                 .
+            otherwise if cmd is "unequip"
+                ask "  Slot to unequip (weapon/armor/accessory): " and call it slotTarget
+                removedGear is unequipSlot eq slotTarget
+                if removedGear is gone
+                    say "Nothing was equipped in slot '" slotTarget "'."
+                otherwise
+                    say "Success: Unequipped " itemName of removedGear
+                .
             otherwise if cmd is "heal"
-                potionItem is findItemInInventory inv "Health Potion"
-                if potionItem is gone or itemCount of potionItem is at most 0
+                consumed is consumeItemFromInventory inv "Health Potion" 1
+                if consumed is false
                     say "You have no Health Potions left!"
                 otherwise
-                    curQty is itemCount of potionItem
-                    itemCount of potionItem is curQty minus 1
-                    if itemCount of potionItem is 0
-                        removeItemFromInventory inv "Health Potion"
-                    .
                     healed is restoreHealth hero 40
-                    say "Drank potion! Healed to " healed "/" maxHealth of hero ". Remaining potions:" itemCount of potionItem
+                    foundPot is findItemInInventory inv "Health Potion"
+                    remPotions is 0
+                    if foundPot is not gone
+                        remPotions is itemCount of foundPot
+                    .
+                    say "Drank potion! Healed to " healed "/" maxHealth of hero ". Remaining potions:" remPotions
                 .
             otherwise if cmd is "battle"
                 enemy is createActor "Dungeon Fiend" 90 1
