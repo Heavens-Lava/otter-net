@@ -1,0 +1,62 @@
+# Unit Tests for RPG Game
+use "../src/game.ot"
+
+say "Running RPG Game unit tests..."
+
+# Test 1: Player Creation & Base Stats
+hero is createPlayer "TestKnight"
+if name of actor of hero is not "TestKnight"
+    fail with "Hero name mismatch"
+.
+if health of actor of hero is not 120
+    fail with "Hero initial HP mismatch"
+.
+if level of actor of hero is not 1
+    fail with "Hero initial level mismatch"
+.
+
+# Test 2: Equipment and effective attack/defense
+sword is createItem "Broadsword" "weapon" 10
+shield is createItem "Iron Shield" "armor" 6
+equipWeapon hero sword
+equipArmor hero shield
+
+effAtk is getEffectiveAttack hero
+if effAtk is not 25
+    fail with "Effective attack calculation mismatch"
+.
+effDef is getEffectiveDefense hero
+if effDef is not 11
+    fail with "Effective defense calculation mismatch"
+.
+
+# Test 3: Enemy creation & combat damage
+orc is createEnemy "Orc Warrior" 60 1 12 4 150 40
+heroActor is actor of hero
+orcActor is actor of orc
+
+executePlayerAttack hero orc
+# Damage: 25 - 4 = 21
+if health of orcActor is not 39
+    fail with "Enemy remaining HP after attack mismatch"
+.
+
+# Test 4: Healing potion
+pot is createItem "Elixir" "consumable" 20
+applyDamage heroActor 30
+curHpBefore is health of heroActor
+useHealthPotion hero pot
+curHpAfter is health of heroActor
+if curHpAfter is at most curHpBefore
+    fail with "Health potion did not restore health"
+.
+
+# Test 5: Experience and Leveling
+initLvl is level of heroActor
+awardExperience hero 150
+newLvl is level of heroActor
+if newLvl is not 2
+    fail with "Hero should have leveled up to 2"
+.
+
+say "All RPG Game unit tests passed!"

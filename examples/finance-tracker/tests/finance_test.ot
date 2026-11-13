@@ -1,0 +1,48 @@
+# Tests for Personal Finance Tracker
+use "../src/finance.ot"
+
+ledger is createLedger
+say "Running finance tracker unit tests..."
+
+# Test 1: Empty ledger
+say "Test 1: Initial transactions are 0"
+count0 is length of transactions of ledger
+if count0 is not 0
+    fail with "Expected empty ledger"
+.
+
+# Test 2: Add Income
+tx1 is createTransaction "T1" and "2026-11-01" and "Income" and "Salary" and 3000 and true
+addTransaction ledger and tx1
+inc is calculateTotalIncome ledger
+if inc is not 3000
+    fail with "Income calculation mismatch"
+.
+
+# Test 3: Add Expense
+tx2 is createTransaction "T2" and "2026-11-02" and "Housing" and "Rent" and 1000 and false
+addTransaction ledger and tx2
+exp is calculateTotalExpenses ledger
+if exp is not 1000
+    fail with "Expense calculation mismatch"
+.
+
+# Test 4: Net Savings
+net is calculateNetSavings ledger
+if net is not 2000
+    fail with "Net savings mismatch"
+.
+
+# Test 5: Category breakdown
+housingTotal is calculateCategoryTotal ledger and "Housing"
+if housingTotal is not 1000
+    fail with "Housing category total mismatch"
+.
+
+# Test 6: Search
+matches is searchTransactions ledger and "Salary"
+if length of matches is not 1
+    fail with "Search matches mismatch"
+.
+
+say "All finance tracker unit tests passed!"

@@ -458,25 +458,52 @@ internal static partial class LspServer
         string source = GetDocumentSource(uri);
         string filePath = uri != null ? UriToPath(uri) : "";
 
-        var refs = LanguageService.FindReferences(source, line + 1, col + 1, filePath);
         string[] lines = source.Replace("\r\n", "\n").Split('\n');
         string? word = line >= 0 && line < lines.Length ? ExtractWordAtColumn(lines[line], col + 1) : null;
-        int wordLen = word?.Length ?? 1;
-
-        var locations = new JsonArray();
-        foreach (var r in refs)
+        if (string.IsNullOrEmpty(word))
         {
-            int rLine = Math.Max(0, r.Line - 1);
-            int rCol = Math.Max(0, r.Column - 1);
-            locations.Add(new JsonObject
+            SendResponse(stdout, id, new JsonArray());
+            return;
+        }
+
+        int wordLen = word.Length;
+        var locations = new JsonArray();
+
+        var allFiles = GetAllWorkspaceFiles();
+        if (!string.IsNullOrEmpty(filePath) && !allFiles.Contains(filePath))
+        {
+            allFiles.Add(filePath);
+        }
+
+        string pattern = @"\b" + Regex.Escape(word) + @"\b";
+        var rx = new Regex(pattern, RegexOptions.IgnoreCase);
+
+        foreach (string file in allFiles)
+        {
+            string fUri = PathToUri(file);
+            string fSource = GetDocumentSource(fUri);
+            if (string.IsNullOrEmpty(fSource)) continue;
+
+            string[] fLines = fSource.Replace("\r\n", "\n").Split('\n');
+            for (int i = 0; i < fLines.Length; i++)
             {
-                ["uri"] = PathToUri(r.File),
-                ["range"] = new JsonObject
+                string l = fLines[i];
+                if (l.Trim().StartsWith("#")) continue;
+
+                var matches = rx.Matches(l);
+                foreach (Match m in matches)
                 {
-                    ["start"] = new JsonObject { ["line"] = rLine, ["character"] = rCol },
-                    ["end"] = new JsonObject { ["line"] = rLine, ["character"] = rCol + wordLen }
+                    locations.Add(new JsonObject
+                    {
+                        ["uri"] = fUri,
+                        ["range"] = new JsonObject
+                        {
+                            ["start"] = new JsonObject { ["line"] = i, ["character"] = m.Index },
+                            ["end"] = new JsonObject { ["line"] = i, ["character"] = m.Index + wordLen }
+                        }
+                    });
                 }
-            });
+            }
         }
 
         SendResponse(stdout, id, locations);
@@ -496,35 +523,110 @@ internal static partial class LspServer
         }
 
         string source = GetDocumentSource(uri);
-        var renameResult = LanguageService.RenameSymbol(source, line + 1, col + 1, newName);
+        string filePath = UriToPath(uri);
 
+        string[] sourceLines = source.Replace("\r\n", "\n").Split('\n');
+        string? oldSymbol = line >= 0 && line < sourceLines.Length ? ExtractWordAtColumn(sourceLines[line], col + 1) : null;
+
+        var renameResult = LanguageService.RenameSymbol(source, line + 1, col + 1, newName);
         if (!renameResult.Success)
         {
             SendError(stdout, id, -32602, renameResult.Error ?? "Rename failed.");
             return;
         }
 
-        string[] sourceLines = source.Replace("\r\n", "\n").Split('\n');
-        int lastLineIdx = Math.Max(0, sourceLines.Length - 1);
-        int lastLineLen = sourceLines.Length > 0 ? sourceLines[^1].Length : 0;
-
-        var edit = new JsonObject
+        var allFiles = GetAllWorkspaceFiles();
+        if (!string.IsNullOrEmpty(filePath) && !allFiles.Contains(filePath))
         {
-            ["changes"] = new JsonObject
+            allFiles.Add(filePath);
+        }
+
+        var changes = new JsonObject();
+
+        if (!string.IsNullOrEmpty(oldSymbol))
+        {
+            string pattern = @"\b" + Regex.Escape(oldSymbol) + @"\b";
+            var rx = new Regex(pattern, RegexOptions.IgnoreCase);
+
+            foreach (string file in allFiles)
             {
-                [uri] = new JsonArray
+                string fUri = PathToUri(file);
+                string fSource = GetDocumentSource(fUri);
+                if (string.IsNullOrEmpty(fSource)) continue;
+
+                if (string.Equals(file, filePath, StringComparison.OrdinalIgnoreCase))
                 {
-                    new JsonObject
+                    int lastLineIdx = Math.Max(0, sourceLines.Length - 1);
+                    int lastLineLen = sourceLines.Length > 0 ? sourceLines[^1].Length : 0;
+                    changes[fUri] = new JsonArray
                     {
-                        ["range"] = new JsonObject
+                        new JsonObject
                         {
-                            ["start"] = new JsonObject { ["line"] = 0, ["character"] = 0 },
-                            ["end"] = new JsonObject { ["line"] = lastLineIdx, ["character"] = lastLineLen }
-                        },
-                        ["newText"] = renameResult.NewSource
+                            ["range"] = new JsonObject
+                            {
+                                ["start"] = new JsonObject { ["line"] = 0, ["character"] = 0 },
+                                ["end"] = new JsonObject { ["line"] = lastLineIdx, ["character"] = lastLineLen }
+                            },
+                            ["newText"] = renameResult.NewSource
+                        }
+                    };
+                }
+                else if (rx.IsMatch(fSource))
+                {
+                    string[] fLines = fSource.Replace("\r\n", "\n").Split('\n');
+                    (bool Success, string NewSource, int ChangesCount, string? Error) otherResult = (false, fSource, 0, null);
+
+                    for (int fi = 0; fi < fLines.Length; fi++)
+                    {
+                        var m = rx.Match(fLines[fi]);
+                        if (m.Success)
+                        {
+                            otherResult = LanguageService.RenameSymbol(fSource, fi + 1, m.Index + 1, newName);
+                            break;
+                        }
+                    }
+
+                    if (otherResult.Success)
+                    {
+                        int lastIdx = Math.Max(0, fLines.Length - 1);
+                        int lastLen = fLines.Length > 0 ? fLines[^1].Length : 0;
+                        changes[fUri] = new JsonArray
+                        {
+                            new JsonObject
+                            {
+                                ["range"] = new JsonObject
+                                {
+                                    ["start"] = new JsonObject { ["line"] = 0, ["character"] = 0 },
+                                    ["end"] = new JsonObject { ["line"] = lastIdx, ["character"] = lastLen }
+                                },
+                                ["newText"] = otherResult.NewSource
+                            }
+                        };
                     }
                 }
             }
+        }
+        else
+        {
+            int lastLineIdx = Math.Max(0, sourceLines.Length - 1);
+            int lastLineLen = sourceLines.Length > 0 ? sourceLines[^1].Length : 0;
+            changes[uri] = new JsonArray
+            {
+                new JsonObject
+                {
+                    ["range"] = new JsonObject
+                    {
+                        ["start"] = new JsonObject { ["line"] = 0, ["character"] = 0 },
+                        ["end"] = new JsonObject { ["line"] = lastLineIdx, ["character"] = lastLineLen }
+                    },
+                    ["newText"] = renameResult.NewSource
+                }
+            };
+        }
+
+        var edit = new JsonObject
+        {
+            ["changes"] = changes
         };
 
         SendResponse(stdout, id, edit);
@@ -568,41 +670,46 @@ internal static partial class LspServer
         SendResponse(stdout, id, edits);
     }
 
+    private static List<string> GetAllWorkspaceFiles()
+    {
+        var files = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var kvp in OpenDocuments)
+        {
+            string p = UriToPath(kvp.Key);
+            if (File.Exists(p)) files.Add(Path.GetFullPath(p));
+        }
+        foreach (var root in WorkspaceRoots)
+        {
+            if (Directory.Exists(root))
+            {
+                try
+                {
+                    foreach (var f in Directory.GetFiles(root, "*.ot", SearchOption.AllDirectories))
+                    {
+                        if (f.Contains(".git") || f.Contains("dist") || f.Contains("bin") || f.Contains("obj")) continue;
+                        files.Add(Path.GetFullPath(f));
+                    }
+                }
+                catch { }
+            }
+        }
+        return files.ToList();
+    }
+
     private static void HandleWorkspaceSymbol(JsonObject req, JsonNode? id, Stream stdout)
     {
         string query = req["params"]?["query"]?.ToString() ?? "";
         var symbols = new JsonArray();
 
-        // Search open documents
-        var searchedFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var kvp in OpenDocuments)
+        var allFiles = GetAllWorkspaceFiles();
+        foreach (var f in allFiles)
         {
-            string filePath = UriToPath(kvp.Key);
-            searchedFiles.Add(filePath);
-            ScanSymbolsInSource(kvp.Key, kvp.Value, query, symbols);
-        }
-
-        // Search workspace folders for .ot files
-        foreach (var root in WorkspaceRoots)
-        {
-            if (!Directory.Exists(root)) continue;
-            try
+            string fUri = PathToUri(f);
+            string content = GetDocumentSource(fUri);
+            if (!string.IsNullOrEmpty(content))
             {
-                foreach (string f in Directory.GetFiles(root, "*.ot", SearchOption.AllDirectories))
-                {
-                    if (f.Contains(".git") || f.Contains("dist") || f.Contains("bin") || f.Contains("obj")) continue;
-                    if (searchedFiles.Contains(f)) continue;
-                    searchedFiles.Add(f);
-
-                    try
-                    {
-                        string content = File.ReadAllText(f);
-                        ScanSymbolsInSource(PathToUri(f), content, query, symbols);
-                    }
-                    catch { }
-                }
+                ScanSymbolsInSource(fUri, content, query, symbols);
             }
-            catch { }
         }
 
         SendResponse(stdout, id, symbols);

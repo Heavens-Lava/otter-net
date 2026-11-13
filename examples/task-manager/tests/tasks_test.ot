@@ -1,0 +1,75 @@
+# Unit Tests for Desktop Task Manager
+use "../src/tasks.ot"
+
+say "Running Task Manager unit tests..."
+testMgr is createTaskManager
+
+# Test 1: Initially empty
+c0 is length of tasks of testMgr
+if c0 is not 0
+    fail with "Expected initial task count to be 0"
+.
+
+# Test 2: Add tasks
+tA is createTask "T-1" and "Design UI" and "Create wireframes" and "Pending" and "High" and "2026-11-13"
+addTask testMgr and tA
+tB is createTask "T-2" and "Write Code" and "Implement features" and "InProgress" and "High" and "2026-11-13"
+addTask testMgr and tB
+tC is createTask "T-3" and "Write Tests" and "Add unit & edge case tests" and "Pending" and "Medium" and "2026-11-13"
+addTask testMgr and tC
+
+c1 is length of tasks of testMgr
+if c1 is not 3
+    fail with "Expected 3 tasks in manager"
+.
+
+# Test 3: Find by ID
+foundTask is findTaskById testMgr and "T-2"
+if foundTask is gone
+    fail with "Could not find task T-2"
+.
+if title of foundTask is not "Write Code"
+    fail with "Found task title mismatch"
+.
+
+# Test 4: Filter by status
+pendingTasks is filterTasksByStatus testMgr and "Pending"
+if length of pendingTasks is not 2
+    fail with "Expected 2 pending tasks"
+.
+
+# Test 5: Complete task
+completeTask testMgr and "T-1"
+doneFound is findTaskById testMgr and "T-1"
+if status of doneFound is not "Done"
+    fail with "Expected status of T-1 to be Done"
+.
+
+# Test 6: Update task details
+updateTaskDetails testMgr and "T-3" and "Comprehensive Tests" and "Stress & fuzzing" and "High"
+updatedT3 is findTaskById testMgr and "T-3"
+if title of updatedT3 is not "Comprehensive Tests"
+    fail with "Expected updated title on T-3"
+.
+if priority of updatedT3 is not "High"
+    fail with "Expected updated priority on T-3"
+.
+
+# Test 7: Delete task
+deleteTask testMgr and "T-2"
+afterDelCount is length of tasks of testMgr
+if afterDelCount is not 2
+    fail with "Expected 2 tasks after deletion"
+.
+missingT2 is findTaskById testMgr and "T-2"
+if missingT2 is not gone
+    fail with "Expected T-2 to be deleted"
+.
+
+# Test 8: Search tasks
+searchRes is searchTasks testMgr and "Comprehensive"
+if length of searchRes is not 1
+    fail with "Expected 1 search result"
+.
+
+say "All Task Manager unit tests passed!"

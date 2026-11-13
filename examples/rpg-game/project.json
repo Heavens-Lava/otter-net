@@ -1,0 +1,7 @@
+{
+  "name": "rpg-game",
+  "version": "1.0.0",
+  "entry": "src/game.ot",
+  "description": "Turn-based RPG game in Otter 1.0.1 reusing game-entity pack and combat mechanics",
+  "dependencies": {}
+}

@@ -1,0 +1,135 @@
+# game-entity - Otter Reusable Game Actor & Combat Library
+# Provides Actor, InventoryItem, and pure functional state updates
+
+a Actor has
+    name
+    health
+    maxHealth
+    level
+    isAlive
+.
+
+a InventoryItem has
+    itemName
+    itemKind
+    itemPower
+.
+
+to createActor name hp lvl
+    e is a Actor
+    name of e is name
+    health of e is hp
+    maxHealth of e is hp
+    level of e is lvl
+    isAlive of e is true
+    return e
+.
+
+to createItem itemName itemKind itemPower
+    item is a InventoryItem
+    itemName of item is itemName
+    itemKind of item is itemKind
+    itemPower of item is itemPower
+    return item
+.
+
+to applyDamage actor amount
+    cur is health of actor
+    newHp is cur minus amount
+    if newHp is at most 0
+        health of actor is 0
+        isAlive of actor is false
+        return 0
+    .
+    health of actor is newHp
+    return newHp
+.
+
+to restoreHealth actor amount
+    if isAlive of actor is false
+        return 0
+    .
+    cur is health of actor
+    maxHp is maxHealth of actor
+    newHp is cur plus amount
+    if newHp is greater than maxHp
+        health of actor is maxHp
+        return maxHp
+    .
+    health of actor is newHp
+    return newHp
+.
+
+to levelUp actor
+    curLvl is level of actor
+    level of actor is curLvl plus 1
+    curMax is maxHealth of actor
+    bonus is 20
+    newMax is curMax plus bonus
+    maxHealth of actor is newMax
+    health of actor is newMax
+    return level of actor
+.
+
+a Cooldown has
+    skillName
+    cooldownSeconds
+    lastUsedSeconds
+.
+
+to createCooldown name cd
+    cooldownObj is a Cooldown
+    skillName of cooldownObj is name
+    cooldownSeconds of cooldownObj is cd
+    lastUsedSeconds of cooldownObj is 0 minus 9999
+    return cooldownObj
+.
+
+to isCooldownReady cooldownObj nowSeconds
+    last is lastUsedSeconds of cooldownObj
+    duration is cooldownSeconds of cooldownObj
+    elapsed is nowSeconds minus last
+    if elapsed is at least duration
+        return true
+    otherwise
+        return false
+    .
+.
+
+to triggerCooldown cooldownObj nowSeconds
+    checkReady is isCooldownReady cooldownObj nowSeconds
+    if checkReady is true
+        lastUsedSeconds of cooldownObj is nowSeconds
+        return true
+    otherwise
+        return false
+    .
+.
+
+a Inventory has
+    maxSlots
+    currentCount
+    items
+.
+
+to createInventory slots
+    inv is a Inventory
+    maxSlots of inv is slots
+    currentCount of inv is 0
+    invItems are empty
+    items of inv is invItems
+    return inv
+.
+
+to addItemToInventory inv item
+    cur is currentCount of inv
+    slots is maxSlots of inv
+    if cur is at least slots
+        return false
+    .
+    currentCount of inv is cur plus 1
+    itemList is items of inv
+    add item to itemList
+    return true
+.
+

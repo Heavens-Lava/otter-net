@@ -1,0 +1,237 @@
+# Small RPG Game
+# Real-World Otter Application C
+# Reuses official game-entity pack: Actor, InventoryItem, applyDamage, restoreHealth, levelUp
+
+use "../.otter/packages/otter-official/game-entity/1.0.0/src/main.ot"
+
+to createPlayer heroName
+    hero is createActor heroName 120 1
+    heroInv is createInventory 8
+    player has
+        actor is hero
+        attackPower is 15
+        defensePower is 5
+        experience is 0
+        gold is 50
+        equippedWeapon is gone
+        equippedArmor is gone
+        inventory is heroInv
+    .
+    return player
+.
+
+to createEnemy enemyName hp lvl atk def exp gold
+    badGuy is createActor enemyName hp lvl
+    enemy has
+        actor is badGuy
+        attackPower is atk
+        defensePower is def
+        expReward is exp
+        goldReward is gold
+    .
+    return enemy
+.
+
+to equipWeapon player weaponItem
+    equippedWeapon of player is weaponItem
+    say name of actor of player "equipped" itemName of weaponItem "!(+" itemPower of weaponItem "Attack)"
+.
+
+to equipArmor player armorItem
+    equippedArmor of player is armorItem
+    say name of actor of player "equipped" itemName of armorItem "!(+" itemPower of armorItem "Defense)"
+.
+
+to getEffectiveAttack player
+    baseAtk is attackPower of player
+    weapon is equippedWeapon of player
+    if weapon is not gone
+        return baseAtk plus itemPower of weapon
+    .
+    return baseAtk
+.
+
+to getEffectiveDefense player
+    baseDef is defensePower of player
+    armor is equippedArmor of player
+    if armor is not gone
+        return baseDef plus itemPower of armor
+    .
+    return baseDef
+.
+
+to awardExperience player amount
+    curExp is experience of player
+    newExp is curExp plus amount
+    experience of player is newExp
+    say name of actor of player "gained" amount "XP! (Total:" newExp "XP)"
+    
+    # Check level threshold (100 XP per level)
+    heroActor is actor of player
+    curLvl is level of heroActor
+    neededExp is curLvl times 100
+    if newExp is at least neededExp
+        newLvl is levelUp heroActor
+        attackPower of player is attackPower of player plus 5
+        defensePower of player is defensePower of player plus 3
+        say "========================================"
+        say " LEVEL UP! " name of heroActor "is now Level" newLvl "!"
+        say " Max HP increased to:" maxHealth of heroActor
+        say " Attack Power increased to:" attackPower of player
+        say " Defense Power increased to:" defensePower of player
+        say "========================================"
+    .
+.
+
+to executePlayerAttack player enemy
+    heroActor is actor of player
+    badActor is actor of enemy
+    heroAtk is getEffectiveAttack player
+    enemyDef is defensePower of enemy
+    rawDmg is heroAtk minus enemyDef
+    dmg is rawDmg
+    if dmg is at most 1
+        dmg is 2
+    .
+    say name of heroActor "attacks" name of badActor "for" dmg "damage!"
+    applyDamage badActor dmg
+.
+
+to executeEnemyAttack enemy player
+    heroActor is actor of player
+    badActor is actor of enemy
+    if isAlive of badActor is false
+        return 0
+    .
+    enemyAtk is attackPower of enemy
+    heroDef is getEffectiveDefense player
+    rawDmg is enemyAtk minus heroDef
+    dmg is rawDmg
+    if dmg is at most 1
+        dmg is 1
+    .
+    say name of badActor "strikes back at" name of heroActor "for" dmg "damage!"
+    applyDamage heroActor dmg
+.
+
+to useHealthPotion player potionItem
+    heroActor is actor of player
+    healAmount is itemPower of potionItem
+    newHp is restoreHealth heroActor healAmount
+    say name of heroActor "drinks" itemName of potionItem "and recovers" healAmount "HP! (Current HP:" newHp ")"
+.
+
+to runCombatRound player enemy playerChoice
+    heroActor is actor of player
+    badActor is actor of enemy
+
+    say "--- Round Start ---"
+    if playerChoice is "attack"
+        executePlayerAttack player enemy
+    .
+    if playerChoice is "heal"
+        pot is createItem "Health Potion" "consumable" 35
+        useHealthPotion player pot
+    .
+
+    if isAlive of badActor is false
+        say "Victory!" name of badActor "was defeated!"
+        goldWon is goldReward of enemy
+        expWon is expReward of enemy
+        gold of player is gold of player plus goldWon
+        say "Looted" goldWon "gold!"
+        awardExperience player expWon
+        return true
+    .
+
+    # Enemy turn
+    executeEnemyAttack enemy player
+    if isAlive of heroActor is false
+        say "Defeat!" name of heroActor "has fallen in battle..."
+        return false
+    .
+
+    say "Status ->" name of heroActor "HP:" health of heroActor "/" maxHealth of heroActor "|" name of badActor "HP:" health of badActor "/" maxHealth of badActor
+    return true
+.
+
+to saveGameProgress filePath player
+    data has
+        heroName is name of actor of player
+        heroHealth is health of actor of player
+        heroMaxHealth is maxHealth of actor of player
+        heroLevel is level of actor of player
+        heroExp is experience of player
+        heroGold is gold of player
+        heroAtk is attackPower of player
+        heroDef is defensePower of player
+    .
+    convert data to json into rawJson
+    write rawJson to filePath
+    return true
+.
+
+to loadGameProgress filePath
+    if file filePath exists
+        read filePath into rawJson
+        loaded is a thing
+        convert rawJson from json into loaded
+        return loaded
+    .
+    return gone
+.
+
+to runRpgDemo
+    say "========================================"
+    say "        Otter RPG: Dungeon Quest        "
+    say "========================================"
+
+    # 1. Initialize Player
+    hero is createPlayer "Sir Arthur"
+    say "Character created:" name of actor of hero "(Level" level of actor of hero ")"
+
+    # 2. Setup Equipment
+    sword is createItem "Iron Broadsword" "weapon" 12
+    armor is createItem "Chainmail Hauberk" "armor" 8
+    potion is createItem "Minor Health Elixir" "consumable" 30
+
+    heroInv is inventory of hero
+    addItemToInventory heroInv sword
+    addItemToInventory heroInv armor
+    addItemToInventory heroInv potion
+
+    equipWeapon hero sword
+    equipArmor hero armor
+
+    say "Effective Attack:" getEffectiveAttack hero
+    say "Effective Defense:" getEffectiveDefense hero
+
+    # 3. Encounter Enemy
+    goblin is createEnemy "Forest Goblin" 45 1 14 3 120 25
+    say "A wild" name of actor of goblin "appears!"
+
+    # 4. Turn-based Combat Loop
+    runCombatRound hero goblin "attack"
+    runCombatRound hero goblin "attack"
+    runCombatRound hero goblin "attack"
+
+    # 5. Save Progress
+    saveFile is "rpg_savegame.json"
+    say "Saving game progress to" saveFile "..."
+    saveGameProgress saveFile hero
+
+    # 6. Load Progress
+    say "Loading saved game..."
+    loadedSave is loadGameProgress saveFile
+    say "Loaded Hero:" heroName of loadedSave "Level:" heroLevel of loadedSave "Exp:" heroExp of loadedSave "Gold:" heroGold of loadedSave
+
+    # Clean up save file
+    if file saveFile exists
+        delete file saveFile
+    .
+
+    say "Otter RPG Demo completed successfully!"
+.
+
+# Run demo
+runRpgDemo

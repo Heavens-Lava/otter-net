@@ -18,8 +18,10 @@ internal static class DapServer
     private static readonly object WriteLock = new();
     private static readonly ConcurrentDictionary<string, HashSet<int>> FileBreakpoints = new(StringComparer.OrdinalIgnoreCase);
 
+    private enum StepMode { None, StepIn, StepOver, StepOut }
     private static volatile bool _stopOnEntry = false;
-    private static volatile bool _stepping = false;
+    private static volatile StepMode _stepMode = StepMode.None;
+    private static volatile int _stepTargetDepth = 0;
     private static volatile bool _pauseRequested = false;
     private static volatile bool _terminated = false;
     private static readonly AutoResetEvent StepEvent = new(false);
@@ -373,7 +375,7 @@ internal static class DapServer
 
     private static void HandleContinue(int reqSeq, string command, Stream stdout)
     {
-        _stepping = false;
+        _stepMode = StepMode.None;
         _pauseRequested = false;
         StepEvent.Set();
 
@@ -386,8 +388,23 @@ internal static class DapServer
 
     private static void HandleStep(int reqSeq, string command, Stream stdout)
     {
-        _stepping = true;
         _pauseRequested = false;
+        int currentDepth = _runningInterpreter?.CallStack.Count ?? 0;
+        if (command == "next")
+        {
+            _stepMode = StepMode.StepOver;
+            _stepTargetDepth = currentDepth;
+        }
+        else if (command == "stepOut")
+        {
+            _stepMode = StepMode.StepOut;
+            _stepTargetDepth = Math.Max(0, currentDepth - 1);
+        }
+        else
+        {
+            _stepMode = StepMode.StepIn;
+            _stepTargetDepth = currentDepth;
+        }
         StepEvent.Set();
 
         SendResponse(stdout, reqSeq, command, true, new JsonObject());
@@ -436,12 +453,27 @@ internal static class DapServer
                         isBreakpoint = lines.Contains(stmt.Line);
                     }
 
-                    bool shouldPause = isBreakpoint || _stepping || _stopOnEntry || _pauseRequested;
+                    int currentDepth = _runningInterpreter?.CallStack.Count ?? 0;
+                    bool isStepTriggered = false;
+                    if (_stepMode == StepMode.StepIn)
+                    {
+                        isStepTriggered = true;
+                    }
+                    else if (_stepMode == StepMode.StepOver)
+                    {
+                        if (currentDepth <= _stepTargetDepth) isStepTriggered = true;
+                    }
+                    else if (_stepMode == StepMode.StepOut)
+                    {
+                        if (currentDepth <= _stepTargetDepth) isStepTriggered = true;
+                    }
+
+                    bool shouldPause = isBreakpoint || isStepTriggered || _stopOnEntry || _pauseRequested;
                     if (shouldPause)
                     {
                         _stopOnEntry = false;
                         _pauseRequested = false;
-                        _stepping = false;
+                        _stepMode = StepMode.None;
 
                         string reason = isBreakpoint ? "breakpoint" : "step";
                         var stoppedBody = new JsonObject

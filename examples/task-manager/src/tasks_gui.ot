@@ -1,0 +1,233 @@
+# Desktop Task Manager - Graphical Interface
+# Real-World Otter Application B (Desktop GUI)
+
+create window into app
+app has title "Otter Task Manager", width 780, height 580, background "#0f172a"
+padding of app is 16
+spacing of app is 12
+
+create text into heading
+heading has text "Task Manager Desktop", foreground "white"
+put heading in app
+
+create row into mainRow
+mainRow has width full, spread
+
+# Left Panel: Task list
+create column into leftPanel
+leftPanel has width 260, padding 8, background "#1e293b"
+
+create text into listHeading
+listHeading has text "Tasks", foreground "white"
+put listHeading in leftPanel
+
+create scroll into taskScroll
+taskScroll has width 240, height 400
+
+create column into taskListColumn
+taskListColumn has spacing 4
+
+put taskListColumn in taskScroll
+put taskScroll in leftPanel
+
+# Right Panel: Task Editor Form
+create column into formPanel
+formPanel has width 460, padding 12, background "#1e293b", spacing 8
+
+create text into formHeading
+formHeading has text "Task Details", foreground "white"
+put formHeading in formPanel
+
+create text box into titleBox
+placeholder of titleBox is "Task title"
+titleBox has width 420
+
+create text box into priorityBox
+placeholder of priorityBox is "Priority (High / Medium / Low)"
+priorityBox has width 420
+
+create text box into statusBox
+placeholder of statusBox is "Status (Pending / InProgress / Done)"
+statusBox has width 420
+
+create text box into notesBox
+placeholder of notesBox is "Task description & notes"
+notesBox has width 420, height 70
+
+put titleBox, priorityBox, statusBox, notesBox in formPanel
+
+# Action Row 1: Add, Save, Toggle Complete, Delete
+create row into actionRow1
+actionRow1 has width 420, spread
+
+create button into addButton
+addButton has text "Add", width 95, background "#2563EB", foreground "white"
+
+create button into saveButton
+saveButton has text "Save", width 95, background "#0284C7", foreground "white"
+
+create button into toggleButton
+toggleButton has text "Toggle", width 95, background "#16A34A", foreground "white"
+
+create button into deleteButton
+deleteButton has text "Delete", width 95, background "#DC2626", foreground "white"
+
+put addButton, saveButton, toggleButton, deleteButton in actionRow1
+put actionRow1 in formPanel
+
+# Action Row 2: Clear, Load, Save File
+create row into actionRow2
+actionRow2 has width 420, spread
+
+create button into clearButton
+clearButton has text "Clear Form", width 130
+
+create button into loadButton
+loadButton has text "Load Tasks", width 130
+
+create button into saveFileButton
+saveFileButton has text "Save to File", width 130
+
+put clearButton, loadButton, saveFileButton in actionRow2
+put actionRow2 in formPanel
+
+create text into statusText
+statusText has text "Ready.", foreground "#94a3b8"
+put statusText in formPanel
+
+put leftPanel, formPanel in mainRow
+put mainRow in app
+
+# State & Handlers
+convert "[]" from json into taskList
+selectedTask is gone
+selectedButton is gone
+
+to clearForm
+    text of titleBox is ""
+    text of priorityBox is ""
+    text of statusBox is ""
+    text of notesBox is ""
+    selectedTask is gone
+    selectedButton is gone
+.
+
+to makeTaskRow item
+    create button into rowBtn
+    btnLabel is title of item
+    if status of item is "Done"
+        btnLabel is "[X] " plus title of item
+    otherwise
+        btnLabel is "[ ] " plus title of item
+    .
+    rowBtn has text btnLabel, width 230, foreground "white"
+
+    when rowBtn is clicked
+        isDeleted is isDeleted of item
+        if isDeleted is true
+            text of statusText is "This task was deleted."
+        otherwise
+            text of titleBox is title of item
+            text of priorityBox is priority of item
+            text of statusBox is status of item
+            text of notesBox is notes of item
+            selectedTask is item
+            selectedButton is rowBtn
+            text of statusText is "Editing selected task."
+        .
+    .
+    put rowBtn in taskListColumn
+.
+
+to buildTask itemTitle
+    taskItem is a thing
+        title is itemTitle
+        priority is text of priorityBox
+        status is text of statusBox
+        notes is text of notesBox
+        isDeleted is false
+    .
+    return taskItem
+.
+
+when addButton is clicked
+    tTitle is text of titleBox
+    if tTitle is ""
+        text of statusText is "Enter a task title first."
+    otherwise
+        buildTask tTitle make newTask
+        add newTask to taskList
+        makeTaskRow newTask
+        clearForm
+        text of statusText is "Task added."
+    .
+.
+
+when saveButton is clicked
+    if selectedTask is gone
+        text of statusText is "Select a task to save changes."
+    otherwise
+        title of selectedTask is text of titleBox
+        priority of selectedTask is text of priorityBox
+        status of selectedTask is text of statusBox
+        notes of selectedTask is text of notesBox
+        text of selectedButton is text of titleBox
+        text of statusText is "Task updated."
+    .
+.
+
+when toggleButton is clicked
+    if selectedTask is gone
+        text of statusText is "Select a task first."
+    otherwise
+        currentStatus is status of selectedTask
+        if currentStatus is "Done"
+            status of selectedTask is "Pending"
+            text of statusBox is "Pending"
+            text of selectedButton is "[ ] " plus title of selectedTask
+        otherwise
+            status of selectedTask is "Done"
+            text of statusBox is "Done"
+            text of selectedButton is "[X] " plus title of selectedTask
+        .
+        text of statusText is "Status toggled."
+    .
+.
+
+when deleteButton is clicked
+    if selectedTask is gone
+        text of statusText is "Select a task to delete."
+    otherwise
+        isDeleted of selectedTask is true
+        text of selectedButton is "(deleted)"
+        foreground of selectedButton is "#64748b"
+        clearForm
+        text of statusText is "Task deleted."
+    .
+.
+
+when clearButton is clicked
+    clearForm
+    text of statusText is "Form cleared."
+.
+
+when loadButton is clicked
+    try
+        read json from "tasks.json" into loaded
+        for each t in loaded
+            add t to taskList
+            makeTaskRow t
+        .
+        text of statusText is "Loaded tasks from file."
+    otherwise
+        text of statusText is "Could not load tasks from file."
+    .
+.
+
+when saveFileButton is clicked
+    convert taskList to json into dataJson
+    write dataJson to "tasks.json"
+    text of statusText is "Saved tasks to file."
+.
+
+show app

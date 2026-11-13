@@ -1,0 +1,7 @@
+{
+  "name": "task-manager",
+  "version": "1.0.0",
+  "entry": "src/tasks.ot",
+  "description": "Real-world Otter task manager application with CLI and GUI interfaces",
+  "dependencies": {}
+}

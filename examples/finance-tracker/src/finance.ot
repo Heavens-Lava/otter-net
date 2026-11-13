@@ -1,0 +1,184 @@
+# Personal Finance Tracker
+# Real-World Otter Application A
+
+to createTransaction id and date and category and desc and amount and isIncome
+    tx has
+        id is id
+        date is date
+        category is category
+        description is desc
+        amount is amount
+        isIncome is isIncome
+    .
+    return tx
+.
+
+to createLedger
+    emptyTxs are empty
+    ledger has
+        name is "My Finances"
+        transactions is emptyTxs
+    .
+    return ledger
+.
+
+to addTransaction ledger and tx
+    txs is transactions of ledger
+    add tx to txs
+    return length of txs
+.
+
+to calculateTotalIncome ledger
+    total is 0
+    txs is transactions of ledger
+    for each tx in txs
+        if isIncome of tx
+            total is total plus amount of tx
+        .
+    .
+    return total
+.
+
+to calculateTotalExpenses ledger
+    total is 0
+    txs is transactions of ledger
+    for each tx in txs
+        if not isIncome of tx
+            total is total plus amount of tx
+        .
+    .
+    return total
+.
+
+to calculateNetSavings ledger
+    income is calculateTotalIncome ledger
+    expenses is calculateTotalExpenses ledger
+    return income minus expenses
+.
+
+to calculateCategoryTotal ledger and targetCategory
+    total is 0
+    txs is transactions of ledger
+    for each tx in txs
+        if category of tx is targetCategory
+            total is total plus amount of tx
+        .
+    .
+    return total
+.
+
+to searchTransactions ledger and query
+    results are empty
+    txs is transactions of ledger
+    for each tx in txs
+        desc is description of tx
+        cat is category of tx
+        if desc contains query or cat contains query
+            add tx to results
+        .
+    .
+    return results
+.
+
+to saveLedgerToFile filePath and ledger
+    convert ledger to json into rawJson
+    write rawJson to filePath
+    return true
+.
+
+to loadLedgerFromFile filePath
+    if file filePath exists
+        read filePath into rawJson
+        loaded is a thing
+        convert rawJson from json into loaded
+        return loaded
+    .
+    return gone
+.
+
+to printSummary ledger
+    totalIncome is calculateTotalIncome ledger
+    totalExpenses is calculateTotalExpenses ledger
+    netSavings is calculateNetSavings ledger
+    txCount is length of transactions of ledger
+
+    say "=========================================="
+    say "         Personal Finance Summary         "
+    say "=========================================="
+    say "Total Transactions:" txCount
+    say "Total Income:      $" totalIncome
+    say "Total Expenses:    $" totalExpenses
+    say "Net Savings:       $" netSavings
+    say "=========================================="
+    say "Category Breakdown:"
+    
+    categories are
+        "Housing"
+        "Groceries"
+        "Utilities"
+        "Entertainment"
+        "Healthcare"
+    .
+    for each cat in categories
+        catTotal is calculateCategoryTotal ledger and cat
+        if catTotal is greater than 0
+            say "  - " cat ": $" catTotal
+        .
+    .
+    say "=========================================="
+.
+
+# Main execution entry
+to runFinanceDemo
+    say "Initializing Personal Finance Tracker..."
+    myLedger is createLedger
+
+    # 1. Add Transactions
+    tx1 is createTransaction "TX-101" and "2026-11-01" and "Income" and "Monthly Salary" and 4500 and true
+    addTransaction myLedger and tx1
+
+    tx2 is createTransaction "TX-102" and "2026-11-02" and "Housing" and "Apartment Rent" and 1400 and false
+    addTransaction myLedger and tx2
+
+    tx3 is createTransaction "TX-103" and "2026-11-03" and "Groceries" and "Supermarket Supplies" and 280 and false
+    addTransaction myLedger and tx3
+
+    tx4 is createTransaction "TX-104" and "2026-11-05" and "Utilities" and "High-speed Internet & Power" and 160 and false
+    addTransaction myLedger and tx4
+
+    tx5 is createTransaction "TX-105" and "2026-11-08" and "Entertainment" and "Weekend Concert Tickets" and 120 and false
+    addTransaction myLedger and tx5
+
+    tx6 is createTransaction "TX-106" and "2026-11-10" and "Healthcare" and "Dental Checkup" and 95 and false
+    addTransaction myLedger and tx6
+
+    # 2. Display summary
+    printSummary myLedger
+
+    # 3. Search history
+    say "Searching transactions for 'Internet'..."
+    searchMatches is searchTransactions myLedger and "Internet"
+    say "Found matching transactions:" length of searchMatches
+    for each m in searchMatches
+        say "  * [" category of m "] " description of m " ($" amount of m ")"
+    .
+
+    # 4. Save to JSON and Load back
+    dataFile is "finance_data.json"
+    say "Saving ledger to" dataFile "..."
+    saveLedgerToFile dataFile and myLedger
+
+    say "Loading ledger back from disk..."
+    restoredLedger is loadLedgerFromFile dataFile
+    say "Restored transactions count:" length of transactions of restoredLedger
+    say "Restored Net Savings: $" calculateNetSavings restoredLedger
+
+    # Clean up file
+    if file dataFile exists
+        delete file dataFile
+    .
+    say "Personal Finance Tracker completed successfully!"
+.
+
+# Run demo when executed
+runFinanceDemo

@@ -1,0 +1,220 @@
+# Desktop Task Manager
+# Real-World Otter Application B (Core Engine & Interactive CLI)
+
+to createTask id and title and desc and status and priority and createdAt
+    item has
+        id is id
+        title is title
+        description is desc
+        status is status
+        priority is priority
+        createdAt is createdAt
+    .
+    return item
+.
+
+to createTaskManager
+    emptyTasks are empty
+    manager has
+        name is "Personal Task Manager"
+        tasks is emptyTasks
+    .
+    return manager
+.
+
+to addTask manager and task
+    items is tasks of manager
+    add task to items
+    return length of items
+.
+
+to findTaskById manager and targetId
+    items is tasks of manager
+    for each item in items
+        if id of item is targetId
+            return item
+        .
+    .
+    return gone
+.
+
+to setTaskStatus manager and targetId and newStatus
+    found is findTaskById manager and targetId
+    if found is not gone
+        status of found is newStatus
+        return true
+    .
+    return false
+.
+
+to completeTask manager and targetId
+    return setTaskStatus manager and targetId and "Done"
+.
+
+to updateTaskDetails manager and targetId and newTitle and newDesc and newPriority
+    found is findTaskById manager and targetId
+    if found is not gone
+        title of found is newTitle
+        description of found is newDesc
+        priority of found is newPriority
+        return true
+    .
+    return false
+.
+
+to deleteTask manager and targetId
+    items is tasks of manager
+    newItems are empty
+    deleted is false
+    for each item in items
+        if id of item is targetId
+            deleted is true
+        otherwise
+            add item to newItems
+        .
+    .
+    tasks of manager is newItems
+    return deleted
+.
+
+to filterTasksByStatus manager and targetStatus
+    results are empty
+    items is tasks of manager
+    for each item in items
+        if status of item is targetStatus
+            add item to results
+        .
+    .
+    return results
+.
+
+to searchTasks manager and query
+    results are empty
+    items is tasks of manager
+    for each item in items
+        t is title of item
+        d is description of item
+        if t contains query or d contains query
+            add item to results
+        .
+    .
+    return results
+.
+
+to countTasksByStatus manager and targetStatus
+    matching is filterTasksByStatus manager and targetStatus
+    return length of matching
+.
+
+to saveTasksToFile filePath and manager
+    convert manager to json into rawJson
+    write rawJson to filePath
+    return true
+.
+
+to loadTasksFromFile filePath
+    if file filePath exists
+        read filePath into rawJson
+        loaded is a thing
+        convert rawJson from json into loaded
+        return loaded
+    .
+    return gone
+.
+
+to printTaskSummary manager
+    items is tasks of manager
+    totalCount is length of items
+    pendingCount is countTasksByStatus manager and "Pending"
+    progressCount is countTasksByStatus manager and "InProgress"
+    doneCount is countTasksByStatus manager and "Done"
+
+    say "=========================================="
+    say "         Desktop Task Manager             "
+    say "=========================================="
+    say "Total Tasks:      " totalCount
+    say "Pending:          " pendingCount
+    say "In Progress:      " progressCount
+    say "Completed (Done): " doneCount
+    say "=========================================="
+    say "Task List:"
+    for each item in items
+        statusIcon is "[ ]"
+        if status of item is "Done"
+            statusIcon is "[X]"
+        .
+        if status of item is "InProgress"
+            statusIcon is "[~]"
+        .
+        say statusIcon id of item ":" title of item "(" priority of item "priority )"
+        say "    Status:" status of item "| Created:" createdAt of item
+        say "    Notes: " description of item
+    .
+    say "=========================================="
+.
+
+to runTaskDemo
+    say "Starting Desktop Task Manager Demo..."
+    mgr is createTaskManager
+
+    # 1. Create Tasks
+    t1 is createTask "TASK-1" and "Audit Phase 5 Tools" and "Verify LSP, DAP and VS Code extension" and "Done" and "High" and "2026-11-12"
+    addTask mgr and t1
+
+    t2 is createTask "TASK-2" and "Build Real Applications" and "Create Finance, Task Manager, and RPG Game" and "InProgress" and "High" and "2026-11-13"
+    addTask mgr and t2
+
+    t3 is createTask "TASK-3" and "Run Reliability Fuzzing" and "Parser fuzz testing, edge cases and stress tests" and "Pending" and "Medium" and "2026-11-13"
+    addTask mgr and t3
+
+    t4 is createTask "TASK-4" and "Draft Public Beta Docs" and "Write installation guides and language reference" and "Pending" and "Low" and "2026-11-14"
+    addTask mgr and t4
+
+    # 2. Print initial summary
+    printTaskSummary mgr
+
+    # 3. Edit task details
+    say "Updating TASK-3 priority to High..."
+    updateTaskDetails mgr and "TASK-3" and "Run Reliability Fuzzing" and "Extensive parser fuzzing and memory stability" and "High"
+
+    # 4. Filter by status
+    say "Filtering tasks by status 'Pending':"
+    pendingList is filterTasksByStatus mgr and "Pending"
+    for each p in pendingList
+        say "  - " id of p ":" title of p
+    .
+
+    # 5. Complete a task
+    say "Marking TASK-2 as completed..."
+    completeTask mgr and "TASK-2"
+
+    # 6. Delete a task
+    say "Deleting TASK-4..."
+    deleteTask mgr and "TASK-4"
+
+    # 7. Search tasks
+    say "Searching tasks for 'Reliability'..."
+    matches is searchTasks mgr and "Reliability"
+    for each m in matches
+        say "  Found match: " id of m "-" title of m
+    .
+
+    # 8. Save and Load
+    dataFile is "tasks_db.json"
+    say "Persisting tasks to" dataFile "..."
+    saveTasksToFile dataFile and mgr
+
+    say "Restoring tasks from disk..."
+    restoredMgr is loadTasksFromFile dataFile
+    say "Restored task count:" length of tasks of restoredMgr
+
+    # Clean up file
+    if file dataFile exists
+        delete file dataFile
+    .
+
+    say "Desktop Task Manager Demo completed successfully!"
+.
+
+# Run demo
+runTaskDemo
