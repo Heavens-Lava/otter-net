@@ -1,0 +1,14 @@
+{
+  "name": "service-dashboard-app",
+  "version": "1.0.0",
+  "target": "web",
+  "entryPoint": "src/main.ot",
+  "web": {
+    "runtime": "otter-web-0.1"
+  },
+  "dependencies": {
+    "otter-official/file-helpers": "1.0.0",
+    "otter-official/text-utils": "1.0.0",
+    "otter-official/math-utils": "1.0.0"
+  }
+}

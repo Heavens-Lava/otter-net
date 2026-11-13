@@ -1,0 +1,59 @@
+# Tests for lexical scope shadowing and runtime has-safety
+# Bug 1 regression: local object definitions inside functions must not clash
+# with variables of the same name in caller or outer scopes.
+
+a Box has
+    val
+.
+
+to makeBox n
+    b is a Box
+    val of b is n
+    return b
+.
+
+# 1. Caller defines b, then calls makeBox which internally defines local b
+b is makeBox 1
+c is makeBox 2
+
+if val of b is not 1
+    fail with "Scope shadowing failed: caller variable 'b' was corrupted"
+.
+if val of c is not 2
+    fail with "Scope shadowing failed: second call 'c' failed to create box"
+.
+
+# 2. Test shadowing multiple internal names used by standard libraries
+to shadowAll
+    inv is a Box with val 10
+    eq is a Box with val 20
+    e is a Box with val 30
+    item is a Box with val 40
+    return val of inv plus val of eq plus val of e plus val of item
+.
+
+# Outer scope binds same names
+inv is "outer_inv"
+eq is "outer_eq"
+e is "outer_e"
+item is "outer_item"
+
+res is shadowAll
+if res is not 100
+    fail with "Scope shadowing failed: inner function variables failed to sum"
+.
+
+if inv is not "outer_inv"
+    fail with "Scope shadowing failed: outer 'inv' was corrupted"
+.
+if eq is not "outer_eq"
+    fail with "Scope shadowing failed: outer 'eq' was corrupted"
+.
+if e is not "outer_e"
+    fail with "Scope shadowing failed: outer 'e' was corrupted"
+.
+if item is not "outer_item"
+    fail with "Scope shadowing failed: outer 'item' was corrupted"
+.
+
+say "Scope shadowing regression test PASSED"

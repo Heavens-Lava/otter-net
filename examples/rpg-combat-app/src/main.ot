@@ -5,230 +5,418 @@ use "../.otter/packages/otter-official/game-entity/1.0.0/src/main.ot"
 use "../.otter/packages/otter-official/math-utils/1.0.0/src/main.ot"
 use "../.otter/packages/otter-official/file-helpers/1.0.0/src/main.ot"
 
-saveGamePath is "hero_savegame.json"
+to runSelfTest saveGamePath
+    say "=========================================================="
+    say " RPG Inventory & Combat Application Self-Test Verification"
+    say " Consuming: game-entity, math-utils, file-helpers"
+    say "=========================================================="
 
-say "=========================================================="
-say " RPG Inventory & Combat Application (Phase 7 Real App)"
-say " Consuming: game-entity, math-utils, file-helpers"
-say "=========================================================="
+    # 1. Character Creation
+    say "1. Creating Hero..."
+    hero is createActor "Aurelius" 150 1
+    if name of hero is not "Aurelius"
+        fail with "RPGApp: Hero name mismatch"
+    .
+    if health of hero is not 150
+        fail with "RPGApp: Hero health mismatch"
+    .
+    if level of hero is not 1
+        fail with "RPGApp: Hero level mismatch"
+    .
+    say "   Hero Aurelius created (HP: 150/150, Level 1)."
 
-# 1. Character Creation
-say "1. Creating Hero..."
-hero is createActor "Aurelius" 150 1
-if name of hero is not "Aurelius"
-    fail with "RPGApp: Hero name mismatch"
-.
-if health of hero is not 150
-    fail with "RPGApp: Hero health mismatch"
-.
-if level of hero is not 1
-    fail with "RPGApp: Hero level mismatch"
-.
-say "   Hero Aurelius created (HP: 150/150, Level 1)."
+    # 2. Equipment Setup
+    say "2. Setting up equipment slots and equipping gear..."
+    eq is createEquipment
+    sunblade is createItem "Sunblade" "weapon" 25
+    mithrilMail is createItem "Mithril Mail" "armor" 18
 
-# 2. Equipment Setup
-say "2. Setting up equipment slots and equipping gear..."
-eq is createEquipment
-sunblade is createItem "Sunblade" "weapon" 25
-mithrilMail is createItem "Mithril Mail" "armor" 18
+    equipWeaponOk is equipItem eq sunblade
+    if equipWeaponOk is not true
+        fail with "RPGApp: Failed to equip Sunblade"
+    .
 
-equipWeaponOk is equipItem eq sunblade
-if equipWeaponOk is not true
-    fail with "RPGApp: Failed to equip Sunblade"
-.
+    equipArmorOk is equipItem eq mithrilMail
+    if equipArmorOk is not true
+        fail with "RPGApp: Failed to equip Mithril Mail"
+    .
 
-equipArmorOk is equipItem eq mithrilMail
-if equipArmorOk is not true
-    fail with "RPGApp: Failed to equip Mithril Mail"
-.
+    eqAtt is getEquipmentAttackBonus eq
+    attRating is attackBonus of hero plus eqAtt
 
-eqAtt is getEquipmentAttackBonus eq
-attRating is attackBonus of hero plus eqAtt
+    eqDef is getEquipmentDefenseBonus eq
+    defRating is defenseBonus of hero plus eqDef
 
-eqDef is getEquipmentDefenseBonus eq
-defRating is defenseBonus of hero plus eqDef
+    if attRating is not 25
+        fail with "RPGApp: Attack rating mismatch: expected 25"
+    .
+    if defRating is not 18
+        fail with "RPGApp: Defense rating mismatch: expected 18"
+    .
+    say "   Equipped Sunblade (+25 ATK) and Mithril Mail (+18 DEF)."
+    say "   Total Hero Attack:" attRating "Total Hero Defense:" defRating
 
-if attRating is not 25
-    fail with "RPGApp: Attack rating mismatch: expected 25"
-.
-if defRating is not 18
-    fail with "RPGApp: Defense rating mismatch: expected 18"
-.
-say "   Equipped Sunblade (+25 ATK) and Mithril Mail (+18 DEF)."
-say "   Total Hero Attack:" attRating "Total Hero Defense:" defRating
+    # 3. Inventory Setup and Item Management
+    say "3. Setting up inventory bag and adding items..."
+    inv is createInventory 5
+    potions is createStackableItem "Health Potion" "consumable" 40 3 5
+    feather is createItem "Phoenix Feather" "consumable" 100
+    keyItem is createItem "Dungeon Key" "quest" 1
 
-# 3. Inventory Setup and Item Management
-say "3. Setting up inventory bag and adding items..."
-inv is createInventory 5
-potions is createStackableItem "Health Potion" "consumable" 40 3 5
-feather is createItem "Phoenix Feather" "consumable" 100
-keyItem is createItem "Dungeon Key" "quest" 1
+    addPotOk is addItemToInventory inv potions
+    addFeatOk is addItemToInventory inv feather
+    addKeyOk is addItemToInventory inv keyItem
 
-addPotOk is addItemToInventory inv potions
-addFeatOk is addItemToInventory inv feather
-addKeyOk is addItemToInventory inv keyItem
+    if addPotOk is not true
+        fail with "RPGApp: Failed to add Health Potions"
+    .
+    if addFeatOk is not true
+        fail with "RPGApp: Failed to add Phoenix Feather"
+    .
+    if addKeyOk is not true
+        fail with "RPGApp: Failed to add Dungeon Key"
+    .
+    if currentCount of inv is not 3
+        fail with "RPGApp: Inventory currentCount mismatch"
+    .
 
-if addPotOk is not true
-    fail with "RPGApp: Failed to add Health Potions"
-.
-if addFeatOk is not true
-    fail with "RPGApp: Failed to add Phoenix Feather"
-.
-if addKeyOk is not true
-    fail with "RPGApp: Failed to add Dungeon Key"
-.
-if currentCount of inv is not 3
-    fail with "RPGApp: Inventory currentCount mismatch"
-.
+    foundPotions is findItemInInventory inv "Health Potion"
+    if foundPotions is gone
+        fail with "RPGApp: Health Potions not found in inventory"
+    .
+    if itemCount of foundPotions is not 3
+        fail with "RPGApp: Potion stack count mismatch: expected 3"
+    .
+    say "   Inventory filled with 3 items (Health Potion x3, Phoenix Feather, Dungeon Key)."
 
-foundPotions is findItemInInventory inv "Health Potion"
-if foundPotions is gone
-    fail with "RPGApp: Health Potions not found in inventory"
-.
-if itemCount of foundPotions is not 3
-    fail with "RPGApp: Potion stack count mismatch: expected 3"
-.
-say "   Inventory filled with 3 items (Health Potion x3, Phoenix Feather, Dungeon Key)."
+    # 4. Combat Simulation with Math Mechanics
+    say "4. Entering combat with Shadow Stalker..."
+    stalker is createActor "Shadow Stalker" 80 1
+    say "   Enemy appeared:" name of stalker "(HP: 80, Level 1)"
 
-# 4. Combat Simulation with Math Mechanics
-say "4. Entering combat with Shadow Stalker..."
-stalker is createActor "Shadow Stalker" 80 1
-say "   Enemy appeared:" name of stalker "(HP: 80, Level 1)"
+    # Stalker attacks hero: base damage 35, mitigated by armor (18 DEF)
+    rawDmg is 35 minus defRating
+    minDmg is 5
+    maxDmg is 100
+    netDmg is clamp rawDmg minDmg maxDmg
+    say "   Shadow Stalker strikes! Raw: 35, Mitigated: 17, Net Damage dealt:" netDmg
 
-# Stalker attacks hero: base damage 35, mitigated by armor (18 DEF)
-rawDmg is 35 minus defRating
-# Clamp minimum damage to at least 5
-minDmg is 5
-maxDmg is 100
-netDmg is clamp rawDmg minDmg maxDmg
-say "   Shadow Stalker strikes! Raw: 35, Mitigated: 17, Net Damage dealt:" netDmg
+    heroHpAfterHit is applyDamage hero netDmg
+    if heroHpAfterHit is not 133
+        fail with "RPGApp: Hero HP mismatch after taking hit: expected 133"
+    .
+    say "   Hero Aurelius HP:" health of hero "/ 150"
 
-heroHpAfterHit is applyDamage hero netDmg
-if heroHpAfterHit is not 133
-    fail with "RPGApp: Hero HP mismatch after taking hit: expected 133"
-.
-say "   Hero Aurelius HP:" health of hero "/ 150"
+    # 5. Using Consumables from Inventory
+    say "5. Using 1 Health Potion from inventory..."
+    curPotionCount is itemCount of foundPotions
+    itemCount of foundPotions is curPotionCount minus 1
+    healedHp is restoreHealth hero 40
+    if healedHp is not 150
+        fail with "RPGApp: Hero HP mismatch after healing: expected 150 (clamped to max)"
+    .
+    if itemCount of foundPotions is not 2
+        fail with "RPGApp: Potion count mismatch after use: expected 2"
+    .
+    say "   Drank potion: restored 17 HP to max 150. Remaining potions:" itemCount of foundPotions
 
-# 5. Using Consumables from Inventory
-say "5. Using 1 Health Potion from inventory..."
-curPotionCount is itemCount of foundPotions
-itemCount of foundPotions is curPotionCount minus 1
-healedHp is restoreHealth hero 40
-if healedHp is not 150
-    fail with "RPGApp: Hero HP mismatch after healing: expected 150 (clamped to max)"
-.
-if itemCount of foundPotions is not 2
-    fail with "RPGApp: Potion count mismatch after use: expected 2"
-.
-say "   Drank potion: restored 17 HP to max 150. Remaining potions:" itemCount of foundPotions
+    # 6. Hero Counters and Defeats Enemy
+    say "6. Hero executes counter-strike with Sunblade..."
+    stalkerHpAfterHit is applyDamage stalker 85
+    if stalkerHpAfterHit is not 0
+        fail with "RPGApp: Stalker expected defeated with 0 HP"
+    .
+    if isAlive of stalker is not false
+        fail with "RPGApp: Stalker alive flag expected false"
+    .
+    say "   Shadow Stalker took 85 damage and has been DEFEATED!"
 
-# 6. Hero Counters and Defeats Enemy
-say "6. Hero executes counter-strike with Sunblade..."
-# Hero damage: attack rating 25 + base 60 = 85 damage
-stalkerHpAfterHit is applyDamage stalker 85
-if stalkerHpAfterHit is not 0
-    fail with "RPGApp: Stalker expected defeated with 0 HP"
-.
-if isAlive of stalker is not false
-    fail with "RPGApp: Stalker alive flag expected false"
-.
-say "   Shadow Stalker took 85 damage and has been DEFEATED!"
+    # 7. Gaining Experience & Leveling Up
+    say "7. Gaining 120 EXP (threshold 100 EXP)..."
+    leveledUp is gainExperience hero 120 100
+    if leveledUp is not true
+        fail with "RPGApp: Hero expected to level up"
+    .
+    if level of hero is not 2
+        fail with "RPGApp: Hero level mismatch: expected 2"
+    .
+    if experience of hero is not 20
+        fail with "RPGApp: Hero leftover EXP mismatch: expected 20"
+    .
+    if maxHealth of hero is not 175
+        fail with "RPGApp: Hero max HP after level-up mismatch: expected 175"
+    .
+    if attackBonus of hero is not 5
+        fail with "RPGApp: Hero attack bonus after level-up mismatch: expected 5"
+    .
+    say "   LEVEL UP! Aurelius is now Level 2 (HP: 175/175, +5 ATK bonus, 20 leftover EXP)."
 
-# 7. Gaining Experience & Leveling Up
-say "7. Gaining 120 EXP (threshold 100 EXP)..."
-leveledUp is gainExperience hero 120 100
-if leveledUp is not true
-    fail with "RPGApp: Hero expected to level up"
-.
-if level of hero is not 2
-    fail with "RPGApp: Hero level mismatch: expected 2"
-.
-if experience of hero is not 20
-    fail with "RPGApp: Hero leftover EXP mismatch: expected 20"
-.
-if maxHealth of hero is not 175
-    fail with "RPGApp: Hero max HP after level-up mismatch: expected 175"
-.
-if attackBonus of hero is not 5
-    fail with "RPGApp: Hero attack bonus after level-up mismatch: expected 5"
-.
-say "   LEVEL UP! Aurelius is now Level 2 (HP: 175/175, +5 ATK bonus, 20 leftover EXP)."
+    # 8. Save Progress to Disk
+    say "8. Serializing and saving game state to disk..."
+    gameState is serializeGameState hero inv eq
+    saveOk is writeJsonObject saveGamePath gameState
+    if saveOk is not true
+        fail with "RPGApp: Failed to write savegame JSON to disk"
+    .
+    say "   Game saved successfully to" saveGamePath
 
-# 8. Save Progress to Disk
-say "8. Serializing and saving game state to disk..."
-gameState is serializeGameState hero inv eq
-saveOk is writeJsonObject saveGamePath gameState
-if saveOk is not true
-    fail with "RPGApp: Failed to write savegame JSON to disk"
-.
-say "   Game saved successfully to" saveGamePath
+    # 9. Restart and State Recovery Verification
+    say "9. Simulating fresh restart and state restoration..."
+    fallbackSave has
+        name is "None"
+    .
+    loadedRawState is readJsonObjectSafe saveGamePath fallbackSave
+    if name of loadedRawState is not "Aurelius"
+        fail with "RPGApp: Loaded savegame name mismatch"
+    .
 
-# 9. Restart and State Recovery Verification
-say "9. Simulating fresh restart and state restoration..."
-fallbackSave has
-    name is "None"
-.
-loadedRawState is readJsonObjectSafe saveGamePath fallbackSave
-if name of loadedRawState is not "Aurelius"
-    fail with "RPGApp: Loaded savegame name mismatch"
-.
+    restoredState is deserializeGameState loadedRawState
+    restoredHero is actor of restoredState
+    restoredInv is inventory of restoredState
+    restoredEq is equipment of restoredState
 
-restoredState is deserializeGameState loadedRawState
-restoredHero is actor of restoredState
-restoredInv is inventory of restoredState
-restoredEq is equipment of restoredState
+    if name of restoredHero is not "Aurelius"
+        fail with "RPGApp: Restored hero name mismatch"
+    .
+    if level of restoredHero is not 2
+        fail with "RPGApp: Restored hero level mismatch: expected 2"
+    .
+    if health of restoredHero is not 175
+        fail with "RPGApp: Restored hero HP mismatch: expected 175"
+    .
+    if maxHealth of restoredHero is not 175
+        fail with "RPGApp: Restored hero max HP mismatch: expected 175"
+    .
+    if attackBonus of restoredHero is not 5
+        fail with "RPGApp: Restored hero attack bonus mismatch: expected 5"
+    .
 
-if name of restoredHero is not "Aurelius"
-    fail with "RPGApp: Restored hero name mismatch"
-.
-if level of restoredHero is not 2
-    fail with "RPGApp: Restored hero level mismatch: expected 2"
-.
-if health of restoredHero is not 175
-    fail with "RPGApp: Restored hero HP mismatch: expected 175"
-.
-if maxHealth of restoredHero is not 175
-    fail with "RPGApp: Restored hero max HP mismatch: expected 175"
-.
-if attackBonus of restoredHero is not 5
-    fail with "RPGApp: Restored hero attack bonus mismatch: expected 5"
-.
+    # Verify restored equipment
+    restoredWeapon is weapon of restoredEq
+    if itemName of restoredWeapon is not "Sunblade"
+        fail with "RPGApp: Restored equipped weapon mismatch: expected Sunblade"
+    .
+    restoredArmor is armor of restoredEq
+    if itemName of restoredArmor is not "Mithril Mail"
+        fail with "RPGApp: Restored equipped armor mismatch: expected Mithril Mail"
+    .
 
-# Verify restored equipment
-restoredWeapon is weapon of restoredEq
-if itemName of restoredWeapon is not "Sunblade"
-    fail with "RPGApp: Restored equipped weapon mismatch: expected Sunblade"
-.
-restoredArmor is armor of restoredEq
-if itemName of restoredArmor is not "Mithril Mail"
-    fail with "RPGApp: Restored equipped armor mismatch: expected Mithril Mail"
-.
+    # Verify restored inventory items and stack counts
+    if currentCount of restoredInv is not 3
+        fail with "RPGApp: Restored inventory item count mismatch: expected 3"
+    .
+    restoredPotions is findItemInInventory restoredInv "Health Potion"
+    if restoredPotions is gone
+        fail with "RPGApp: Restored inventory missing Health Potion"
+    .
+    if itemCount of restoredPotions is not 2
+        fail with "RPGApp: Restored inventory potion count mismatch: expected 2"
+    .
 
-# Verify restored inventory items and stack counts
-if currentCount of restoredInv is not 3
-    fail with "RPGApp: Restored inventory item count mismatch: expected 3"
-.
-restoredPotions is findItemInInventory restoredInv "Health Potion"
-if restoredPotions is gone
-    fail with "RPGApp: Restored inventory missing Health Potion"
-.
-if itemCount of restoredPotions is not 2
-    fail with "RPGApp: Restored inventory potion count mismatch: expected 2"
-.
+    restoredFeather is findItemInInventory restoredInv "Phoenix Feather"
+    if restoredFeather is gone
+        fail with "RPGApp: Restored inventory missing Phoenix Feather"
+    .
 
-restoredFeather is findItemInInventory restoredInv "Phoenix Feather"
-if restoredFeather is gone
-    fail with "RPGApp: Restored inventory missing Phoenix Feather"
-.
+    say "   State recovery 100% verified: character, stats, equipment, and inventory intact!"
 
-say "   State recovery 100% verified: character, stats, equipment, and inventory intact!"
+    # 10. Clean up save file
+    delSaveOk is deleteFileSafe saveGamePath
+    if delSaveOk is not true
+        fail with "RPGApp: Failed to clean up savegame file"
+    .
 
-# 10. Clean up save file
-delSaveOk is deleteFileSafe saveGamePath
-if delSaveOk is not true
-    fail with "RPGApp: Failed to clean up savegame file"
+    say "=========================================================="
+    say " RPG Inventory & Combat Application verification 100% PASSED"
+    say "=========================================================="
 .
 
-say "=========================================================="
-say " RPG Inventory & Combat Application verification 100% PASSED"
-say "=========================================================="
+to runInteractiveRpgApp savePath
+    say "=========================================================="
+    say " Otter RPG Adventure & Combat (Interactive Mode)"
+    say " Consuming: game-entity, math-utils, file-helpers"
+    say " Commands: status, inventory, equip, heal, battle, save, load, help, quit"
+    say "=========================================================="
+
+    hero is createActor "Aurelius" 150 1
+    inv is createInventory 6
+    eq is createEquipment
+
+    # Starter gear & consumables
+    sword is createItem "Sunblade" "weapon" 25
+    armorItem is createItem "Mithril Mail" "armor" 18
+    accItem is createItem "Amulet of Fury" "accessory" 12
+    potions is createStackableItem "Health Potion" "consumable" 40 3 5
+
+    addItemToInventory inv sword
+    addItemToInventory inv armorItem
+    addItemToInventory inv accItem
+    addItemToInventory inv potions
+
+    isActive is true
+    while isActive
+        ask "rpg> " and call it rawCmd
+        if rawCmd is gone or rawCmd is ""
+            isActive is false
+        otherwise
+            cmd is lowercase of rawCmd
+
+            if cmd is "quit" or cmd is "exit" or cmd is "q"
+                say "Saving your adventure for next time. Farewell, hero!"
+                isActive is false
+            otherwise if cmd is "help"
+                say "Available commands:"
+                say "  status    - View hero level, health, and equipment"
+                say "  inventory - List all items in backpack"
+                say "  equip     - Equip an item from inventory"
+                say "  heal      - Drink a health potion to restore HP"
+                say "  battle    - Encounter and fight a dungeon enemy"
+                say "  save      - Save character state to disk"
+                say "  load      - Load character state from disk"
+                say "  quit      - Exit game"
+            otherwise if cmd is "status"
+                eqAtt is getEquipmentAttackBonus eq
+                heroAtt is attackBonus of hero plus eqAtt
+                eqDef is getEquipmentDefenseBonus eq
+                heroDef is defenseBonus of hero plus eqDef
+
+                say "--- Hero Status: " name of hero " ---"
+                say "  Level:     " level of hero
+                say "  Health:    " health of hero "/" maxHealth of hero
+                say "  Experience:" experience of hero
+                say "  Attack:    " heroAtt "(+" eqAtt "from gear)"
+                say "  Defense:   " heroDef "(+" eqDef "from gear)"
+                w is weapon of eq
+                if w is not gone
+                    say "  Weapon:    " itemName of w "(+" itemPower of w "ATK)"
+                otherwise
+                    say "  Weapon:     (none)"
+                .
+                curArmor is armor of eq
+                if curArmor is not gone
+                    say "  Armor:     " itemName of curArmor "(+" itemPower of curArmor "DEF)"
+                otherwise
+                    say "  Armor:      (none)"
+                .
+                acc is accessory of eq
+                if acc is not gone
+                    say "  Accessory: " itemName of acc "(+" itemPower of acc "BONUS)"
+                otherwise
+                    say "  Accessory:  (none)"
+                .
+            otherwise if cmd is "inventory"
+                cCount is currentCount of inv
+                say "--- Backpack (" cCount "/" capacity of inv ") ---"
+                itemsList is items of inv
+                for each it in itemsList
+                    say "  - " itemName of it "[" itemKind of it "] Power:" itemPower of it "Qty:" itemCount of it
+                .
+            otherwise if cmd is "equip"
+                ask "  Item to equip: " and call it targetName
+                foundItem is findItemInInventory inv targetName
+                if foundItem is gone
+                    say "Error: Item '" targetName "' not found in inventory."
+                otherwise
+                    eqOk is equipItem eq foundItem
+                    if eqOk is true
+                        say "Success: Equipped " targetName
+                    otherwise
+                        say "Error: Cannot equip item of kind " itemKind of foundItem
+                    .
+                .
+            otherwise if cmd is "heal"
+                potionItem is findItemInInventory inv "Health Potion"
+                if potionItem is gone or itemCount of potionItem is at most 0
+                    say "You have no Health Potions left!"
+                otherwise
+                    curQty is itemCount of potionItem
+                    itemCount of potionItem is curQty minus 1
+                    if itemCount of potionItem is 0
+                        removeItemFromInventory inv "Health Potion"
+                    .
+                    healed is restoreHealth hero 40
+                    say "Drank potion! Healed to " healed "/" maxHealth of hero ". Remaining potions:" itemCount of potionItem
+                .
+            otherwise if cmd is "battle"
+                enemy is createActor "Dungeon Fiend" 90 1
+                say "=== BATTLE: A wild " name of enemy " (HP: 90) appears! ==="
+
+                eqAtt is getEquipmentAttackBonus eq
+                heroTotalAtt is attackBonus of hero plus eqAtt plus 45
+                eqDef is getEquipmentDefenseBonus eq
+                heroTotalDef is defenseBonus of hero plus eqDef
+
+                # Round 1: Hero strikes enemy
+                say "Hero strikes with weapon power " heroTotalAtt "!"
+                enemyHp is applyDamage enemy heroTotalAtt
+                say "Dungeon Fiend takes damage! Enemy HP: " enemyHp "/ 90"
+
+                # Enemy counter-attack if alive
+                if isAlive of enemy is true
+                    rawMonsterDmg is 30 minus heroTotalDef
+                    netMonsterDmg is clamp rawMonsterDmg 5 99
+                    say "Dungeon Fiend claws back for " netMonsterDmg " damage (mitigated by DEF)!"
+                    applyDamage hero netMonsterDmg
+                    say "Hero HP: " health of hero "/" maxHealth of hero
+                .
+
+                # Round 2: Hero strikes finishing blow
+                if isAlive of enemy is true
+                    say "Hero strikes again for " heroTotalAtt " damage!"
+                    enemyHp is applyDamage enemy heroTotalAtt
+                    say "Enemy HP: " enemyHp
+                .
+
+                if isAlive of enemy is false
+                    say "VICTORY! Dungeon Fiend has been defeated!"
+                    say "Gaining 150 EXP..."
+                    leveled is gainExperience hero 150 100
+                    if leveled is true
+                        say "LEVEL UP! Aurelius reached Level " level of hero "! (Max HP now " maxHealth of hero ")"
+                    .
+                .
+            otherwise if cmd is "save"
+                ask "  Save file path (Enter for default): " and call it chosenSavePath
+                targetSave is savePath
+                if chosenSavePath is not ""
+                    targetSave is chosenSavePath
+                .
+                saveData is serializeGameState hero inv eq
+                saveOk is writeJsonObject targetSave saveData
+                if saveOk is true
+                    say "Success: Game saved to " targetSave
+                otherwise
+                    say "Error: Failed to save game."
+                .
+            otherwise if cmd is "load"
+                ask "  Load file path (Enter for default): " and call it chosenLoadPath
+                targetLoad is savePath
+                if chosenLoadPath is not ""
+                    targetLoad is chosenLoadPath
+                .
+                fallbackObj has
+                    name is "None"
+                .
+                rawLoaded is readJsonObjectSafe targetLoad fallbackObj
+                if name of rawLoaded is "None"
+                    say "Error: Save file not found or corrupted."
+                otherwise
+                    restoredBundle is deserializeGameState rawLoaded
+                    hero is actor of restoredBundle
+                    inv is inventory of restoredBundle
+                    eq is equipment of restoredBundle
+                    say "Success: Loaded game for " name of hero " (Level " level of hero ")"
+                .
+            otherwise
+                say "Unknown command '" rawCmd "'. Type 'help' for options."
+            .
+        .
+    .
+.
+
+get arguments into cliArgs
+if cliArgs contains "--verify" or cliArgs contains "--test"
+    runSelfTest "hero_savegame.json"
+otherwise
+    runInteractiveRpgApp "hero_savegame.json"
+.

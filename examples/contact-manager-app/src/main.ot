@@ -161,117 +161,253 @@ to loadContactStore filePath
 .
 
 # ==============================================================================
-# Application Lifecycle & Behavioral Assertions
+# Application Lifecycle: Interactive Mode and Self-Test Verification
 # ==============================================================================
 
-storePath is "contacts_store.json"
+to runSelfTest storePath
+    say "=========================================================="
+    say " Contact Manager Application Self-Test Verification"
+    say " Consuming: file-helpers, text-utils, list-utils"
+    say "=========================================================="
 
-say "=========================================================="
-say " Contact Manager Application (Phase 7 Real App)"
-say " Consuming: file-helpers, text-utils, list-utils"
-say "=========================================================="
+    # Stage 1: Create store, add contacts, edit, and delete
+    appStore is createContactStore
+    say "1. Adding contacts..."
+    c1 is addContact appStore "Alice Smith" "alice@example.com" "555-0100" "Engineering"
+    c2 is addContact appStore "Bob Jones" "bob@example.com" "555-0200" "Design"
+    c3 is addContact appStore "Charlie Brown" "charlie@example.com" "555-0300" "Engineering"
 
-# Stage 1: Create store, add contacts, edit, and delete
-appStore is createContactStore
-say "1. Adding contacts..."
-c1 is addContact appStore "Alice Smith" "alice@example.com" "555-0100" "Engineering"
-c2 is addContact appStore "Bob Jones" "bob@example.com" "555-0200" "Design"
-c3 is addContact appStore "Charlie Brown" "charlie@example.com" "555-0300" "Engineering"
+    if count of appStore is not 3
+        fail with "ContactManager: Expected 3 contacts added"
+    .
+    say "   Added 3 contacts successfully."
 
-if count of appStore is not 3
-    fail with "ContactManager: Expected 3 contacts added"
-.
-say "   Added 3 contacts successfully."
+    say "2. Editing contact 1 (Alice Smith)..."
+    editOk is editContact appStore 1 "alice.smith@corp.com" "555-0199" "Tech Lead"
+    if editOk is not true
+        fail with "ContactManager: editContact failed"
+    .
+    aliceEdited is findContactById appStore 1
+    if email of aliceEdited is not "alice.smith@corp.com"
+        fail with "ContactManager: email update mismatch"
+    .
+    if phone of aliceEdited is not "555-0199"
+        fail with "ContactManager: phone update mismatch"
+    .
+    say "   Contact 1 edited and verified."
 
-say "2. Editing contact 1 (Alice Smith)..."
-editOk is editContact appStore 1 "alice.smith@corp.com" "555-0199" "Tech Lead"
-if editOk is not true
-    fail with "ContactManager: editContact failed"
-.
-aliceEdited is findContactById appStore 1
-if email of aliceEdited is not "alice.smith@corp.com"
-    fail with "ContactManager: email update mismatch"
-.
-if phone of aliceEdited is not "555-0199"
-    fail with "ContactManager: phone update mismatch"
-.
-say "   Contact 1 edited and verified."
+    say "3. Deleting contact 2 (Bob Jones)..."
+    delOk is deleteContact appStore 2
+    if delOk is not true
+        fail with "ContactManager: deleteContact failed"
+    .
+    if count of appStore is not 2
+        fail with "ContactManager: count after delete expected 2"
+    .
+    bobCheck is findContactById appStore 2
+    if bobCheck is not gone
+        fail with "ContactManager: deleted contact still found"
+    .
+    say "   Contact 2 deleted successfully."
 
-say "3. Deleting contact 2 (Bob Jones)..."
-delOk is deleteContact appStore 2
-if delOk is not true
-    fail with "ContactManager: deleteContact failed"
-.
-if count of appStore is not 2
-    fail with "ContactManager: count after delete expected 2"
-.
-bobCheck is findContactById appStore 2
-if bobCheck is not gone
-    fail with "ContactManager: deleted contact still found"
-.
-say "   Contact 2 deleted successfully."
+    say "4. Searching contacts by tag 'Lead'..."
+    leadMatches is searchContacts appStore "lead"
+    if length of leadMatches is not 1
+        fail with "ContactManager: search by 'lead' expected 1 match"
+    .
+    matchedAlice is first of leadMatches
+    if name of matchedAlice is not "Alice Smith"
+        fail with "ContactManager: search match name mismatch"
+    .
+    say "   Search 'lead' returned Alice Smith as expected."
 
-say "4. Searching contacts by tag 'Lead'..."
-leadMatches is searchContacts appStore "lead"
-if length of leadMatches is not 1
-    fail with "ContactManager: search by 'lead' expected 1 match"
-.
-matchedAlice is first of leadMatches
-if name of matchedAlice is not "Alice Smith"
-    fail with "ContactManager: search match name mismatch"
-.
-say "   Search 'lead' returned Alice Smith as expected."
+    say "5. Saving contact store to disk..."
+    saveOk is saveContactStore appStore storePath
+    if saveOk is not true
+        fail with "ContactManager: saveContactStore failed"
+    .
+    say "   Saved to" storePath
 
-say "5. Saving contact store to disk..."
-saveOk is saveContactStore appStore storePath
-if saveOk is not true
-    fail with "ContactManager: saveContactStore failed"
-.
-say "   Saved to" storePath
+    say "6. Simulating application restart and recovery from disk..."
+    restoredStore is loadContactStore storePath
+    if count of restoredStore is not 2
+        fail with "ContactManager: restored store count mismatch"
+    .
+    if lastId of restoredStore is not 3
+        fail with "ContactManager: restored store lastId mismatch"
+    .
 
-say "6. Simulating application restart and recovery from disk..."
-restoredStore is loadContactStore storePath
-if count of restoredStore is not 2
-    fail with "ContactManager: restored store count mismatch"
-.
-if lastId of restoredStore is not 3
-    fail with "ContactManager: restored store lastId mismatch"
-.
+    restoredAlice is findContactById restoredStore 1
+    if restoredAlice is gone
+        fail with "ContactManager: restored Alice not found"
+    .
+    if email of restoredAlice is not "alice.smith@corp.com"
+        fail with "ContactManager: restored Alice email mismatch"
+    .
+    if phone of restoredAlice is not "555-0199"
+        fail with "ContactManager: restored Alice phone mismatch"
+    .
+    if tag of restoredAlice is not "Tech Lead"
+        fail with "ContactManager: restored Alice tag mismatch"
+    .
 
-restoredAlice is findContactById restoredStore 1
-if restoredAlice is gone
-    fail with "ContactManager: restored Alice not found"
-.
-if email of restoredAlice is not "alice.smith@corp.com"
-    fail with "ContactManager: restored Alice email mismatch"
-.
-if phone of restoredAlice is not "555-0199"
-    fail with "ContactManager: restored Alice phone mismatch"
-.
-if tag of restoredAlice is not "Tech Lead"
-    fail with "ContactManager: restored Alice tag mismatch"
-.
+    restoredBob is findContactById restoredStore 2
+    if restoredBob is not gone
+        fail with "ContactManager: deleted Bob unexpectedly restored"
+    .
 
-restoredBob is findContactById restoredStore 2
-if restoredBob is not gone
-    fail with "ContactManager: deleted Bob unexpectedly restored"
-.
+    restoredCharlie is findContactById restoredStore 3
+    if restoredCharlie is gone
+        fail with "ContactManager: restored Charlie not found"
+    .
+    if name of restoredCharlie is not "Charlie Brown"
+        fail with "ContactManager: restored Charlie name mismatch"
+    .
 
-restoredCharlie is findContactById restoredStore 3
-if restoredCharlie is gone
-    fail with "ContactManager: restored Charlie not found"
-.
-if name of restoredCharlie is not "Charlie Brown"
-    fail with "ContactManager: restored Charlie name mismatch"
-.
+    say "   Restoration and recovery verified successfully across sessions!"
+    say "7. Cleaning up test storage..."
+    delFileOk is deleteFileSafe storePath
+    if delFileOk is not true
+        fail with "ContactManager: cleanup deleteFileSafe failed"
+    .
 
-say "   Restoration and recovery verified successfully across sessions!"
-say "7. Cleaning up test storage..."
-delFileOk is deleteFileSafe storePath
-if delFileOk is not true
-    fail with "ContactManager: cleanup deleteFileSafe failed"
+    say "=========================================================="
+    say " Contact Manager Application verification 100% PASSED"
+    say "=========================================================="
 .
 
-say "=========================================================="
-say " Contact Manager Application verification 100% PASSED"
-say "=========================================================="
+to runInteractiveContactManager storePath
+    store is loadContactStore storePath
+    say "=========================================================="
+    say " Otter Contact Manager (Interactive Mode)"
+    say " Storage: " storePath " (" count of store " contacts loaded)"
+    say " Available actions: add, list, view, search, edit, delete, save, stats, help, quit"
+    say "=========================================================="
+
+    isActive is true
+    while isActive
+        ask "contact-mgr> " and call it rawAction
+        if rawAction is gone or rawAction is ""
+            isActive is false
+        otherwise
+            actionClean is toLower rawAction
+            actionClean is normalizeSpaces actionClean
+
+            if actionClean is "quit" or actionClean is "exit" or actionClean is "q"
+                say "Exiting Contact Manager. Goodbye!"
+                isActive is false
+            otherwise if actionClean is "help"
+                say "Commands:"
+                say "  add    - Add a new contact (prompts for details)"
+                say "  list   - List all contacts"
+                say "  view   - View full details of a contact by ID"
+                say "  search - Search contacts by name, email, or tag"
+                say "  edit   - Edit email, phone, and tag of a contact by ID"
+                say "  delete - Delete a contact by ID"
+                say "  save   - Save contact store to disk"
+                say "  stats  - Display store statistics"
+                say "  quit   - Exit application"
+            otherwise if actionClean is "stats"
+                say "Total Contacts: " count of store
+                say "Last Assigned ID: " lastId of store
+            otherwise if actionClean is "list"
+                cList is contacts of store
+                if length of cList is 0
+                    say "No contacts in store."
+                otherwise
+                    say "--- Contacts (" length of cList ") ---"
+                    for each c in cList
+                        say "  [#" id of c "] " name of c " | " email of c " | " phone of c " | [" tag of c "]"
+                    .
+                .
+            otherwise if actionClean is "view"
+                ask "  Enter Contact ID: " and call it idStr
+                cId is idStr plus 0
+                found is findContactById store cId
+                if found is gone
+                    say "Error: Contact #" cId " not found."
+                otherwise
+                    say "--- Contact Details ---"
+                    say "  ID:    " id of found
+                    say "  Name:  " name of found
+                    say "  Email: " email of found
+                    say "  Phone: " phone of found
+                    say "  Tag:   " tag of found
+                .
+            otherwise if actionClean is "add"
+                ask "  Name:  " and call it cName
+                ask "  Email: " and call it cEmail
+                ask "  Phone: " and call it cPhone
+                ask "  Tag:   " and call it cTag
+                newC is addContact store cName cEmail cPhone cTag
+                say "Success: Added contact [#" id of newC "] " cName
+            otherwise if actionClean is "search"
+                ask "  Query: " and call it q
+                matches is searchContacts store q
+                if length of matches is 0
+                    say "No contacts matched query '" q "'."
+                otherwise
+                    say "--- Search Matches (" length of matches ") ---"
+                    for each m in matches
+                        say "  [#" id of m "] " name of m " | " email of m " | " phone of m " | [" tag of m "]"
+                    .
+                .
+            otherwise if actionClean is "edit"
+                ask "  Enter Contact ID to edit: " and call it idStr
+                cId is idStr plus 0
+                found is findContactById store cId
+                if found is gone
+                    say "Error: Contact #" cId " not found."
+                otherwise
+                    ask "  New Email: " and call it newEmail
+                    ask "  New Phone: " and call it newPhone
+                    ask "  New Tag:   " and call it newTag
+                    editOk is editContact store cId newEmail newPhone newTag
+                    if editOk is true
+                        say "Success: Contact #" cId " updated."
+                    otherwise
+                        say "Error: Failed to update contact #" cId "."
+                    .
+                .
+            otherwise if actionClean is "delete"
+                ask "  Enter Contact ID to delete: " and call it idStr
+                cId is idStr plus 0
+                delOk is deleteContact store cId
+                if delOk is true
+                    say "Success: Contact #" cId " deleted."
+                otherwise
+                    say "Error: Contact #" cId " not found."
+                .
+            otherwise if actionClean is "save"
+                ask "  Save file path (Enter for default): " and call it chosenPath
+                targetPath is storePath
+                if chosenPath is not ""
+                    targetPath is chosenPath
+                .
+                saveOk is saveContactStore store targetPath
+                if saveOk is true
+                    say "Success: Store saved to " targetPath
+                otherwise
+                    say "Error: Failed to save store to " targetPath
+                .
+            otherwise if actionClean is "load"
+                ask "  Load file path (Enter for default): " and call it chosenLoadPath
+                targetLoadPath is storePath
+                if chosenLoadPath is not ""
+                    targetLoadPath is chosenLoadPath
+                .
+                store is loadContactStore targetLoadPath
+                say "Success: Loaded store from " targetLoadPath " (" count of store " contacts)"
+            otherwise
+                say "Unknown action '" rawAction "'. Type 'help' for available commands."
+            .
+        .
+    .
+.
+
+get arguments into cliArgs
+if cliArgs contains "--verify" or cliArgs contains "--test"
+    runSelfTest "contacts_store.json"
+otherwise
+    runInteractiveContactManager "contacts_store.json"
+.

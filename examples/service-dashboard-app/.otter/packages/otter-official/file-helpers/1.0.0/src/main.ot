@@ -1,0 +1,109 @@
+# file-helpers - Otter Reusable File & Storage Library
+# Provides readOrFallback, writeSafe, appendSafe, deleteFileSafe, fileExistsSafe,
+# toJsonSafe, fromJsonSafe, readJsonObject, readJsonObjectSafe, and writeJsonObject
+
+to fileExistsSafe filePath
+    if file filePath exists
+        return true
+    .
+    return false
+.
+
+to readOrFallback filePath fallbackValue
+    if file filePath exists
+        try
+            read filePath into content
+            return content
+        otherwise
+            return fallbackValue
+        .
+    .
+    return fallbackValue
+.
+
+to writeSafe filePath content
+    try
+        write content to filePath
+        return true
+    otherwise
+        return false
+    .
+.
+
+to appendSafe filePath content
+    try
+        append content to filePath
+        return true
+    otherwise
+        return false
+    .
+.
+
+to deleteFileSafe filePath
+    try
+        if file filePath exists
+            delete file filePath
+            return true
+        .
+    otherwise
+        return false
+    .
+    return false
+.
+
+to toJsonSafe obj fallbackValue
+    try
+        convert obj to json into raw
+        return raw
+    otherwise
+        return fallbackValue
+    .
+.
+
+to fromJsonSafe rawJson fallbackValue
+    try
+        target is a thing
+        convert rawJson from json into target
+        return target
+    otherwise
+        return fallbackValue
+    .
+.
+
+to readJsonObject filePath
+    try
+        if file filePath exists
+            read filePath into rawJson
+            target is a thing
+            convert rawJson from json into target
+            return target
+        .
+    otherwise
+        return gone
+    .
+    return gone
+.
+
+to readJsonObjectSafe filePath fallbackValue
+    try
+        if file filePath exists
+            read filePath into rawJson
+            target is a thing
+            convert rawJson from json into target
+            return target
+        .
+    otherwise
+        return fallbackValue
+    .
+    return fallbackValue
+.
+
+to writeJsonObject filePath obj
+    try
+        convert obj to json into rawJson
+        write rawJson to filePath
+        return true
+    otherwise
+        return false
+    .
+.

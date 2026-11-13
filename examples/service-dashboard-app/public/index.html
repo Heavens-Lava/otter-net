@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Otter Pulse — Microservice Health & API Gateway</title>
+  <meta name="description" content="High-performance microservice telemetry and observability dashboard built natively with Otter language.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="dashboard-shell">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="header-left">
+        <div class="brand-logo">
+          <span class="logo-icon">⚡</span>
+          <span class="logo-title">Otter<span class="highlight">Pulse</span></span>
+        </div>
+        <div class="system-status-badge" id="system-status-indicator">
+          <span class="pulse-dot"></span>
+          <span class="status-text" id="global-status-text">All Systems Operational</span>
+        </div>
+      </div>
+      <div class="header-right">
+        <button class="btn btn-secondary" id="btn-refresh" onclick="fetchTelemetry()">
+          <span class="icon">↻</span> Refresh
+        </button>
+        <button class="btn btn-primary" id="btn-add-service" onclick="openModal()">
+          <span class="icon">+</span> Register Service
+        </button>
+      </div>
+    </header>
+
+    <!-- Metrics Row -->
+    <section class="metrics-grid">
+      <div class="metric-card">
+        <div class="metric-label">Active Microservices</div>
+        <div class="metric-value" id="metric-services-count">--</div>
+        <div class="metric-trend positive">100% Monitored</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Average Response Time</div>
+        <div class="metric-value" id="metric-avg-latency">-- ms</div>
+        <div class="metric-trend neutral">P95 Telemetry</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Global Fleet Uptime</div>
+        <div class="metric-value" id="metric-global-uptime">--%</div>
+        <div class="metric-trend positive">SLA > 99.9%</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Runtime Engine</div>
+        <div class="metric-value engine-val">Otter 1.0.1</div>
+        <div class="metric-trend accent">Native Web Server</div>
+      </div>
+    </section>
+
+    <!-- Controls Bar -->
+    <section class="controls-bar">
+      <div class="filter-tabs">
+        <button class="tab-btn active" onclick="setCategoryFilter('all')">All Services</button>
+        <button class="tab-btn" onclick="setCategoryFilter('api')">Core API</button>
+        <button class="tab-btn" onclick="setCategoryFilter('database')">Database</button>
+        <button class="tab-btn" onclick="setCategoryFilter('edge')">Edge & Cache</button>
+      </div>
+      <div class="search-box">
+        <input type="text" id="search-input" placeholder="Search by name, port, or slug..." oninput="handleSearch()">
+      </div>
+    </section>
+
+    <!-- Services Grid -->
+    <main class="services-container">
+      <div class="services-grid" id="services-grid">
+        <div class="loading-spinner">Loading real-time telemetry from Otter REST API...</div>
+      </div>
+    </main>
+
+    <!-- Modal for Registering New Service -->
+    <div class="modal-backdrop" id="register-modal">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h2 class="modal-title">Register Microservice</h2>
+          <button class="close-btn" onclick="closeModal()">✕</button>
+        </div>
+        <form id="register-form" onsubmit="handleRegister(event)">
+          <div class="form-group">
+            <label for="svc-name">Service Name</label>
+            <input type="text" id="svc-name" required placeholder="e.g. Payments Gateway">
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="svc-port">Port Number</label>
+              <input type="number" id="svc-port" required placeholder="8080" min="1000" max="65535">
+            </div>
+            <div class="form-group">
+              <label for="svc-category">Category</label>
+              <select id="svc-category">
+                <option value="api">Core API</option>
+                <option value="database">Database</option>
+                <option value="edge">Edge & Cache</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="svc-target-uptime">Target Uptime (%)</label>
+            <input type="number" id="svc-target-uptime" value="99.9" step="0.1" min="90" max="100">
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="btn-submit-service">Register Service</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <div>Otter Pulse Telemetry Gateway • Built entirely on Native Otter Reusable Library</div>
+      <div class="footer-links">
+        <a href="/api/services" target="_blank">/api/services</a>
+        <a href="/api/metrics" target="_blank">/api/metrics</a>
+        <a href="/api/health" target="_blank">/api/health</a>
+      </div>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

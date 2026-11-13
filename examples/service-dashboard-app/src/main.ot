@@ -1,0 +1,284 @@
+# Service Dashboard Application
+# Consumes installed packs: file-helpers, text-utils, math-utils
+# Exposes REST API endpoints and serves live telemetry dashboard
+
+use "../.otter/packages/otter-official/file-helpers/1.0.0/src/main.ot"
+use "../.otter/packages/otter-official/text-utils/1.0.0/src/main.ot"
+use "../.otter/packages/otter-official/math-utils/1.0.0/src/main.ot"
+
+a ServiceRecord has
+    name
+    slug
+    port
+    category
+    uptime
+    latencyMs
+    healthScore
+    checks
+.
+
+to calculateHealthScore latencyMs uptime
+    # Health score from 0-100: penalize latency over 50ms, scale with uptime
+    baseScore is 100
+    if latencyMs is greater than 50
+        penalty is latencyMs minus 50
+        baseScore is baseScore minus penalty
+    .
+    scoreClamped is clamp baseScore 10 100
+    return scoreClamped
+.
+
+to createServiceRecord sName sPort sCategory sTargetUptime
+    svc is a ServiceRecord
+    name of svc is sName
+    slug of svc is slugify sName
+    port of svc is sPort plus 0
+    category of svc is sCategory
+    uptime of svc is sTargetUptime
+    latencyMs of svc is 24
+    healthScore of svc is calculateHealthScore 24 sTargetUptime
+    checks of svc is 1
+    return svc
+.
+
+to buildServiceDict svc
+    d has
+        name is name of svc
+        slug is slug of svc
+        port is port of svc
+        category is category of svc
+        uptime is uptime of svc
+        latencyMs is latencyMs of svc
+        healthScore is healthScore of svc
+        checks is checks of svc
+    .
+    return d
+.
+
+to saveServicesList services filePath
+    rawList are empty
+    for each s in services
+        d is buildServiceDict s
+        add d to rawList
+    .
+    convert rawList to json into rawJson
+    writeSafe filePath rawJson
+    return true
+.
+
+to createServiceFromDict item
+    s is a ServiceRecord
+    name of s is name of item
+    slug of s is slug of item
+    port of s is port of item
+    category of s is category of item
+    uptime of s is uptime of item
+    latencyMs of s is latencyMs of item
+    healthScore of s is healthScore of item
+    checks of s is checks of item
+    return s
+.
+
+to loadServicesList filePath
+    raw is readOrFallback filePath "[]"
+    rawItems are empty
+    convert raw from json into rawItems
+    services are empty
+    for each item in rawItems
+        s is createServiceFromDict item
+        add s to services
+    .
+    return services
+.
+
+to calculateMetrics services
+    count is length of services
+    if count is 0
+        emptyMetrics has
+            totalServices is 0
+            averageLatencyMs is 0
+            overallUptime is 100
+        .
+        return emptyMetrics
+    .
+
+    latencies are empty
+    uptimes are empty
+    for each s in services
+        add latencyMs of s to latencies
+        add uptime of s to uptimes
+    .
+
+    avgLat is calcAverage latencies
+    avgUp is calcAverage uptimes
+    avgLatClamped is clamp avgLat 1 999
+
+    res has
+        totalServices is count
+        averageLatencyMs is avgLatClamped
+        overallUptime is avgUp
+    .
+    return res
+.
+
+to runSelfTest testDbPath
+    say "=========================================================="
+    say " Service Dashboard Application Self-Test Verification"
+    say " Consuming: file-helpers, text-utils, math-utils"
+    say "=========================================================="
+
+    # 1. Create default services
+    sList are empty
+    s1 is createServiceRecord "Auth Gateway" 8081 "api" 99.9
+    s2 is createServiceRecord "Payments Service" 8082 "api" 99.5
+    s3 is createServiceRecord "Analytics Engine" 8083 "database" 98.5
+
+    add s1 to sList
+    add s2 to sList
+    add s3 to sList
+
+    if length of sList is not 3
+        fail with "ServiceDashboard: Expected 3 services initialized"
+    .
+    if slug of s1 is not "auth-gateway"
+        fail with "ServiceDashboard: Slug generation failed"
+    .
+    say "1. Microservice definitions created & slugified successfully."
+
+    # 2. Test metrics calculations
+    metrics is calculateMetrics sList
+    if totalServices of metrics is not 3
+        fail with "ServiceDashboard: Metrics totalServices mismatch"
+    .
+    say "2. Fleet telemetry and metrics calculated successfully."
+
+    # 3. Test persistence to disk
+    saveOk is saveServicesList sList testDbPath
+    if saveOk is not true
+        fail with "ServiceDashboard: Save to disk failed"
+    .
+    say "3. Telemetry store persisted to disk."
+
+    # 4. Test reloading from disk
+    loadedSvcs is loadServicesList testDbPath
+    if length of loadedSvcs is not 3
+        fail with "ServiceDashboard: Loaded count mismatch"
+    .
+    firstSvc is first of loadedSvcs
+    if name of firstSvc is not "Auth Gateway"
+        fail with "ServiceDashboard: Loaded service name mismatch"
+    .
+    if slug of firstSvc is not "auth-gateway"
+        fail with "ServiceDashboard: Loaded service slug mismatch"
+    .
+    say "4. Multi-service state restored and verified from disk."
+
+    # 5. Clean up
+    deleteFileSafe testDbPath
+    say "=========================================================="
+    say " Service Dashboard Application verification 100% PASSED"
+    say "=========================================================="
+.
+
+# Initialize default services if database is empty
+dbPath is "services_store.json"
+existing is loadServicesList dbPath
+if length of existing is 0
+    initList are empty
+    init1 is createServiceRecord "Auth Gateway" 8081 "api" 99.9
+    init2 is createServiceRecord "Payments Service" 8082 "api" 99.8
+    init3 is createServiceRecord "Database Primary" 5432 "database" 99.99
+    init4 is createServiceRecord "Edge CDN Cache" 6379 "edge" 99.9
+    add init1 to initList
+    add init2 to initList
+    add init3 to initList
+    add init4 to initList
+    saveServicesList initList dbPath
+.
+
+get arguments into cliArgs
+if cliArgs contains "--verify" or cliArgs contains "--test"
+    runSelfTest "test_dashboard_storage.json"
+.
+
+# Web server declaration
+dashboardSite is a web server
+    port is 18092
+    host is "127.0.0.1"
+    static is "public"
+.
+
+when dashboardSite receives GET at "/api/health"
+    healthData has
+        status is "healthy"
+        version is "1.0.0"
+        engine is "Otter 1.0.1 Native"
+    .
+    respond with healthData as json
+.
+
+when dashboardSite receives GET at "/api/services"
+    svcs is loadServicesList dbPath
+    rawReturn are empty
+    for each s in svcs
+        d is buildServiceDict s
+        add d to rawReturn
+    .
+    respond with rawReturn as json
+.
+
+when dashboardSite receives POST at "/api/services" into req
+    bodyObj is a thing
+    convert body of req from json into bodyObj
+    rawName is name of bodyObj
+    rawPort is port of bodyObj
+    rawCat is category of bodyObj
+    rawUptime is targetUptime of bodyObj
+
+    if rawName is "" or rawPort is 0
+        err has
+            error is "Validation failed: name and port are required"
+        .
+        respond with err as json and status 400
+    otherwise
+        newSvc is createServiceRecord rawName rawPort rawCat rawUptime
+        currentList is loadServicesList dbPath
+        add newSvc to currentList
+        saveServicesList currentList dbPath
+        respDict is buildServiceDict newSvc
+        respond with respDict as json and status 201
+    .
+.
+
+when dashboardSite receives GET at "/api/metrics"
+    svcs is loadServicesList dbPath
+    metricsData is calculateMetrics svcs
+    respond with metricsData as json
+.
+
+when dashboardSite receives POST at "/api/services/ping" into req
+    bodyObj is a thing
+    convert body of req from json into bodyObj
+    targetSlug is slug of bodyObj
+    svcs is loadServicesList dbPath
+    updatedList are empty
+    pinged is false
+    for each s in svcs
+        if slug of s is targetSlug
+            curLat is latencyMs of s
+            bumpedLat is curLat plus 6
+            newLat is clamp bumpedLat 10 200
+            latencyMs of s is newLat
+            healthScore of s is calculateHealthScore newLat uptime of s
+            pinged is true
+        .
+        add s to updatedList
+    .
+    if pinged is true
+        saveServicesList updatedList dbPath
+    .
+    resObj has
+        success is pinged
+    .
+    respond with resObj as json
+.

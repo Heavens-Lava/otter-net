@@ -1,0 +1,24 @@
+{
+  "lockfileVersion": 1,
+  "generatedBy": "otter-cli 1.0.1",
+  "packages": {
+    "otter-official/file-helpers": {
+      "version": "1.0.0",
+      "entry": "src/main.ot",
+      "sha256": "674a536682dbcc955e13844a34da448d28fd305a4b9dcc8fddc31038ee9d6f8b",
+      "installedAt": "2026-11-13T19:06:41.8188360Z"
+    },
+    "otter-official/text-utils": {
+      "version": "1.0.0",
+      "entry": "src/main.ot",
+      "sha256": "f79c12d033b82efe537e94c4a407644563ee031a25461f3a7ca514316b3a1311",
+      "installedAt": "2026-11-13T19:06:41.8632840Z"
+    },
+    "otter-official/math-utils": {
+      "version": "1.0.0",
+      "entry": "src/main.ot",
+      "sha256": "ed399a531f8f4ea98825da2b8a8f20fc88c1f7f9d346217240986e7ab484012e",
+      "installedAt": "2026-11-13T19:06:41.9071570Z"
+    }
+  }
+}
