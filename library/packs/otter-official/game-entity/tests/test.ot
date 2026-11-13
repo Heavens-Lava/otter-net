@@ -175,4 +175,97 @@ if getEquipmentDefenseBonus restoredEquip is not 15
     fail with "deserializeGameState failed: restored equipment defense mismatch"
 .
 
+# 12. Bug 5 Test: reviveActor with 0 HP must not revive actor
+fallen is createActor "Fallen Knight" 50 1
+applyDamage fallen 50
+if isAlive of fallen is not false
+    fail with "fallen actor expected dead"
+.
+reviveZeroRes is reviveActor fallen 0
+if reviveZeroRes is not 0
+    fail with "reviveActor with 0 HP must return 0"
+.
+if isAlive of fallen is not false
+    fail with "actor must remain dead when revived with 0 HP"
+.
+if health of fallen is not 0
+    fail with "dead actor HP must remain 0"
+.
+
+# 13. Bug 4 Test: Multi-leveling in gainExperience (500 XP at 100/level -> level 6)
+novice is createActor "Novice Mage" 60 1
+multiLvlOk is gainExperience novice 500 100
+if multiLvlOk is not true
+    fail with "gainExperience failed to trigger multi-leveling"
+.
+if level of novice is not 6
+    fail with "multi-leveling expected level 6 from 500 XP at 100/level"
+.
+if experience of novice is not 0
+    fail with "multi-leveling expected 0 leftover experience"
+.
+
+# 14. Bug 2 & 3 Test: Accessory equipping, attack/defense bonuses, and savegame persistence
+accEquip is createEquipment
+fireRing is createItem "Ring of Fire" "attack_accessory" 12
+wardPendant is createItem "Pendant of Warding" "defense_accessory" 8
+
+equipFireOk is equipItem accEquip fireRing
+if equipFireOk is not true
+    fail with "failed to equip attack_accessory into accessory slot"
+.
+atkWithAcc is getEquipmentAttackBonus accEquip
+if atkWithAcc is not 12
+    fail with "attack_accessory bonus failed: expected 12"
+.
+
+equipWardOk is equipItem accEquip wardPendant
+if equipWardOk is not true
+    fail with "failed to equip defense_accessory into accessory slot"
+.
+defWithAcc is getEquipmentDefenseBonus accEquip
+if defWithAcc is not 8
+    fail with "defense_accessory bonus failed: expected 8"
+.
+
+# Save and restore accessory slot
+accSavedState is serializeGameState novice bag accEquip
+accRestoredBundle is deserializeGameState accSavedState
+accRestoredEquip is equipment of accRestoredBundle
+restoredDefAcc is getEquipmentDefenseBonus accRestoredEquip
+if restoredDefAcc is not 8
+    fail with "restored accessory defense bonus mismatch: expected 8"
+.
+restoredAccItem is accessory of accRestoredEquip
+if itemName of restoredAccItem is not "Pendant of Warding"
+    fail with "restored accessory itemName mismatch: expected Pendant of Warding"
+.
+if itemKind of restoredAccItem is not "defense_accessory"
+    fail with "restored accessory itemKind mismatch: expected defense_accessory"
+.
+
+# 15. Bug 1 Test: Runtime Scoping & Variable Clash Safety
+# Callers can have variables named b, inv, eq, item without clashing with library internal variables
+inv is "caller_inv_string"
+eq is "caller_eq_string"
+item is "caller_item_string"
+b is createInventory 3
+c is createInventory 4
+
+if inv is not "caller_inv_string"
+    fail with "caller inv variable was corrupted by library call"
+.
+if eq is not "caller_eq_string"
+    fail with "caller eq variable was corrupted by library call"
+.
+if item is not "caller_item_string"
+    fail with "caller item variable was corrupted by library call"
+.
+if capacity of b is not 3
+    fail with "first created inventory capacity mismatch"
+.
+if capacity of c is not 4
+    fail with "second created inventory capacity mismatch"
+.
+
 say "All game-entity behavioral tests passed successfully!"

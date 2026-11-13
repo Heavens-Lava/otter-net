@@ -5,8 +5,8 @@
     "otter-official/game-entity": {
       "version": "1.0.0",
       "entry": "src/main.ot",
-      "sha256": "e6d5078a535ea43b24e3cf9711ccd4c0d1a1adbf30a9a0208380fb1fa2652174",
-      "installedAt": "2026-11-13T17:07:31.4381850Z"
+      "sha256": "c982e0f7a0b8e9d0d181b6494644137c8b3c1a20de63742be29a942eefce5731",
+      "installedAt": "2026-11-13T17:31:24.0249530Z"
     },
     "otter-official/math-utils": {
       "version": "1.0.0",

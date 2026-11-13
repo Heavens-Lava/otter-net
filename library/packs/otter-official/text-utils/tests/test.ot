@@ -41,6 +41,10 @@ s2 is slugify "user_auth_token"
 if s2 is not "user-auth-token"
     fail with "slugify underscores failed: expected user-auth-token"
 .
+s3 is slugify "Otter 1.0 Reusable Library... Release 2026!"
+if s3 is not "otter-10-reusable-library-release-2026"
+    fail with "slugify punctuation stripping failed"
+.
 
 # 5. Case conversion (toUpper, toLower)
 up is toUpper "hello otter"
@@ -104,6 +108,10 @@ if rejoined is not "alpha - beta - gamma"
 norm is normalizeSpaces "hello    world   otter"
 if norm is not "hello world otter"
     fail with "normalizeSpaces failed: expected single spaces"
+.
+normTrim is normalizeSpaces "   leading and trailing spaces   "
+if normTrim is not "leading and trailing spaces"
+    fail with "normalizeSpaces failed: expected trimmed leading and trailing spaces"
 .
 
 say "All text-utils behavioral tests passed successfully!"

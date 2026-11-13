@@ -3,8 +3,9 @@ use "../src/main.ot"
 
 say "Running file-helpers behavioral tests..."
 
-testTxtFile is "test_helpers_temp.txt"
-testJsonFile is "test_helpers_temp.json"
+get system folder "temp" into tempFolder
+testTxtFile is tempFolder + "test_helpers_temp.txt"
+testJsonFile is tempFolder + "test_helpers_temp.json"
 
 # Clean up before testing
 deleteFileSafe testTxtFile

@@ -73,3 +73,28 @@
    - Consumes `game-entity`, `math-utils`, `file-helpers`.
    - Hero creation, equipment bonus calculations, stackable potion inventory, turn combat with damage mitigation, leveling, state serialization, and multi-process restart recovery.
 
+---
+
+## 5. Independent Review Remediation & Runtime Hardening
+
+Following independent review of the Phase 7 implementation, all identified edge cases, runtime bugs, and testing infrastructure concerns were systematically resolved and verified:
+
+1. **Interpreter Scoping Clash Fix (Bug 1):**
+   - **Issue:** `ObjectDefStmt` checked `scope.Has(name)` instead of `scope.HasLocal(name)`, falsely rejecting definitions when a caller/parent scope bound the same name (e.g. `b is makeBox 1; c is makeBox 2` throwing `"will not replace existing a Box called b"`).
+   - **Resolution:** In [`src/Otter.Runtime/Interpreter.cs`](file:///Users/jeffreymacy/Projects/otter-net/src/Otter.Runtime/Interpreter.cs#L162-L188), updated the collision check to `scope.HasLocal(objectDef.Name)` and assignment to `scope.SetLocal(objectDef.Name, thing)`, preserving parent UI resource property updates while enabling proper lexical scoping. Verified with unit tests.
+2. **Accessory Slot & Bonus Resolution (Bugs 2 & 3):**
+   - **Issue:** `equipItem` in `game-entity` required kind `"accessory"`, but bonus calculators checked `"attack_accessory"` / `"defense_accessory"`. Serialization also omitted the accessory slot.
+   - **Resolution:** Updated `equipItem` to accept `"accessory"`, `"attack_accessory"`, and `"defense_accessory"`. Updated `getEquipmentAttackBonus` and `getEquipmentDefenseBonus` to count accessory powers. Updated `serializeGameState` and `deserializeGameState` to preserve accessory slot across saves.
+3. **Multi-Leveling & Revive Edge Cases (Bugs 4 & 5):**
+   - **Issue:** `gainExperience` leveled at most once per call; `reviveActor deadActor 0` produced a living actor with 0 HP.
+   - **Resolution:** Converted leveling check to `while experience of actor is at least neededPerLevel` loop. Added guard in `reviveActor` rejecting `hp <= 0`.
+4. **Text Utils Normalization & Slugify Polish:**
+   - **Issue:** `slugify` preserved punctuation (e.g. `otter-1.0-reusable....`); `normalizeSpaces` did not trim leading/trailing spaces.
+   - **Resolution:** Reordered `normalizeSpaces` before `slugify` (matching Otter single-pass parse order). `normalizeSpaces` splits and joins tokens to collapse internal whitespace and strip leading/trailing spaces. `slugify` strips punctuation characters before normalizing.
+5. **Mutation Suite Safety & Sandbox Isolation:**
+   - **Issue:** In-place file modification risked leaving source broken if interrupted; `dedupeList` mutation caused syntax error (exit code 2) rather than behavioral failure (exit code 3).
+   - **Resolution:** Updated [`tools/test-mutations.py`](file:///Users/jeffreymacy/Projects/otter-net/tools/test-mutations.py) to execute every mutation in an isolated temporary sandbox (`artifacts/mutation-sandboxes/`), leaving repository source untouched. Mutated `dedupeList` with valid statement `fakeAdd is 0`, ensuring exit code 3 assertion failure. Expanded mutation suite to 17 caught mutations.
+6. **Workspace Cleanliness & Temp Path Isolation:**
+   - **Issue:** `file-helpers` test wrote `test_helpers_temp.txt` in the current working directory, polluting git status if interrupted.
+   - **Resolution:** Updated `file-helpers/tests/test.ot` to use `get system folder "temp"` into system temporary directory. Updated `tools/test-recipes.ps1` to clean up temporary test JSON files.
+

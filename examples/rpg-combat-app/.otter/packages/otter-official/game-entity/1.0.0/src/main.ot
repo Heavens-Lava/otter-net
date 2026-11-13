@@ -106,6 +106,9 @@ to restoreHealth actor amount
 .
 
 to reviveActor actor hp
+    if hp is at most 0
+        return 0
+    .
     isAlive of actor is true
     maxHp is maxHealth of actor
     newHp is hp
@@ -129,15 +132,19 @@ to levelUp actor
 .
 
 to gainExperience actor amount neededPerLevel
-    curExp is experience of actor
-    newExp is curExp plus amount
-    experience of actor is newExp
-    if newExp is at least neededPerLevel
-        levelUp actor
-        experience of actor is newExp minus neededPerLevel
-        return true
+    if neededPerLevel is at most 0
+        return false
     .
-    return false
+    curExp is experience of actor
+    experience of actor is curExp plus amount
+    leveled is false
+    while experience of actor is at least neededPerLevel
+        levelUp actor
+        remExp is experience of actor minus neededPerLevel
+        experience of actor is remExp
+        leveled is true
+    .
+    return leveled
 .
 
 to createCooldown name cd
@@ -265,6 +272,14 @@ to equipItem equipment item
         accessory of equipment is item
         return true
     .
+    if kind is "attack_accessory"
+        accessory of equipment is item
+        return true
+    .
+    if kind is "defense_accessory"
+        accessory of equipment is item
+        return true
+    .
     return false
 .
 
@@ -295,7 +310,10 @@ to getEquipmentAttackBonus equipment
     .
     acc is accessory of equipment
     if acc is not gone
-        if itemKind of acc is "attack_accessory"
+        k is itemKind of acc
+        if k is "attack_accessory"
+            bonus is bonus plus itemPower of acc
+        otherwise if k is "accessory"
             bonus is bonus plus itemPower of acc
         .
     .
@@ -310,7 +328,8 @@ to getEquipmentDefenseBonus equipment
     .
     acc is accessory of equipment
     if acc is not gone
-        if itemKind of acc is "defense_accessory"
+        k is itemKind of acc
+        if k is "defense_accessory"
             bonus is bonus plus itemPower of acc
         .
     .
@@ -339,6 +358,7 @@ to serializeGameState actor inv equip
     equipData has
         hasWeapon is false
         hasArmor is false
+        hasAccessory is false
     .
     w is weapon of equip
     if w is not gone
@@ -351,6 +371,13 @@ to serializeGameState actor inv equip
         hasArmor of equipData is true
         armorName of equipData is itemName of armItem
         armorPower of equipData is itemPower of armItem
+    .
+    accItem is accessory of equip
+    if accItem is not gone
+        hasAccessory of equipData is true
+        accessoryName of equipData is itemName of accItem
+        accessoryKind of equipData is itemKind of accItem
+        accessoryPower of equipData is itemPower of accItem
     .
 
     gameState has
@@ -399,6 +426,10 @@ to deserializeGameState stateData
     if hasArmor of eqData is true
         aItem is createItem armorName of eqData "armor" armorPower of eqData
         equipItem restoredEq aItem
+    .
+    if hasAccessory of eqData is true
+        accObj is createItem accessoryName of eqData accessoryKind of eqData accessoryPower of eqData
+        equipItem restoredEq accObj
     .
 
     bundle has

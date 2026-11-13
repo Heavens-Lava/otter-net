@@ -28,4 +28,8 @@ for each c in cleaned
 .
 
 sub is sliceList cleaned 1 2
-say "Subslice (first 2):" length of sub
+say "Subslice (first 2):"
+for each s in sub
+    say "  Item:" s
+.
+

@@ -97,4 +97,9 @@ Write-Host "==========================================================" -Foregro
 Write-Host " Summary: $passed passed, $failed failed" -ForegroundColor $(if ($failed -eq 0) { "Green" } else { "Red" })
 Write-Host "==========================================================" -ForegroundColor Cyan
 
+# Clean up any temporary json files produced by recipe tests
+@("test_contacts_session.json", "test_rpg_save.json", "test_tasks_store.json", "test_web_submissions.json") | ForEach-Object {
+    if (Test-Path $_) { Remove-Item -Force $_ }
+}
+
 if ($failed -gt 0) { exit 1 } else { exit 0 }

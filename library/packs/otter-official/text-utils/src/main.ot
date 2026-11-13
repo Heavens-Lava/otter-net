@@ -34,11 +34,39 @@ to padRight text targetLen padChar
     return text plus padding
 .
 
+to normalizeSpaces text
+    split text by " " into parts
+    valid are empty
+    for each p in parts
+        if length of p is greater than 0
+            add p to valid
+        .
+    .
+    join valid with " " into trimmed
+    return trimmed
+.
+
 to slugify text
     clean is lowercase of text
-    replace " " with "-" in clean
-    replace "_" with "-" in clean
-    return clean
+    replace "." with "" in clean
+    replace "," with "" in clean
+    replace "!" with "" in clean
+    replace "?" with "" in clean
+    replace ":" with "" in clean
+    replace ";" with "" in clean
+    replace "(" with "" in clean
+    replace ")" with "" in clean
+    replace "[" with "" in clean
+    replace "]" with "" in clean
+    replace "{" with "" in clean
+    replace "}" with "" in clean
+    replace "_" with " " in clean
+    replace "/" with " " in clean
+    replace "\\" with " " in clean
+    replace "-" with " " in clean
+    norm is normalizeSpaces clean
+    replace " " with "-" in norm
+    return norm
 .
 
 to toUpper text
@@ -103,12 +131,4 @@ to splitText text separator
 to joinText parts separator
     join parts with separator into result
     return result
-.
-
-to normalizeSpaces text
-    clean is text
-    while clean contains "  "
-        replace "  " with " " in clean
-    .
-    return clean
 .
