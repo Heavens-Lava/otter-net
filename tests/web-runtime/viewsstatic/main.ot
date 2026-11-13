@@ -1,0 +1,8 @@
+# Refused: templates must never be served as static files (§10).
+site is a web server
+    port is 18080
+    static is "views"
+.
+when site receives GET at "/"
+    respond with "never"
+.

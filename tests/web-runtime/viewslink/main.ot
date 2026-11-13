@@ -1,0 +1,11 @@
+# The views folder itself is a link out of the project (the test harness
+# makes it): no template is rendered from it (§10).
+site is a web server
+    port is 18080
+.
+when site receives GET at "/"
+    page is a web template
+        file is "views/page.html"
+    .
+    respond with page
+.
