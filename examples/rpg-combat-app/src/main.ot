@@ -1,9 +1,9 @@
 # RPG Inventory and Combat Application
 # Consumes installed packs: game-entity, math-utils, file-helpers
 
-use "../.otter/packages/otter-official/game-entity/1.0.0/src/main.ot"
-use "../.otter/packages/otter-official/math-utils/1.0.0/src/main.ot"
-use "../.otter/packages/otter-official/file-helpers/1.0.0/src/main.ot"
+use "../.otter/packages/otter-official/game-entity/1.1.0/src/main.ot"
+use "../.otter/packages/otter-official/math-utils/1.0.1/src/main.ot"
+use "../.otter/packages/otter-official/file-helpers/1.0.1/src/main.ot"
 
 to runSelfTest saveGamePath
     say "=========================================================="

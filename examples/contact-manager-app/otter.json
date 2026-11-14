@@ -4,8 +4,8 @@
   "target": "console",
   "entryPoint": "src/main.ot",
   "dependencies": {
-    "otter-official/file-helpers": "1.0.0",
-    "otter-official/text-utils": "1.0.0",
-    "otter-official/list-utils": "1.0.0"
+    "otter-official/file-helpers": "1.0.1",
+    "otter-official/text-utils": "1.0.1",
+    "otter-official/list-utils": "1.0.1"
   }
 }

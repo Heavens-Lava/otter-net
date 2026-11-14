@@ -7,7 +7,7 @@
   "targets": ["console", "desktop"],
   "requiresOtter": ">=1.0.1",
   "packs": [
-    { "id": "otter-official/file-helpers", "version": "1.0.0" }
+    { "id": "otter-official/file-helpers", "version": "1.0.1" }
   ],
   "configuration": [
     {

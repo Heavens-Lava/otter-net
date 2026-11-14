@@ -8,8 +8,8 @@
   "requiresOtter": ">=1.0.1",
   "capabilities": ["web", "files"],
   "packs": [
-    { "id": "otter-official/file-helpers", "version": "1.0.0" },
-    { "id": "otter-official/text-utils", "version": "1.0.0" }
+    { "id": "otter-official/file-helpers", "version": "1.0.1" },
+    { "id": "otter-official/text-utils", "version": "1.0.1" }
   ],
   "configuration": [
     { "id": "portalName", "title": "Portal Title", "type": "text", "default": "Community Hub", "description": "Brand title for portal header and pages" },

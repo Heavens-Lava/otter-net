@@ -12,9 +12,9 @@ if os.path.exists(db_file):
 
 # Script 1: Run process 1 to write contacts
 proc1_code = f"""
-use "../.otter/packages/otter-official/file-helpers/1.0.0/src/main.ot"
-use "../.otter/packages/otter-official/text-utils/1.0.0/src/main.ot"
-use "../.otter/packages/otter-official/list-utils/1.0.0/src/main.ot"
+use "../.otter/packages/otter-official/file-helpers/1.0.1/src/main.ot"
+use "../.otter/packages/otter-official/text-utils/1.0.1/src/main.ot"
+use "../.otter/packages/otter-official/list-utils/1.0.1/src/main.ot"
 
 a Contact has
     id
@@ -109,9 +109,9 @@ if not os.path.exists(db_file):
 
 # Script 2: Separate process starts and verifies persistence
 proc2_code = f"""
-use "../.otter/packages/otter-official/file-helpers/1.0.0/src/main.ot"
-use "../.otter/packages/otter-official/text-utils/1.0.0/src/main.ot"
-use "../.otter/packages/otter-official/list-utils/1.0.0/src/main.ot"
+use "../.otter/packages/otter-official/file-helpers/1.0.1/src/main.ot"
+use "../.otter/packages/otter-official/text-utils/1.0.1/src/main.ot"
+use "../.otter/packages/otter-official/list-utils/1.0.1/src/main.ot"
 
 emptyList are empty
 fallback has

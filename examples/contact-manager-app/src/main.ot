@@ -1,9 +1,9 @@
 # Contact Manager Application
 # Consumes installed packs: file-helpers, text-utils, list-utils
 
-use "../.otter/packages/otter-official/file-helpers/1.0.0/src/main.ot"
-use "../.otter/packages/otter-official/text-utils/1.0.0/src/main.ot"
-use "../.otter/packages/otter-official/list-utils/1.0.0/src/main.ot"
+use "../.otter/packages/otter-official/file-helpers/1.0.1/src/main.ot"
+use "../.otter/packages/otter-official/text-utils/1.0.1/src/main.ot"
+use "../.otter/packages/otter-official/list-utils/1.0.1/src/main.ot"
 
 a Contact has
     id

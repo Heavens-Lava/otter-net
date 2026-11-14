@@ -93,7 +93,10 @@ def run_case(name, script_content, repo_root, otter_net_cmd, otter_ps_cmd):
 
 def main():
     repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    otter_ps_script = os.path.join(os.path.dirname(repo_root), "otterPS", "otter.ps1")
+    frozen_ps = os.path.join(os.path.dirname(repo_root), "otterPS-1.0.1", "otter.ps1")
+    live_ps = os.path.join(os.path.dirname(repo_root), "otterPS", "otter.ps1")
+    otter_ps_script = frozen_ps if os.path.exists(frozen_ps) else live_ps
+    print(f"PowerShell reference implementation: {otter_ps_script}")
 
     # Support passing an installed otter executable via argument or OTTER_NET_BIN
     env_bin = os.environ.get("OTTER_NET_BIN")
