@@ -10,11 +10,11 @@ Official source packs are versioned libraries maintained in the Otter repository
 
 | Pack | Version | Description | Key APIs |
 |------|---------|-------------|----------|
-| `otter-official/math-utils` | 1.0.0 | Math helpers and scalar ranges | `clamp`, `lerp`, `mapRange`, `calcAverage` |
-| `otter-official/list-utils` | 1.0.0 | Collection utilities and search | `hasItem`, `dedupeList`, `filterList`, `countMatches` |
-| `otter-official/text-utils` | 1.0.0 | String formatting and transformation | `padLeft`, `padRight`, `slugify`, `splitText` |
-| `otter-official/file-helpers` | 1.0.0 | Safe file I/O and JSON storage | `readOrFallback`, `writeSafe`, `readJsonObject` |
-| `otter-official/game-entity` | 1.0.0 | Combat and RPG entity mechanics | `Actor`, `applyDamage`, `restoreHealth`, `levelUp`, `Inventory` |
+| `otter-official/math-utils` | 1.0.1 | Math helpers and scalar ranges | `clamp`, `lerp`, `mapRange`, `calcAverage` |
+| `otter-official/list-utils` | 1.0.1 | Collection utilities and search | `hasItem`, `dedupeList`, `filterList`, `countMatches` |
+| `otter-official/text-utils` | 1.0.1 | String formatting and transformation | `padLeft`, `padRight`, `slugify`, `splitText` |
+| `otter-official/file-helpers` | 1.0.1 | Safe file I/O and JSON storage | `readOrFallback`, `writeSafe`, `readJsonObject` |
+| `otter-official/game-entity` | 1.1.0 | Combat and RPG entity mechanics | `Actor`, `applyDamage`, `restoreHealth`, `levelUp`, `Inventory`, `consumeItemFromInventory` |
 
 ### Installing a Pack
 ```bash

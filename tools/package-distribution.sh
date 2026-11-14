@@ -27,10 +27,13 @@ dotnet publish "$ROOT_DIR/src/Otter.Cli/Otter.Cli.csproj" \
     -p:NoWarn=NU1903 \
     -o "$OUTPUT_DIR/bin" > /dev/null
 
-# 2. Copy and Sync Standard Library
-echo "Bundling standard library (snippets, packs, blueprints, recipes)..."
-rsync -av --delete "$ROOT_DIR/library/" "$OUTPUT_DIR/library/" > /dev/null
-rsync -av --delete "$ROOT_DIR/library/" "$OUTPUT_DIR/bin/library/" > /dev/null
+# 2. Deploy Standard Library from Published Build Output
+echo "Bundling standard library from build outputs..."
+cp -R "$OUTPUT_DIR/bin/library/." "$OUTPUT_DIR/library/"
+
+# 2b. Automated Distribution Bundle Integrity Verification
+echo "Verifying distribution bundle integrity..."
+python3 "$ROOT_DIR/tools/verify-bundle-integrity.py" "$OUTPUT_DIR/library" "$OUTPUT_DIR/bin/library"
 
 # 3. Create Universal Portable Launchers
 echo "Generating universal launchers..."

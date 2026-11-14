@@ -142,8 +142,8 @@ Search and list published visual blueprints.
       "summary": "Connect damage, health, cooldown, and defeat logic into an interactive combat loop.",
       "targets": ["console", "game"],
       "packs": [
-        { "id": "otter-official/math-utils", "version": "1.0.0" },
-        { "id": "otter-official/game-entity", "version": "1.0.0" }
+        { "id": "otter-official/math-utils", "version": "1.0.1" },
+        { "id": "otter-official/game-entity", "version": "1.1.0" }
       ],
       "nodeCount": 4,
       "edgeCount": 3,
@@ -247,7 +247,7 @@ graph TD
 |   Filter: [All Targets v]  [All Categories v]  [x] Verified Only  [ ] Offline Ready|
 |                                                                                   |
 |   +------------------------------------+  +------------------------------------+  |
-|   | otter-official/math-utils   v1.0.0 |  | otter-official/game-entity  v1.0.0 |  |
+|   | otter-official/math-utils   v1.0.1 |  | otter-official/game-entity  v1.1.0 |  |
 |   | [VERIFIED]  [CAPABILITIES: NONE]   |  | [VERIFIED]  [CAPABILITIES: NONE]   |  |
 |   |------------------------------------|  |------------------------------------|  |
 |   | Essential clamp, lerp, range map,  |  | Actor stats, health management,    |  |
@@ -258,7 +258,7 @@ graph TD
 |   +------------------------------------+  +------------------------------------+  |
 |                                                                                   |
 |   +------------------------------------+  +------------------------------------+  |
-|   | otter-official/text-utils   v1.0.0 |  | otter-official/file-helpers v1.0.0 |  |
+|   | otter-official/text-utils   v1.0.1 |  | otter-official/file-helpers v1.0.1 |  |
 |   | [VERIFIED]  [CAPABILITIES: NONE]   |  | [VERIFIED]  [CAPABILITIES: FILES]  |  |
 |   +------------------------------------+  +------------------------------------+  |
 |                                                                                   |
@@ -296,7 +296,7 @@ graph TD
 |   |---------------------------------------------------------------------------|   |
 |   | GENERATED OTTER SOURCE PREVIEW:                                           |   |
 |   |                                                                           |   |
-|   |   use ".otter/packages/otter-official/game-entity/1.0.0/src/main.ot"      |   |
+|   |   use ".otter/packages/otter-official/game-entity/1.1.0/src/main.ot"      |   |
 |   |   enemy is an Actor                                                       |   |
 |   |   health of enemy is 100                                                  |   |
 |   |   enemy is applyDamage enemy and 25                                       |   |

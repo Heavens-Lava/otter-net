@@ -283,3 +283,21 @@ jobs:
           $lines | Write-Host
           # A platform that produced nothing, or an undeclared difference, is a failure.
           if ($failed) { exit 1 }
+
+  distribution-integrity:
+    name: Distribution & Library Bundle Integrity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build Debug and Release
+        run: |
+          dotnet build src/Otter.Cli/Otter.Cli.csproj -c Debug
+          dotnet build src/Otter.Cli/Otter.Cli.csproj -c Release
+      - name: Verify Bundle Integrity (Snippets, Packs, Blueprints, Recipes, Schemas, Hashes)
+        run: python3 tools/verify-bundle-integrity.py
+      - name: Outside-Repository Consumer Test
+        run: python3 tests/distribution/test_outside_repository_consumer.py
+
