@@ -12,9 +12,9 @@ if os.path.exists(save_file):
 
 # Script 1: Run process 1 to fight, level up, and save
 proc1_code = f"""
-use "../.otter/packages/otter-official/game-entity/1.0.0/src/main.ot"
-use "../.otter/packages/otter-official/math-utils/1.0.0/src/main.ot"
-use "../.otter/packages/otter-official/file-helpers/1.0.0/src/main.ot"
+use "../.otter/packages/otter-official/game-entity/1.1.0/src/main.ot"
+use "../.otter/packages/otter-official/math-utils/1.0.1/src/main.ot"
+use "../.otter/packages/otter-official/file-helpers/1.0.1/src/main.ot"
 
 hero is createActor "Aurelius" 150 1
 eq is createEquipment
@@ -64,9 +64,9 @@ if not os.path.exists(save_file):
 
 # Script 2: Fresh separate process loads state and asserts all properties
 proc2_code = f"""
-use "../.otter/packages/otter-official/game-entity/1.0.0/src/main.ot"
-use "../.otter/packages/otter-official/math-utils/1.0.0/src/main.ot"
-use "../.otter/packages/otter-official/file-helpers/1.0.0/src/main.ot"
+use "../.otter/packages/otter-official/game-entity/1.1.0/src/main.ot"
+use "../.otter/packages/otter-official/math-utils/1.0.1/src/main.ot"
+use "../.otter/packages/otter-official/file-helpers/1.0.1/src/main.ot"
 
 fallbackSave has
     name is "None"

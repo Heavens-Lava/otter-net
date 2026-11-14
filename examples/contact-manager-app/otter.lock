@@ -3,22 +3,22 @@
   "generatedBy": "otter-cli 1.0.1",
   "packages": {
     "otter-official/file-helpers": {
-      "version": "1.0.0",
+      "version": "1.0.1",
       "entry": "src/main.ot",
-      "sha256": "674a536682dbcc955e13844a34da448d28fd305a4b9dcc8fddc31038ee9d6f8b",
-      "installedAt": "2026-11-13T17:31:27.5351940Z"
+      "sha256": "b0fa72806dc970d56b9c8c7ac0635badf2d3fa56725a569048ccecad82399720",
+      "installedAt": "2026-11-14T03:18:53.6277000Z"
     },
     "otter-official/text-utils": {
-      "version": "1.0.0",
+      "version": "1.0.1",
       "entry": "src/main.ot",
-      "sha256": "f79c12d033b82efe537e94c4a407644563ee031a25461f3a7ca514316b3a1311",
-      "installedAt": "2026-11-13T17:31:27.4823210Z"
+      "sha256": "dcbbaed5769f2e274edb80694392b4c8ffab9f3f1e132a5909de10fb8a9da786",
+      "installedAt": "2026-11-14T03:18:53.6739070Z"
     },
     "otter-official/list-utils": {
-      "version": "1.0.0",
+      "version": "1.0.1",
       "entry": "src/main.ot",
-      "sha256": "069e6f18310228301bba71478efa9d70d260017364eb0a8e623244d9bbcff202",
-      "installedAt": "2026-11-13T17:31:27.5794230Z"
+      "sha256": "6bb82ab9fdf1258ae458df739ee121abb1933028b74f83774948356ee4ed08a6",
+      "installedAt": "2026-11-14T03:18:53.7195060Z"
     }
   }
 }

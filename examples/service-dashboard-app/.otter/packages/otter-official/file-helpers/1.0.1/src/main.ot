@@ -1,0 +1,110 @@
+# file-helpers - Otter Reusable File & Storage Library
+# Provides readOrFallback, writeSafe, appendSafe, deleteFileSafe, fileExistsSafe,
+# toJsonSafe, fromJsonSafe, readJsonObject, readJsonObjectSafe, and writeJsonObject
+# Internal variables use '_fh_' prefix to prevent collisions with caller/outer variables.
+
+to fileExistsSafe filePath
+    if file filePath exists
+        return true
+    .
+    return false
+.
+
+to readOrFallback filePath fallbackValue
+    if file filePath exists
+        try
+            read filePath into _fh_content
+            return _fh_content
+        otherwise
+            return fallbackValue
+        .
+    .
+    return fallbackValue
+.
+
+to writeSafe filePath content
+    try
+        write content to filePath
+        return true
+    otherwise
+        return false
+    .
+.
+
+to appendSafe filePath content
+    try
+        append content to filePath
+        return true
+    otherwise
+        return false
+    .
+.
+
+to deleteFileSafe filePath
+    try
+        if file filePath exists
+            delete file filePath
+            return true
+        .
+    otherwise
+        return false
+    .
+    return false
+.
+
+to toJsonSafe obj fallbackValue
+    try
+        convert obj to json into _fh_raw
+        return _fh_raw
+    otherwise
+        return fallbackValue
+    .
+.
+
+to fromJsonSafe rawJson fallbackValue
+    try
+        _fh_target is a thing
+        convert rawJson from json into _fh_target
+        return _fh_target
+    otherwise
+        return fallbackValue
+    .
+.
+
+to readJsonObject filePath
+    try
+        if file filePath exists
+            read filePath into _fh_rawJson
+            _fh_target is a thing
+            convert _fh_rawJson from json into _fh_target
+            return _fh_target
+        .
+    otherwise
+        return gone
+    .
+    return gone
+.
+
+to readJsonObjectSafe filePath fallbackValue
+    try
+        if file filePath exists
+            read filePath into _fh_rawJson
+            _fh_target is a thing
+            convert _fh_rawJson from json into _fh_target
+            return _fh_target
+        .
+    otherwise
+        return fallbackValue
+    .
+    return fallbackValue
+.
+
+to writeJsonObject filePath obj
+    try
+        convert obj to json into _fh_rawJson
+        write _fh_rawJson to filePath
+        return true
+    otherwise
+        return false
+    .
+.

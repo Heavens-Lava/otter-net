@@ -77,7 +77,7 @@ The assistant outlines data flows and interface bindings between modules.
 ### Step 6: Preview Generated Source Code
 The assistant provides full code previews with source mappings indicating provenance:
 ```otter
-# [Source: otter-official/game-entity v1.0.0]
+# [Source: otter-official/game-entity v1.1.0]
 hero is createActor "Aria" 100 1
 bag is createInventory 8
 

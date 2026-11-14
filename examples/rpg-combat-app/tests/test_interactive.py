@@ -28,7 +28,9 @@ def main():
     app_dir = os.path.join(root_dir, "examples", "rpg-combat-app")
     cli_dll = os.path.join(root_dir, "src", "Otter.Cli", "bin", "Debug", "net10.0", "otter.dll")
     
-    if os.path.exists(cli_dll):
+    if len(sys.argv) > 1 and sys.argv[1]:
+        otter_cmd = [sys.argv[1]]
+    elif os.path.exists(cli_dll):
         otter_cmd = ["dotnet", cli_dll]
     else:
         otter_cmd = ["otter"]
@@ -38,11 +40,11 @@ def main():
         os.remove(db_path)
 
     print("=" * 65)
-    print(" Testing Interactive RPG Game Workflow (Phase 8)")
+    print(" Testing Interactive RPG Game Workflow (Phase 8/9)")
     print("=" * 65)
 
     # ---------------------------------------------------------
-    # Session 1: Status, Equip, Battle, Heal, Level Up, Save
+    # Session 1: Status, Equip, Unequip, Battle, Heal, Level Up, Save
     # ---------------------------------------------------------
     print("Session 1: Driving RPG interactive battle & inventory prompts...")
     s1_inputs = [
@@ -52,6 +54,10 @@ def main():
         "Sunblade",
         "equip",
         "Mithril Mail",
+        "equip",
+        "Amulet of Fury",
+        "unequip",
+        "accessory",
         "equip",
         "Amulet of Fury",
         "status",

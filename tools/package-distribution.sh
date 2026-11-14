@@ -27,10 +27,13 @@ dotnet publish "$ROOT_DIR/src/Otter.Cli/Otter.Cli.csproj" \
     -p:NoWarn=NU1903 \
     -o "$OUTPUT_DIR/bin" > /dev/null
 
-# 2. Copy and Sync Standard Library
-echo "Bundling standard library (snippets, packs, blueprints, recipes)..."
-rsync -av --delete "$ROOT_DIR/library/" "$OUTPUT_DIR/library/" > /dev/null
-rsync -av --delete "$ROOT_DIR/library/" "$OUTPUT_DIR/bin/library/" > /dev/null
+# 2. Deploy Standard Library from Published Build Output
+echo "Bundling standard library from build outputs..."
+cp -R "$OUTPUT_DIR/bin/library/." "$OUTPUT_DIR/library/"
+
+# 2b. Automated Distribution Bundle Integrity Verification
+echo "Verifying distribution bundle integrity..."
+python3 "$ROOT_DIR/tools/verify-bundle-integrity.py" "$OUTPUT_DIR/library" "$OUTPUT_DIR/bin/library"
 
 # 3. Create Universal Portable Launchers
 echo "Generating universal launchers..."
@@ -66,15 +69,6 @@ if [ -z "$DOTNET_BIN" ]; then
     exit 1
 fi
 
-# Set library fallback if not explicitly overridden
-if [ -z "${OTTER_LIBRARY_PATH:-}" ]; then
-    if [ -d "$OTTER_HOME/library" ]; then
-        export OTTER_LIBRARY_PATH="$OTTER_HOME/library"
-    elif [ -d "$BIN_DIR/library" ]; then
-        export OTTER_LIBRARY_PATH="$BIN_DIR/library"
-    fi
-fi
-
 exec "$DOTNET_BIN" "$BIN_DIR/otter.dll" "$@"
 EOF
 chmod +x "$OUTPUT_DIR/bin/otter"
@@ -84,12 +78,6 @@ cat << 'EOF' > "$OUTPUT_DIR/bin/otter.cmd"
 @echo off
 setlocal
 set "BIN_DIR=%~dp0"
-for %%I in ("%BIN_DIR%..") do set "OTTER_HOME=%%~fI"
-
-if not defined OTTER_LIBRARY_PATH (
-    if exist "%OTTER_HOME%\library" set "OTTER_LIBRARY_PATH=%OTTER_HOME%\library"
-    if exist "%BIN_DIR%library" set "OTTER_LIBRARY_PATH=%BIN_DIR%library"
-)
 
 dotnet "%BIN_DIR%otter.dll" %*
 EOF
@@ -97,14 +85,6 @@ EOF
 # Windows PowerShell Launcher
 cat << 'EOF' > "$OUTPUT_DIR/bin/otter.ps1"
 $BinDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$OtterHome = Split-Path -Parent $BinDir
-if (-not $env:OTTER_LIBRARY_PATH) {
-    if (Test-Path (Join-Path $OtterHome "library")) {
-        $env:OTTER_LIBRARY_PATH = Join-Path $OtterHome "library"
-    } elseif (Test-Path (Join-Path $BinDir "library")) {
-        $env:OTTER_LIBRARY_PATH = Join-Path $BinDir "library"
-    }
-}
 & dotnet (Join-Path $BinDir "otter.dll") $args
 EOF
 

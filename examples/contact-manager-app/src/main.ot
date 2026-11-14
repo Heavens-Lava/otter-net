@@ -1,9 +1,9 @@
 # Contact Manager Application
 # Consumes installed packs: file-helpers, text-utils, list-utils
 
-use "../.otter/packages/otter-official/file-helpers/1.0.0/src/main.ot"
-use "../.otter/packages/otter-official/text-utils/1.0.0/src/main.ot"
-use "../.otter/packages/otter-official/list-utils/1.0.0/src/main.ot"
+use "../.otter/packages/otter-official/file-helpers/1.0.1/src/main.ot"
+use "../.otter/packages/otter-official/text-utils/1.0.1/src/main.ot"
+use "../.otter/packages/otter-official/list-utils/1.0.1/src/main.ot"
 
 a Contact has
     id
@@ -36,6 +36,30 @@ to createContact cid cname cemail cphone ctag
     phone of c is cphone
     tag of c is ctag
     return c
+.
+
+to isValidEmail emailText
+    if emailText is gone or length of emailText is 0
+        return false
+    .
+    if not emailText contains "@"
+        return false
+    .
+    if not emailText contains "."
+        return false
+    .
+    return true
+.
+
+to isValidName nameText
+    if nameText is gone or length of nameText is 0
+        return false
+    .
+    trimmed is normalizeSpaces nameText
+    if length of trimmed is 0
+        return false
+    .
+    return true
 .
 
 to addContact store name email phone tag
@@ -128,6 +152,9 @@ to saveContactStore store filePath
     rawList are empty
     cList is contacts of store
     for each c in cList
+        if not isValidName name of c or not isValidEmail email of c
+            return false
+        .
         r is buildContactRecord c
         add r to rawList
     .
@@ -322,25 +349,37 @@ to runInteractiveContactManager storePath
                 .
             otherwise if actionClean is "view"
                 ask "  Enter Contact ID: " and call it idStr
-                cId is idStr plus 0
-                found is findContactById store cId
-                if found is gone
-                    say "Error: Contact #" cId " not found."
+                try
+                    cId is idStr plus 0
+                    found is findContactById store cId
+                    if found is gone
+                        say "Error: Contact #" cId " not found."
+                    otherwise
+                        say "--- Contact Details ---"
+                        say "  ID:    " id of found
+                        say "  Name:  " name of found
+                        say "  Email: " email of found
+                        say "  Phone: " phone of found
+                        say "  Tag:   " tag of found
+                    .
                 otherwise
-                    say "--- Contact Details ---"
-                    say "  ID:    " id of found
-                    say "  Name:  " name of found
-                    say "  Email: " email of found
-                    say "  Phone: " phone of found
-                    say "  Tag:   " tag of found
+                    say "Error: Contact ID must be a valid number."
                 .
             otherwise if actionClean is "add"
                 ask "  Name:  " and call it cName
-                ask "  Email: " and call it cEmail
-                ask "  Phone: " and call it cPhone
-                ask "  Tag:   " and call it cTag
-                newC is addContact store cName cEmail cPhone cTag
-                say "Success: Added contact [#" id of newC "] " cName
+                if not isValidName cName
+                    say "Error: Contact name cannot be empty."
+                otherwise
+                    ask "  Email: " and call it cEmail
+                    if not isValidEmail cEmail
+                        say "Error: Invalid email format (must contain '@' and '.')."
+                    otherwise
+                        ask "  Phone: " and call it cPhone
+                        ask "  Tag:   " and call it cTag
+                        newC is addContact store cName cEmail cPhone cTag
+                        say "Success: Added contact [#" id of newC "] " cName
+                    .
+                .
             otherwise if actionClean is "search"
                 ask "  Query: " and call it q
                 matches is searchContacts store q
@@ -354,29 +393,53 @@ to runInteractiveContactManager storePath
                 .
             otherwise if actionClean is "edit"
                 ask "  Enter Contact ID to edit: " and call it idStr
-                cId is idStr plus 0
-                found is findContactById store cId
-                if found is gone
-                    say "Error: Contact #" cId " not found."
-                otherwise
-                    ask "  New Email: " and call it newEmail
-                    ask "  New Phone: " and call it newPhone
-                    ask "  New Tag:   " and call it newTag
-                    editOk is editContact store cId newEmail newPhone newTag
-                    if editOk is true
-                        say "Success: Contact #" cId " updated."
+                try
+                    cId is idStr plus 0
+                    found is findContactById store cId
+                    if found is gone
+                        say "Error: Contact #" cId " not found."
                     otherwise
-                        say "Error: Failed to update contact #" cId "."
+                        ask "  New Email: " and call it newEmail
+                        if newEmail is not "" and not isValidEmail newEmail
+                            say "Error: Invalid email format (must contain '@' and '.')."
+                        otherwise
+                            ask "  New Phone: " and call it newPhone
+                            ask "  New Tag:   " and call it newTag
+                            actualEmail is email of found
+                            if newEmail is not ""
+                                actualEmail is newEmail
+                            .
+                            actualPhone is phone of found
+                            if newPhone is not ""
+                                actualPhone is newPhone
+                            .
+                            actualTag is tag of found
+                            if newTag is not ""
+                                actualTag is newTag
+                            .
+                            editOk is editContact store cId actualEmail actualPhone actualTag
+                            if editOk is true
+                                say "Success: Contact #" cId " updated."
+                            otherwise
+                                say "Error: Failed to update contact #" cId "."
+                            .
+                        .
                     .
+                otherwise
+                    say "Error: Contact ID must be a valid number."
                 .
             otherwise if actionClean is "delete"
                 ask "  Enter Contact ID to delete: " and call it idStr
-                cId is idStr plus 0
-                delOk is deleteContact store cId
-                if delOk is true
-                    say "Success: Contact #" cId " deleted."
+                try
+                    cId is idStr plus 0
+                    delOk is deleteContact store cId
+                    if delOk is true
+                        say "Success: Contact #" cId " deleted."
+                    otherwise
+                        say "Error: Contact #" cId " not found."
+                    .
                 otherwise
-                    say "Error: Contact #" cId " not found."
+                    say "Error: Contact ID must be a valid number."
                 .
             otherwise if actionClean is "save"
                 ask "  Save file path (Enter for default): " and call it chosenPath

@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "name": "text-utils",
+  "publisher": "otter-official",
+  "version": "1.0.1",
+  "kind": "pack",
+  "description": "Essential string and text formatting utilities: padLeft, padRight, repeatText, and slugify.",
+  "entry": "src/main.ot",
+  "license": "MIT",
+  "platforms": ["console", "desktop", "web"],
+  "capabilities": [],
+  "dependencies": {},
+  "tags": ["text", "string", "slugify", "padding", "repeat", "format"],
+  "examples": ["examples/demo.ot"]
+}

@@ -84,17 +84,17 @@ This checklist operationalizes [OTTER_REUSABLE_LIBRARY_RFC.md](../OTTER_REUSABLE
   - [x] Extract every runnable example and execute via native `otter.dll` (38/38 passing, 100%).
 
 ### 1C. Official Source Packs (Expanded Capabilities)
-- [x] **1C.1 `otter-official/math-utils` (v1.0.0)**
+- [x] **1C.1 `otter-official/math-utils` (v1.0.1)**
   - [x] Functions: `clamp`, `lerp`, `mapRange`, `minVal`, `maxVal`, `calcAverage`.
-- [x] **1C.2 `otter-official/text-utils` (v1.0.0)**
+- [x] **1C.2 `otter-official/text-utils` (v1.0.1)**
   - [x] Functions: `slugify`, `padLeft`, `padRight`, `repeatText`.
-- [x] **1C.3 `otter-official/list-utils` (v1.0.0)**
+- [x] **1C.3 `otter-official/list-utils` (v1.0.1)**
   - [x] Functions: `hasItem`, `dedupeList`, `countMatches`, `joinWithPrefix`.
-- [x] **1C.4 `otter-official/file-helpers` (v1.0.0)**
+- [x] **1C.4 `otter-official/file-helpers` (v1.0.1)**
   - [x] Functions: `readOrFallback`, `writeSafe`, `readJsonObject`, `writeJsonObject`.
-- [x] **1C.5 `otter-official/game-entity` (v1.0.0)**
+- [x] **1C.5 `otter-official/game-entity` (v1.1.0)**
   - [x] Types & functions: `a Actor has`, `a InventoryItem has`, `a Cooldown has`, `a Inventory has`.
-  - [x] Methods: `applyDamage`, `restoreHealth`, `levelUp`, `createCooldown`, `isCooldownReady`, `triggerCooldown`, `createInventory`, `addItemToInventory`.
+  - [x] Methods: `applyDamage`, `restoreHealth`, `levelUp`, `createCooldown`, `isCooldownReady`, `triggerCooldown`, `createInventory`, `addItemToInventory`, `consumeItemFromInventory`.
 - [x] **1C.6 Pack Test Runner (`tools/test-packs.ps1`)**
   - [x] Automated batch testing of all unit tests and demos (10/10 passing, 100%).
 

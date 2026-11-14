@@ -4,8 +4,8 @@
   "target": "console",
   "entryPoint": "src/main.ot",
   "dependencies": {
-    "otter-official/game-entity": "1.0.0",
-    "otter-official/math-utils": "1.0.0",
-    "otter-official/file-helpers": "1.0.0"
+    "otter-official/game-entity": "1.1.0",
+    "otter-official/math-utils": "1.0.1",
+    "otter-official/file-helpers": "1.0.1"
   }
 }

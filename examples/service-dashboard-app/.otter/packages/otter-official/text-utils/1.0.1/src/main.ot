@@ -1,0 +1,135 @@
+# text-utils - Otter Reusable String Library
+# Provides repeatText, padLeft, padRight, slugify, toUpper, toLower,
+# isEqualIgnoreCase, isNonEmpty, replaceText, containsText, startsWithText,
+# endsWithText, splitText, joinText, and normalizeSpaces
+# Internal variables use '_tu_' prefix to prevent collisions with caller/outer variables.
+
+to repeatText src timesCount
+    if timesCount is at most 0
+        return ""
+    .
+    _tu_result is ""
+    count from 1 to timesCount as _tu_idx
+        _tu_result is _tu_result plus src
+    .
+    return _tu_result
+.
+
+to padLeft text targetLen padChar
+    _tu_curLen is length of text
+    if _tu_curLen is at least targetLen
+        return text
+    .
+    _tu_needed is targetLen minus _tu_curLen
+    _tu_padding is repeatText padChar _tu_needed
+    return _tu_padding plus text
+.
+
+to padRight text targetLen padChar
+    _tu_curLen is length of text
+    if _tu_curLen is at least targetLen
+        return text
+    .
+    _tu_needed is targetLen minus _tu_curLen
+    _tu_padding is repeatText padChar _tu_needed
+    return text plus _tu_padding
+.
+
+to normalizeSpaces text
+    split text by " " into _tu_parts
+    _tu_valid are empty
+    for each _tu_p in _tu_parts
+        if length of _tu_p is greater than 0
+            add _tu_p to _tu_valid
+        .
+    .
+    join _tu_valid with " " into _tu_trimmed
+    return _tu_trimmed
+.
+
+to slugify text
+    _tu_clean is lowercase of text
+    replace "." with "" in _tu_clean
+    replace "," with "" in _tu_clean
+    replace "!" with "" in _tu_clean
+    replace "?" with "" in _tu_clean
+    replace ":" with "" in _tu_clean
+    replace ";" with "" in _tu_clean
+    replace "(" with "" in _tu_clean
+    replace ")" with "" in _tu_clean
+    replace "[" with "" in _tu_clean
+    replace "]" with "" in _tu_clean
+    replace "{" with "" in _tu_clean
+    replace "}" with "" in _tu_clean
+    replace "_" with " " in _tu_clean
+    replace "/" with " " in _tu_clean
+    replace "\\" with " " in _tu_clean
+    replace "-" with " " in _tu_clean
+    _tu_norm is normalizeSpaces _tu_clean
+    replace " " with "-" in _tu_norm
+    return _tu_norm
+.
+
+to toUpper text
+    return uppercase of text
+.
+
+to toLower text
+    return lowercase of text
+.
+
+to isEqualIgnoreCase left right
+    _tu_lLeft is lowercase of left
+    _tu_lRight is lowercase of right
+    if _tu_lLeft is _tu_lRight
+        return true
+    .
+    return false
+.
+
+to isNonEmpty text
+    if text is gone
+        return false
+    .
+    if length of text is 0
+        return false
+    .
+    return true
+.
+
+to replaceText source findStr replaceStr
+    _tu_buf is source
+    replace findStr with replaceStr in _tu_buf
+    return _tu_buf
+.
+
+to containsText source searchStr
+    if source contains searchStr
+        return true
+    .
+    return false
+.
+
+to startsWithText text prefix
+    if text starts with prefix
+        return true
+    .
+    return false
+.
+
+to endsWithText text suffix
+    if text ends with suffix
+        return true
+    .
+    return false
+.
+
+to splitText text separator
+    split text by separator into _tu_parts
+    return _tu_parts
+.
+
+to joinText parts separator
+    join parts with separator into _tu_result
+    return _tu_result
+.

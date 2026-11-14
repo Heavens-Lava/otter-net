@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "name": "list-utils",
   "publisher": "otter-official",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "kind": "pack",
   "description": "Essential collection and list helpers: hasItem, dedupeList, countMatches, and joinWithPrefix.",
   "entry": "src/main.ot",

@@ -7,8 +7,8 @@
     "runtime": "otter-web-0.1"
   },
   "dependencies": {
-    "otter-official/file-helpers": "1.0.0",
-    "otter-official/text-utils": "1.0.0",
-    "otter-official/math-utils": "1.0.0"
+    "otter-official/file-helpers": "1.0.1",
+    "otter-official/text-utils": "1.0.1",
+    "otter-official/math-utils": "1.0.1"
   }
 }

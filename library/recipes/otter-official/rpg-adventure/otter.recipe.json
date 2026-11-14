@@ -8,9 +8,9 @@
   "requiresOtter": ">=1.0.1",
   "capabilities": ["game", "files"],
   "packs": [
-    { "id": "otter-official/game-entity", "version": "1.0.0" },
-    { "id": "otter-official/math-utils", "version": "1.0.0" },
-    { "id": "otter-official/file-helpers", "version": "1.0.0" }
+    { "id": "otter-official/game-entity", "version": "1.1.0" },
+    { "id": "otter-official/math-utils", "version": "1.0.1" },
+    { "id": "otter-official/file-helpers", "version": "1.0.1" }
   ],
   "blueprints": [
     { "id": "otter-official/game-combat", "version": "1.0.0" }

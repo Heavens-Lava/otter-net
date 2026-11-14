@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "name": "math-utils",
+  "publisher": "otter-official",
+  "version": "1.0.1",
+  "kind": "pack",
+  "description": "Essential mathematical helpers: clamp, lerp, map range, min, max, and list average.",
+  "entry": "src/main.ot",
+  "license": "MIT",
+  "platforms": ["console", "desktop", "web"],
+  "capabilities": [],
+  "dependencies": {},
+  "tags": ["math", "numbers", "clamp", "lerp", "range", "interpolation", "average", "statistics"],
+  "examples": ["examples/demo.ot"]
+}
