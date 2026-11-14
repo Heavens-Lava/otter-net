@@ -86,14 +86,6 @@ if [ -z "$DOTNET_BIN" ]; then
     exit 1
 fi
 
-if [ -z "${OTTER_LIBRARY_PATH:-}" ]; then
-    if [ -d "$OTTER_HOME/library" ]; then
-        export OTTER_LIBRARY_PATH="$OTTER_HOME/library"
-    elif [ -d "$BIN_DIR/library" ]; then
-        export OTTER_LIBRARY_PATH="$BIN_DIR/library"
-    fi
-fi
-
 exec "$DOTNET_BIN" "$BIN_DIR/otter.dll" "$@"
 EOF
 chmod +x "$BIN_DIR/otter"

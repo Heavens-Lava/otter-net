@@ -21,6 +21,7 @@ import subprocess
 import tempfile
 import json
 import hashlib
+import shutil
 
 def compute_sha256(path):
     with open(path, "rb") as f:
@@ -74,12 +75,80 @@ def main():
             print(f"FATAL: Expected 'Otter 1.0.1', got '{installed_ver}'")
             sys.exit(1)
 
-        # Verify doctor resolves the installed library
+        def get_resolved_lib_location(stdout):
+            for line in stdout.splitlines():
+                if "Location:" in line:
+                    return line.split("Location:", 1)[1].strip()
+            return ""
+
+        # Precedence Test A: Bundled library selected when no user or project library exists
         doc_res = run_cmd([otter_bin, "doctor"], cwd=project_dir, env=clean_env)
         if doc_res.returncode != 0:
             print(f"FATAL: otter doctor failed in outside directory:\n{doc_res.stdout}\n{doc_res.stderr}")
             sys.exit(1)
-        print(" [DOCTOR] Diagnostics clean. Resolved bundled library outside repository.")
+        resolved_loc = get_resolved_lib_location(doc_res.stdout)
+        expected_bundled = os.path.join(install_dir, "library")
+        if not (resolved_loc == expected_bundled or os.path.samefile(resolved_loc, expected_bundled)):
+            print(f"FATAL: Expected bundled library {expected_bundled}, but resolved {resolved_loc}")
+            sys.exit(1)
+        print(f" [PRECEDENCE 1 PASS] Bundled library correctly selected when no user library exists: {resolved_loc}")
+
+        # Precedence Test B: Custom user library (~/.otter/library) takes precedence over bundled library
+        user_lib_dir = os.path.join(fake_home, ".otter", "library")
+        shutil.copytree(os.path.join(install_dir, "library"), user_lib_dir)
+        
+        user_doc_res = run_cmd([otter_bin, "doctor"], cwd=project_dir, env=clean_env)
+        if user_doc_res.returncode != 0:
+            print(f"FATAL: otter doctor failed with user library present:\n{user_doc_res.stdout}")
+            sys.exit(1)
+        user_resolved_loc = get_resolved_lib_location(user_doc_res.stdout)
+        if not (user_resolved_loc == user_lib_dir or os.path.samefile(user_resolved_loc, user_lib_dir)):
+            print(f"FATAL: Expected user library {user_lib_dir} to win, but resolved {user_resolved_loc}")
+            sys.exit(1)
+        print(f" [PRECEDENCE 2 PASS] Custom user library (~/.otter/library) correctly wins over bundled library: {user_resolved_loc}")
+
+        # Precedence Test C: Explicit user OTTER_LIBRARY_PATH override takes precedence over both
+        with tempfile.TemporaryDirectory(prefix="otter_env_lib_") as env_tmp:
+            env_lib_dir = os.path.join(env_tmp, "library")
+            shutil.copytree(os.path.join(install_dir, "library"), env_lib_dir)
+            override_env = clean_env.copy()
+            override_env["OTTER_LIBRARY_PATH"] = env_lib_dir
+            env_doc_res = run_cmd([otter_bin, "doctor"], cwd=project_dir, env=override_env)
+            if env_doc_res.returncode != 0:
+                print(f"FATAL: otter doctor failed with OTTER_LIBRARY_PATH set:\n{env_doc_res.stdout}")
+                sys.exit(1)
+            env_resolved_loc = get_resolved_lib_location(env_doc_res.stdout)
+            if not (env_resolved_loc == env_lib_dir or os.path.samefile(env_resolved_loc, env_lib_dir)):
+                print(f"FATAL: Expected OTTER_LIBRARY_PATH {env_lib_dir} to win, but resolved {env_resolved_loc}")
+                sys.exit(1)
+            print(f" [PRECEDENCE 3 PASS] Explicit OTTER_LIBRARY_PATH correctly wins over user and bundled libraries: {env_resolved_loc}")
+
+        # Precedence Test D: Launcher consistency across POSIX, PowerShell, and Windows CMD
+        # Test PowerShell launcher if pwsh is available
+        pwsh_bin = shutil.which("pwsh")
+        if pwsh_bin:
+            otter_ps1 = os.path.join(install_dir, "bin", "otter.ps1")
+            ps_res = run_cmd([pwsh_bin, "-File", otter_ps1, "doctor"], cwd=project_dir, env=clean_env)
+            if ps_res.returncode != 0:
+                print(f"FATAL: pwsh launcher failed:\n{ps_res.stdout}\n{ps_res.stderr}")
+                sys.exit(1)
+            ps_loc = get_resolved_lib_location(ps_res.stdout)
+            if not (ps_loc == user_lib_dir or os.path.samefile(ps_loc, user_lib_dir)):
+                print(f"FATAL: PowerShell launcher resolved {ps_loc}, expected {user_lib_dir}")
+                sys.exit(1)
+            print(f" [LAUNCHER PASS] PowerShell launcher (otter.ps1) honors library precedence: {ps_loc}")
+
+        # Statically verify Windows CMD launcher
+        cmd_launcher = os.path.join(install_dir, "bin", "otter.cmd")
+        with open(cmd_launcher, "r") as f:
+            cmd_content = f.read()
+        if "set OTTER_LIBRARY_PATH" in cmd_content or "set \"OTTER_LIBRARY_PATH=" in cmd_content:
+            print("FATAL: Windows CMD launcher contains automatic OTTER_LIBRARY_PATH assignment!")
+            sys.exit(1)
+        print(" [LAUNCHER PASS] Windows CMD launcher (otter.cmd) preserves CLI precedence without overriding OTTER_LIBRARY_PATH.")
+
+        # Remove the temporary user library so subsequent consumer project tests use the full canonical bundled library
+        shutil.rmtree(user_lib_dir)
 
         # Step 1: Create a new project outside repository
         proj_json = {

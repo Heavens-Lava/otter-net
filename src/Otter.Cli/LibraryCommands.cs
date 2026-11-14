@@ -62,11 +62,11 @@ internal static class LibraryCommands
         string appBase = AppContext.BaseDirectory;
         if (!string.IsNullOrEmpty(appBase))
         {
-            string bundled = Path.Combine(appBase, "library");
-            if (IsValidLibraryDir(bundled)) return bundled;
-
             string parentLib = Path.Combine(appBase, "..", "library");
             if (IsValidLibraryDir(parentLib)) return Path.GetFullPath(parentLib);
+
+            string bundled = Path.Combine(appBase, "library");
+            if (IsValidLibraryDir(bundled)) return bundled;
 
             string share = Path.Combine(appBase, "..", "share", "otter", "library");
             if (IsValidLibraryDir(share)) return Path.GetFullPath(share);
