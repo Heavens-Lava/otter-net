@@ -99,13 +99,13 @@ to makeHero heroName
 - The D52 replacement check (`scope.Has`) is evaluated against `scope.HasLocal` only. Same-scope redefinition (`hero is a Actor; hero is a Actor` in the same block) remains a fatal error, but outer-scope instances are safely shadowed.
 - Outside functions (top-level script execution), `scope.Has` continues to protect global singletons and UI resources.
 
-### 3.3 Ordinary Assignment Semantics
-For bare assignments `name is <expr>` inside a function:
+### 3.3 Ordinary Assignment Semantics (Design Resolution: Lexical Scoping by Default)
+To permanently resolve the underlying Pack-collision vulnerability and achieve true modularity, the future language architecture settles on **Lexical Scoping by Default**:
 
-- **Option A (Lexical by Default - Recommended for Otter 2.0):**
-  If `name` is neither a parameter nor previously declared with `local`, the first assignment implicitly creates a function-local variable. Outer variables cannot be mutated unless explicitly declared with `outer <name> is <expr>`.
-- **Option B (Explicit Local - Backward Compatible for Otter 1.1):**
-  Bare `name is <expr>` searches enclosing scopes (1.0.1 behavior). Developers use `local name is <expr>` whenever local isolation is desired.
+- **Function-Local by Default:** Within a function body, ordinary assignment (`name is <expr>`) binds strictly to the function's local activation frame (`scope.SetLocal`). It never mutates outer or caller variables.
+- **Explicit Outer Mutation (`outer`):** When a function legitimately needs to modify state in an enclosing or global scope, it must explicitly declare `outer <name> is <expr>` (detailed in Section 3.6).
+- **Migration & Boundary:** Because this represents a change in runtime semantics for programs relying on implicit outer mutation, this model will be introduced under a major language version boundary (Otter 2.0, opt-in via `"languageVersion": "2.0.0"` in `otter.json`). Existing Otter 1.0.1 code remains on frozen reference semantics.
+- **Status:** This specification remains a draft proposal. It is not approved or implemented in Otter 1.0.1, and will be developed on a dedicated future feature branch.
 
 ### 3.4 Parameter Scope
 Function parameters continue to use `SetLocal`. A parameter always shadows any outer variable of the same name:
