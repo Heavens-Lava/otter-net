@@ -881,7 +881,7 @@ internal static class LibraryCommands
         return ExitSuccess;
     }
 
-    static string? FindPackManifest(string packId)
+    public static string? FindPackManifest(string packId)
     {
         string lib = FindLibraryDir();
         string candidate = Path.Combine(lib, "packs", packId, "otter.pack.json");

@@ -209,7 +209,7 @@ internal static class ComposeCommand
     }
 
     // =========================================================================
-    // 3. Check
+    // 3. Check (Deep Dependency & Compatibility Verification)
     // =========================================================================
     static int Check(string[] raw)
     {
@@ -241,21 +241,25 @@ internal static class ComposeCommand
             found = true;
             result["kind"] = "recipe";
             var node = JsonNode.Parse(File.ReadAllText(recipeFile));
+            string reqOtter = node?["requiresOtter"]?.ToString() ?? ">=1.0.1";
+            result["otterRequired"] = reqOtter;
+            if (reqOtter.Contains("2.0.0") || reqOtter.StartsWith(">1."))
+            {
+                result["compatible"] = false;
+                result["issues"]!.AsArray().Add((JsonNode)JsonValue.Create($"Recipe '{id}' requires incompatible Otter version constraint '{reqOtter}'. Current runtime is 1.0.1.")!);
+            }
+
             var packs = node?["packs"]?.AsArray();
             if (packs != null)
             {
                 foreach (var p in packs)
                 {
                     string pid = p?["id"]?.ToString() ?? "";
-                    string[] pparts = pid.Split('/');
-                    string pub = pparts.Length > 1 ? pparts[0] : "otter-official";
-                    string pname = pparts.Length > 1 ? pparts[1] : pparts[0];
-                    string ppath = Path.Combine(libDir, "packs", pub, pname, "otter.pack.json");
-                    if (!File.Exists(ppath)) ppath = Path.Combine(libDir, "packs", pub, pname, "pack.json");
-                    if (!File.Exists(ppath))
+                    string pver = p?["version"]?.ToString() ?? "";
+                    if (!ValidatePackDependency(pid, pver, libDir, out string packErr))
                     {
                         result["compatible"] = false;
-                        result["issues"]!.AsArray().Add((JsonNode)JsonValue.Create($"Missing dependent pack: {pid}")!);
+                        result["issues"]!.AsArray().Add((JsonNode)JsonValue.Create(packErr)!);
                     }
                 }
             }
@@ -283,21 +287,25 @@ internal static class ComposeCommand
                 found = true;
                 result["kind"] = "blueprint";
                 var node = JsonNode.Parse(File.ReadAllText(bpFile));
+                string reqOtter = node?["requiresOtter"]?.ToString() ?? ">=1.0.1";
+                result["otterRequired"] = reqOtter;
+                if (reqOtter.Contains("2.0.0") || reqOtter.StartsWith(">1."))
+                {
+                    result["compatible"] = false;
+                    result["issues"]!.AsArray().Add((JsonNode)JsonValue.Create($"Blueprint '{id}' requires incompatible Otter version constraint '{reqOtter}'. Current runtime is 1.0.1.")!);
+                }
+
                 var packs = node?["packs"]?.AsArray();
                 if (packs != null)
                 {
                     foreach (var p in packs)
                     {
                         string pid = p?["id"]?.ToString() ?? "";
-                        string[] pparts = pid.Split('/');
-                        string pub = pparts.Length > 1 ? pparts[0] : "otter-official";
-                        string pname = pparts.Length > 1 ? pparts[1] : pparts[0];
-                        string ppath = Path.Combine(libDir, "packs", pub, pname, "otter.pack.json");
-                        if (!File.Exists(ppath)) ppath = Path.Combine(libDir, "packs", pub, pname, "pack.json");
-                        if (!File.Exists(ppath))
+                        string pver = p?["version"]?.ToString() ?? "";
+                        if (!ValidatePackDependency(pid, pver, libDir, out string packErr))
                         {
                             result["compatible"] = false;
-                            result["issues"]!.AsArray().Add((JsonNode)JsonValue.Create($"Missing dependent pack: {pid}")!);
+                            result["issues"]!.AsArray().Add((JsonNode)JsonValue.Create(packErr)!);
                         }
                     }
                 }
@@ -316,6 +324,14 @@ internal static class ComposeCommand
             {
                 found = true;
                 result["kind"] = "pack";
+                var node = JsonNode.Parse(File.ReadAllText(packFile));
+                string reqOtter = node?["otter"]?.ToString() ?? node?["requiresOtter"]?.ToString() ?? ">=1.0.1";
+                result["otterRequired"] = reqOtter;
+                if (reqOtter.Contains("2.0.0"))
+                {
+                    result["compatible"] = false;
+                    result["issues"]!.AsArray().Add((JsonNode)JsonValue.Create($"Pack '{id}' requires Otter {reqOtter}. Current runtime is 1.0.1.")!);
+                }
             }
         }
 
@@ -367,8 +383,57 @@ internal static class ComposeCommand
         return Cli.ExitSuccess;
     }
 
+    static bool ValidatePackDependency(string pid, string expectedVer, string libDir, out string errorMessage)
+    {
+        errorMessage = "";
+        string[] pparts = pid.Split('/');
+        string pub = pparts.Length > 1 ? pparts[0] : "otter-official";
+        string pname = pparts.Length > 1 ? pparts[1] : pparts[0];
+        string ppath = Path.Combine(libDir, "packs", pub, pname, "otter.pack.json");
+        if (!File.Exists(ppath)) ppath = Path.Combine(libDir, "packs", pub, pname, "pack.json");
+
+        if (!File.Exists(ppath))
+        {
+            errorMessage = $"Missing dependent pack: '{pid}' was not found in library.";
+            return false;
+        }
+
+        try
+        {
+            var pnode = JsonNode.Parse(File.ReadAllText(ppath));
+            string actualVer = pnode?["version"]?.ToString() ?? "";
+            string reqOtter = pnode?["otter"]?.ToString() ?? pnode?["requiresOtter"]?.ToString() ?? ">=1.0.1";
+
+            if (reqOtter.Contains("2.0.0") || reqOtter.StartsWith(">1."))
+            {
+                errorMessage = $"Pack '{pid}' requires incompatible Otter runtime '{reqOtter}'. Current runtime is 1.0.1.";
+                return false;
+            }
+
+            if (!string.IsNullOrEmpty(expectedVer) && !string.IsNullOrEmpty(actualVer) && actualVer != expectedVer)
+            {
+                errorMessage = $"Pack '{pid}' version mismatch: requested '{expectedVer}', but library provides '{actualVer}'.";
+                return false;
+            }
+
+            string entryFile = Path.Combine(libDir, "packs", pub, pname, "src", "main.ot");
+            if (!File.Exists(entryFile))
+            {
+                errorMessage = $"Pack '{pid}' manifest exists but entry point 'src/main.ot' is missing.";
+                return false;
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Pack '{pid}' manifest corrupted: {ex.Message}";
+            return false;
+        }
+    }
+
     // =========================================================================
-    // 4. Propose (Metadata-Driven Discovery and Ranking)
+    // 4. Propose (Metadata-Driven Discovery and Explicit Capability Coverage)
     // =========================================================================
     static int Propose(string[] raw)
     {
@@ -411,6 +476,18 @@ internal static class ComposeCommand
 
         if (!discovery.Supported)
         {
+            var unsupportedCoverage = new JsonArray();
+            foreach (var cov in discovery.CoverageMatrix)
+            {
+                unsupportedCoverage.Add(new JsonObject
+                {
+                    ["capability"] = cov.Capability,
+                    ["status"] = cov.Status,
+                    ["fulfilledBy"] = cov.FulfilledBy,
+                    ["rationale"] = cov.Rationale
+                });
+            }
+
             var unsupportedProposal = new JsonObject
             {
                 ["schemaVersion"] = 1,
@@ -419,6 +496,7 @@ internal static class ComposeCommand
                 ["supported"] = false,
                 ["missingCapabilities"] = new JsonArray(discovery.MissingCapabilities.Select(c => (JsonNode)JsonValue.Create(c)!).ToArray()),
                 ["availableCapabilities"] = new JsonArray(discovery.AvailableCapabilities.Select(c => (JsonNode)JsonValue.Create(c)!).ToArray()),
+                ["capabilityCoverage"] = unsupportedCoverage,
                 ["recommendedComponents"] = new JsonArray(),
                 ["compositionPlan"] = new JsonObject
                 {
@@ -461,10 +539,11 @@ internal static class ComposeCommand
             Console.ResetColor();
             Console.WriteLine($"No compatible components found in the Otter library for intent: \"{intent}\"");
             Console.WriteLine();
-            Console.WriteLine("Missing Capabilities:");
-            foreach (var mc in discovery.MissingCapabilities)
+            Console.WriteLine("Capability Coverage Analysis:");
+            foreach (var cov in discovery.CoverageMatrix)
             {
-                Console.WriteLine($"  - {mc}");
+                string tag = cov.Status == "implemented" ? "[IMPLEMENTED]" : cov.Status == "partially_supported" ? "[PARTIAL]" : "[UNSUPPORTED]";
+                Console.WriteLine($"  {tag,-14} {cov.Capability,-20} -> {cov.Rationale}");
             }
             Console.WriteLine();
             Console.WriteLine("Available Library Capabilities:");
@@ -475,7 +554,6 @@ internal static class ComposeCommand
             Console.WriteLine();
             Console.WriteLine("Explanation:");
             Console.WriteLine("  Otter 1.0.1 composition operates strictly on verified, existing library building blocks.");
-            Console.WriteLine("  No compatible Snippets, Packs, Blueprints, or Recipes exist to fulfill this request.");
             Console.WriteLine("  Otter will not fabricate missing APIs or substitute an unrelated project template.");
 
             return Cli.ExitCheckError;
@@ -611,8 +689,21 @@ internal static class ComposeCommand
 
         var limitations = new JsonArray
         {
-            (JsonNode)JsonValue.Create("Otter 1.0.1 variable scoping: Pack functions execute in caller variable scope. All official packs use prefixed internal variables to prevent collisions, but caller scripts should avoid variable names matching internal pack state until Otter 2.0 lexical scoping is implemented.")!
+            (JsonNode)JsonValue.Create("Otter 1.0.1 variable scoping: Pack functions execute in caller variable scope. All official packs use prefixed internal variables to prevent collisions, but caller scripts should avoid variable names matching internal pack state until Otter 2.0 lexical scoping is implemented.")!,
+            (JsonNode)JsonValue.Create("Transactional limits: Operating systems do not support cross-directory multi-file atomic filesystem commits. Otter provides two-phase isolated staging with compensating atomic rollback.")!
         };
+
+        var coverageArray = new JsonArray();
+        foreach (var cov in discovery.CoverageMatrix)
+        {
+            coverageArray.Add(new JsonObject
+            {
+                ["capability"] = cov.Capability,
+                ["status"] = cov.Status,
+                ["fulfilledBy"] = cov.FulfilledBy,
+                ["rationale"] = cov.Rationale
+            });
+        }
 
         var proposal = new JsonObject
         {
@@ -620,6 +711,7 @@ internal static class ComposeCommand
             ["proposalId"] = proposalId,
             ["intent"] = intent,
             ["requestedCapabilities"] = new JsonArray(discovery.RequestedCapabilities.Select(c => (JsonNode)JsonValue.Create(c)!).ToArray()),
+            ["capabilityCoverage"] = coverageArray,
             ["recommendedComponents"] = recommended,
             ["compositionPlan"] = new JsonObject
             {
@@ -662,6 +754,13 @@ internal static class ComposeCommand
         Console.WriteLine($"  Files:       {sourceFiles.Count} generated file(s)");
         Console.WriteLine($"  Validation:  {(allSyntaxValid ? "[OK] 0 syntax errors" : $"[FAIL] {allDiagnostics.Count} errors")}");
         Console.WriteLine($"  Approval:    Mandatory user approval required before applying");
+        Console.WriteLine();
+        Console.WriteLine("Capability Coverage Analysis:");
+        foreach (var cov in discovery.CoverageMatrix)
+        {
+            string tag = cov.Status == "implemented" ? "[IMPLEMENTED]" : cov.Status == "partially_supported" ? "[PARTIAL]" : "[UNSUPPORTED]";
+            Console.WriteLine($"  {tag,-14} {cov.Capability,-18} -> {cov.Rationale}");
+        }
         Console.WriteLine();
         Console.WriteLine("To preview source code:   otter compose preview <proposal.json>");
         Console.WriteLine("To explain connections:   otter compose explain <proposal.json>");
@@ -757,6 +856,7 @@ internal static class ComposeCommand
         var ver = node?["verification"];
         var reqCaps = node?["requestedCapabilities"]?.AsArray();
         var limits = node?["unresolvedLimitations"]?.AsArray();
+        var coverage = node?["capabilityCoverage"]?.AsArray();
 
         Console.WriteLine($"=== Architectural Explanation for Proposal {pid} ===");
         Console.WriteLine();
@@ -768,10 +868,22 @@ internal static class ComposeCommand
         }
         Console.WriteLine();
 
+        if (coverage != null && coverage.Count > 0)
+        {
+            Console.WriteLine("2. Capability Coverage Matrix:");
+            foreach (var cov in coverage)
+            {
+                string tag = cov?["status"]?.ToString() == "implemented" ? "[IMPLEMENTED]" : cov?["status"]?.ToString() == "partially_supported" ? "[PARTIAL]" : "[UNSUPPORTED]";
+                string fulfilled = cov?["fulfilledBy"] != null ? $" (via {cov["fulfilledBy"]})" : "";
+                Console.WriteLine($"   {tag,-14} {cov?["capability"]}{fulfilled}: {cov?["rationale"]}");
+            }
+            Console.WriteLine();
+        }
+
         if (!supported)
         {
             Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine("2. Status & Limitations:");
+            Console.WriteLine("3. Status & Limitations:");
             Console.WriteLine("   [UNSUPPORTED REQUEST] Otter library does not provide verified building blocks for this intent.");
             var missing = node?["missingCapabilities"]?.AsArray();
             if (missing != null)
@@ -782,7 +894,7 @@ internal static class ComposeCommand
             return Cli.ExitCheckError;
         }
 
-        Console.WriteLine($"2. Component Selection Rationale:");
+        Console.WriteLine($"3. Component Selection Rationale:");
         if (recs != null && recs.Count > 0)
         {
             foreach (var r in recs)
@@ -797,7 +909,7 @@ internal static class ComposeCommand
         }
         Console.WriteLine();
 
-        Console.WriteLine($"3. Composition & Data Flow Connections:");
+        Console.WriteLine($"4. Composition & Data Flow Connections:");
         if (conns != null && conns.Count > 0)
         {
             foreach (var c in conns)
@@ -812,14 +924,14 @@ internal static class ComposeCommand
         }
         Console.WriteLine();
 
-        Console.WriteLine($"4. Safety, Integrity & Validation:");
+        Console.WriteLine($"5. Safety, Integrity & Validation:");
         Console.WriteLine($"   - Target Runtime: {plan?["target"]}");
         Console.WriteLine($"   - Syntax Check:   {(ver?["syntaxValid"]?.GetValue<bool>() == true ? "PASSED (0 errors)" : "FAILED")}");
         Console.WriteLine($"   - Validation Cmd: {ver?["command"]}");
         Console.WriteLine($"   - User Approval:  Mandatory approval gate required prior to file modification");
         Console.WriteLine();
 
-        Console.WriteLine($"5. Unresolved Limitations & Scoping Considerations:");
+        Console.WriteLine($"6. Unresolved Limitations & Scoping Considerations:");
         if (limits != null && limits.Count > 0)
         {
             foreach (var lim in limits)
@@ -836,7 +948,30 @@ internal static class ComposeCommand
     }
 
     // =========================================================================
-    // 7. Apply (Safe, Transactional Staged Pipeline with Rollback)
+    // 7. Apply (Two-Phase Staged Transactional Pipeline with Atomic Rollback)
+    // =========================================================================
+    // LIMITS OF ATOMICITY ACROSS MULTIPLE FILES:
+    // Standard operating system filesystems (POSIX/ext4/APFS, Windows NTFS) do not
+    // provide native all-or-nothing multi-file atomic commit primitives without
+    // low-level transactional filesystem drivers (such as TxF, which is deprecated).
+    // While renaming a single file (File.Move with overwrite on POSIX/modern .NET) is
+    // atomic on the same volume, applying changes across multiple files or directories
+    // cannot achieve true filesystem-level atomicity if a sudden kernel panic, SIGKILL,
+    // or power loss occurs mid-operation.
+    //
+    // To achieve robust transactional safety against runtime exceptions, IO errors,
+    // and failed validations:
+    // 1. Two-phase staging: All generated outputs are first written to an isolated staging
+    //    directory (.otter/.staging_<guid>). No destination files are touched until all
+    //    files stage successfully.
+    // 2. Pre-existing file snapshot: Any destination files that will be overwritten are
+    //    backed up both to disk (.otter/.backups_<guid>) and as memory byte arrays.
+    // 3. Dependency phase: Pack installation and verification are completed and validated.
+    // 4. Safe sibling replacement: Files are committed via temporary sibling files and atomic renames.
+    // 5. Compensating rollback: If any failure occurs during staging, pack installation,
+    //    dependency verification, file commit, or post-apply verification, a deterministic
+    //    rollback restores all pre-existing files byte-for-byte, restores otter.lock, deletes
+    //    any newly committed files, purges newly installed pack directories, and removes temporary dirs.
     // =========================================================================
     static int Apply(string[] raw)
     {
@@ -881,7 +1016,15 @@ internal static class ComposeCommand
             return Cli.ExitUsageError;
         }
 
-        string pid = node["proposalId"]?.ToString() ?? "unknown";
+        string pid = node["proposalId"]?.ToString() ?? "";
+        if (string.IsNullOrWhiteSpace(pid) || !Regex.IsMatch(pid, @"^prop-[a-f0-9]{8,16}$"))
+        {
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.Error.WriteLine($"[SAFETY ABORT] Malformed proposal: 'proposalId' missing or invalid format ('{pid}'). Expected '^prop-[a-f0-9]{{8,16}}$'.");
+            Console.ResetColor();
+            return Cli.ExitCheckError;
+        }
+
         bool supported = node["supported"]?.GetValue<bool>() ?? true;
         if (!supported)
         {
@@ -905,16 +1048,10 @@ internal static class ComposeCommand
                 string packId = p?.ToString() ?? "";
                 if (string.IsNullOrWhiteSpace(packId)) continue;
 
-                string[] pparts = packId.Split('/');
-                string pub = pparts.Length > 1 ? pparts[0] : "otter-official";
-                string pname = pparts.Length > 1 ? pparts[1] : pparts[0];
-                string ppath = Path.Combine(libDir, "packs", pub, pname, "otter.pack.json");
-                if (!File.Exists(ppath)) ppath = Path.Combine(libDir, "packs", pub, pname, "pack.json");
-
-                if (!File.Exists(ppath))
+                if (!ValidatePackDependency(packId, "", libDir, out string packErr))
                 {
                     Console.ForegroundColor = ConsoleColor.Red;
-                    Console.Error.WriteLine($"[SAFETY ABORT] Missing component dependency: Pack '{packId}' is not installed in the local library.");
+                    Console.Error.WriteLine($"[SAFETY ABORT] {packErr}");
                     Console.ResetColor();
                     return Cli.ExitCheckError;
                 }
@@ -939,7 +1076,7 @@ internal static class ComposeCommand
         }
 
         // ---------------------------------------------------------------------
-        // Stage 2: Path Traversal Containment Checks
+        // Stage 2: Path Traversal & Symbolic Link Escape Checks
         // ---------------------------------------------------------------------
         var files = node["generatedSourcePreview"]?.AsArray();
         if (files == null || files.Count == 0)
@@ -948,33 +1085,34 @@ internal static class ComposeCommand
             return Cli.ExitCheckError;
         }
 
+        StringComparison pathComparison = OperatingSystem.IsWindows() || OperatingSystem.IsMacOS()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+        var pathComparer = pathComparison == StringComparison.OrdinalIgnoreCase
+            ? StringComparer.OrdinalIgnoreCase
+            : StringComparer.Ordinal;
+
         var plannedFileOps = new List<(string relPath, string fullPath, string code, bool exists)>();
+        var seenCanonical = new HashSet<string>(pathComparer);
+
         foreach (var f in files)
         {
             string relPath = f?["path"]?.ToString() ?? "";
             string code = f?["sourceCode"]?.ToString() ?? "";
 
-            if (string.IsNullOrWhiteSpace(relPath))
+            if (!IsPhysicalPathContained(fullTargetDir, relPath, out string failureReason))
             {
                 Console.ForegroundColor = ConsoleColor.Red;
-                Console.Error.WriteLine("[SAFETY ABORT] File entry contains an empty or whitespace path.");
-                Console.ResetColor();
-                return Cli.ExitCheckError;
-            }
-
-            if (Path.IsPathRooted(relPath))
-            {
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.Error.WriteLine($"[SAFETY ABORT] Absolute path rejected: '{relPath}'. All file paths must be relative to the project root.");
+                Console.Error.WriteLine($"[SAFETY ABORT] {failureReason}");
                 Console.ResetColor();
                 return Cli.ExitCheckError;
             }
 
             string canonicalFile = Path.GetFullPath(Path.Combine(fullTargetDir, relPath));
-            if (!canonicalFile.StartsWith(fullTargetDir + Path.DirectorySeparatorChar) && canonicalFile != fullTargetDir)
+            if (!seenCanonical.Add(canonicalFile))
             {
                 Console.ForegroundColor = ConsoleColor.Red;
-                Console.Error.WriteLine($"[SAFETY ABORT] Path traversal rejected: '{relPath}' escapes project directory '{fullTargetDir}'.");
+                Console.Error.WriteLine($"[SAFETY ABORT] Duplicate destination file path in proposal: '{relPath}'. Each generated file must have a unique destination.");
                 Console.ResetColor();
                 return Cli.ExitCheckError;
             }
@@ -983,7 +1121,7 @@ internal static class ComposeCommand
         }
 
         // ---------------------------------------------------------------------
-        // Stage 3: Pre-apply Syntax Validation (Resolve Virtual Imports)
+        // Stage 3: Pre-apply Syntax Validation (Virtual Imports)
         // ---------------------------------------------------------------------
         foreach (var op in plannedFileOps)
         {
@@ -1056,11 +1194,20 @@ internal static class ComposeCommand
         }
 
         // ---------------------------------------------------------------------
-        // Stage 6: Transactional Staging & Rollback Setup
+        // Stage 6: Two-Phase Isolated Staging & Backup Setup
         // ---------------------------------------------------------------------
+        string runGuid = Guid.NewGuid().ToString("N");
+        string stagingDir = Path.Combine(fullTargetDir, ".otter", $".staging_{runGuid}");
+        string backupDir = Path.Combine(fullTargetDir, ".otter", $".backups_{runGuid}");
+
         var preexistingBackups = new Dictionary<string, byte[]>();
-        var createdFiles = new List<string>();
+        var committedFiles = new List<string>();
+        var replacedFiles = new List<string>();
         var createdDirs = new List<string>();
+        var newlyInstalledPacks = new List<(string pub, string name, string ver)>();
+
+        string lockPath = Path.Combine(fullTargetDir, "otter.lock");
+        byte[]? lockBackupBytes = File.Exists(lockPath) ? File.ReadAllBytes(lockPath) : null;
 
         // Snapshot pre-existing files
         foreach (var op in plannedFileOps)
@@ -1069,6 +1216,10 @@ internal static class ComposeCommand
             {
                 try
                 {
+                    string backupFile = Path.Combine(backupDir, op.relPath);
+                    string? bParent = Path.GetDirectoryName(backupFile);
+                    if (!string.IsNullOrEmpty(bParent)) Directory.CreateDirectory(bParent);
+                    File.Copy(op.fullPath, backupFile, overwrite: true);
                     preexistingBackups[op.fullPath] = File.ReadAllBytes(op.fullPath);
                 }
                 catch (Exception ex)
@@ -1082,29 +1233,46 @@ internal static class ComposeCommand
         void Rollback()
         {
             Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine("[ROLLBACK] Initiating atomic rollback to restore project state...");
+            Console.WriteLine("[ROLLBACK] Initiating compensating rollback to restore project state...");
 
-            // 1. Delete created files
-            foreach (var f in createdFiles)
+            // 1. Delete all newly committed files
+            foreach (var f in committedFiles)
             {
-                try
-                {
-                    if (File.Exists(f)) File.Delete(f);
-                }
-                catch { }
+                try { if (File.Exists(f)) File.Delete(f); } catch { }
             }
 
-            // 2. Restore pre-existing files from snapshot
+            // 2. Restore all replaced files byte-for-byte from backup
             foreach (var (f, bytes) in preexistingBackups)
             {
-                try
-                {
-                    File.WriteAllBytes(f, bytes);
-                }
-                catch { }
+                try { File.WriteAllBytes(f, bytes); } catch { }
             }
 
-            // 3. Remove created directories in reverse order
+            // 3. Restore otter.lock
+            if (lockBackupBytes != null)
+            {
+                try { File.WriteAllBytes(lockPath, lockBackupBytes); } catch { }
+            }
+            else if (File.Exists(lockPath))
+            {
+                try { File.Delete(lockPath); } catch { }
+            }
+
+            // 4. Remove newly installed pack directories
+            foreach (var pkg in newlyInstalledPacks)
+            {
+                string pkgDir = Path.Combine(fullTargetDir, ".otter", "packages", pkg.pub, pkg.name, pkg.ver);
+                try { if (Directory.Exists(pkgDir)) Directory.Delete(pkgDir, recursive: true); } catch { }
+                string pkgNameDir = Path.Combine(fullTargetDir, ".otter", "packages", pkg.pub, pkg.name);
+                try { if (Directory.Exists(pkgNameDir) && !Directory.EnumerateFileSystemEntries(pkgNameDir).Any()) Directory.Delete(pkgNameDir); } catch { }
+                string pubDir = Path.Combine(fullTargetDir, ".otter", "packages", pkg.pub);
+                try { if (Directory.Exists(pubDir) && !Directory.EnumerateFileSystemEntries(pubDir).Any()) Directory.Delete(pubDir); } catch { }
+            }
+
+            // 5. Clean up staging and backup directories
+            try { if (Directory.Exists(stagingDir)) Directory.Delete(stagingDir, recursive: true); } catch { }
+            try { if (Directory.Exists(backupDir)) Directory.Delete(backupDir, recursive: true); } catch { }
+
+            // 6. Remove newly created empty directories
             foreach (var d in createdDirs.OrderByDescending(x => x.Length))
             {
                 try
@@ -1121,15 +1289,42 @@ internal static class ComposeCommand
             Console.ResetColor();
         }
 
+        // Phase 1: Write all generated files to isolated staging directory
+        try
+        {
+            Directory.CreateDirectory(stagingDir);
+            foreach (var op in plannedFileOps)
+            {
+                string stagedFile = Path.Combine(stagingDir, op.relPath);
+                string? sParent = Path.GetDirectoryName(stagedFile);
+                if (!string.IsNullOrEmpty(sParent)) Directory.CreateDirectory(sParent);
+                File.WriteAllText(stagedFile, op.code, new UTF8Encoding(false));
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.Error.WriteLine($"[FAILURE] Staging error: {ex.Message}");
+            Console.ResetColor();
+            Rollback();
+            return Cli.ExitCheckError;
+        }
+
         // ---------------------------------------------------------------------
         // Stage 7: Phase A - Dependency Installation with Exit Code Check
         // ---------------------------------------------------------------------
+        string? failureTrigger = Environment.GetEnvironmentVariable("OTTER_TEST_INJECT_FAILURE");
+
         if (composedPacks != null && composedPacks.Count > 0)
         {
             foreach (var p in composedPacks)
             {
                 string packId = p?.ToString() ?? "";
                 if (string.IsNullOrWhiteSpace(packId)) continue;
+
+                string[] pparts = packId.Split('/');
+                string pub = pparts.Length > 1 ? pparts[0] : "otter-official";
+                string pname = pparts.Length > 1 ? pparts[1] : pparts[0];
 
                 int exitCode;
                 try
@@ -1153,11 +1348,44 @@ internal static class ComposeCommand
                     Rollback();
                     return Cli.ExitCheckError;
                 }
+
+                string installedVer = "1.0.0";
+                string? packManifest = LibraryCommands.FindPackManifest(packId);
+                if (packManifest != null && File.Exists(packManifest))
+                {
+                    try
+                    {
+                        var mNode = JsonNode.Parse(File.ReadAllText(packManifest));
+                        installedVer = mNode?["version"]?.ToString() ?? "1.0.0";
+                    }
+                    catch { }
+                }
+                newlyInstalledPacks.Add((pub, pname, installedVer));
+            }
+
+            // Verify installed packs using native verifier
+            int verifyExit = LibraryCommands.RunPack(CommandLine.Bind(new[] { "pack", "verify", "--project", targetDir }));
+            if (verifyExit != 0)
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.Error.WriteLine($"[FAILURE] Dependency verification failed after pack installation (exit code {verifyExit}). Aborting.");
+                Console.ResetColor();
+                Rollback();
+                return Cli.ExitCheckError;
             }
         }
 
+        if (failureTrigger == "post-pack-install")
+        {
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.Error.WriteLine("[FAILURE] [FAILURE INJECTION] Simulated failure after pack installation.");
+            Console.ResetColor();
+            Rollback();
+            return Cli.ExitCheckError;
+        }
+
         // ---------------------------------------------------------------------
-        // Stage 8: Phase B - Atomic File Writes
+        // Stage 8: Phase B - Safe Replacement & Commit
         // ---------------------------------------------------------------------
         try
         {
@@ -1167,8 +1395,10 @@ internal static class ComposeCommand
                 createdDirs.Add(fullTargetDir);
             }
 
+            int committedCount = 0;
             foreach (var op in plannedFileOps)
             {
+                string stagedFile = Path.Combine(stagingDir, op.relPath);
                 string? parent = Path.GetDirectoryName(op.fullPath);
                 if (!string.IsNullOrEmpty(parent) && !Directory.Exists(parent))
                 {
@@ -1176,12 +1406,27 @@ internal static class ComposeCommand
                     createdDirs.Add(parent);
                 }
 
-                if (!op.exists)
+                if (failureTrigger == "post-first-commit" && committedCount >= 1)
                 {
-                    createdFiles.Add(op.fullPath);
+                    throw new IOException("[FAILURE INJECTION] Simulated write error after committing first file.");
                 }
 
-                File.WriteAllText(op.fullPath, op.code, new UTF8Encoding(false));
+                // Safe replacement via sibling temporary file and atomic rename
+                string tmpSibling = op.fullPath + $".tmp_{Guid.NewGuid():N}";
+                File.Copy(stagedFile, tmpSibling, overwrite: true);
+
+                if (op.exists)
+                {
+                    File.Move(tmpSibling, op.fullPath, overwrite: true);
+                    replacedFiles.Add(op.fullPath);
+                }
+                else
+                {
+                    File.Move(tmpSibling, op.fullPath, overwrite: false);
+                    committedFiles.Add(op.fullPath);
+                }
+
+                committedCount++;
                 Console.WriteLine($"  + Committed: {op.relPath}");
             }
         }
@@ -1209,6 +1454,19 @@ internal static class ComposeCommand
             }
         }
 
+        if (failureTrigger == "post-apply-verify")
+        {
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.Error.WriteLine("[FAILURE] [FAILURE INJECTION] Simulated post-apply verification failure.");
+            Console.ResetColor();
+            Rollback();
+            return Cli.ExitCheckError;
+        }
+
+        // Clean up temporary staging and backup directories upon confirmed success
+        try { if (Directory.Exists(stagingDir)) Directory.Delete(stagingDir, recursive: true); } catch { }
+        try { if (Directory.Exists(backupDir)) Directory.Delete(backupDir, recursive: true); } catch { }
+
         Console.ForegroundColor = ConsoleColor.Green;
         Console.WriteLine($"[SUCCESS] Composition proposal {pid} successfully applied to '{targetDir}'.");
         Console.ResetColor();
@@ -1216,10 +1474,110 @@ internal static class ComposeCommand
     }
 
     // =========================================================================
+    // Path Containment and Symbolic Link Guard
+    // =========================================================================
+    static bool IsPhysicalPathContained(string fullTargetDir, string relPath, out string failureReason)
+    {
+        failureReason = "";
+        if (string.IsNullOrWhiteSpace(relPath))
+        {
+            failureReason = "Path entry is empty or whitespace.";
+            return false;
+        }
+
+        if (Path.IsPathRooted(relPath))
+        {
+            failureReason = $"Absolute path rejected: '{relPath}'. All proposal paths must be relative to project root.";
+            return false;
+        }
+
+        string normalizedRel = relPath.Replace('\\', '/');
+        string[] segments = normalizedRel.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (segments.Any(s => s == ".."))
+        {
+            failureReason = $"Path traversal '..' rejected in '{relPath}'.";
+            return false;
+        }
+
+        // Resolve real target directory if target itself is a symlink
+        string realTargetDir = fullTargetDir;
+        try
+        {
+            var targetInfo = new DirectoryInfo(fullTargetDir);
+            if (targetInfo.Exists)
+            {
+                var resolvedTarget = targetInfo.ResolveLinkTarget(returnFinalTarget: true);
+                if (resolvedTarget != null)
+                {
+                    realTargetDir = resolvedTarget.FullName;
+                }
+            }
+        }
+        catch { }
+
+        realTargetDir = Path.GetFullPath(realTargetDir);
+        string canonicalFile = Path.GetFullPath(Path.Combine(fullTargetDir, relPath));
+
+        StringComparison pathComparison = OperatingSystem.IsWindows() || OperatingSystem.IsMacOS()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+
+        if (!canonicalFile.StartsWith(fullTargetDir + Path.DirectorySeparatorChar, pathComparison) &&
+            !string.Equals(canonicalFile, fullTargetDir, pathComparison))
+        {
+            failureReason = $"Path traversal rejected: '{relPath}' escapes project directory '{fullTargetDir}'.";
+            return false;
+        }
+
+        // Inspect existing parent directory chain for symlinks / reparse points
+        string currentPath = fullTargetDir;
+        for (int i = 0; i < segments.Length - 1; i++)
+        {
+            currentPath = Path.Combine(currentPath, segments[i]);
+            if (Directory.Exists(currentPath) || File.Exists(currentPath))
+            {
+                var di = new DirectoryInfo(currentPath);
+                if (di.LinkTarget != null || di.Attributes.HasFlag(FileAttributes.ReparsePoint))
+                {
+                    var finalDir = di.ResolveLinkTarget(returnFinalTarget: true);
+                    string resolvedTarget = finalDir != null ? finalDir.FullName : di.FullName;
+                    resolvedTarget = Path.GetFullPath(resolvedTarget);
+
+                    if (!resolvedTarget.StartsWith(realTargetDir + Path.DirectorySeparatorChar, pathComparison) &&
+                        !string.Equals(resolvedTarget, realTargetDir, pathComparison))
+                    {
+                        failureReason = $"Symlink escape rejected: Directory component '{segments[i]}' in '{relPath}' points outside project root to '{resolvedTarget}'.";
+                        return false;
+                    }
+                }
+                else if (File.Exists(currentPath))
+                {
+                    failureReason = $"Path conflict: Directory component '{segments[i]}' is an existing non-directory file.";
+                    return false;
+                }
+            }
+        }
+
+        // Check if destination file itself exists and is a symlink / reparse point
+        if (File.Exists(canonicalFile))
+        {
+            var fi = new FileInfo(canonicalFile);
+            if (fi.LinkTarget != null || fi.Attributes.HasFlag(FileAttributes.ReparsePoint))
+            {
+                failureReason = $"Symlink overwrite rejected: Destination file '{relPath}' is a symbolic link or junction.";
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    // =========================================================================
     // Discovery Engine Implementation
     // =========================================================================
     record ComponentItem(string Id, string Kind, string Version, string Rationale);
     record ConnectionItem(string Source, string Destination, string Description);
+    record CoverageItem(string Capability, string Status, string? FulfilledBy, string Rationale);
 
     class DiscoveryResult
     {
@@ -1229,6 +1587,7 @@ internal static class ComposeCommand
         public List<string> RequestedCapabilities { get; set; } = new();
         public List<string> MissingCapabilities { get; set; } = new();
         public List<string> AvailableCapabilities { get; set; } = new();
+        public List<CoverageItem> CoverageMatrix { get; set; } = new();
         public List<ComponentItem> RecommendedComponents { get; set; } = new();
         public List<string> ExtraPacks { get; set; } = new();
         public List<string> ExtraBlueprints { get; set; } = new();
@@ -1262,7 +1621,9 @@ internal static class ComposeCommand
             ["neural-networks"] = new[] { "neural", "deep-learning", "pytorch", "tensorflow", "transformer", "whisper", "llm", "onnx" },
             ["audio-dsp"] = new[] { "audio-dsp", "dsp", "vst", "vst3", "synthesizer", "synth", "midi" },
             ["blockchain"] = new[] { "blockchain", "crypto", "bitcoin", "ethereum", "solana", "mining", "wallet", "smart-contract" },
-            ["kernel-embedded"] = new[] { "kernel-driver", "kernel", "fpga", "embedded", "firmware", "driver" }
+            ["kernel-embedded"] = new[] { "kernel-driver", "kernel", "fpga", "embedded", "firmware", "driver" },
+            ["websocket-sync"] = new[] { "websocket", "real-time-sync", "socket-io" },
+            ["multiplayer-networking"] = new[] { "multiplayer", "p2p", "matchmaking", "netcode" }
         };
 
         foreach (var (domain, keywords) in unsupportedDomains)
@@ -1270,13 +1631,13 @@ internal static class ComposeCommand
             if (keywords.Any(k => rawTokens.Contains(k) || lowerIntent.Contains(k)))
             {
                 result.MissingCapabilities.Add(domain);
+                result.CoverageMatrix.Add(new CoverageItem(
+                    domain,
+                    "unsupported",
+                    null,
+                    $"Otter 1.0.1 does not provide library building blocks for {domain}."
+                ));
             }
-        }
-
-        if (result.MissingCapabilities.Count > 0)
-        {
-            result.Supported = false;
-            return result;
         }
 
         // 3. Capability Mapping
@@ -1298,6 +1659,13 @@ internal static class ComposeCommand
         if (hasMath) requestedCaps.Add("math");
 
         result.RequestedCapabilities = requestedCaps;
+
+        // If explicitly unsupported domains detected, mark supported = false
+        if (result.MissingCapabilities.Count > 0)
+        {
+            result.Supported = false;
+            return result;
+        }
 
         // 4. Score Recipes
         // Score: rpg-adventure
@@ -1337,13 +1705,18 @@ internal static class ComposeCommand
 
         if (maxScore == 0)
         {
-            // If no declared capabilities or keywords match, mark as unsupported!
             result.Supported = false;
             result.MissingCapabilities.Add("unsupported-domain-or-unmatched-capabilities");
+            result.CoverageMatrix.Add(new CoverageItem(
+                "unmatched-intent",
+                "unsupported",
+                null,
+                $"Intent '{intent}' does not match any existing verified building block capabilities."
+            ));
             return result;
         }
 
-        // 5. Select Winning Recipe and Assemble Plan
+        // 5. Select Winning Recipe, Assemble Plan, and Compute Coverage Matrix
         if (maxScore == scoreRpg)
         {
             result.SelectedRecipeId = "otter-official/rpg-adventure";
@@ -1401,6 +1774,43 @@ internal static class ComposeCommand
                 "src/game.ot",
                 "Saves game progression and inventory state to persistent rpg_savegame.json."
             ));
+
+            if (hasGame)
+            {
+                result.CoverageMatrix.Add(new CoverageItem(
+                    "game-entities",
+                    "implemented",
+                    "otter-official/game-entity",
+                    "Provides Actor creation, health pools, experience, and level up mechanics."
+                ));
+            }
+            if (lowerIntent.Contains("inventory") || lowerIntent.Contains("item"))
+            {
+                result.CoverageMatrix.Add(new CoverageItem(
+                    "inventory-management",
+                    "implemented",
+                    "otter-official/game-entity",
+                    "Provides inventory bag initialization, capacity constraints, and item equipment."
+                ));
+            }
+            if (lowerIntent.Contains("combat") || lowerIntent.Contains("cooldown"))
+            {
+                result.CoverageMatrix.Add(new CoverageItem(
+                    "combat-and-cooldowns",
+                    "implemented",
+                    "otter-official/game-combat",
+                    "Provides damage calculation, enemy defeat conditions, and cooldown timestamp checks."
+                ));
+            }
+            if (hasFiles)
+            {
+                result.CoverageMatrix.Add(new CoverageItem(
+                    "persistence",
+                    "implemented",
+                    "otter-official/file-helpers",
+                    "Serializes character state and inventory counts to persistent JSON save files."
+                ));
+            }
         }
         else if (maxScore == scoreContact)
         {
@@ -1442,6 +1852,31 @@ internal static class ComposeCommand
                 "src/contacts.ot",
                 "Serializes contact list to disk storage on addition and deletion."
             ));
+
+            result.CoverageMatrix.Add(new CoverageItem(
+                "contact-management",
+                "implemented",
+                "otter-official/contact-manager",
+                "Full contact card creation, storage, and listing."
+            ));
+            if (lowerIntent.Contains("search"))
+            {
+                result.CoverageMatrix.Add(new CoverageItem(
+                    "search",
+                    "implemented",
+                    "txt-contains",
+                    "Substring containment query filter across contact records."
+                ));
+            }
+            if (hasFiles)
+            {
+                result.CoverageMatrix.Add(new CoverageItem(
+                    "persistence",
+                    "implemented",
+                    "otter-official/file-helpers",
+                    "JSON storage with atomic safe writes."
+                ));
+            }
         }
         else if (maxScore == scoreWeb)
         {
@@ -1483,6 +1918,22 @@ internal static class ComposeCommand
                 "src/server.ot",
                 "Saves received feedback submissions to disk."
             ));
+
+            result.CoverageMatrix.Add(new CoverageItem(
+                "web-routing",
+                "implemented",
+                "otter-official/web-portal",
+                "HTTP endpoints, routing, and static file delivery."
+            ));
+            if (hasFiles)
+            {
+                result.CoverageMatrix.Add(new CoverageItem(
+                    "persistence",
+                    "implemented",
+                    "otter-official/file-helpers",
+                    "Stores submitted feedback records to JSON disk storage."
+                ));
+            }
         }
         else
         {
@@ -1537,6 +1988,22 @@ internal static class ComposeCommand
                 "src/tasks.ot",
                 "Pads task columns for aligned terminal presentation."
             ));
+
+            result.CoverageMatrix.Add(new CoverageItem(
+                "task-tracking",
+                "implemented",
+                "otter-official/task-tracker",
+                "Task creation, status toggling, deletion, and formatted display."
+            ));
+            if (hasFiles)
+            {
+                result.CoverageMatrix.Add(new CoverageItem(
+                    "persistence",
+                    "implemented",
+                    "otter-official/file-helpers",
+                    "Safe JSON task storage and settings loading with fallback."
+                ));
+            }
         }
 
         return result;

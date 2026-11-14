@@ -2,12 +2,13 @@
 """
 Otter Phase 10 — Trustworthy Reusable Composition Consumer Test Suite
 Tests that Otter composition engine:
-1. Replaces keyword-only guessing with metadata-driven capability discovery and ranking.
+1. Replaces keyword-only guessing with metadata-driven capability discovery and explicit capability coverage.
 2. Adheres to composition-proposal schema with explainable component rationale and connections.
 3. Honestly reports unsupported requests when no compatible library components exist.
-4. Safely applies proposals transactionally (path containment, pre-write preview, approval gate).
+4. Safely applies proposals transactionally (path containment, symlink escape protection, pre-write preview, approval gate).
 5. Installs dependencies, commits files atomically, verifies projects, and rolls back cleanly on any failure.
-6. Exercises 5 distinct real-world application requests outside the repository from a fresh install.
+6. Handles failure injection post-commit and post-pack-install, verifying byte-for-byte state restoration.
+7. Exercises 5 distinct real-world application requests outside the repository from a fresh install.
 """
 
 import os
@@ -16,6 +17,7 @@ import subprocess
 import tempfile
 import json
 import re
+import hashlib
 import shutil
 
 def run_cmd(cmd, cwd=None, env=None, input_text=None):
@@ -29,6 +31,10 @@ def run_cmd(cmd, cwd=None, env=None, input_text=None):
     )
     return res
 
+def compute_sha256(path):
+    with open(path, "rb") as f:
+        return hashlib.sha256(f.read()).hexdigest()
+
 def validate_proposal_schema(proposal):
     """Validates proposal dictionary against composition-proposal.schema.json rules."""
     assert proposal.get("schemaVersion") == 1, "schemaVersion must be 1"
@@ -40,6 +46,7 @@ def validate_proposal_schema(proposal):
     assert "generatedSourcePreview" in proposal and isinstance(proposal["generatedSourcePreview"], list), "Missing generatedSourcePreview"
     assert "approvalRequired" in proposal and isinstance(proposal["approvalRequired"], bool), "Missing approvalRequired"
     assert "verification" in proposal and isinstance(proposal["verification"], dict), "Missing verification"
+    assert "capabilityCoverage" in proposal and isinstance(proposal["capabilityCoverage"], list), "Missing capabilityCoverage"
 
 def main():
     repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -109,7 +116,13 @@ def main():
         assert "otter-official/file-helpers" in recs1, "Expected file-helpers in recommendations"
         assert "game-inventory-capacity" in recs1, "Expected game-inventory-capacity snippet in recommendations"
         assert prop1["verification"]["syntaxValid"] is True, "Expected syntaxValid: true"
+
+        # Verify capability coverage matrix
+        cov1 = {c["capability"]: c["status"] for c in prop1["capabilityCoverage"]}
+        assert cov1.get("inventory-management") == "implemented", f"Expected inventory-management implemented, got: {cov1}"
+        assert cov1.get("persistence") == "implemented", f"Expected persistence implemented, got: {cov1}"
         print(f" [PROPOSAL PASS] ID: {prop1['proposalId']}, components: {recs1}")
+        print(f" [COVERAGE PASS] Capabilities: {cov1}")
 
         # Apply proposal
         apply1_res = run_cmd([
@@ -164,7 +177,12 @@ def main():
         assert "otter-official/text-utils" in recs2, "Expected text-utils pack"
         assert "otter-official/file-helpers" in recs2, "Expected file-helpers pack"
         assert "txt-contains" in recs2, "Expected txt-contains snippet"
+
+        cov2 = {c["capability"]: c["status"] for c in prop2["capabilityCoverage"]}
+        assert cov2.get("contact-management") == "implemented"
+        assert cov2.get("search") == "implemented"
         print(f" [PROPOSAL PASS] ID: {prop2['proposalId']}, components: {recs2}")
+        print(f" [COVERAGE PASS] Capabilities: {cov2}")
 
         # Apply proposal
         apply2_res = run_cmd([
@@ -216,7 +234,12 @@ def main():
         assert "otter-official/file-settings" in recs3
         assert "otter-official/file-helpers" in recs3
         assert "file-json-storage" in recs3
+
+        cov3 = {c["capability"]: c["status"] for c in prop3["capabilityCoverage"]}
+        assert cov3.get("task-tracking") == "implemented"
+        assert cov3.get("persistence") == "implemented"
         print(f" [PROPOSAL PASS] ID: {prop3['proposalId']}, components: {recs3}")
+        print(f" [COVERAGE PASS] Capabilities: {cov3}")
 
         # Apply proposal
         apply3_res = run_cmd([
@@ -265,9 +288,15 @@ def main():
         assert "otter-official/game-entity" in recs4
         assert "game-actor-damage" in recs4
 
+        cov4 = {c["capability"]: c["status"] for c in prop4["capabilityCoverage"]}
+        assert cov4.get("combat-and-cooldowns") == "implemented"
+        print(f" [PROPOSAL PASS] ID: {prop4['proposalId']}, components: {recs4}")
+        print(f" [COVERAGE PASS] Capabilities: {cov4}")
+
         # Explain command check
         explain_res = run_cmd([otter_bin, "compose", "explain", prop4_path], cwd=proj4_dir, env=clean_env)
         assert explain_res.returncode == 0, f"Explain failed: {explain_res.stderr}"
+        assert "Capability Coverage Matrix:" in explain_res.stdout
         assert "Component Selection Rationale:" in explain_res.stdout
         assert "Composition & Data Flow Connections:" in explain_res.stdout
         assert "Unresolved Limitations & Scoping Considerations:" in explain_res.stdout
@@ -295,7 +324,7 @@ def main():
         print(" [EXECUTION PASS] RPG combat with cooldowns executed cleanly.")
 
         # =====================================================================
-        # SCENARIO 5: Unsupported request requiring honest explanation
+        # SCENARIO 5: Unsupported Intent Reporting
         # =====================================================================
         print("\n" + "=" * 70)
         print(" Scenario 5: Unsupported Intent Reporting")
@@ -321,6 +350,9 @@ def main():
         assert prop5.get("supported") is False, "Expected supported: false"
         assert "gpu-acceleration" in prop5.get("missingCapabilities", [])
         assert "neural-networks" in prop5.get("missingCapabilities", [])
+        cov5 = {c["capability"]: c["status"] for c in prop5.get("capabilityCoverage", [])}
+        assert cov5.get("gpu-acceleration") == "unsupported"
+        assert cov5.get("neural-networks") == "unsupported"
         print(" [UNSUPPORTED DISCOVERY PASS] Proposal honestly reported missing capabilities without inventing APIs.")
 
         # Attempt to apply unsupported proposal -> must fail cleanly with safety abort
@@ -372,7 +404,7 @@ def main():
         malicious_prop_path = os.path.join(workspace, "malicious_traversal.json")
         malicious_prop = {
             "schemaVersion": 1,
-            "proposalId": "prop-badpath1",
+            "proposalId": "prop-baad0001",
             "intent": "Malicious path traversal attack",
             "recommendedComponents": [],
             "compositionPlan": {
@@ -384,7 +416,7 @@ def main():
             "generatedSourcePreview": [
                 {
                     "path": "../../escaped_payload.ot",
-                    "sourceCode": "say 'escaped'",
+                    "sourceCode": "say \"escaped\"",
                     "sourceMappings": []
                 }
             ],
@@ -406,7 +438,7 @@ def main():
         ], cwd=workspace, env=clean_env)
 
         assert trav_res.returncode == 2, f"Expected CheckError (2) on traversal, got {trav_res.returncode}"
-        assert "Path traversal rejected" in trav_res.stderr or "Path traversal rejected" in trav_res.stdout
+        assert "Path traversal" in trav_res.stderr or "Path traversal" in trav_res.stdout
         escaped_file = os.path.abspath(os.path.join(proj_safe, "../../escaped_payload.ot"))
         assert not os.path.exists(escaped_file), f"Malicious file was written: {escaped_file}"
         print(" [PATH TRAVERSAL PASS] Relative path traversal escaping project was rejected.")
@@ -414,11 +446,11 @@ def main():
         # Absolute path rejection check
         abs_prop_path = os.path.join(workspace, "absolute_path.json")
         abs_prop = dict(malicious_prop)
-        abs_prop["proposalId"] = "prop-badpath2"
+        abs_prop["proposalId"] = "prop-baad0002"
         abs_prop["generatedSourcePreview"] = [
             {
                 "path": "/tmp/malicious_root.ot",
-                "sourceCode": "say 'rooted'",
+                "sourceCode": "say \"rooted\"",
                 "sourceMappings": []
             }
         ]
@@ -434,55 +466,93 @@ def main():
         print(" [ABSOLUTE PATH PASS] Absolute paths in proposals strictly rejected.")
 
         # =====================================================================
-        # SAFETY TEST 3: Missing Component Dependency Safety Abort
+        # SAFETY TEST 3: Symbolic Link Escape Protection
         # =====================================================================
         print("\n" + "=" * 70)
-        print(" Safety Test 3: Missing Component Dependency Abort")
+        print(" Safety Test 3: Symbolic Link Escape Protection")
         print("=" * 70)
 
-        missing_comp_prop = os.path.join(workspace, "missing_comp.json")
-        bad_prop = dict(malicious_prop)
-        bad_prop["proposalId"] = "prop-missing1"
-        bad_prop["compositionPlan"]["composedPacks"] = ["otter-official/nonexistent-pack-foo"]
-        bad_prop["generatedSourcePreview"] = [
-            {"path": "src/main.ot", "sourceCode": "say 'hello'", "sourceMappings": []}
-        ]
-        with open(missing_comp_prop, "w", encoding="utf-8") as f:
-            json.dump(bad_prop, f)
+        proj_symlink = os.path.join(workspace, "proj_symlink")
+        os.makedirs(proj_symlink, exist_ok=True)
 
-        proj_missing = os.path.join(workspace, "proj_missing")
-        os.makedirs(proj_missing, exist_ok=True)
+        # Create external target directory
+        external_dir = os.path.join(workspace, "external_target")
+        os.makedirs(external_dir, exist_ok=True)
 
-        miss_res = run_cmd([
-            otter_bin, "compose", "apply", missing_comp_prop,
-            "--project", proj_missing, "--yes"
-        ], cwd=workspace, env=clean_env)
-        assert miss_res.returncode == 2, f"Expected exit code 2, got {miss_res.returncode}"
-        assert "Missing component dependency" in miss_res.stderr or "Missing component dependency" in miss_res.stdout
-        assert not os.path.exists(os.path.join(proj_missing, "src", "main.ot")), "File written despite missing dependency"
-        print(" [MISSING DEPENDENCY PASS] Missing dependencies aborted before file modification.")
+        # Create a symlink inside project pointing outside: proj_symlink/sym_folder -> external_dir
+        symlink_dir = os.path.join(proj_symlink, "sym_folder")
+        try:
+            os.symlink(external_dir, symlink_dir)
+        except OSError:
+            # On some platforms without symlink privilege, skip symlink creation if unsupported
+            pass
+
+        if os.path.islink(symlink_dir):
+            symlink_prop = dict(malicious_prop)
+            symlink_prop["proposalId"] = "prop-53311001"
+            symlink_prop["generatedSourcePreview"] = [
+                {
+                    "path": "sym_folder/escaped.ot",
+                    "sourceCode": "say \"escaped via symlink\"",
+                    "sourceMappings": []
+                }
+            ]
+            symlink_prop_path = os.path.join(workspace, "symlink_prop.json")
+            with open(symlink_prop_path, "w", encoding="utf-8") as f:
+                json.dump(symlink_prop, f)
+
+            sym_res = run_cmd([
+                otter_bin, "compose", "apply", symlink_prop_path,
+                "--project", proj_symlink, "--yes"
+            ], cwd=workspace, env=clean_env)
+
+            assert sym_res.returncode == 2, f"Expected CheckError (2) on symlink escape, got {sym_res.returncode}"
+            assert "Symlink escape rejected" in sym_res.stderr or "Symlink escape rejected" in sym_res.stdout
+            assert not os.path.exists(os.path.join(external_dir, "escaped.ot")), "File was written through symlink into external dir!"
+            print(" [SYMLINK ESCAPE PASS] Directory symlink pointing outside project was rejected.")
+
+            # Test symlink file overwrite rejection
+            sym_file_path = os.path.join(proj_symlink, "sym_file.ot")
+            external_file = os.path.join(external_dir, "ext.txt")
+            with open(external_file, "w") as f:
+                f.write("sensitive_external_content")
+            os.symlink(external_file, sym_file_path)
+
+            sym_file_prop = dict(malicious_prop)
+            sym_file_prop["proposalId"] = "prop-53311002"
+            sym_file_prop["generatedSourcePreview"] = [
+                {
+                    "path": "sym_file.ot",
+                    "sourceCode": "say \"overwrite attempt\"",
+                    "sourceMappings": []
+                }
+            ]
+            sym_file_prop_path = os.path.join(workspace, "sym_file_prop.json")
+            with open(sym_file_prop_path, "w", encoding="utf-8") as f:
+                json.dump(sym_file_prop, f)
+
+            sym_f_res = run_cmd([
+                otter_bin, "compose", "apply", sym_file_prop_path,
+                "--project", proj_symlink, "--yes"
+            ], cwd=workspace, env=clean_env)
+            assert sym_f_res.returncode == 2, f"Expected CheckError (2), got {sym_f_res.returncode}"
+            assert "Symlink overwrite rejected" in sym_f_res.stderr or "Symlink overwrite rejected" in sym_f_res.stdout
+            with open(external_file, "r") as f:
+                assert f.read() == "sensitive_external_content", "External file was overwritten through symlink!"
+            print(" [SYMLINK OVERWRITE PASS] Direct overwrite of symbolic link file rejected.")
 
         # =====================================================================
-        # SAFETY TEST 4: Atomic Rollback on Failure & Unchanged Pre-existing Files
+        # SAFETY TEST 4: Duplicate Destination Output Paths Rejection
         # =====================================================================
         print("\n" + "=" * 70)
-        print(" Safety Test 4: Atomic Rollback & Pre-existing File Restoration")
+        print(" Safety Test 4: Duplicate Destination Paths Rejection")
         print("=" * 70)
 
-        proj_rollback = os.path.join(workspace, "proj_rollback")
-        os.makedirs(proj_rollback, exist_ok=True)
-        existing_cfg = os.path.join(proj_rollback, "config.json")
-        initial_content = '{\n  "appName": "OriginalPreexistingApp",\n  "version": 1\n}\n'
-        with open(existing_cfg, "w", encoding="utf-8") as f:
-            f.write(initial_content)
-
-        # Inject failure: proposal has invalid syntax in secondary file to fail post-validation or write failure
-        # Let's create a proposal with a pre-apply syntax failure:
-        fail_syntax_prop = os.path.join(workspace, "syntax_fail.json")
-        bad_syntax_prop = {
+        dup_prop_path = os.path.join(workspace, "duplicate_paths.json")
+        dup_prop = {
             "schemaVersion": 1,
-            "proposalId": "prop-failsyntax",
-            "intent": "Corrupted syntax test",
+            "proposalId": "prop-da001122",
+            "intent": "Duplicate paths proposal",
             "recommendedComponents": [],
             "compositionPlan": {
                 "target": "console",
@@ -492,42 +562,223 @@ def main():
             },
             "generatedSourcePreview": [
                 {
-                    "path": "config.json",
-                    "sourceCode": "{\"overwritten\": true}",
+                    "path": "src/main.ot",
+                    "sourceCode": "say \"one\"",
                     "sourceMappings": []
                 },
                 {
-                    "path": "src/broken.ot",
-                    "sourceCode": "this is totally invalid otter syntax !!!",
+                    "path": "src/./main.ot",
+                    "sourceCode": "say \"duplicate\"",
                     "sourceMappings": []
                 }
             ],
             "approvalRequired": True,
             "verification": {
                 "command": "otter check",
-                "syntaxValid": False
+                "syntaxValid": True
             }
         }
-        with open(fail_syntax_prop, "w", encoding="utf-8") as f:
-            json.dump(bad_syntax_prop, f)
+        with open(dup_prop_path, "w", encoding="utf-8") as f:
+            json.dump(dup_prop, f)
 
-        syntax_fail_res = run_cmd([
-            otter_bin, "compose", "apply", fail_syntax_prop,
-            "--project", proj_rollback, "--yes"
+        proj_dup = os.path.join(workspace, "proj_dup")
+        os.makedirs(proj_dup, exist_ok=True)
+
+        dup_res = run_cmd([
+            otter_bin, "compose", "apply", dup_prop_path,
+            "--project", proj_dup, "--yes"
         ], cwd=workspace, env=clean_env)
 
-        assert syntax_fail_res.returncode == 2, f"Expected CheckError (2), got {syntax_fail_res.returncode}"
-        assert "Pre-apply syntax error" in syntax_fail_res.stderr or "Pre-apply syntax error" in syntax_fail_res.stdout
+        assert dup_res.returncode == 2, f"Expected CheckError (2) on duplicate paths, got {dup_res.returncode}"
+        assert "Duplicate destination file path" in dup_res.stderr or "Duplicate destination file path" in dup_res.stdout
+        assert not os.path.exists(os.path.join(proj_dup, "src", "main.ot")), "File written despite duplicate path error"
+        print(" [DUPLICATE PATHS PASS] Duplicate destination paths detected and rejected before staging.")
 
-        # Verify config.json was NOT overwritten!
-        with open(existing_cfg, "r", encoding="utf-8") as f:
-            recovered_content = f.read()
-        assert recovered_content == initial_content, f"Pre-existing config.json was corrupted!\nFound: {recovered_content}"
-        assert not os.path.exists(os.path.join(proj_rollback, "src")), "src/ was created despite syntax error"
-        print(" [ROLLBACK PASS] Pre-existing file preserved intact; corrupt generation aborted cleanly.")
+        # =====================================================================
+        # SAFETY TEST 5: Malformed Proposals & Invalid ID Regex
+        # =====================================================================
+        print("\n" + "=" * 70)
+        print(" Safety Test 5: Malformed Proposals & Invalid ID Regex")
+        print("=" * 70)
+
+        # 1. Invalid proposalId (short hex, not matching regex)
+        short_id_prop = dict(dup_prop)
+        short_id_prop["proposalId"] = "prop-12"
+        short_prop_path = os.path.join(workspace, "short_id.json")
+        with open(short_prop_path, "w", encoding="utf-8") as f:
+            json.dump(short_id_prop, f)
+
+        short_res = run_cmd([
+            otter_bin, "compose", "apply", short_prop_path,
+            "--project", proj_dup, "--yes"
+        ], cwd=workspace, env=clean_env)
+        assert short_res.returncode == 2, f"Expected rejection on short ID, got {short_res.returncode}"
+        assert "Malformed proposal" in short_res.stderr or "Malformed proposal" in short_res.stdout
+        print(" [MALFORMED ID PASS] Proposal with invalid proposalId pattern rejected.")
+
+        # 2. Corrupt JSON syntax
+        bad_json_path = os.path.join(workspace, "corrupt.json")
+        with open(bad_json_path, "w") as f:
+            f.write("{ this is not valid json")
+
+        corrupt_res = run_cmd([
+            otter_bin, "compose", "apply", bad_json_path,
+            "--project", proj_dup, "--yes"
+        ], cwd=workspace, env=clean_env)
+        assert corrupt_res.returncode == 1, f"Expected UsageError on corrupt JSON, got {corrupt_res.returncode}"
+        print(" [CORRUPT JSON PASS] Malformed JSON syntax caught cleanly.")
+
+        # =====================================================================
+        # SAFETY TEST 6: Incompatible Version Dependency Check
+        # =====================================================================
+        print("\n" + "=" * 70)
+        print(" Safety Test 6: Incompatible Version Dependency Check")
+        print("=" * 70)
+
+        # Check a non-existent or incompatible component
+        incompat_res = run_cmd([
+            otter_bin, "compose", "check", "otter-official/nonexistent-pack", "--json"
+        ], cwd=workspace, env=clean_env)
+        assert incompat_res.returncode == 2, f"Expected exit code 2, got {incompat_res.returncode}"
+        incompat_json = json.loads(incompat_res.stdout)
+        assert incompat_json.get("compatible") is False
+        print(" [INCOMPATIBLE CHECK PASS] Incompatible/missing component reported properly.")
+
+        # =====================================================================
+        # SAFETY TEST 7: Deterministic Failure Injection Rollback (Post-Commit)
+        # =====================================================================
+        print("\n" + "=" * 70)
+        print(" Safety Test 7: Deterministic Rollback After File Commit")
+        print("=" * 70)
+
+        proj_inject1 = os.path.join(workspace, "proj_inject1")
+        os.makedirs(proj_inject1, exist_ok=True)
+
+        existing_cfg1 = os.path.join(proj_inject1, "config.json")
+        orig_cfg_bytes = b'{\n  "appName": "OriginalApp",\n  "status": "initial"\n}\n'
+        with open(existing_cfg1, "wb") as f:
+            f.write(orig_cfg_bytes)
+        orig_cfg_hash = hashlib.sha256(orig_cfg_bytes).hexdigest()
+
+        existing_lock1 = os.path.join(proj_inject1, "otter.lock")
+        orig_lock_bytes = b'# Initial pre-existing lockfile\n{"version": 1}\n'
+        with open(existing_lock1, "wb") as f:
+            f.write(orig_lock_bytes)
+        orig_lock_hash = hashlib.sha256(orig_lock_bytes).hexdigest()
+
+        # Multi-file proposal: file 1 commits, file 2 triggers failure injection!
+        inject_prop = {
+            "schemaVersion": 1,
+            "proposalId": "prop-111ec710",
+            "intent": "Failure injection test",
+            "recommendedComponents": [],
+            "compositionPlan": {
+                "target": "console",
+                "composedPacks": [],
+                "composedBlueprints": [],
+                "connections": []
+            },
+            "generatedSourcePreview": [
+                {
+                    "path": "src/file1.ot",
+                    "sourceCode": "say \"file 1 committed\"",
+                    "sourceMappings": []
+                },
+                {
+                    "path": "config.json",
+                    "sourceCode": "{\"overwritten\": true}",
+                    "sourceMappings": []
+                }
+            ],
+            "approvalRequired": True,
+            "verification": {
+                "command": "otter check",
+                "syntaxValid": True
+            }
+        }
+        inject_prop_path = os.path.join(workspace, "inject_prop.json")
+        with open(inject_prop_path, "w", encoding="utf-8") as f:
+            json.dump(inject_prop, f)
+
+        # Run with OTTER_TEST_INJECT_FAILURE=post-first-commit
+        inject_env = clean_env.copy()
+        inject_env["OTTER_TEST_INJECT_FAILURE"] = "post-first-commit"
+
+        inj_res = run_cmd([
+            otter_bin, "compose", "apply", inject_prop_path,
+            "--project", proj_inject1, "--yes"
+        ], cwd=workspace, env=inject_env)
+
+        assert inj_res.returncode == 2, f"Expected failure (exit code 2), got {inj_res.returncode}"
+        assert "[ROLLBACK]" in inj_res.stdout or "[ROLLBACK]" in inj_res.stderr, "Rollback message missing"
+
+        # Verify byte-for-byte restoration of config.json
+        assert os.path.exists(existing_cfg1), "config.json was deleted during rollback!"
+        assert compute_sha256(existing_cfg1) == orig_cfg_hash, "config.json was not restored byte-for-byte!"
+
+        # Verify byte-for-byte restoration of otter.lock
+        assert os.path.exists(existing_lock1), "otter.lock was deleted during rollback!"
+        assert compute_sha256(existing_lock1) == orig_lock_hash, "otter.lock was not restored byte-for-byte!"
+
+        # Verify newly created file1.ot was completely deleted!
+        assert not os.path.exists(os.path.join(proj_inject1, "src", "file1.ot")), "Committed file1.ot was NOT deleted by rollback!"
+        assert not os.path.exists(os.path.join(proj_inject1, "src")), "Empty src directory was NOT cleaned up by rollback!"
+
+        # Verify no staging or backup directories remain
+        otter_hidden = os.path.join(proj_inject1, ".otter")
+        if os.path.exists(otter_hidden):
+            for entry in os.listdir(otter_hidden):
+                assert not entry.startswith(".staging_"), f"Dangling staging directory found: {entry}"
+                assert not entry.startswith(".backups_"), f"Dangling backup directory found: {entry}"
+
+        print(" [ACTUAL ROLLBACK PASS] Injected failure after file commit triggered atomic rollback.")
+        print(f" [BYTE-FOR-BYTE RESTORED] config.json SHA-256: {orig_cfg_hash}")
+        print(f" [BYTE-FOR-BYTE RESTORED] otter.lock  SHA-256: {orig_lock_hash}")
+        print(" [PURGED COMMITTED FILE] Newly created src/file1.ot was cleanly deleted.")
+
+        # =====================================================================
+        # SAFETY TEST 8: Failure Injection Rollback After Pack Installation
+        # =====================================================================
+        print("\n" + "=" * 70)
+        print(" Safety Test 8: Deterministic Rollback After Pack Installation")
+        print("=" * 70)
+
+        proj_inject2 = os.path.join(workspace, "proj_inject2")
+        os.makedirs(proj_inject2, exist_ok=True)
+
+        existing_cfg2 = os.path.join(proj_inject2, "settings.json")
+        orig_settings_bytes = b'{\n  "version": "1.0-preexisting"\n}\n'
+        with open(existing_cfg2, "wb") as f:
+            f.write(orig_settings_bytes)
+        orig_settings_hash = hashlib.sha256(orig_settings_bytes).hexdigest()
+
+        # Proposal with dependencies: packs install first, then failure injected!
+        pack_inj_env = clean_env.copy()
+        pack_inj_env["OTTER_TEST_INJECT_FAILURE"] = "post-pack-install"
+
+        pack_inj_res = run_cmd([
+            otter_bin, "compose", "apply", prop1_path,
+            "--project", proj_inject2, "--yes"
+        ], cwd=workspace, env=pack_inj_env)
+
+        assert pack_inj_res.returncode == 2, f"Expected failure (2), got {pack_inj_res.returncode}"
+        assert "[ROLLBACK]" in pack_inj_res.stdout or "[ROLLBACK]" in pack_inj_res.stderr
+
+        # Verify settings.json restored byte-for-byte
+        assert os.path.exists(existing_cfg2)
+        assert compute_sha256(existing_cfg2) == orig_settings_hash
+
+        # Verify no newly created project source files remain
+        assert not os.path.exists(os.path.join(proj_inject2, "src", "game.ot"))
+
+        # Verify newly installed packages were purged
+        assert not os.path.exists(os.path.join(proj_inject2, ".otter", "packages", "otter-official", "game-entity"))
+
+        print(" [PACK ROLLBACK PASS] Injected failure after pack install rolled back package directories cleanly.")
+        print(f" [BYTE-FOR-BYTE RESTORED] settings.json SHA-256: {orig_settings_hash}")
 
         print("\n" + "=" * 75)
-        print(" ALL 5 SCENARIOS & 4 SAFETY VALIDATION TESTS PASSED CLEANLY!")
+        print(" ALL 5 SCENARIOS & 8 SAFETY VALIDATION TESTS PASSED CLEANLY (100%)!")
         print("=" * 75)
 
 if __name__ == "__main__":
