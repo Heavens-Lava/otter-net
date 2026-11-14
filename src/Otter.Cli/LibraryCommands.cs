@@ -1227,7 +1227,7 @@ internal static class LibraryCommands
         return ExitSuccess;
     }
 
-    static string? FindBlueprintManifest(string bpId)
+    public static string? FindBlueprintManifest(string bpId)
     {
         string lib = FindLibraryDir();
         string candidate = Path.Combine(lib, "blueprints", bpId, "otter.blueprint.json");

@@ -104,6 +104,16 @@
           "items": { "type": "string" }
         }
       }
+    },
+    "requestedCapabilities": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Capabilities identified from user intent"
+    },
+    "unresolvedLimitations": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Known platform, language or scoping limitations relevant to this plan"
     }
   }
 }
