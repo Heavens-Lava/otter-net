@@ -8,8 +8,8 @@
   "requiresOtter": ">=1.0.1",
   "capabilities": ["files"],
   "packs": [
-    { "id": "otter-official/file-helpers", "version": "1.0.0" },
-    { "id": "otter-official/text-utils", "version": "1.0.0" }
+    { "id": "otter-official/file-helpers", "version": "1.0.1" },
+    { "id": "otter-official/text-utils", "version": "1.0.1" }
   ],
   "blueprints": [
     { "id": "otter-official/file-settings", "version": "1.0.0" }

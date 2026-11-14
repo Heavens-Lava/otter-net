@@ -86,13 +86,13 @@ def main():
         ),
         (
             "math-utils",
-            "return total divided by count",
+            "return _mu_total divided by _mu_count",
             "return 0",
             "math-utils: calcAverage returns 0"
         ),
         (
             "math-utils",
-            "return fraction times 100",
+            "return _mu_fraction times 100",
             "return 0",
             "math-utils: calcPercentage returns 0"
         ),
@@ -100,14 +100,14 @@ def main():
         # text-utils
         (
             "text-utils",
-            "return padding plus text",
+            "return _tu_padding plus text",
             "return text",
             "text-utils: padLeft ignores padding"
         ),
         (
             "text-utils",
-            'replace " " with "-" in norm',
-            'replace " " with "+" in norm',
+            'replace " " with "-" in _tu_norm',
+            'replace " " with "+" in _tu_norm',
             "text-utils: slugify uses '+' instead of '-'"
         ),
         (
@@ -126,14 +126,14 @@ def main():
         ),
         (
             "list-utils",
-            "add item to result",
+            "add _lu_it to _lu_result",
             "fakeAdd is 0",
             "list-utils: dedupeList drops additions"
         ),
         (
             "list-utils",
-            "total is total plus item",
-            "total is total",
+            "_lu_total is _lu_total plus _lu_it",
+            "_lu_total is _lu_total",
             "list-utils: calcListSum does not accumulate"
         ),
 
@@ -146,8 +146,8 @@ def main():
         ),
         (
             "file-helpers",
-            "return target\n    otherwise\n        return fallbackValue",
-            "return target\n    otherwise\n        return gone",
+            "return _fh_target\n    otherwise\n        return fallbackValue",
+            "return _fh_target\n    otherwise\n        return gone",
             "file-helpers: fromJsonSafe returns gone on error"
         ),
 
@@ -160,20 +160,20 @@ def main():
         ),
         (
             "game-entity",
-            "newMax is curMax plus 25",
-            "newMax is curMax",
+            "_ge_newMax is _ge_curMax plus 25",
+            "_ge_newMax is _ge_curMax",
             "game-entity: levelUp does not increase max health"
         ),
         (
             "game-entity",
-            "if curCount is at least cap\n        return false",
-            "if curCount is at least cap\n        return true",
+            "if _ge_curCount is at least _ge_cap\n        return false",
+            "if _ge_curCount is at least _ge_cap\n        return true",
             "game-entity: addItemToInventory allows capacity overflow"
         ),
         (
             "game-entity",
-            "bonus is bonus plus itemPower of acc",
-            "bonus is bonus",
+            "_ge_bonus is _ge_bonus plus itemPower of _ge_acc",
+            "_ge_bonus is _ge_bonus",
             "game-entity: accessory bonus never applied"
         ),
         (

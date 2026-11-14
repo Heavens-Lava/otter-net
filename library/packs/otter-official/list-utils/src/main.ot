@@ -2,6 +2,7 @@
 # Provides hasItem, dedupeList, countMatches, joinWithPrefix,
 # removeItemFromList, findFirstMatch, sortList, reverseList,
 # calcListSum, and sliceList
+# Internal variables use '_lu_' prefix to prevent collisions with caller/outer variables.
 
 to hasItem items target
     if items contains target
@@ -11,90 +12,90 @@ to hasItem items target
 .
 
 to dedupeList items
-    result are empty
-    for each item in items
-        if not result contains item
-            add item to result
+    _lu_result are empty
+    for each _lu_it in items
+        if not _lu_result contains _lu_it
+            add _lu_it to _lu_result
         .
     .
-    return result
+    return _lu_result
 .
 
 to countMatches items target
-    totalMatches is 0
-    for each item in items
-        if item is target
-            totalMatches is totalMatches plus 1
+    _lu_matches is 0
+    for each _lu_it in items
+        if _lu_it is target
+            _lu_matches is _lu_matches plus 1
         .
     .
-    return totalMatches
+    return _lu_matches
 .
 
 to joinWithPrefix items prefix
-    result are empty
-    for each item in items
-        combined is prefix plus item
-        add combined to result
+    _lu_result are empty
+    for each _lu_it in items
+        _lu_combined is prefix plus _lu_it
+        add _lu_combined to _lu_result
     .
-    return result
+    return _lu_result
 .
 
 to removeItemFromList items target
-    result are empty
-    for each item in items
-        if item is not target
-            add item to result
+    _lu_result are empty
+    for each _lu_it in items
+        if _lu_it is not target
+            add _lu_it to _lu_result
         .
     .
-    return result
+    return _lu_result
 .
 
 to findFirstMatch items target
-    for each item in items
-        if item is target
-            return item
+    for each _lu_it in items
+        if _lu_it is target
+            return _lu_it
         .
     .
     return gone
 .
 
 to sortList items
-    copy are empty
-    for each item in items
-        add item to copy
+    _lu_copy are empty
+    for each _lu_it in items
+        add _lu_it to _lu_copy
     .
-    sort copy
-    return copy
+    sort _lu_copy
+    return _lu_copy
 .
 
 to reverseList items
-    copy are empty
-    for each item in items
-        add item to copy
+    _lu_copy are empty
+    for each _lu_it in items
+        add _lu_it to _lu_copy
     .
-    reverse copy
-    return copy
+    reverse _lu_copy
+    return _lu_copy
 .
 
 to calcListSum items
-    total is 0
-    for each item in items
-        total is total plus item
+    _lu_total is 0
+    for each _lu_it in items
+        _lu_total is _lu_total plus _lu_it
     .
-    return total
+    return _lu_total
 .
 
 to sliceList items startIndex countLimit
-    result are empty
-    idx is 1
-    endIdx is startIndex plus countLimit
-    for each item in items
-        if idx is at least startIndex
-            if idx is less than endIdx
-                add item to result
+    _lu_result are empty
+    _lu_idx is 1
+    _lu_endIdx is startIndex plus countLimit
+    for each _lu_it in items
+        if _lu_idx is at least startIndex
+            if _lu_idx is less than _lu_endIdx
+                add _lu_it to _lu_result
             .
         .
-        idx is idx plus 1
+        _lu_idx is _lu_idx plus 1
     .
-    return result
+    return _lu_result
 .

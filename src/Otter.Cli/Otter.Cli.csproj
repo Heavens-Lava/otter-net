@@ -16,4 +16,11 @@
     <ProjectReference Include="..\Otter.Web\Otter.Web.csproj" />
     <ProjectReference Include="..\Otter.Web.Hosting\Otter.Web.Hosting.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <Content Include="..\..\library\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <Link>library\%(RecursiveDir)%(Filename)%(Extension)</Link>
+    </Content>
+  </ItemGroup>
 </Project>

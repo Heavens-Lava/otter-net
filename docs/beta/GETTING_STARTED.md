@@ -93,7 +93,7 @@ This downloads the verified pack into `.otter/packages/` and pins its cryptograp
 
 Use the pack in your code (`src/main.ot`):
 ```otter
-use "../.otter/packages/otter-official/math-utils/1.0.0/src/main.ot"
+use "../.otter/packages/otter-official/math-utils/1.0.1/src/main.ot"
 
 # Use clamp from math-utils
 clampedValue is clamp 120 0 100

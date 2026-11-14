@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "name": "file-helpers",
   "publisher": "otter-official",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "kind": "pack",
   "description": "Safe file I/O and JSON storage utilities: readOrFallback, writeSafe, readJsonObject, and writeJsonObject.",
   "entry": "src/main.ot",

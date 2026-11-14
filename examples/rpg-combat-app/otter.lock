@@ -3,22 +3,22 @@
   "generatedBy": "otter-cli 1.0.1",
   "packages": {
     "otter-official/game-entity": {
-      "version": "1.0.0",
+      "version": "1.1.0",
       "entry": "src/main.ot",
-      "sha256": "c982e0f7a0b8e9d0d181b6494644137c8b3c1a20de63742be29a942eefce5731",
-      "installedAt": "2026-11-13T17:31:24.0249530Z"
+      "sha256": "530656c0df89dd6059e382fa307449ae2faf901ac013d89de0655ac89771960f",
+      "installedAt": "2026-11-14T03:19:54.4616330Z"
     },
     "otter-official/math-utils": {
-      "version": "1.0.0",
+      "version": "1.0.1",
       "entry": "src/main.ot",
-      "sha256": "ed399a531f8f4ea98825da2b8a8f20fc88c1f7f9d346217240986e7ab484012e",
-      "installedAt": "2026-11-13T17:05:16.5365080Z"
+      "sha256": "c483491f60681edb67201f3ebc61632867138a61d1a9f5d38fff00289d53b475",
+      "installedAt": "2026-11-14T03:19:54.5089440Z"
     },
     "otter-official/file-helpers": {
-      "version": "1.0.0",
+      "version": "1.0.1",
       "entry": "src/main.ot",
-      "sha256": "674a536682dbcc955e13844a34da448d28fd305a4b9dcc8fddc31038ee9d6f8b",
-      "installedAt": "2026-11-13T17:05:16.5792570Z"
+      "sha256": "b0fa72806dc970d56b9c8c7ac0635badf2d3fa56725a569048ccecad82399720",
+      "installedAt": "2026-11-14T03:19:54.5509660Z"
     }
   }
 }

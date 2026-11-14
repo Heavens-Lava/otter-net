@@ -50,12 +50,6 @@ $cmdLauncher = Join-Path $BinDir "otter.cmd"
 @echo off
 setlocal
 set "BIN_DIR=%~dp0"
-for %%I in ("%BIN_DIR%..") do set "OTTER_HOME=%%~fI"
-
-if not defined OTTER_LIBRARY_PATH (
-    if exist "%OTTER_HOME%\library" set "OTTER_LIBRARY_PATH=%OTTER_HOME%\library"
-    if exist "%BIN_DIR%library" set "OTTER_LIBRARY_PATH=%BIN_DIR%library"
-)
 
 dotnet "%BIN_DIR%otter.dll" %*
 "@ | Set-Content -Path $cmdLauncher -Encoding ASCII
@@ -63,14 +57,6 @@ dotnet "%BIN_DIR%otter.dll" %*
 $psLauncher = Join-Path $BinDir "otter.ps1"
 @"
 `$BinDir = Split-Path -Parent `$MyInvocation.MyCommand.Path
-`$OtterHome = Split-Path -Parent `$BinDir
-if (-not `$env:OTTER_LIBRARY_PATH) {
-    if (Test-Path (Join-Path `$OtterHome "library")) {
-        `$env:OTTER_LIBRARY_PATH = Join-Path `$OtterHome "library"
-    } elseif (Test-Path (Join-Path `$BinDir "library")) {
-        `$env:OTTER_LIBRARY_PATH = Join-Path `$BinDir "library"
-    }
-}
 & dotnet (Join-Path `$BinDir "otter.dll") `$args
 "@ | Set-Content -Path $psLauncher -Encoding ASCII
 

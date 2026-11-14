@@ -161,14 +161,14 @@ public sealed partial class Interpreter
             // person is a thing / jeff is a Person with name "Jeff"
             case ObjectDefStmt objectDef:
             {
-                // D45: `app has title "Hi"` sets a UI resource's properties.
-                if (scope.Has(objectDef.Name) && scope.Get(objectDef.Name) is UiResource resource)
+                if (scope.Has(objectDef.Name))
                 {
-                    SetUiProperties(resource, objectDef, scope);
-                    return;
-                }
-                if (scope.HasLocal(objectDef.Name))
-                {
+                    // D45: `app has title "Hi"` sets a UI resource's properties.
+                    if (scope.Get(objectDef.Name) is UiResource resource)
+                    {
+                        SetUiProperties(resource, objectDef, scope);
+                        return;
+                    }
                     throw RuntimeError($"Otter will not replace existing {Values.TypeName(scope.Get(objectDef.Name))} called \"{objectDef.Name}\" with a new thing.",
                         objectDef.Line, "Use a new name, or assign individual properties instead.");
                 }
@@ -182,7 +182,7 @@ public sealed partial class Interpreter
                 {
                     thing.WriteProperty(((VariableExpr)property.Target).Name, Evaluate(property.Value, scope));
                 }
-                scope.SetLocal(objectDef.Name, thing);
+                scope.Set(objectDef.Name, thing);
                 // The Otter Web runtime (opt-in): `site is a web server` declares a server.
                 if (WebHostFactory != null && string.Equals(objectDef.TypeName, WebServerType, StringComparison.OrdinalIgnoreCase))
                 {

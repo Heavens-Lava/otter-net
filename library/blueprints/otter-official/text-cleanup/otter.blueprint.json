@@ -7,7 +7,7 @@
   "targets": ["console", "desktop", "web"],
   "requiresOtter": ">=1.0.1",
   "packs": [
-    { "id": "otter-official/text-utils", "version": "1.0.0" }
+    { "id": "otter-official/text-utils", "version": "1.0.1" }
   ],
   "configuration": [
     {

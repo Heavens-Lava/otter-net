@@ -2,71 +2,72 @@
 # Provides repeatText, padLeft, padRight, slugify, toUpper, toLower,
 # isEqualIgnoreCase, isNonEmpty, replaceText, containsText, startsWithText,
 # endsWithText, splitText, joinText, and normalizeSpaces
+# Internal variables use '_tu_' prefix to prevent collisions with caller/outer variables.
 
 to repeatText src timesCount
     if timesCount is at most 0
         return ""
     .
-    result is ""
-    count from 1 to timesCount as idx
-        result is result plus src
+    _tu_result is ""
+    count from 1 to timesCount as _tu_idx
+        _tu_result is _tu_result plus src
     .
-    return result
+    return _tu_result
 .
 
 to padLeft text targetLen padChar
-    curLen is length of text
-    if curLen is at least targetLen
+    _tu_curLen is length of text
+    if _tu_curLen is at least targetLen
         return text
     .
-    needed is targetLen minus curLen
-    padding is repeatText padChar needed
-    return padding plus text
+    _tu_needed is targetLen minus _tu_curLen
+    _tu_padding is repeatText padChar _tu_needed
+    return _tu_padding plus text
 .
 
 to padRight text targetLen padChar
-    curLen is length of text
-    if curLen is at least targetLen
+    _tu_curLen is length of text
+    if _tu_curLen is at least targetLen
         return text
     .
-    needed is targetLen minus curLen
-    padding is repeatText padChar needed
-    return text plus padding
+    _tu_needed is targetLen minus _tu_curLen
+    _tu_padding is repeatText padChar _tu_needed
+    return text plus _tu_padding
 .
 
 to normalizeSpaces text
-    split text by " " into parts
-    valid are empty
-    for each p in parts
-        if length of p is greater than 0
-            add p to valid
+    split text by " " into _tu_parts
+    _tu_valid are empty
+    for each _tu_p in _tu_parts
+        if length of _tu_p is greater than 0
+            add _tu_p to _tu_valid
         .
     .
-    join valid with " " into trimmed
-    return trimmed
+    join _tu_valid with " " into _tu_trimmed
+    return _tu_trimmed
 .
 
 to slugify text
-    clean is lowercase of text
-    replace "." with "" in clean
-    replace "," with "" in clean
-    replace "!" with "" in clean
-    replace "?" with "" in clean
-    replace ":" with "" in clean
-    replace ";" with "" in clean
-    replace "(" with "" in clean
-    replace ")" with "" in clean
-    replace "[" with "" in clean
-    replace "]" with "" in clean
-    replace "{" with "" in clean
-    replace "}" with "" in clean
-    replace "_" with " " in clean
-    replace "/" with " " in clean
-    replace "\\" with " " in clean
-    replace "-" with " " in clean
-    norm is normalizeSpaces clean
-    replace " " with "-" in norm
-    return norm
+    _tu_clean is lowercase of text
+    replace "." with "" in _tu_clean
+    replace "," with "" in _tu_clean
+    replace "!" with "" in _tu_clean
+    replace "?" with "" in _tu_clean
+    replace ":" with "" in _tu_clean
+    replace ";" with "" in _tu_clean
+    replace "(" with "" in _tu_clean
+    replace ")" with "" in _tu_clean
+    replace "[" with "" in _tu_clean
+    replace "]" with "" in _tu_clean
+    replace "{" with "" in _tu_clean
+    replace "}" with "" in _tu_clean
+    replace "_" with " " in _tu_clean
+    replace "/" with " " in _tu_clean
+    replace "\\" with " " in _tu_clean
+    replace "-" with " " in _tu_clean
+    _tu_norm is normalizeSpaces _tu_clean
+    replace " " with "-" in _tu_norm
+    return _tu_norm
 .
 
 to toUpper text
@@ -78,9 +79,9 @@ to toLower text
 .
 
 to isEqualIgnoreCase left right
-    lLeft is lowercase of left
-    lRight is lowercase of right
-    if lLeft is lRight
+    _tu_lLeft is lowercase of left
+    _tu_lRight is lowercase of right
+    if _tu_lLeft is _tu_lRight
         return true
     .
     return false
@@ -97,9 +98,9 @@ to isNonEmpty text
 .
 
 to replaceText source findStr replaceStr
-    buf is source
-    replace findStr with replaceStr in buf
-    return buf
+    _tu_buf is source
+    replace findStr with replaceStr in _tu_buf
+    return _tu_buf
 .
 
 to containsText source searchStr
@@ -124,11 +125,11 @@ to endsWithText text suffix
 .
 
 to splitText text separator
-    split text by separator into parts
-    return parts
+    split text by separator into _tu_parts
+    return _tu_parts
 .
 
 to joinText parts separator
-    join parts with separator into result
-    return result
+    join parts with separator into _tu_result
+    return _tu_result
 .

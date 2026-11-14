@@ -7,7 +7,7 @@
   "targets": ["console"],
   "requiresOtter": ">=1.0.1",
   "packs": [
-    { "id": "otter-official/math-utils", "version": "1.0.0" }
+    { "id": "otter-official/math-utils", "version": "1.0.1" }
   ],
   "configuration": [
     {

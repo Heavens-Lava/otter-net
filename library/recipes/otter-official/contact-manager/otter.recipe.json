@@ -8,8 +8,8 @@
   "requiresOtter": ">=1.0.1",
   "capabilities": ["files", "ui"],
   "packs": [
-    { "id": "otter-official/file-helpers", "version": "1.0.0" },
-    { "id": "otter-official/text-utils", "version": "1.0.0" }
+    { "id": "otter-official/file-helpers", "version": "1.0.1" },
+    { "id": "otter-official/text-utils", "version": "1.0.1" }
   ],
   "configuration": [
     { "id": "companyBookName", "title": "Address Book Name", "type": "text", "default": "Team Directory", "description": "Header title for the contact directory" },

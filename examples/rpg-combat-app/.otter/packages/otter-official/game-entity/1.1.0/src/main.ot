@@ -1,0 +1,463 @@
+# game-entity - Otter Reusable Game Actor & Combat Library
+# Provides Actor, InventoryItem, Cooldown, Inventory, Equipment,
+# combat mechanics, leveling, inventory management, and state persistence
+# Internal variables use '_ge_' prefix to prevent collisions with caller/outer variables.
+
+a Actor has
+    name
+    health
+    maxHealth
+    level
+    isAlive
+    attackBonus
+    defenseBonus
+    experience
+.
+
+a InventoryItem has
+    itemName
+    itemKind
+    itemPower
+    isStackable
+    itemCount
+    maxStack
+.
+
+a Cooldown has
+    skillName
+    cooldownSeconds
+    lastUsedSeconds
+.
+
+a Inventory has
+    capacity
+    currentCount
+    items
+.
+
+a Equipment has
+    weapon
+    armor
+    accessory
+.
+
+to createActor name hp lvl
+    _ge_actor is a Actor
+    name of _ge_actor is name
+    health of _ge_actor is hp
+    maxHealth of _ge_actor is hp
+    level of _ge_actor is lvl
+    isAlive of _ge_actor is true
+    attackBonus of _ge_actor is 0
+    defenseBonus of _ge_actor is 0
+    experience of _ge_actor is 0
+    return _ge_actor
+.
+
+to createItem itemName itemKind itemPower
+    _ge_item is a InventoryItem
+    itemName of _ge_item is itemName
+    itemKind of _ge_item is itemKind
+    itemPower of _ge_item is itemPower
+    isStackable of _ge_item is false
+    itemCount of _ge_item is 1
+    maxStack of _ge_item is 1
+    return _ge_item
+.
+
+to createStackableItem itemName itemKind itemPower countVal maxStackVal
+    _ge_item is a InventoryItem
+    itemName of _ge_item is itemName
+    itemKind of _ge_item is itemKind
+    itemPower of _ge_item is itemPower
+    isStackable of _ge_item is true
+    itemCount of _ge_item is countVal
+    maxStack of _ge_item is maxStackVal
+    return _ge_item
+.
+
+to applyDamage actor amount
+    if amount is at most 0
+        return health of actor
+    .
+    _ge_cur is health of actor
+    _ge_newHp is _ge_cur minus amount
+    if _ge_newHp is at most 0
+        health of actor is 0
+        isAlive of actor is false
+        return 0
+    .
+    health of actor is _ge_newHp
+    return _ge_newHp
+.
+
+to restoreHealth actor amount
+    if isAlive of actor is false
+        return 0
+    .
+    _ge_cur is health of actor
+    _ge_maxHp is maxHealth of actor
+    _ge_newHp is _ge_cur plus amount
+    if _ge_newHp is greater than _ge_maxHp
+        health of actor is _ge_maxHp
+        return _ge_maxHp
+    .
+    health of actor is _ge_newHp
+    return _ge_newHp
+.
+
+to reviveActor actor hp
+    if hp is at most 0
+        return 0
+    .
+    isAlive of actor is true
+    _ge_maxHp is maxHealth of actor
+    _ge_newHp is hp
+    if _ge_newHp is greater than _ge_maxHp
+        _ge_newHp is _ge_maxHp
+    .
+    health of actor is _ge_newHp
+    return _ge_newHp
+.
+
+to levelUp actor
+    _ge_curLvl is level of actor
+    level of actor is _ge_curLvl plus 1
+    _ge_curMax is maxHealth of actor
+    _ge_newMax is _ge_curMax plus 25
+    maxHealth of actor is _ge_newMax
+    health of actor is _ge_newMax
+    attackBonus of actor is attackBonus of actor plus 5
+    defenseBonus of actor is defenseBonus of actor plus 3
+    return level of actor
+.
+
+to gainExperience actor amount neededPerLevel
+    if neededPerLevel is at most 0
+        return false
+    .
+    _ge_curExp is experience of actor
+    experience of actor is _ge_curExp plus amount
+    _ge_leveled is false
+    while experience of actor is at least neededPerLevel
+        levelUp actor
+        _ge_remExp is experience of actor minus neededPerLevel
+        experience of actor is _ge_remExp
+        _ge_leveled is true
+    .
+    return _ge_leveled
+.
+
+to createCooldown name cd
+    _ge_cdObj is a Cooldown
+    skillName of _ge_cdObj is name
+    cooldownSeconds of _ge_cdObj is cd
+    lastUsedSeconds of _ge_cdObj is 0 minus 9999
+    return _ge_cdObj
+.
+
+to isCooldownReady cooldownObj nowSeconds
+    _ge_last is lastUsedSeconds of cooldownObj
+    _ge_dur is cooldownSeconds of cooldownObj
+    _ge_elapsed is nowSeconds minus _ge_last
+    if _ge_elapsed is at least _ge_dur
+        return true
+    .
+    return false
+.
+
+to triggerCooldown cooldownObj nowSeconds
+    _ge_check is isCooldownReady cooldownObj nowSeconds
+    if _ge_check is true
+        lastUsedSeconds of cooldownObj is nowSeconds
+        return true
+    .
+    return false
+.
+
+to createInventory slots
+    _ge_inv is a Inventory
+    capacity of _ge_inv is slots
+    currentCount of _ge_inv is 0
+    _ge_empty are empty
+    items of _ge_inv is _ge_empty
+    return _ge_inv
+.
+
+to getInventoryCount inv
+    return currentCount of inv
+.
+
+to getInventoryCapacity inv
+    return capacity of inv
+.
+
+to findItemInInventory inv targetName
+    _ge_itemList is items of inv
+    for each _ge_it in _ge_itemList
+        if itemName of _ge_it is targetName
+            return _ge_it
+        .
+    .
+    return gone
+.
+
+to addItemToInventory inv item
+    _ge_curCount is currentCount of inv
+    _ge_cap is capacity of inv
+    
+    # Check if stackable with existing item
+    if isStackable of item is true
+        _ge_existing is findItemInInventory inv itemName of item
+        if _ge_existing is not gone
+            _ge_existingCount is itemCount of _ge_existing
+            _ge_addCount is itemCount of item
+            _ge_newCount is _ge_existingCount plus _ge_addCount
+            _ge_maxLimit is maxStack of _ge_existing
+            if _ge_newCount is at most _ge_maxLimit
+                itemCount of _ge_existing is _ge_newCount
+                return true
+            .
+        .
+    .
+
+    # Check capacity limit
+    if _ge_curCount is at least _ge_cap
+        return false
+    .
+
+    currentCount of inv is _ge_curCount plus 1
+    _ge_itemList is items of inv
+    add item to _ge_itemList
+    return true
+.
+
+to removeItemFromInventory inv targetName
+    _ge_itemList is items of inv
+    _ge_newItems are empty
+    _ge_removed is false
+    for each _ge_it in _ge_itemList
+        if not _ge_removed and itemName of _ge_it is targetName
+            _ge_removed is true
+        otherwise
+            add _ge_it to _ge_newItems
+        .
+    .
+    if _ge_removed is true
+        items of inv is _ge_newItems
+        currentCount of inv is currentCount of inv minus 1
+        return true
+    .
+    return false
+.
+
+to consumeItemFromInventory inv targetName amount
+    if amount is at most 0
+        return false
+    .
+    _ge_targetItem is findItemInInventory inv targetName
+    if _ge_targetItem is gone
+        return false
+    .
+    _ge_curQty is itemCount of _ge_targetItem
+    if _ge_curQty is less than amount
+        return false
+    .
+    _ge_remQty is _ge_curQty minus amount
+    if _ge_remQty is at most 0
+        removeItemFromInventory inv targetName
+    otherwise
+        itemCount of _ge_targetItem is _ge_remQty
+    .
+    return true
+.
+
+to createEquipment
+    _ge_newEq is a Equipment
+    weapon of _ge_newEq is gone
+    armor of _ge_newEq is gone
+    accessory of _ge_newEq is gone
+    return _ge_newEq
+.
+
+to equipItem equipment item
+    _ge_kind is itemKind of item
+    if _ge_kind is "weapon"
+        weapon of equipment is item
+        return true
+    .
+    if _ge_kind is "armor"
+        armor of equipment is item
+        return true
+    .
+    if _ge_kind is "accessory"
+        accessory of equipment is item
+        return true
+    .
+    if _ge_kind is "attack_accessory"
+        accessory of equipment is item
+        return true
+    .
+    if _ge_kind is "defense_accessory"
+        accessory of equipment is item
+        return true
+    .
+    return false
+.
+
+to unequipSlot equipment slotName
+    if slotName is "weapon"
+        _ge_prevW is weapon of equipment
+        weapon of equipment is gone
+        return _ge_prevW
+    .
+    if slotName is "armor"
+        _ge_prevA is armor of equipment
+        armor of equipment is gone
+        return _ge_prevA
+    .
+    if slotName is "accessory"
+        _ge_prevAcc is accessory of equipment
+        accessory of equipment is gone
+        return _ge_prevAcc
+    .
+    return gone
+.
+
+to getEquipmentAttackBonus equipment
+    _ge_bonus is 0
+    _ge_w is weapon of equipment
+    if _ge_w is not gone
+        _ge_bonus is _ge_bonus plus itemPower of _ge_w
+    .
+    _ge_acc is accessory of equipment
+    if _ge_acc is not gone
+        _ge_k is itemKind of _ge_acc
+        if _ge_k is "attack_accessory"
+            _ge_bonus is _ge_bonus plus itemPower of _ge_acc
+        otherwise if _ge_k is "accessory"
+            _ge_bonus is _ge_bonus plus itemPower of _ge_acc
+        .
+    .
+    return _ge_bonus
+.
+
+to getEquipmentDefenseBonus equipment
+    _ge_bonus is 0
+    _ge_arm is armor of equipment
+    if _ge_arm is not gone
+        _ge_bonus is _ge_bonus plus itemPower of _ge_arm
+    .
+    _ge_acc is accessory of equipment
+    if _ge_acc is not gone
+        _ge_k is itemKind of _ge_acc
+        if _ge_k is "defense_accessory"
+            _ge_bonus is _ge_bonus plus itemPower of _ge_acc
+        .
+    .
+    return _ge_bonus
+.
+
+to buildItemRecord it
+    _ge_itemData has
+        itemName is itemName of it
+        itemKind is itemKind of it
+        itemPower is itemPower of it
+        isStackable is isStackable of it
+        itemCount is itemCount of it
+        maxStack is maxStack of it
+    .
+    return _ge_itemData
+.
+
+to serializeGameState actor inv equip
+    _ge_rawItems are empty
+    for each _ge_it in items of inv
+        _ge_rec is buildItemRecord _ge_it
+        add _ge_rec to _ge_rawItems
+    .
+
+    _ge_equipData has
+        hasWeapon is false
+        hasArmor is false
+        hasAccessory is false
+    .
+    _ge_w is weapon of equip
+    if _ge_w is not gone
+        hasWeapon of _ge_equipData is true
+        weaponName of _ge_equipData is itemName of _ge_w
+        weaponPower of _ge_equipData is itemPower of _ge_w
+    .
+    _ge_arm is armor of equip
+    if _ge_arm is not gone
+        hasArmor of _ge_equipData is true
+        armorName of _ge_equipData is itemName of _ge_arm
+        armorPower of _ge_equipData is itemPower of _ge_arm
+    .
+    _ge_acc is accessory of equip
+    if _ge_acc is not gone
+        hasAccessory of _ge_equipData is true
+        accessoryName of _ge_equipData is itemName of _ge_acc
+        accessoryKind of _ge_equipData is itemKind of _ge_acc
+        accessoryPower of _ge_equipData is itemPower of _ge_acc
+    .
+
+    _ge_gameState has
+        name is name of actor
+        health is health of actor
+        maxHealth is maxHealth of actor
+        level is level of actor
+        isAlive is isAlive of actor
+        attackBonus is attackBonus of actor
+        defenseBonus is defenseBonus of actor
+        experience is experience of actor
+        inventoryCapacity is capacity of inv
+        inventoryCount is currentCount of inv
+        inventoryItems is _ge_rawItems
+        equipment is _ge_equipData
+    .
+    return _ge_gameState
+.
+
+to deserializeGameState stateData
+    # 1. Reconstruct Actor
+    _ge_restoredAct is createActor name of stateData health of stateData level of stateData
+    maxHealth of _ge_restoredAct is maxHealth of stateData
+    isAlive of _ge_restoredAct is isAlive of stateData
+    attackBonus of _ge_restoredAct is attackBonus of stateData
+    defenseBonus of _ge_restoredAct is defenseBonus of stateData
+    experience of _ge_restoredAct is experience of stateData
+
+    # 2. Reconstruct Inventory
+    _ge_restoredInv is createInventory inventoryCapacity of stateData
+    for each _ge_rawIt in inventoryItems of stateData
+        _ge_it is createItem itemName of _ge_rawIt itemKind of _ge_rawIt itemPower of _ge_rawIt
+        isStackable of _ge_it is isStackable of _ge_rawIt
+        itemCount of _ge_it is itemCount of _ge_rawIt
+        maxStack of _ge_it is maxStack of _ge_rawIt
+        addItemToInventory _ge_restoredInv _ge_it
+    .
+
+    # 3. Reconstruct Equipment
+    _ge_restoredEq is createEquipment
+    _ge_eqData is equipment of stateData
+    if hasWeapon of _ge_eqData is true
+        _ge_wItem is createItem weaponName of _ge_eqData "weapon" weaponPower of _ge_eqData
+        equipItem _ge_restoredEq _ge_wItem
+    .
+    if hasArmor of _ge_eqData is true
+        _ge_aItem is createItem armorName of _ge_eqData "armor" armorPower of _ge_eqData
+        equipItem _ge_restoredEq _ge_aItem
+    .
+    if hasAccessory of _ge_eqData is true
+        _ge_accObj is createItem accessoryName of _ge_eqData accessoryKind of _ge_eqData accessoryPower of _ge_eqData
+        equipItem _ge_restoredEq _ge_accObj
+    .
+
+    _ge_bundle has
+        actor is _ge_restoredAct
+        inventory is _ge_restoredInv
+        equipment is _ge_restoredEq
+    .
+    return _ge_bundle
+.

@@ -2,9 +2,9 @@
 # Consumes installed packs: file-helpers, text-utils, math-utils
 # Exposes REST API endpoints and serves live telemetry dashboard
 
-use "../.otter/packages/otter-official/file-helpers/1.0.0/src/main.ot"
-use "../.otter/packages/otter-official/text-utils/1.0.0/src/main.ot"
-use "../.otter/packages/otter-official/math-utils/1.0.0/src/main.ot"
+use "../.otter/packages/otter-official/file-helpers/1.0.1/src/main.ot"
+use "../.otter/packages/otter-official/text-utils/1.0.1/src/main.ot"
+use "../.otter/packages/otter-official/math-utils/1.0.1/src/main.ot"
 
 a ServiceRecord has
     name
@@ -17,14 +17,22 @@ a ServiceRecord has
     checks
 .
 
-to calculateHealthScore latencyMs uptime
-    # Health score from 0-100: penalize latency over 50ms, scale with uptime
-    baseScore is 100
+to calculateHealthScore latencyMs targetUptime
+    # Health score from 5-100:
+    # 1. Latency penalty: penalize latency over 50ms (1 pt per 2ms)
+    # 2. Uptime penalty: if target uptime < 99.9%, penalize (100 - uptime) * 10
+    score is 100
     if latencyMs is greater than 50
-        penalty is latencyMs minus 50
-        baseScore is baseScore minus penalty
+        latExcess is latencyMs minus 50
+        latPenalty is latExcess divided by 2
+        score is score minus latPenalty
     .
-    scoreClamped is clamp baseScore 10 100
+    if targetUptime is less than 99.9
+        upDeficit is 99.9 minus targetUptime
+        upPenalty is upDeficit times 10
+        score is score minus upPenalty
+    .
+    scoreClamped is clamp score 5 100
     return scoreClamped
 .
 
@@ -53,6 +61,15 @@ to buildServiceDict svc
         checks is checks of svc
     .
     return d
+.
+
+to findServiceBySlug services targetSlug
+    for each s in services
+        if slug of s is targetSlug
+            return s
+        .
+    .
+    return gone
 .
 
 to saveServicesList services filePath
@@ -180,8 +197,10 @@ to runSelfTest testDbPath
     say "=========================================================="
 .
 
-# Initialize default services if database is empty
+# Database storage path
 dbPath is "services_store.json"
+
+# Initialize default services if database is empty
 existing is loadServicesList dbPath
 if length of existing is 0
     initList are empty
@@ -229,24 +248,171 @@ when dashboardSite receives GET at "/api/services"
 
 when dashboardSite receives POST at "/api/services" into req
     bodyObj is a thing
-    convert body of req from json into bodyObj
-    rawName is name of bodyObj
-    rawPort is port of bodyObj
-    rawCat is category of bodyObj
-    rawUptime is targetUptime of bodyObj
+    try
+        convert body of req from json into bodyObj
+    otherwise
+        bodyObj is a thing
+    .
+    rawName is ""
+    try
+        rawName is name of bodyObj
+    otherwise
+        rawName is ""
+    .
+    rawPort is 0
+    try
+        rawPort is port of bodyObj plus 0
+    otherwise
+        rawPort is 0
+    .
+    rawCat is "api"
+    try
+        rawCat is category of bodyObj
+    otherwise
+        rawCat is "api"
+    .
+    rawUptime is 99.9
+    try
+        rawUptime is targetUptime of bodyObj
+    otherwise
+        rawUptime is 99.9
+    .
 
-    if rawName is "" or rawPort is 0
+    if rawName is gone or rawName is ""
         err has
-            error is "Validation failed: name and port are required"
+            error is "Validation failed: service name is required"
+        .
+        respond with err as json and status 400
+    otherwise if rawPort is less than 1 or rawPort is greater than 65535
+        err has
+            error is "Validation failed: port must be between 1 and 65535"
         .
         respond with err as json and status 400
     otherwise
-        newSvc is createServiceRecord rawName rawPort rawCat rawUptime
+        targetSlug is slugify rawName
         currentList is loadServicesList dbPath
-        add newSvc to currentList
-        saveServicesList currentList dbPath
-        respDict is buildServiceDict newSvc
-        respond with respDict as json and status 201
+        existingSvc is findServiceBySlug currentList targetSlug
+        if existingSvc is not gone
+            err has
+                error is "Duplicate service: a service with this name already exists"
+                slug is targetSlug
+            .
+            respond with err as json and status 409
+        otherwise
+            newSvc is createServiceRecord rawName rawPort rawCat rawUptime
+            add newSvc to currentList
+            saveServicesList currentList dbPath
+            respDict is buildServiceDict newSvc
+            respond with respDict as json and status 201
+        .
+    .
+.
+
+when dashboardSite receives PUT at "/api/services" into req
+    bodyObj is a thing
+    try
+        convert body of req from json into bodyObj
+    otherwise
+        bodyObj is a thing
+    .
+    targetSlug is ""
+    try
+        targetSlug is slug of bodyObj
+    otherwise
+        targetSlug is ""
+    .
+    newPort is 0
+    try
+        newPort is port of bodyObj plus 0
+    otherwise
+        newPort is 0
+    .
+    newCat is "api"
+    try
+        newCat is category of bodyObj
+    otherwise
+        newCat is "api"
+    .
+    newUptime is 99.9
+    try
+        newUptime is targetUptime of bodyObj
+    otherwise
+        newUptime is 99.9
+    .
+
+    if targetSlug is gone or targetSlug is ""
+        err has
+            error is "Validation failed: service slug is required for update"
+        .
+        respond with err as json and status 400
+    otherwise if newPort is less than 1 or newPort is greater than 65535
+        err has
+            error is "Validation failed: port must be between 1 and 65535"
+        .
+        respond with err as json and status 400
+    otherwise
+        svcs is loadServicesList dbPath
+        found is findServiceBySlug svcs targetSlug
+        if found is gone
+            err has
+                error is "Service not found"
+                slug is targetSlug
+            .
+            respond with err as json and status 404
+        otherwise
+            port of found is newPort
+            category of found is newCat
+            uptime of found is newUptime
+            healthScore of found is calculateHealthScore latencyMs of found newUptime
+            saveServicesList svcs dbPath
+            respDict is buildServiceDict found
+            respond with respDict as json and status 200
+        .
+    .
+.
+
+when dashboardSite receives DELETE at "/api/services" into req
+    bodyObj is a thing
+    try
+        convert body of req from json into bodyObj
+    otherwise
+        bodyObj is a thing
+    .
+    targetSlug is ""
+    try
+        targetSlug is slug of bodyObj
+    otherwise
+        targetSlug is ""
+    .
+
+    if targetSlug is gone or targetSlug is ""
+        err has
+            error is "Validation failed: service slug is required for deletion"
+        .
+        respond with err as json and status 400
+    otherwise
+        svcs is loadServicesList dbPath
+        found is findServiceBySlug svcs targetSlug
+        if found is gone
+            err has
+                error is "Service not found"
+                slug is targetSlug
+            .
+            respond with err as json and status 404
+        otherwise
+            remaining are empty
+            for each s in svcs
+                if slug of s is not targetSlug
+                    add s to remaining
+                .
+            .
+            saveServicesList remaining dbPath
+            delRes has
+                deleted is true
+                slug is targetSlug
+            .
+            respond with delRes as json and status 200
+        .
     .
 .
 
@@ -258,27 +424,55 @@ when dashboardSite receives GET at "/api/metrics"
 
 when dashboardSite receives POST at "/api/services/ping" into req
     bodyObj is a thing
-    convert body of req from json into bodyObj
-    targetSlug is slug of bodyObj
-    svcs is loadServicesList dbPath
-    updatedList are empty
-    pinged is false
-    for each s in svcs
-        if slug of s is targetSlug
-            curLat is latencyMs of s
-            bumpedLat is curLat plus 6
-            newLat is clamp bumpedLat 10 200
-            latencyMs of s is newLat
-            healthScore of s is calculateHealthScore newLat uptime of s
-            pinged is true
+    try
+        convert body of req from json into bodyObj
+    otherwise
+        bodyObj is a thing
+    .
+    targetSlug is ""
+    try
+        targetSlug is slug of bodyObj
+    otherwise
+        targetSlug is ""
+    .
+    realLat is 24
+    try
+        realLat is latencyMs of bodyObj plus 0
+    otherwise
+        realLat is 24
+    .
+    
+    if targetSlug is gone or targetSlug is ""
+        err has
+            error is "Validation failed: slug is required for ping"
         .
-        add s to updatedList
+        respond with err as json and status 400
+    otherwise
+        svcs is loadServicesList dbPath
+        found is findServiceBySlug svcs targetSlug
+        if found is gone
+            err has
+                error is "Service not found"
+                slug is targetSlug
+            .
+            respond with err as json and status 404
+        otherwise
+            latToRecord is 24
+            if realLat is not gone and realLat is greater than 0
+                latToRecord is realLat
+            .
+            latencyMs of found is latToRecord
+            healthScore of found is calculateHealthScore latToRecord uptime of found
+            checks of found is checks of found plus 1
+            saveServicesList svcs dbPath
+            pingRes has
+                success is true
+                slug is targetSlug
+                latencyMs is latToRecord
+                healthScore is healthScore of found
+                checks is checks of found
+            .
+            respond with pingRes as json and status 200
+        .
     .
-    if pinged is true
-        saveServicesList updatedList dbPath
-    .
-    resObj has
-        success is pinged
-    .
-    respond with resObj as json
 .

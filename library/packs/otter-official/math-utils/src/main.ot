@@ -1,39 +1,40 @@
 # math-utils - Otter Reusable Math Library
 # Provides clamp, lerp, mapRange, minVal, maxVal, calcAverage, calcSum, calcPercentage, roundVal, roundUpVal, roundDownVal
+# Internal variables use '_mu_' prefix to prevent collisions with caller/outer variables.
 
 to clamp value minLimit maxLimit
-    low is minLimit
-    high is maxLimit
-    if low is greater than high
-        temp is low
-        low is high
-        high is temp
+    _mu_low is minLimit
+    _mu_high is maxLimit
+    if _mu_low is greater than _mu_high
+        _mu_temp is _mu_low
+        _mu_low is _mu_high
+        _mu_high is _mu_temp
     .
-    if value is less than low
-        return low
+    if value is less than _mu_low
+        return _mu_low
     .
-    if value is greater than high
-        return high
+    if value is greater than _mu_high
+        return _mu_high
     .
     return value
 .
 
 to lerp startVal endVal t
-    diff is endVal minus startVal
-    offset is diff times t
-    return startVal plus offset
+    _mu_diff is endVal minus startVal
+    _mu_offset is _mu_diff times t
+    return startVal plus _mu_offset
 .
 
 to mapRange val inMin inMax outMin outMax
-    inSpan is inMax minus inMin
-    if inSpan is 0
+    _mu_inSpan is inMax minus inMin
+    if _mu_inSpan is 0
         return outMin
     .
-    outSpan is outMax minus outMin
-    valDelta is val minus inMin
-    fraction is valDelta divided by inSpan
-    scaled is fraction times outSpan
-    return outMin plus scaled
+    _mu_outSpan is outMax minus outMin
+    _mu_valDelta is val minus inMin
+    _mu_fraction is _mu_valDelta divided by _mu_inSpan
+    _mu_scaled is _mu_fraction times _mu_outSpan
+    return outMin plus _mu_scaled
 .
 
 to minVal left right
@@ -51,32 +52,32 @@ to maxVal left right
 .
 
 to calcAverage items
-    total is 0
-    count is 0
-    for each item in items
-        total is total plus item
-        count is count plus 1
+    _mu_total is 0
+    _mu_count is 0
+    for each _mu_it in items
+        _mu_total is _mu_total plus _mu_it
+        _mu_count is _mu_count plus 1
     .
-    if count is 0
+    if _mu_count is 0
         return 0
     .
-    return total divided by count
+    return _mu_total divided by _mu_count
 .
 
 to calcSum items
-    total is 0
-    for each item in items
-        total is total plus item
+    _mu_total is 0
+    for each _mu_it in items
+        _mu_total is _mu_total plus _mu_it
     .
-    return total
+    return _mu_total
 .
 
 to calcPercentage part whole
     if whole is 0
         return 0
     .
-    fraction is part divided by whole
-    return fraction times 100
+    _mu_fraction is part divided by whole
+    return _mu_fraction times 100
 .
 
 to roundVal val

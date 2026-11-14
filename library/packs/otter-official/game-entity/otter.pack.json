@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "name": "game-entity",
   "publisher": "otter-official",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "kind": "pack",
   "description": "Reusable entity and combat mechanics: Actor definition, damage calculation, healing, and level progression.",
   "entry": "src/main.ot",

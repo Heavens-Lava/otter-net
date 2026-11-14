@@ -1,0 +1,27 @@
+# Demonstrates the unavoidable lexical scope collision limitation in Otter 1.0.1.
+# Under the frozen 1.0.1 specification, all variable assignments inside a function
+# search the parent scope chain (D10 / OtterEnvironment.Set).
+# If a variable name exists in any enclosing scope, the function's assignment
+# silently mutates the caller's variable or crashes if an object definition is used.
+
+# 1. Unavoidable Object-Definition Collision
+# If a caller variable happens to match the internal name used for object instantiation:
+a Box has
+    val
+.
+
+to internalObjectFactory n
+    # Even if this variable name is prefixed or namespaced, if a caller
+    # shares the name, this statement causes a fatal runtime crash:
+    _factory_box is a Box
+    val of _factory_box is n
+    return _factory_box
+.
+
+# Caller has a variable named _factory_box:
+_factory_box is "caller_vital_data"
+
+# This call crashes with exit code 3:
+# "Otter will not replace existing string called "_factory_box" with a new thing."
+b is internalObjectFactory 42
+say "This line is unreachable under Otter 1.0.1 semantics"
