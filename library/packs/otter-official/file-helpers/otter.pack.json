@@ -1,15 +1,148 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "name": "file-helpers",
   "publisher": "otter-official",
   "version": "1.0.1",
   "kind": "pack",
-  "description": "Safe file I/O and JSON storage utilities: readOrFallback, writeSafe, readJsonObject, and writeJsonObject.",
+  "description": "Safe file I/O and JSON storage utilities: readOrFallback, writeSafe, appendSafe, deleteFileSafe, fileExistsSafe, toJsonSafe, fromJsonSafe, readJsonObject, readJsonObjectSafe, and writeJsonObject.",
   "entry": "src/main.ot",
   "license": "MIT",
-  "platforms": ["console", "desktop"],
-  "capabilities": ["files"],
+  "requiresOtter": ">=1.0.1",
+  "platforms": [
+    "console",
+    "desktop"
+  ],
+  "variablePrefix": "_fh_",
+  "provides": {
+    "capabilities": [
+      "persistence.filesystem",
+      "persistence.json"
+    ],
+    "operations": [
+      {
+        "name": "fileExistsSafe",
+        "description": "Checks whether a file exists safely on the filesystem.",
+        "parameters": [
+          { "name": "filePath", "type": "text" }
+        ],
+        "returns": { "type": "boolean" },
+        "sideEffects": ["filesystem:read"],
+        "errorMode": "returns-false"
+      },
+      {
+        "name": "readOrFallback",
+        "description": "Safely reads file content as text, or returns fallbackValue if file does not exist or read fails.",
+        "parameters": [
+          { "name": "filePath", "type": "text" },
+          { "name": "fallbackValue", "type": "any" }
+        ],
+        "returns": { "type": "any" },
+        "sideEffects": ["filesystem:read"],
+        "errorMode": "returns-fallback"
+      },
+      {
+        "name": "writeSafe",
+        "description": "Safely writes text content to filePath, returning true on success or false on failure.",
+        "parameters": [
+          { "name": "filePath", "type": "text" },
+          { "name": "content", "type": "any" }
+        ],
+        "returns": { "type": "boolean" },
+        "sideEffects": ["filesystem:write"],
+        "errorMode": "returns-false"
+      },
+      {
+        "name": "appendSafe",
+        "description": "Safely appends text content to filePath, returning true on success or false on failure.",
+        "parameters": [
+          { "name": "filePath", "type": "text" },
+          { "name": "content", "type": "any" }
+        ],
+        "returns": { "type": "boolean" },
+        "sideEffects": ["filesystem:write"],
+        "errorMode": "returns-false"
+      },
+      {
+        "name": "deleteFileSafe",
+        "description": "Safely deletes a file if it exists, returning true on success or false on failure.",
+        "parameters": [
+          { "name": "filePath", "type": "text" }
+        ],
+        "returns": { "type": "boolean" },
+        "sideEffects": ["filesystem:write"],
+        "errorMode": "returns-false"
+      },
+      {
+        "name": "toJsonSafe",
+        "description": "Converts an object or thing to JSON text, returning fallbackValue on serialization error.",
+        "parameters": [
+          { "name": "obj", "type": "any" },
+          { "name": "fallbackValue", "type": "any" }
+        ],
+        "returns": { "type": "text" },
+        "sideEffects": ["none"],
+        "errorMode": "returns-fallback"
+      },
+      {
+        "name": "fromJsonSafe",
+        "description": "Parses a JSON string into a thing object, returning fallbackValue on deserialization error.",
+        "parameters": [
+          { "name": "rawJson", "type": "text" },
+          { "name": "fallbackValue", "type": "any" }
+        ],
+        "returns": { "type": "thing" },
+        "sideEffects": ["none"],
+        "errorMode": "returns-fallback"
+      },
+      {
+        "name": "readJsonObject",
+        "description": "Reads a JSON file from disk into a thing object, returning gone if the file does not exist or fails to parse.",
+        "parameters": [
+          { "name": "filePath", "type": "text" }
+        ],
+        "returns": { "type": "thing", "nullable": true },
+        "sideEffects": ["filesystem:read"],
+        "errorMode": "returns-gone"
+      },
+      {
+        "name": "readJsonObjectSafe",
+        "description": "Reads a JSON file from disk into a thing object, returning fallbackValue if the file does not exist or fails to parse.",
+        "parameters": [
+          { "name": "filePath", "type": "text" },
+          { "name": "fallbackValue", "type": "any" }
+        ],
+        "returns": { "type": "thing" },
+        "sideEffects": ["filesystem:read"],
+        "errorMode": "returns-fallback"
+      },
+      {
+        "name": "writeJsonObject",
+        "description": "Serializes an object or thing to JSON and writes it to filePath on disk, returning true on success or false on failure.",
+        "parameters": [
+          { "name": "filePath", "type": "text" },
+          { "name": "obj", "type": "any" }
+        ],
+        "returns": { "type": "boolean" },
+        "sideEffects": ["filesystem:write"],
+        "errorMode": "returns-false"
+      }
+    ]
+  },
+  "requires": {
+    "capabilities": [],
+    "packages": {}
+  },
   "dependencies": {},
-  "tags": ["files", "io", "json", "storage", "read", "write", "persistence"],
-  "examples": ["examples/demo.ot"]
+  "tags": [
+    "files",
+    "io",
+    "json",
+    "storage",
+    "read",
+    "write",
+    "persistence"
+  ],
+  "examples": [
+    "examples/demo.ot"
+  ]
 }
