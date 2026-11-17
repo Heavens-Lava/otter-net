@@ -104,6 +104,30 @@
           "items": { "type": "string" }
         }
       }
+    },
+    "requestedCapabilities": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Capabilities identified from user intent"
+    },
+    "unresolvedLimitations": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Known platform, language or scoping limitations relevant to this plan"
+    },
+    "capabilityCoverage": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["capability", "status", "rationale"],
+        "properties": {
+          "capability": { "type": "string" },
+          "status": { "type": "string", "enum": ["implemented", "partially_supported", "unsupported"] },
+          "fulfilledBy": { "type": ["string", "null"] },
+          "rationale": { "type": "string" }
+        }
+      },
+      "description": "Explicit status reporting for every requested capability"
     }
   }
 }
