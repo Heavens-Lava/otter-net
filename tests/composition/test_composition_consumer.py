@@ -648,25 +648,56 @@ def main():
         # SAFETY TEST 7: Deterministic Failure Injection Rollback (Post-Commit)
         # =====================================================================
         print("\n" + "=" * 70)
-        print(" Safety Test 7: Deterministic Rollback After File Commit")
+        print(" Safety Test 7: Deterministic Rollback After File Commit & Pack Install")
         print("=" * 70)
 
         proj_inject1 = os.path.join(workspace, "proj_inject1")
         os.makedirs(proj_inject1, exist_ok=True)
 
+        # 1. Pre-existing original file
         existing_cfg1 = os.path.join(proj_inject1, "config.json")
         orig_cfg_bytes = b'{\n  "appName": "OriginalApp",\n  "status": "initial"\n}\n'
         with open(existing_cfg1, "wb") as f:
             f.write(orig_cfg_bytes)
         orig_cfg_hash = hashlib.sha256(orig_cfg_bytes).hexdigest()
 
-        existing_lock1 = os.path.join(proj_inject1, "otter.lock")
-        orig_lock_bytes = b'# Initial pre-existing lockfile\n{"version": 1}\n'
-        with open(existing_lock1, "wb") as f:
-            f.write(orig_lock_bytes)
-        orig_lock_hash = hashlib.sha256(orig_lock_bytes).hexdigest()
+        # 2. Pre-existing project manifest (otter.json)
+        existing_manifest1 = os.path.join(proj_inject1, "otter.json")
+        orig_manifest_bytes = b'{\n  "name": "my-project",\n  "version": "1.0.0"\n}\n'
+        with open(existing_manifest1, "wb") as f:
+            f.write(orig_manifest_bytes)
+        orig_manifest_hash = hashlib.sha256(orig_manifest_bytes).hexdigest()
 
-        # Multi-file proposal: file 1 commits, file 2 triggers failure injection!
+        # 3. Pre-existing project source file
+        existing_src1 = os.path.join(proj_inject1, "src", "existing_module.ot")
+        os.makedirs(os.path.dirname(existing_src1), exist_ok=True)
+        orig_src_bytes = b'say "pre-existing module untouched"\n'
+        with open(existing_src1, "wb") as f:
+            f.write(orig_src_bytes)
+        orig_src_hash = hashlib.sha256(orig_src_bytes).hexdigest()
+
+        # 4. Pre-install an existing dependency pack (math-utils)
+        pre_install1 = run_cmd([
+            otter_bin, "pack", "install", "otter-official/math-utils",
+            "--project", proj_inject1
+        ], cwd=workspace, env=clean_env)
+        assert pre_install1.returncode == 0, f"Pre-install failed: {pre_install1.stderr}"
+
+        # 5. Capture pre-existing lockfile hash
+        existing_lock1 = os.path.join(proj_inject1, "otter.lock")
+        assert os.path.exists(existing_lock1), "Expected otter.lock from pre-install"
+        orig_lock_hash = compute_sha256(existing_lock1)
+
+        # 6. Capture pre-existing dependency files hashes
+        orig_dep_main1 = os.path.join(proj_inject1, ".otter", "packages", "otter-official", "math-utils", "1.0.1", "src", "main.ot")
+        orig_dep_pack1 = os.path.join(proj_inject1, ".otter", "packages", "otter-official", "math-utils", "1.0.1", "otter.pack.json")
+        assert os.path.exists(orig_dep_main1), "Pre-installed pack main.ot missing"
+        assert os.path.exists(orig_dep_pack1), "Pre-installed pack otter.pack.json missing"
+        orig_dep_main_hash1 = compute_sha256(orig_dep_main1)
+        orig_dep_pack_hash1 = compute_sha256(orig_dep_pack1)
+
+        # Multi-file proposal with dependencies:
+        # Installs new pack (game-entity), modifies lockfile, commits file 1, and then fails on file 2!
         inject_prop = {
             "schemaVersion": 1,
             "proposalId": "prop-111ec710",
@@ -674,7 +705,7 @@ def main():
             "recommendedComponents": [],
             "compositionPlan": {
                 "target": "console",
-                "composedPacks": [],
+                "composedPacks": ["otter-official/game-entity"],
                 "composedBlueprints": [],
                 "connections": []
             },
@@ -712,19 +743,34 @@ def main():
         assert inj_res.returncode == 2, f"Expected failure (exit code 2), got {inj_res.returncode}"
         assert "[ROLLBACK]" in inj_res.stdout or "[ROLLBACK]" in inj_res.stderr, "Rollback message missing"
 
-        # Verify byte-for-byte restoration of config.json
+        # A. Verify byte-for-byte restoration of original files
         assert os.path.exists(existing_cfg1), "config.json was deleted during rollback!"
         assert compute_sha256(existing_cfg1) == orig_cfg_hash, "config.json was not restored byte-for-byte!"
 
-        # Verify byte-for-byte restoration of otter.lock
+        assert os.path.exists(existing_src1), "existing_module.ot was deleted during rollback!"
+        assert compute_sha256(existing_src1) == orig_src_hash, "existing_module.ot was not restored byte-for-byte!"
+
+        # B. Verify byte-for-byte restoration of project manifest (otter.json)
+        assert os.path.exists(existing_manifest1), "otter.json was deleted during rollback!"
+        assert compute_sha256(existing_manifest1) == orig_manifest_hash, "otter.json was not restored byte-for-byte!"
+
+        # C. Verify byte-for-byte restoration of lockfile (otter.lock)
         assert os.path.exists(existing_lock1), "otter.lock was deleted during rollback!"
-        assert compute_sha256(existing_lock1) == orig_lock_hash, "otter.lock was not restored byte-for-byte!"
+        assert compute_sha256(existing_lock1) == orig_lock_hash, "otter.lock was not restored byte-for-byte to pre-installation state!"
 
-        # Verify newly created file1.ot was completely deleted!
+        # D. Verify byte-for-byte preservation of pre-existing dependency files
+        assert os.path.exists(orig_dep_main1), "Pre-existing dependency file main.ot was removed or corrupted!"
+        assert compute_sha256(orig_dep_main1) == orig_dep_main_hash1, "Pre-existing dependency file changed byte content!"
+        assert os.path.exists(orig_dep_pack1), "Pre-existing dependency manifest was removed!"
+        assert compute_sha256(orig_dep_pack1) == orig_dep_pack_hash1, "Pre-existing dependency manifest changed byte content!"
+
+        # E. Verify newly created file1.ot was completely deleted!
         assert not os.path.exists(os.path.join(proj_inject1, "src", "file1.ot")), "Committed file1.ot was NOT deleted by rollback!"
-        assert not os.path.exists(os.path.join(proj_inject1, "src")), "Empty src directory was NOT cleaned up by rollback!"
 
-        # Verify no staging or backup directories remain
+        # F. Verify newly installed package (game-entity) was purged!
+        assert not os.path.exists(os.path.join(proj_inject1, ".otter", "packages", "otter-official", "game-entity")), "Newly installed package was NOT purged by rollback!"
+
+        # G. Verify no staging or backup directories remain
         otter_hidden = os.path.join(proj_inject1, ".otter")
         if os.path.exists(otter_hidden):
             for entry in os.listdir(otter_hidden):
@@ -732,9 +778,13 @@ def main():
                 assert not entry.startswith(".backups_"), f"Dangling backup directory found: {entry}"
 
         print(" [ACTUAL ROLLBACK PASS] Injected failure after file commit triggered atomic rollback.")
-        print(f" [BYTE-FOR-BYTE RESTORED] config.json SHA-256: {orig_cfg_hash}")
-        print(f" [BYTE-FOR-BYTE RESTORED] otter.lock  SHA-256: {orig_lock_hash}")
+        print(f" [BYTE-FOR-BYTE RESTORED] config.json        SHA-256: {orig_cfg_hash}")
+        print(f" [BYTE-FOR-BYTE RESTORED] otter.json         SHA-256: {orig_manifest_hash}")
+        print(f" [BYTE-FOR-BYTE RESTORED] otter.lock         SHA-256: {orig_lock_hash}")
+        print(f" [BYTE-FOR-BYTE RESTORED] existing_module.ot SHA-256: {orig_src_hash}")
+        print(f" [BYTE-FOR-BYTE PRESERVED] math-utils dep   SHA-256: {orig_dep_main_hash1}")
         print(" [PURGED COMMITTED FILE] Newly created src/file1.ot was cleanly deleted.")
+        print(" [PURGED INSTALLED PACK] Newly installed game-entity package was cleanly purged.")
 
         # =====================================================================
         # SAFETY TEST 8: Failure Injection Rollback After Pack Installation
@@ -746,11 +796,36 @@ def main():
         proj_inject2 = os.path.join(workspace, "proj_inject2")
         os.makedirs(proj_inject2, exist_ok=True)
 
+        # 1. Pre-existing settings file
         existing_cfg2 = os.path.join(proj_inject2, "settings.json")
         orig_settings_bytes = b'{\n  "version": "1.0-preexisting"\n}\n'
         with open(existing_cfg2, "wb") as f:
             f.write(orig_settings_bytes)
         orig_settings_hash = hashlib.sha256(orig_settings_bytes).hexdigest()
+
+        # 2. Pre-existing project manifest
+        existing_manifest2 = os.path.join(proj_inject2, "otter.json")
+        orig_manifest_bytes2 = b'{\n  "name": "settings-service",\n  "version": "2.1.0"\n}\n'
+        with open(existing_manifest2, "wb") as f:
+            f.write(orig_manifest_bytes2)
+        orig_manifest_hash2 = hashlib.sha256(orig_manifest_bytes2).hexdigest()
+
+        # 3. Pre-install existing dependency pack (text-utils)
+        pre_install2 = run_cmd([
+            otter_bin, "pack", "install", "otter-official/text-utils",
+            "--project", proj_inject2
+        ], cwd=workspace, env=clean_env)
+        assert pre_install2.returncode == 0, f"Pre-install failed: {pre_install2.stderr}"
+
+        # 4. Capture pre-existing lockfile hash
+        existing_lock2 = os.path.join(proj_inject2, "otter.lock")
+        assert os.path.exists(existing_lock2), "Expected otter.lock in proj_inject2"
+        orig_lock_hash2 = compute_sha256(existing_lock2)
+
+        # 5. Capture pre-existing dependency files
+        orig_dep_main2 = os.path.join(proj_inject2, ".otter", "packages", "otter-official", "text-utils", "1.0.1", "src", "main.ot")
+        assert os.path.exists(orig_dep_main2), "text-utils main.ot missing"
+        orig_dep_main_hash2 = compute_sha256(orig_dep_main2)
 
         # Proposal with dependencies: packs install first, then failure injected!
         pack_inj_env = clean_env.copy()
@@ -764,18 +839,41 @@ def main():
         assert pack_inj_res.returncode == 2, f"Expected failure (2), got {pack_inj_res.returncode}"
         assert "[ROLLBACK]" in pack_inj_res.stdout or "[ROLLBACK]" in pack_inj_res.stderr
 
-        # Verify settings.json restored byte-for-byte
+        # A. Verify settings.json restored byte-for-byte
         assert os.path.exists(existing_cfg2)
         assert compute_sha256(existing_cfg2) == orig_settings_hash
 
-        # Verify no newly created project source files remain
+        # B. Verify otter.json restored byte-for-byte
+        assert os.path.exists(existing_manifest2)
+        assert compute_sha256(existing_manifest2) == orig_manifest_hash2
+
+        # C. Verify otter.lock restored byte-for-byte to pre-installation state
+        assert os.path.exists(existing_lock2)
+        assert compute_sha256(existing_lock2) == orig_lock_hash2
+
+        # D. Verify pre-existing dependency files preserved byte-for-byte
+        assert os.path.exists(orig_dep_main2)
+        assert compute_sha256(orig_dep_main2) == orig_dep_main_hash2
+
+        # E. Verify no newly created project source files remain
         assert not os.path.exists(os.path.join(proj_inject2, "src", "game.ot"))
 
-        # Verify newly installed packages were purged
+        # F. Verify newly installed packages were purged
         assert not os.path.exists(os.path.join(proj_inject2, ".otter", "packages", "otter-official", "game-entity"))
 
+        # G. Verify no staging/backup directories remain
+        otter_hidden2 = os.path.join(proj_inject2, ".otter")
+        if os.path.exists(otter_hidden2):
+            for entry in os.listdir(otter_hidden2):
+                assert not entry.startswith(".staging_"), f"Dangling staging directory found: {entry}"
+                assert not entry.startswith(".backups_"), f"Dangling backup directory found: {entry}"
+
         print(" [PACK ROLLBACK PASS] Injected failure after pack install rolled back package directories cleanly.")
-        print(f" [BYTE-FOR-BYTE RESTORED] settings.json SHA-256: {orig_settings_hash}")
+        print(f" [BYTE-FOR-BYTE RESTORED] settings.json   SHA-256: {orig_settings_hash}")
+        print(f" [BYTE-FOR-BYTE RESTORED] otter.json      SHA-256: {orig_manifest_hash2}")
+        print(f" [BYTE-FOR-BYTE RESTORED] otter.lock      SHA-256: {orig_lock_hash2}")
+        print(f" [BYTE-FOR-BYTE PRESERVED] text-utils dep SHA-256: {orig_dep_main_hash2}")
+        print(" [PURGED NEW PACK] game-entity package directory was cleanly purged.")
 
         print("\n" + "=" * 75)
         print(" ALL 5 SCENARIOS & 8 SAFETY VALIDATION TESTS PASSED CLEANLY (100%)!")

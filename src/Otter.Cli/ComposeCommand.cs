@@ -1209,6 +1209,9 @@ internal static class ComposeCommand
         string lockPath = Path.Combine(fullTargetDir, "otter.lock");
         byte[]? lockBackupBytes = File.Exists(lockPath) ? File.ReadAllBytes(lockPath) : null;
 
+        string manifestPath = Path.Combine(fullTargetDir, "otter.json");
+        byte[]? manifestBackupBytes = File.Exists(manifestPath) ? File.ReadAllBytes(manifestPath) : null;
+
         // Snapshot pre-existing files
         foreach (var op in plannedFileOps)
         {
@@ -1241,6 +1244,24 @@ internal static class ComposeCommand
                 try { if (File.Exists(f)) File.Delete(f); } catch { }
             }
 
+            // 1b. Clean up any temporary sibling files (.tmp_<guid>)
+            foreach (var op in plannedFileOps)
+            {
+                try
+                {
+                    string? pDir = Path.GetDirectoryName(op.fullPath);
+                    if (!string.IsNullOrEmpty(pDir) && Directory.Exists(pDir))
+                    {
+                        string prefix = Path.GetFileName(op.fullPath) + ".tmp_";
+                        foreach (var tmp in Directory.GetFiles(pDir, prefix + "*"))
+                        {
+                            try { File.Delete(tmp); } catch { }
+                        }
+                    }
+                }
+                catch { }
+            }
+
             // 2. Restore all replaced files byte-for-byte from backup
             foreach (var (f, bytes) in preexistingBackups)
             {
@@ -1255,6 +1276,16 @@ internal static class ComposeCommand
             else if (File.Exists(lockPath))
             {
                 try { File.Delete(lockPath); } catch { }
+            }
+
+            // 3b. Restore project manifest (otter.json)
+            if (manifestBackupBytes != null)
+            {
+                try { File.WriteAllBytes(manifestPath, manifestBackupBytes); } catch { }
+            }
+            else if (File.Exists(manifestPath))
+            {
+                try { File.Delete(manifestPath); } catch { }
             }
 
             // 4. Remove newly installed pack directories
@@ -1326,6 +1357,21 @@ internal static class ComposeCommand
                 string pub = pparts.Length > 1 ? pparts[0] : "otter-official";
                 string pname = pparts.Length > 1 ? pparts[1] : pparts[0];
 
+                string installedVer = "1.0.0";
+                string? packManifest = LibraryCommands.FindPackManifest(packId);
+                if (packManifest != null && File.Exists(packManifest))
+                {
+                    try
+                    {
+                        var mNode = JsonNode.Parse(File.ReadAllText(packManifest));
+                        installedVer = mNode?["version"]?.ToString() ?? "1.0.0";
+                    }
+                    catch { }
+                }
+
+                string targetPackDir = Path.Combine(fullTargetDir, ".otter", "packages", pub, pname, installedVer);
+                bool wasAlreadyInstalled = Directory.Exists(targetPackDir);
+
                 int exitCode;
                 try
                 {
@@ -1349,18 +1395,10 @@ internal static class ComposeCommand
                     return Cli.ExitCheckError;
                 }
 
-                string installedVer = "1.0.0";
-                string? packManifest = LibraryCommands.FindPackManifest(packId);
-                if (packManifest != null && File.Exists(packManifest))
+                if (!wasAlreadyInstalled)
                 {
-                    try
-                    {
-                        var mNode = JsonNode.Parse(File.ReadAllText(packManifest));
-                        installedVer = mNode?["version"]?.ToString() ?? "1.0.0";
-                    }
-                    catch { }
+                    newlyInstalledPacks.Add((pub, pname, installedVer));
                 }
-                newlyInstalledPacks.Add((pub, pname, installedVer));
             }
 
             // Verify installed packs using native verifier
