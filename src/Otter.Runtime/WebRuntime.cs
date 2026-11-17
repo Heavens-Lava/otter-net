@@ -246,6 +246,15 @@ public sealed partial class Interpreter
         if (fallback != null && staticFolder == null)
             throw RuntimeError("A web server's fallback is a file in its static folder: set static too.", definition.Line);
         string? staticRoot = staticFolder == null ? null : StaticRoot(staticFolder, definition.Line);
+        // Templates are never served as files (§10).
+        string views = Path.Combine(Path.GetFullPath(WebRoot ?? Directory.GetCurrentDirectory()), "views");
+        if (staticRoot != null && Directory.Exists(views))
+        {
+            string viewsReal = OtterWebStatic.RealPath(views);
+            if (OtterWebStatic.IsInside(staticRoot, viewsReal) || OtterWebStatic.IsInside(viewsReal, staticRoot))
+                throw RuntimeError($"The web server's static folder \"{staticFolder}\" and the views folder overlap: templates are never served as files.", definition.Line,
+                    "Keep templates in views and public files in another folder, such as public.");
+        }
         string? fallbackFile = fallback == null ? null : FallbackFile(staticRoot!, fallback, definition.Line);
         var options = new OtterWebServerOptions(definition.Name, host, port, maxBody, WebAllowPublicBind) { StaticRoot = staticRoot, Fallback = fallbackFile };
         var server = new WebServer(this, thing, options, definition.Line);
@@ -362,6 +371,11 @@ public sealed partial class Interpreter
         {
             return ResponseFromObject(reply, respond.Line);
         }
+        // A `web template` (§10): the rendered page, with the respond's status.
+        if (!respond.AsJson && IsWebTemplate(value))
+        {
+            return new OtterWebResponse(status, HtmlType, RenderTemplate((OtterThing)value!, respond.Line));
+        }
         if (respond.AsJson)
         {
             string json;
@@ -383,7 +397,8 @@ public sealed partial class Interpreter
     OtterWebResponse ResponseFromObject(OtterThing reply, int line)
     {
         int status = 200;
-        string type = "text/plain; charset=utf-8";
+        string? type = null;
+        bool page = false;
         byte[] body = Array.Empty<byte>();
         string? location = null;
         var headers = new List<KeyValuePair<string, string>>();
@@ -402,8 +417,14 @@ public sealed partial class Interpreter
                     if (type.StartsWith("text/", StringComparison.OrdinalIgnoreCase) && !type.Contains("charset", StringComparison.OrdinalIgnoreCase)) type += "; charset=utf-8";
                     break;
                 case "body":
+                    if (IsWebTemplate(value))
+                    {
+                        body = RenderTemplate((OtterThing)value!, line);
+                        page = true;
+                        break;
+                    }
                     if (value is OtterThing or OtterList)
-                        throw RuntimeError("A web response's body must be text. For a thing or a list, use `respond with V as json`.", line);
+                        throw RuntimeError("A web response's body must be text or a web template. For a thing or a list, use `respond with V as json`.", line);
                     body = value == null ? Array.Empty<byte>() : Encoding.UTF8.GetBytes(Values.Format(value));
                     break;
                 case "location":
@@ -423,7 +444,51 @@ public sealed partial class Interpreter
         if (status is >= 300 and < 400 && location == null)
             throw RuntimeError($"A web response with status {status} (a redirect) needs a location.", line);
         if (location != null) headers.Add(new("Location", CheckLocation(location, line)));
-        return new OtterWebResponse(status, type, body, headers);
+        return new OtterWebResponse(status, type ?? (page ? HtmlType : "text/plain; charset=utf-8"), body, headers);
+    }
+
+    // ---- the web template object (§10, ADR WEB-003) ----
+
+    const string WebTemplateType = "web template";
+    const string HtmlType = "text/html; charset=utf-8";
+    OtterWebTemplates? webTemplates;
+
+    static bool IsWebTemplate(object? value) =>
+        value is OtterThing { TypeName: var typeName } && string.Equals(typeName, WebTemplateType, StringComparison.OrdinalIgnoreCase);
+
+    // `page is a web template` with `file` and `values`: the page, as UTF-8.
+    byte[] RenderTemplate(OtterThing page, int line)
+    {
+        string? file = null;
+        OtterThing values = new("thing");
+        foreach (string name in page.PropertyNames)
+        {
+            object? value = page.ReadProperty(name);
+            switch (name.ToLowerInvariant())
+            {
+                case "file":
+                    file = value as string ?? throw RuntimeError($"A web template's file must be text, such as \"views/page.html\", not {Values.Format(value)}.", line);
+                    break;
+                case "values":
+                    if (value is OtterThing thing) values = thing;
+                    else if (value != null) throw RuntimeError($"A web template's values must be a thing, not {Values.Format(value)}.", line,
+                        "Make one with `data has`, then `values is data`.");
+                    break;
+                default:
+                    throw RuntimeError($"A web template has no property called \"{name}\".", line, "Use file and values.");
+            }
+        }
+        if (file == null) throw RuntimeError("A web template needs a file, such as `file is \"views/page.html\"`.", line);
+        webTemplates ??= new OtterWebTemplates(WebLog);
+        try
+        {
+            string views = OtterWebTemplates.ViewsRoot(Path.GetFullPath(WebRoot ?? Directory.GetCurrentDirectory()));
+            return Encoding.UTF8.GetBytes(webTemplates.Render(views, OtterWebTemplates.ResolveFile(views, file), values));
+        }
+        catch (OtterWebTemplateProblem problem)
+        {
+            throw RuntimeError(problem.Message, line);
+        }
     }
 
     static bool HasLineBreak(string text) => text.AsSpan().IndexOfAny("\r\n\0") >= 0;

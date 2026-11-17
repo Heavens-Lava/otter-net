@@ -1,0 +1,13 @@
+{{> parts/header}}
+<p>Owner: {{owner.name}}</p>
+<ul>
+{{#each entries}}
+  <li class="entry"><b>{{name}}</b>: {{message}}{{#if starred}} <i>starred</i>{{else}} <i>plain</i>{{/if}} in {{title}}</li>
+{{/each}}
+</ul>
+{{#each tags}}<span>{{.}}</span>{{/each}}
+{{#if nothing}}<p>NOT-EMPTY</p>{{else}}<p>EMPTY-LIST</p>{{/if}}
+{{#if note}}<p>NOTE</p>{{else}}<p>NO-NOTE</p>{{/if}}
+{{#if missing}}<p>PRESENT</p>{{else}}<p>GONE-VALUE</p>{{/if}}
+<input type="checkbox" {{#if entries}} checked {{/if}}>
+{{> parts/footer}}
