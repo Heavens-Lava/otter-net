@@ -1233,18 +1233,54 @@ internal static class ComposeCommand
             }
         }
 
-        void Rollback()
+        var createdTmpFiles = new List<string>();
+        var rollbackErrors = new List<string>();
+        string? failureTrigger = Environment.GetEnvironmentVariable("OTTER_TEST_INJECT_FAILURE");
+
+        bool Rollback()
         {
+            rollbackErrors.Clear();
             Console.ForegroundColor = ConsoleColor.Yellow;
             Console.WriteLine("[ROLLBACK] Initiating compensating rollback to restore project state...");
 
             // 1. Delete all newly committed files
             foreach (var f in committedFiles)
             {
-                try { if (File.Exists(f)) File.Delete(f); } catch { }
+                try
+                {
+                    if (File.Exists(f))
+                    {
+                        File.Delete(f);
+                        if (File.Exists(f))
+                        {
+                            rollbackErrors.Add($"Failed to delete newly committed file: {f}");
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    rollbackErrors.Add($"Exception deleting newly committed file '{f}': {ex.Message}");
+                }
             }
 
-            // 1b. Clean up any temporary sibling files (.tmp_<guid>)
+            // 1b. Clean up all tracked temporary sibling files (.tmp_<guid>)
+            foreach (var tmp in createdTmpFiles)
+            {
+                try
+                {
+                    if (File.Exists(tmp))
+                    {
+                        File.Delete(tmp);
+                        if (File.Exists(tmp)) rollbackErrors.Add($"Failed to delete temporary sibling file: {tmp}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    rollbackErrors.Add($"Exception deleting temporary sibling file '{tmp}': {ex.Message}");
+                }
+            }
+
+            // Also sweep planned file destinations for any sibling temp files
             foreach (var op in plannedFileOps)
             {
                 try
@@ -1255,53 +1291,133 @@ internal static class ComposeCommand
                         string prefix = Path.GetFileName(op.fullPath) + ".tmp_";
                         foreach (var tmp in Directory.GetFiles(pDir, prefix + "*"))
                         {
-                            try { File.Delete(tmp); } catch { }
+                            try
+                            {
+                                File.Delete(tmp);
+                                if (File.Exists(tmp)) rollbackErrors.Add($"Failed to delete swept temporary file: {tmp}");
+                            }
+                            catch (Exception ex) { rollbackErrors.Add($"Exception deleting temporary sibling file '{tmp}': {ex.Message}"); }
                         }
                     }
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    rollbackErrors.Add($"Exception scanning for sibling temporary files near '{op.relPath}': {ex.Message}");
+                }
             }
 
             // 2. Restore all replaced files byte-for-byte from backup
             foreach (var (f, bytes) in preexistingBackups)
             {
-                try { File.WriteAllBytes(f, bytes); } catch { }
+                try
+                {
+                    File.WriteAllBytes(f, bytes);
+                    if (!File.Exists(f) || !File.ReadAllBytes(f).SequenceEqual(bytes))
+                    {
+                        rollbackErrors.Add($"Restoration verification failed for '{f}': content mismatch or file missing.");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    rollbackErrors.Add($"Exception restoring original file '{f}': {ex.Message}");
+                }
             }
 
             // 3. Restore otter.lock
-            if (lockBackupBytes != null)
+            try
             {
-                try { File.WriteAllBytes(lockPath, lockBackupBytes); } catch { }
+                if (lockBackupBytes != null)
+                {
+                    File.WriteAllBytes(lockPath, lockBackupBytes);
+                    if (!File.Exists(lockPath) || !File.ReadAllBytes(lockPath).SequenceEqual(lockBackupBytes))
+                    {
+                        rollbackErrors.Add("Restoration verification failed for 'otter.lock': content mismatch or file missing.");
+                    }
+                }
+                else if (File.Exists(lockPath))
+                {
+                    File.Delete(lockPath);
+                    if (File.Exists(lockPath))
+                    {
+                        rollbackErrors.Add("Failed to delete newly generated 'otter.lock'.");
+                    }
+                }
             }
-            else if (File.Exists(lockPath))
+            catch (Exception ex)
             {
-                try { File.Delete(lockPath); } catch { }
+                rollbackErrors.Add($"Exception restoring lockfile '{lockPath}': {ex.Message}");
             }
 
             // 3b. Restore project manifest (otter.json)
-            if (manifestBackupBytes != null)
+            try
             {
-                try { File.WriteAllBytes(manifestPath, manifestBackupBytes); } catch { }
+                if (manifestBackupBytes != null)
+                {
+                    File.WriteAllBytes(manifestPath, manifestBackupBytes);
+                    if (!File.Exists(manifestPath) || !File.ReadAllBytes(manifestPath).SequenceEqual(manifestBackupBytes))
+                    {
+                        rollbackErrors.Add("Restoration verification failed for 'otter.json': content mismatch or file missing.");
+                    }
+                }
+                else if (File.Exists(manifestPath))
+                {
+                    File.Delete(manifestPath);
+                    if (File.Exists(manifestPath))
+                    {
+                        rollbackErrors.Add("Failed to delete newly generated 'otter.json'.");
+                    }
+                }
             }
-            else if (File.Exists(manifestPath))
+            catch (Exception ex)
             {
-                try { File.Delete(manifestPath); } catch { }
+                rollbackErrors.Add($"Exception restoring manifest '{manifestPath}': {ex.Message}");
             }
 
             // 4. Remove newly installed pack directories
             foreach (var pkg in newlyInstalledPacks)
             {
-                string pkgDir = Path.Combine(fullTargetDir, ".otter", "packages", pkg.pub, pkg.name, pkg.ver);
-                try { if (Directory.Exists(pkgDir)) Directory.Delete(pkgDir, recursive: true); } catch { }
-                string pkgNameDir = Path.Combine(fullTargetDir, ".otter", "packages", pkg.pub, pkg.name);
-                try { if (Directory.Exists(pkgNameDir) && !Directory.EnumerateFileSystemEntries(pkgNameDir).Any()) Directory.Delete(pkgNameDir); } catch { }
-                string pubDir = Path.Combine(fullTargetDir, ".otter", "packages", pkg.pub);
-                try { if (Directory.Exists(pubDir) && !Directory.EnumerateFileSystemEntries(pubDir).Any()) Directory.Delete(pubDir); } catch { }
+                try
+                {
+                    string pkgDir = Path.Combine(fullTargetDir, ".otter", "packages", pkg.pub, pkg.name, pkg.ver);
+                    if (Directory.Exists(pkgDir))
+                    {
+                        Directory.Delete(pkgDir, recursive: true);
+                        if (Directory.Exists(pkgDir))
+                        {
+                            rollbackErrors.Add($"Failed to purge newly installed package directory '{pkgDir}'.");
+                        }
+                    }
+                    string pkgNameDir = Path.Combine(fullTargetDir, ".otter", "packages", pkg.pub, pkg.name);
+                    if (Directory.Exists(pkgNameDir) && !Directory.EnumerateFileSystemEntries(pkgNameDir).Any())
+                    {
+                        Directory.Delete(pkgNameDir);
+                    }
+                    string pubDir = Path.Combine(fullTargetDir, ".otter", "packages", pkg.pub);
+                    if (Directory.Exists(pubDir) && !Directory.EnumerateFileSystemEntries(pubDir).Any())
+                    {
+                        Directory.Delete(pubDir);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    rollbackErrors.Add($"Exception purging package '{pkg.pub}/{pkg.name}': {ex.Message}");
+                }
             }
 
             // 5. Clean up staging and backup directories
-            try { if (Directory.Exists(stagingDir)) Directory.Delete(stagingDir, recursive: true); } catch { }
-            try { if (Directory.Exists(backupDir)) Directory.Delete(backupDir, recursive: true); } catch { }
+            try
+            {
+                if (Directory.Exists(stagingDir)) Directory.Delete(stagingDir, recursive: true);
+                if (Directory.Exists(stagingDir)) rollbackErrors.Add($"Failed to delete staging directory '{stagingDir}'.");
+            }
+            catch (Exception ex) { rollbackErrors.Add($"Exception deleting staging directory '{stagingDir}': {ex.Message}"); }
+
+            try
+            {
+                if (Directory.Exists(backupDir)) Directory.Delete(backupDir, recursive: true);
+                if (Directory.Exists(backupDir)) rollbackErrors.Add($"Failed to delete backup directory '{backupDir}'.");
+            }
+            catch (Exception ex) { rollbackErrors.Add($"Exception deleting backup directory '{backupDir}': {ex.Message}"); }
 
             // 6. Remove newly created empty directories
             foreach (var d in createdDirs.OrderByDescending(x => x.Length))
@@ -1313,11 +1429,33 @@ internal static class ComposeCommand
                         Directory.Delete(d);
                     }
                 }
-                catch { }
+                catch { } // Ignore non-empty parent directories
             }
 
-            Console.WriteLine("[ROLLBACK] Project directory restored cleanly to original state.");
-            Console.ResetColor();
+            // Simulated failure in restoration to test diagnostic reporting
+            if (string.Equals(failureTrigger, "fail-restoration", StringComparison.OrdinalIgnoreCase))
+            {
+                rollbackErrors.Add("[FAILURE INJECTION] Simulated filesystem I/O error during rollback restoration.");
+            }
+
+            // Diagnostic reporting
+            if (rollbackErrors.Count > 0)
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.Error.WriteLine("[ROLLBACK INCOMPLETE] Rollback encountered failures and project may be in an inconsistent state:");
+                foreach (var err in rollbackErrors)
+                {
+                    Console.Error.WriteLine($"  - {err}");
+                }
+                Console.ResetColor();
+                return false;
+            }
+            else
+            {
+                Console.WriteLine("[ROLLBACK COMPLETE] Project directory restored cleanly and verified byte-for-byte.");
+                Console.ResetColor();
+                return true;
+            }
         }
 
         // Phase 1: Write all generated files to isolated staging directory
@@ -1344,7 +1482,6 @@ internal static class ComposeCommand
         // ---------------------------------------------------------------------
         // Stage 7: Phase A - Dependency Installation with Exit Code Check
         // ---------------------------------------------------------------------
-        string? failureTrigger = Environment.GetEnvironmentVariable("OTTER_TEST_INJECT_FAILURE");
 
         if (composedPacks != null && composedPacks.Count > 0)
         {
@@ -1444,7 +1581,8 @@ internal static class ComposeCommand
                     createdDirs.Add(parent);
                 }
 
-                if (failureTrigger == "post-first-commit" && committedCount >= 1)
+                if ((string.Equals(failureTrigger, "post-first-commit", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(failureTrigger, "fail-restoration", StringComparison.OrdinalIgnoreCase)) && committedCount >= 1)
                 {
                     throw new IOException("[FAILURE INJECTION] Simulated write error after committing first file.");
                 }
@@ -1452,6 +1590,12 @@ internal static class ComposeCommand
                 // Safe replacement via sibling temporary file and atomic rename
                 string tmpSibling = op.fullPath + $".tmp_{Guid.NewGuid():N}";
                 File.Copy(stagedFile, tmpSibling, overwrite: true);
+                createdTmpFiles.Add(tmpSibling);
+
+                if (string.Equals(failureTrigger, "fail-tmp-sibling", StringComparison.OrdinalIgnoreCase) && committedCount >= 1)
+                {
+                    throw new IOException("[FAILURE INJECTION] Simulated commit failure after temporary sibling created.");
+                }
 
                 if (op.exists)
                 {
@@ -1463,6 +1607,7 @@ internal static class ComposeCommand
                     File.Move(tmpSibling, op.fullPath, overwrite: false);
                     committedFiles.Add(op.fullPath);
                 }
+                createdTmpFiles.Remove(tmpSibling);
 
                 committedCount++;
                 Console.WriteLine($"  + Committed: {op.relPath}");

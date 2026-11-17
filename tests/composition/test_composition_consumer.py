@@ -875,8 +875,66 @@ def main():
         print(f" [BYTE-FOR-BYTE PRESERVED] text-utils dep SHA-256: {orig_dep_main_hash2}")
         print(" [PURGED NEW PACK] game-entity package directory was cleanly purged.")
 
+        # =====================================================================
+        # SAFETY TEST 9: Failed Temporary-File Commit & Sibling Cleanup
+        # =====================================================================
+        print("\n" + "=" * 70)
+        print(" Safety Test 9: Failed Temporary-File Commit & Sibling Cleanup")
+        print("=" * 70)
+
+        proj_inject3 = os.path.join(workspace, "proj_inject3")
+        os.makedirs(proj_inject3, exist_ok=True)
+
+        existing_cfg3 = os.path.join(proj_inject3, "app.json")
+        with open(existing_cfg3, "w") as f:
+            f.write('{"state": "unmodified"}')
+        orig_cfg3_hash = compute_sha256(existing_cfg3)
+
+        # Proposal with multi-file commit
+        tmp_fail_env = clean_env.copy()
+        tmp_fail_env["OTTER_TEST_INJECT_FAILURE"] = "fail-tmp-sibling"
+
+        tmp_fail_res = run_cmd([
+            otter_bin, "compose", "apply", inject_prop_path,
+            "--project", proj_inject3, "--yes"
+        ], cwd=workspace, env=tmp_fail_env)
+
+        assert tmp_fail_res.returncode == 2, f"Expected failure (2), got {tmp_fail_res.returncode}"
+        assert "[ROLLBACK COMPLETE]" in tmp_fail_res.stdout or "[ROLLBACK COMPLETE]" in tmp_fail_res.stderr
+
+        # Verify no .tmp_* sibling files remain anywhere in the project
+        for root, dirs, files in os.walk(proj_inject3):
+            for file in files:
+                assert not ".tmp_" in file, f"Dangling temporary sibling file found: {file}"
+
+        assert compute_sha256(existing_cfg3) == orig_cfg3_hash, "Existing app.json corrupted during sibling commit failure"
+        print(" [SIBLING COMMIT PASS] Injected failure during sibling file commit rolled back cleanly with zero dangling .tmp files.")
+
+        # =====================================================================
+        # SAFETY TEST 10: Failed Restoration Non-Silent Incomplete Diagnostics
+        # =====================================================================
+        print("\n" + "=" * 70)
+        print(" Safety Test 10: Failed Restoration Non-Silent Incomplete Diagnostics")
+        print("=" * 70)
+
+        proj_inject4 = os.path.join(workspace, "proj_inject4")
+        os.makedirs(proj_inject4, exist_ok=True)
+
+        restore_fail_env = clean_env.copy()
+        restore_fail_env["OTTER_TEST_INJECT_FAILURE"] = "fail-restoration"
+
+        restore_fail_res = run_cmd([
+            otter_bin, "compose", "apply", inject_prop_path,
+            "--project", proj_inject4, "--yes"
+        ], cwd=workspace, env=restore_fail_env)
+
+        assert restore_fail_res.returncode == 2, f"Expected CheckError (2), got {restore_fail_res.returncode}"
+        assert "[ROLLBACK INCOMPLETE]" in restore_fail_res.stderr or "[ROLLBACK INCOMPLETE]" in restore_fail_res.stdout
+        assert "Simulated filesystem I/O error during rollback restoration" in restore_fail_res.stderr or "Simulated filesystem I/O error during rollback restoration" in restore_fail_res.stdout
+        print(" [FAILED RESTORATION PASS] Rollback errors are NEVER silently ignored; explicit [ROLLBACK INCOMPLETE] diagnostic reported.")
+
         print("\n" + "=" * 75)
-        print(" ALL 5 SCENARIOS & 8 SAFETY VALIDATION TESTS PASSED CLEANLY (100%)!")
+        print(" ALL 5 SCENARIOS & 10 SAFETY VALIDATION TESTS PASSED CLEANLY (100%)!")
         print("=" * 75)
 
 if __name__ == "__main__":
