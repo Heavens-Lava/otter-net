@@ -320,7 +320,102 @@ def test_project_level_verification():
         assert len(items) == 1
         assert items[0]["contract"]["status"] == "VALID"
         assert items[0]["contract"]["operationsCount"] == 15
+        assert items[0]["contract"]["verificationScope"] == "structural_ast"
         print("  [PASS] Project-level contract verification verified.")
+
+def test_negative_parameter_name_mismatch():
+    print("--> Test 13: Negative - Parameter name mismatch with AST function...")
+    with tempfile.TemporaryDirectory(prefix="otter_test_neg_pname_") as tmpdir:
+        src_pack = os.path.join(REPO_ROOT, "library", "packs", "otter-official", "text-utils")
+        shutil.copytree(src_pack, os.path.join(tmpdir, "pack"))
+        pack_dir = os.path.join(tmpdir, "pack")
+        manifest_path = os.path.join(pack_dir, "otter.pack.json")
+        
+        # Modify repeatText parameter name in manifest from 'src' to 'wrongSourceParam'
+        with open(manifest_path, "r") as f:
+            manifest = json.load(f)
+        
+        for op in manifest["provides"]["operations"]:
+            if op["name"] == "repeatText":
+                op["parameters"][0]["name"] = "wrongSourceParam"
+                
+        with open(manifest_path, "w") as f:
+            json.dump(manifest, f, indent=2)
+            
+        res = run_otter(["pack", "verify", pack_dir, "--contracts"])
+        assert res.returncode == 2, f"Expected exit code 2, got {res.returncode}"
+        assert "PARAMETER_NAME_MISMATCH" in res.stdout
+        assert "wrongSourceParam" in res.stdout
+        assert "src" in res.stdout
+        print("  [PASS] Caught parameter name mismatch with actionable diagnostic.")
+
+def test_negative_misleading_contradictory_side_effects():
+    print("--> Test 14: Negative - Contradictory side-effects in contract...")
+    with tempfile.TemporaryDirectory(prefix="otter_test_neg_se_") as tmpdir:
+        src_pack = os.path.join(REPO_ROOT, "library", "packs", "otter-official", "text-utils")
+        shutil.copytree(src_pack, os.path.join(tmpdir, "pack"))
+        pack_dir = os.path.join(tmpdir, "pack")
+        manifest_path = os.path.join(pack_dir, "otter.pack.json")
+        
+        with open(manifest_path, "r") as f:
+            manifest = json.load(f)
+            
+        # Declare contradictory side effects: 'none' plus 'filesystem:write'
+        manifest["provides"]["operations"][0]["sideEffects"] = ["none", "filesystem:write"]
+        
+        with open(manifest_path, "w") as f:
+            json.dump(manifest, f, indent=2)
+            
+        res = run_otter(["pack", "verify", pack_dir, "--contracts"])
+        assert res.returncode == 2
+        assert "MISLEADING_CONTRACT" in res.stdout
+        assert "contradictory side-effect declarations" in res.stdout
+        print("  [PASS] Caught contradictory side-effect declarations.")
+
+def test_negative_misleading_error_mode_type_conflict():
+    print("--> Test 15: Negative - Misleading errorMode and return type conflict...")
+    with tempfile.TemporaryDirectory(prefix="otter_test_neg_errtype_") as tmpdir:
+        src_pack = os.path.join(REPO_ROOT, "library", "packs", "otter-official", "text-utils")
+        shutil.copytree(src_pack, os.path.join(tmpdir, "pack"))
+        pack_dir = os.path.join(tmpdir, "pack")
+        manifest_path = os.path.join(pack_dir, "otter.pack.json")
+        
+        with open(manifest_path, "r") as f:
+            manifest = json.load(f)
+            
+        # Declare repeatText returns 'number' but errorMode is 'returns-false'
+        manifest["provides"]["operations"][0]["returns"]["type"] = "number"
+        manifest["provides"]["operations"][0]["errorMode"] = "returns-false"
+        
+        with open(manifest_path, "w") as f:
+            json.dump(manifest, f, indent=2)
+            
+        res = run_otter(["pack", "verify", pack_dir, "--contracts"])
+        assert res.returncode == 2
+        assert "MISLEADING_CONTRACT" in res.stdout
+        assert "declares errorMode 'returns-false' but return type 'number'" in res.stdout
+        print("  [PASS] Caught misleading errorMode / return type conflict.")
+
+def test_structural_vs_behavioral_distinction():
+    print("--> Test 16: Verification scope distinguishes structural AST from behavioral claims...")
+    pack_dir = os.path.join(REPO_ROOT, "library", "packs", "otter-official", "text-utils")
+    
+    # Text output check
+    res = run_otter(["pack", "contract", pack_dir])
+    assert res.returncode == 0
+    assert "Validation Scope:   Structural AST" in res.stdout
+    assert "Behavioral Note:    Return types, side effects & error modes are declared" in res.stdout
+    
+    # JSON output check
+    json_res = run_otter(["pack", "verify", pack_dir, "--contracts", "--json"])
+    assert json_res.returncode == 0
+    data = json.loads(json_res.stdout)
+    contract = data["contract"]
+    assert contract["verificationScope"] == "structural_ast"
+    assert contract["behavioralVerification"] == "unproven_contract_specification"
+    assert "Declared return types, side effects, and error modes are machine-readable contract specifications" in contract["behavioralNote"]
+    assert "parameter_names" in contract["structuralChecks"]
+    print("  [PASS] Explicitly distinguished structural AST verification from behavioral specifications.")
 
 def main():
     print("======================================================================")
@@ -339,10 +434,15 @@ def main():
     test_negative_invalid_variable_prefix_format()
     test_backward_compatibility()
     test_project_level_verification()
+    test_negative_parameter_name_mismatch()
+    test_negative_misleading_contradictory_side_effects()
+    test_negative_misleading_error_mode_type_conflict()
+    test_structural_vs_behavioral_distinction()
     
     print("======================================================================")
-    print(" ALL 12 CONTRACT VERIFICATION TESTS PASSED (100%)")
+    print(" ALL 16 CONTRACT VERIFICATION TESTS PASSED (100%)")
     print("======================================================================")
 
 if __name__ == "__main__":
     main()
+

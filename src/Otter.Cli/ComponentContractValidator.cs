@@ -22,6 +22,18 @@ public class ContractValidationResult
     public int SchemaVersion { get; set; } = 1;
     public string? VariablePrefix { get; set; }
     public string PackDir { get; set; } = "";
+    public string VerificationScope { get; set; } = "structural_ast";
+    public string BehavioralVerification { get; set; } = "unproven_contract_specification";
+    public string BehavioralNote { get; set; } = "Declared return types, side effects, and error modes are machine-readable contract specifications for composition planning. They are not proven behavioral invariants.";
+    public List<string> StructuralChecks { get; } = new()
+    {
+        "manifest_schema",
+        "ast_export_existence",
+        "parameter_count",
+        "parameter_names",
+        "ast_dependency_declarations",
+        "variable_prefix_collision_mitigation"
+    };
     public List<ContractDiagnostic> Diagnostics { get; } = new();
     public List<string> ValidatedOperations { get; } = new();
 
@@ -59,6 +71,12 @@ public class ContractValidationResult
             opsArray.Add((JsonNode)JsonValue.Create(op)!);
         }
 
+        var checksArray = new JsonArray();
+        foreach (var check in StructuralChecks)
+        {
+            checksArray.Add((JsonNode)JsonValue.Create(check)!);
+        }
+
         return new JsonObject
         {
             ["pack"] = PackId,
@@ -66,6 +84,10 @@ public class ContractValidationResult
             ["schemaVersion"] = SchemaVersion,
             ["variablePrefix"] = VariablePrefix ?? "",
             ["status"] = IsValid ? "VALID" : "INVALID",
+            ["verificationScope"] = VerificationScope,
+            ["behavioralVerification"] = BehavioralVerification,
+            ["behavioralNote"] = BehavioralNote,
+            ["structuralChecks"] = checksArray,
             ["operationsCount"] = ValidatedOperations.Count,
             ["validatedOperations"] = opsArray,
             ["diagnostics"] = diagArray
@@ -341,6 +363,58 @@ public static class ComponentContractValidator
                 result.AddError("INVALID_ERROR_MODE", $"Unknown errorMode '{errorMode}' in operation '{opName}'. Allowed: {string.Join(", ", AllowedErrorModes)}.", manifestPath);
             }
 
+            // Misleading / contradictory contract declaration checks
+            if (sideEffectsList.Contains("none") && sideEffectsList.Count > 1)
+            {
+                var activeEffects = sideEffectsList.Where(s => !string.Equals(s, "none", StringComparison.OrdinalIgnoreCase));
+                result.AddError(
+                    "MISLEADING_CONTRACT",
+                    $"Operation '{opName}' has contradictory side-effect declarations: specifies 'none' alongside active side-effects ({string.Join(", ", activeEffects)}).",
+                    manifestPath,
+                    suggestion: "Remove 'none' if operation performs side effects, or remove active side effects."
+                );
+            }
+
+            if (string.Equals(errorMode, "returns-false", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(retType, "boolean", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(retType, "any", StringComparison.OrdinalIgnoreCase))
+            {
+                result.AddError(
+                    "MISLEADING_CONTRACT",
+                    $"Operation '{opName}' declares errorMode 'returns-false' but return type '{retType}'. Callers expecting {retType} will receive boolean false on failure, creating type dissonance.",
+                    manifestPath,
+                    suggestion: "Update return type to 'boolean' or 'any', or choose an errorMode consistent with the return type."
+                );
+            }
+
+            if (string.Equals(retType, "void", StringComparison.OrdinalIgnoreCase) &&
+                (string.Equals(errorMode, "returns-false", StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(errorMode, "returns-fallback", StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(errorMode, "returns-gone", StringComparison.OrdinalIgnoreCase)))
+            {
+                result.AddError(
+                    "MISLEADING_CONTRACT",
+                    $"Operation '{opName}' declares return type 'void' but errorMode '{errorMode}'. A void operation cannot return an error fallback value.",
+                    manifestPath,
+                    suggestion: "Change errorMode to 'throws-error' or declare an appropriate non-void return type."
+                );
+            }
+
+            // Check duplicate parameter names
+            var seenParamNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            for (int pi = 0; pi < paramList.Count; pi++)
+            {
+                if (!seenParamNames.Add(paramList[pi].Name))
+                {
+                    result.AddError(
+                        "DUPLICATE_PARAMETER_NAME",
+                        $"Operation '{opName}' declares duplicate parameter name '{paramList[pi].Name}'.",
+                        manifestPath,
+                        suggestion: "Ensure each parameter name in the contract is unique."
+                    );
+                }
+            }
+
             contractOps[opName] = (opDesc, paramList, retType, sideEffectsList, errorMode);
         }
 
@@ -456,7 +530,28 @@ public static class ComponentContractValidator
             }
             else
             {
-                result.ValidatedOperations.Add(opName);
+                bool namesMatch = true;
+                for (int pi = 0; pi < declaredParamCount; pi++)
+                {
+                    string declaredName = opContract.Params[pi].Name;
+                    string actualName = fn.Parameters[pi];
+                    if (!string.Equals(declaredName, actualName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        namesMatch = false;
+                        result.AddError(
+                            "PARAMETER_NAME_MISMATCH",
+                            $"Operation '{opName}' parameter {pi + 1} is declared as '{declaredName}' in contract, but AST function defines '{actualName}' in '{entry}'.",
+                            entryPath,
+                            fn.Line,
+                            suggestion: $"Rename parameter in '{entry}' to '{declaredName}' or update otter.pack.json"
+                        );
+                    }
+                }
+
+                if (namesMatch)
+                {
+                    result.ValidatedOperations.Add(opName);
+                }
             }
         }
 

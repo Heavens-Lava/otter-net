@@ -1272,6 +1272,8 @@ internal static class LibraryCommands
             if (contractResult.IsValid)
             {
                 Console.WriteLine($"  Contract: [OK] ({contractResult.ValidatedOperations.Count} operations verified)");
+                Console.WriteLine($"    Validation Scope: Structural AST (AST export existence, parameter names & counts, AST dependencies, prefix collision)");
+                Console.WriteLine($"    Behavioral Note:  Return types, side effects & error modes are declared specifications, unverified at runtime.");
                 foreach (var op in contractResult.ValidatedOperations)
                 {
                     Console.WriteLine($"    ✓ {op}");
@@ -1322,7 +1324,10 @@ internal static class LibraryCommands
 
         Console.WriteLine($"======================================================================");
         Console.WriteLine($" Component Contract: {result.PackId} v{result.Version} (Schema v{result.SchemaVersion})");
-        Console.WriteLine($" Status:          {(result.IsValid ? "VALID" : "INVALID")}");
+        Console.WriteLine($" Status:             {(result.IsValid ? "VALID" : "INVALID")}");
+        Console.WriteLine($" Validation Scope:   Structural AST (AST exports, parameter names & arity matched)");
+        Console.WriteLine($" Behavioral Note:    Return types, side effects & error modes are declared");
+        Console.WriteLine($"                     specifications for planning; unverified at runtime.");
         Console.WriteLine($" Variable Prefix: {result.VariablePrefix ?? "(none declared)"}");
         if (manifest?["provides"]?["capabilities"] is JsonArray caps && caps.Count > 0)
         {
@@ -1494,6 +1499,7 @@ internal static class LibraryCommands
                 if (cStatus == "VALID")
                 {
                     Console.WriteLine($"    Contract: [OK] ({opCount} operations verified)");
+                    Console.WriteLine($"      Notice: Structural AST verified; return types, side effects & error modes are unverified specifications.");
                 }
                 else
                 {
