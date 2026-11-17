@@ -1,0 +1,21 @@
+site is a web server
+    port is 8080
+.
+when site receives POST at "/sign" into req
+    entry is form of req
+    get "name" from entry into name
+    if name is gone
+        respond with "name is required" as json and status 400
+    .
+    all is forms of req
+.
+when site receives GET at "/" into req
+    data has
+        title is "Guestbook"
+    .
+    page is a web template
+        file is "views/guestbook.html"
+        values is data
+    .
+    respond with page
+.
