@@ -218,7 +218,7 @@ jobs:
           echo "Without PowerShell: $((count - failed)) of $count programs ran natively" | tee -a "$GITHUB_STEP_SUMMARY"
           [ "$failed" -eq 0 ]
       - name: PowerShell 7, for the test tools
-        run: dotnet tool install --global PowerShell
+        run: dotnet tool install --global PowerShell --version 7.4.6
       - name: Oldest C library the executable needs
         run: objdump -T artifacts/${{ matrix.rid }}/otter | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1 | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Capture output of tests/compat

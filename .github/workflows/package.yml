@@ -314,7 +314,7 @@ jobs:
           curl -sSL https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 10.0 --install-dir "$DOTNET_ROOT"
           echo "$DOTNET_ROOT" >> "$GITHUB_PATH"
           echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
-          "$DOTNET_ROOT/dotnet" tool install --global PowerShell
+          "$DOTNET_ROOT/dotnet" tool install --global PowerShell --version 7.4.6
       - uses: actions/checkout@v4
       - id: version
         run: echo "version=$(tr -d ' \r\n' < VERSION)" >> "$GITHUB_OUTPUT"
