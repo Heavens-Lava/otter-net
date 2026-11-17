@@ -1,15 +1,204 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "name": "text-utils",
   "publisher": "otter-official",
   "version": "1.0.1",
   "kind": "pack",
-  "description": "Essential string and text formatting utilities: padLeft, padRight, repeatText, and slugify.",
+  "description": "Essential string and text formatting utilities: repeatText, padLeft, padRight, normalizeSpaces, slugify, toUpper, toLower, isEqualIgnoreCase, isNonEmpty, replaceText, containsText, startsWithText, endsWithText, splitText, and joinText.",
   "entry": "src/main.ot",
   "license": "MIT",
-  "platforms": ["console", "desktop", "web"],
-  "capabilities": [],
-  "dependencies": {},
-  "tags": ["text", "string", "slugify", "padding", "repeat", "format"],
-  "examples": ["examples/demo.ot"]
+  "requiresOtter": ">=1.0.1",
+  "platforms": [
+    "console",
+    "desktop",
+    "web"
+  ],
+  "variablePrefix": "_tu_",
+  "provides": {
+    "capabilities": [
+      "text.formatting",
+      "text.manipulation",
+      "text.search"
+    ],
+    "operations": [
+      {
+        "name": "repeatText",
+        "description": "Repeats a source string timesCount times.",
+        "parameters": [
+          { "name": "src", "type": "text" },
+          { "name": "timesCount", "type": "number" }
+        ],
+        "returns": { "type": "text" },
+        "sideEffects": ["none"],
+        "errorMode": "returns-fallback"
+      },
+      {
+        "name": "padLeft",
+        "description": "Pads text on the left with padChar until reaching targetLen.",
+        "parameters": [
+          { "name": "text", "type": "text" },
+          { "name": "targetLen", "type": "number" },
+          { "name": "padChar", "type": "text" }
+        ],
+        "returns": { "type": "text" },
+        "sideEffects": ["none"],
+        "errorMode": "returns-fallback"
+      },
+      {
+        "name": "padRight",
+        "description": "Pads text on the right with padChar until reaching targetLen.",
+        "parameters": [
+          { "name": "text", "type": "text" },
+          { "name": "targetLen", "type": "number" },
+          { "name": "padChar", "type": "text" }
+        ],
+        "returns": { "type": "text" },
+        "sideEffects": ["none"],
+        "errorMode": "returns-fallback"
+      },
+      {
+        "name": "normalizeSpaces",
+        "description": "Collapses multiple consecutive whitespace characters and trims boundaries.",
+        "parameters": [
+          { "name": "text", "type": "text" }
+        ],
+        "returns": { "type": "text" },
+        "sideEffects": ["none"],
+        "errorMode": "returns-fallback"
+      },
+      {
+        "name": "slugify",
+        "description": "Converts string to lowercase ASCII kebab-case URL slug.",
+        "parameters": [
+          { "name": "text", "type": "text" }
+        ],
+        "returns": { "type": "text" },
+        "sideEffects": ["none"],
+        "errorMode": "returns-fallback"
+      },
+      {
+        "name": "toUpper",
+        "description": "Converts string characters to uppercase.",
+        "parameters": [
+          { "name": "text", "type": "text" }
+        ],
+        "returns": { "type": "text" },
+        "sideEffects": ["none"],
+        "errorMode": "returns-fallback"
+      },
+      {
+        "name": "toLower",
+        "description": "Converts string characters to lowercase.",
+        "parameters": [
+          { "name": "text", "type": "text" }
+        ],
+        "returns": { "type": "text" },
+        "sideEffects": ["none"],
+        "errorMode": "returns-fallback"
+      },
+      {
+        "name": "isEqualIgnoreCase",
+        "description": "Performs case-insensitive equality comparison between two strings.",
+        "parameters": [
+          { "name": "left", "type": "text" },
+          { "name": "right", "type": "text" }
+        ],
+        "returns": { "type": "boolean" },
+        "sideEffects": ["none"],
+        "errorMode": "returns-false"
+      },
+      {
+        "name": "isNonEmpty",
+        "description": "Checks whether text is defined and contains at least one character.",
+        "parameters": [
+          { "name": "text", "type": "any" }
+        ],
+        "returns": { "type": "boolean" },
+        "sideEffects": ["none"],
+        "errorMode": "returns-false"
+      },
+      {
+        "name": "replaceText",
+        "description": "Replaces all occurrences of findStr with replaceStr in source.",
+        "parameters": [
+          { "name": "source", "type": "text" },
+          { "name": "findStr", "type": "text" },
+          { "name": "replaceStr", "type": "text" }
+        ],
+        "returns": { "type": "text" },
+        "sideEffects": ["none"],
+        "errorMode": "returns-fallback"
+      },
+      {
+        "name": "containsText",
+        "description": "Checks whether source string contains searchStr substring.",
+        "parameters": [
+          { "name": "source", "type": "text" },
+          { "name": "searchStr", "type": "text" }
+        ],
+        "returns": { "type": "boolean" },
+        "sideEffects": ["none"],
+        "errorMode": "returns-false"
+      },
+      {
+        "name": "startsWithText",
+        "description": "Checks whether text begins with prefix substring.",
+        "parameters": [
+          { "name": "text", "type": "text" },
+          { "name": "prefix", "type": "text" }
+        ],
+        "returns": { "type": "boolean" },
+        "sideEffects": ["none"],
+        "errorMode": "returns-false"
+      },
+      {
+        "name": "endsWithText",
+        "description": "Checks whether text finishes with suffix substring.",
+        "parameters": [
+          { "name": "text", "type": "text" },
+          { "name": "suffix", "type": "text" }
+        ],
+        "returns": { "type": "boolean" },
+        "sideEffects": ["none"],
+        "errorMode": "returns-false"
+      },
+      {
+        "name": "splitText",
+        "description": "Splits text by separator into a list of substrings.",
+        "parameters": [
+          { "name": "text", "type": "text" },
+          { "name": "separator", "type": "text" }
+        ],
+        "returns": { "type": "list" },
+        "sideEffects": ["none"],
+        "errorMode": "returns-fallback"
+      },
+      {
+        "name": "joinText",
+        "description": "Joins list elements into a single string separated by separator.",
+        "parameters": [
+          { "name": "parts", "type": "list" },
+          { "name": "separator", "type": "text" }
+        ],
+        "returns": { "type": "text" },
+        "sideEffects": ["none"],
+        "errorMode": "returns-fallback"
+      }
+    ]
+  },
+  "requires": {
+    "capabilities": [],
+    "packages": {}
+  },
+  "tags": [
+    "text",
+    "string",
+    "slugify",
+    "padding",
+    "repeat",
+    "format"
+  ],
+  "examples": [
+    "examples/demo.ot"
+  ]
 }

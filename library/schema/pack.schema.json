@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "OtterPackageManifest",
-  "description": "Manifest schema for Otter Reusable Source Packs (RFC Section 5)",
+  "description": "Manifest schema for Otter Reusable Source Packs (RFC Section 5 and Phase 11)",
   "type": "object",
   "required": [
     "schemaVersion",
@@ -16,8 +16,8 @@
   "properties": {
     "schemaVersion": {
       "type": "integer",
-      "enum": [1],
-      "description": "Schema version of this manifest"
+      "enum": [1, 2],
+      "description": "Schema version of this manifest (1 for standard manifests, 2 for component contracts)"
     },
     "name": {
       "type": "string",
@@ -36,7 +36,7 @@
     },
     "kind": {
       "type": "string",
-      "enum": ["pack", "kit"],
+      "enum": ["pack", "kit", "blueprint", "recipe"],
       "description": "Distribution kind"
     },
     "description": {
@@ -52,6 +52,10 @@
       "type": "string",
       "description": "SPDX identifier or package license note"
     },
+    "requiresOtter": {
+      "type": "string",
+      "description": "Semver constraint on Otter runtime (e.g. ^1.0.1, >=1.0.1)"
+    },
     "platforms": {
       "type": "array",
       "items": {
@@ -60,11 +64,15 @@
       },
       "default": ["console"]
     },
+    "variablePrefix": {
+      "type": "string",
+      "pattern": "^_[a-z0-9]{2,4}_$",
+      "description": "Namespace prefix for internal variables to mitigate caller-scope collisions in Otter 1.0.1"
+    },
     "capabilities": {
       "type": "array",
       "items": {
-        "type": "string",
-        "enum": ["files", "network", "ui", "database", "crypto", "process"]
+        "type": "string"
       },
       "default": []
     },
@@ -74,6 +82,105 @@
         "type": "string"
       },
       "default": {}
+    },
+    "provides": {
+      "type": "object",
+      "description": "Machine-readable contract of provided operations, capabilities, and types",
+      "properties": {
+        "capabilities": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "operations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "description", "parameters", "returns", "sideEffects", "errorMode"],
+            "properties": {
+              "name": { "type": "string" },
+              "description": { "type": "string" },
+              "parameters": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["name", "type"],
+                  "properties": {
+                    "name": { "type": "string" },
+                    "type": { "type": "string", "enum": ["text", "number", "boolean", "list", "thing", "any", "object"] },
+                    "objectType": { "type": "string" },
+                    "optional": { "type": "boolean", "default": false },
+                    "default": { "type": ["string", "number", "boolean", "null"] }
+                  }
+                }
+              },
+              "returns": {
+                "type": "object",
+                "required": ["type"],
+                "properties": {
+                  "type": { "type": "string", "enum": ["text", "number", "boolean", "list", "thing", "any", "object", "void"] },
+                  "objectType": { "type": "string" },
+                  "nullable": { "type": "boolean", "default": false }
+                }
+              },
+              "sideEffects": {
+                "type": "array",
+                "items": { "type": "string", "enum": ["none", "filesystem:read", "filesystem:write", "network:http", "console:output", "state:mutation"] }
+              },
+              "errorMode": {
+                "type": "string",
+                "enum": ["returns-gone", "returns-false", "returns-fallback", "throws-error"]
+              }
+            }
+          }
+        },
+        "types": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "fields"],
+            "properties": {
+              "name": { "type": "string" },
+              "fields": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["name", "type"],
+                  "properties": {
+                    "name": { "type": "string" },
+                    "type": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "requires": {
+      "type": "object",
+      "description": "Dependencies, runtime services, and host capabilities required",
+      "properties": {
+        "capabilities": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "packages": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        }
+      }
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["operation", "inputFixture", "expectedOutput"],
+        "properties": {
+          "operation": { "type": "string" },
+          "inputFixture": { "type": "array" },
+          "expectedOutput": { "type": ["string", "number", "boolean", "object", "null"] }
+        }
+      }
     },
     "tags": {
       "type": "array",
@@ -90,5 +197,5 @@
       "default": []
     }
   },
-  "additionalProperties": false
+  "additionalProperties": true
 }
