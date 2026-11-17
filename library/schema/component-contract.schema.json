@@ -1,0 +1,213 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OtterComponentContract",
+  "description": "Universal Machine-Readable Contract for Otter Reusable Building Blocks (Phase 11)",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "name",
+    "publisher",
+    "version",
+    "kind",
+    "description",
+    "entry",
+    "license",
+    "platforms",
+    "provides",
+    "requires"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "enum": [2],
+      "description": "Schema version (2 for universal component contracts)"
+    },
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "description": "Kebab-case component identifier"
+    },
+    "publisher": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "description": "Publisher or author namespace"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(-[a-zA-Z0-9.]+)?$",
+      "description": "Semantic version of the component"
+    },
+    "kind": {
+      "type": "string",
+      "enum": ["pack", "kit", "blueprint", "recipe"],
+      "description": "Component distribution kind"
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable summary of component purpose and capabilities"
+    },
+    "entry": {
+      "type": "string",
+      "pattern": "^src/.*\\.ot$",
+      "description": "Relative entry point to an Otter source file (e.g. src/main.ot)"
+    },
+    "license": {
+      "type": "string",
+      "description": "SPDX identifier or package license note"
+    },
+    "requiresOtter": {
+      "type": "string",
+      "description": "Semver constraint on Otter runtime (e.g. ^1.0.1, >=1.0.1)"
+    },
+    "platforms": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["console", "desktop", "web", "all"]
+      },
+      "description": "Supported runtime platforms"
+    },
+    "variablePrefix": {
+      "type": "string",
+      "pattern": "^_[a-z0-9]{2,4}_$",
+      "description": "Namespace prefix for internal variables to mitigate caller-scope collision risks in Otter 1.0.1"
+    },
+    "provides": {
+      "type": "object",
+      "description": "Capabilities and public operations exported by this component",
+      "required": ["operations"],
+      "properties": {
+        "capabilities": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Domain capabilities provided (e.g. 'text.formatting', 'persistence.json')"
+        },
+        "operations": {
+          "type": "array",
+          "description": "Machine-readable public operation contracts exported by entry source",
+          "items": {
+            "type": "object",
+            "required": ["name", "description", "parameters", "returns", "sideEffects", "errorMode"],
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Exported function name"
+              },
+              "description": {
+                "type": "string",
+                "description": "Documentation for the operation"
+              },
+              "parameters": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["name", "type"],
+                  "properties": {
+                    "name": { "type": "string" },
+                    "type": {
+                      "type": "string",
+                      "enum": ["text", "number", "boolean", "list", "thing", "any", "object"]
+                    },
+                    "objectType": { "type": "string" },
+                    "optional": { "type": "boolean", "default": false },
+                    "default": { "type": ["string", "number", "boolean", "null"] }
+                  }
+                }
+              },
+              "returns": {
+                "type": "object",
+                "required": ["type"],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": ["text", "number", "boolean", "list", "thing", "any", "object", "void"]
+                  },
+                  "objectType": { "type": "string" },
+                  "nullable": { "type": "boolean", "default": false }
+                }
+              },
+              "sideEffects": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": ["none", "filesystem:read", "filesystem:write", "network:http", "console:output", "state:mutation"]
+                }
+              },
+              "errorMode": {
+                "type": "string",
+                "enum": ["returns-gone", "returns-false", "returns-fallback", "throws-error"]
+              }
+            }
+          }
+        },
+        "types": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "fields"],
+            "properties": {
+              "name": { "type": "string" },
+              "fields": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["name", "type"],
+                  "properties": {
+                    "name": { "type": "string" },
+                    "type": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "requires": {
+      "type": "object",
+      "description": "Dependencies, runtime services, and host capabilities required",
+      "properties": {
+        "capabilities": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Required external capabilities (e.g. 'runtime.filesystem', 'data.validation')"
+        },
+        "packages": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "External package dependencies and version constraints"
+        }
+      }
+    },
+    "contracts": {
+      "type": "array",
+      "description": "Optional functional input/output verification fixtures",
+      "items": {
+        "type": "object",
+        "required": ["operation", "inputFixture", "expectedOutput"],
+        "properties": {
+          "operation": { "type": "string" },
+          "inputFixture": { "type": "array" },
+          "expectedOutput": { "type": ["string", "number", "boolean", "object", "null"] }
+        }
+      }
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "examples": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "capabilities": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "dependencies": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    }
+  },
+  "additionalProperties": true
+}

@@ -229,10 +229,17 @@ internal static class LibraryCommands
             bool dryRun = HasFlag(raw, "--dry-run");
             return InstallPack(packId, version, projectDir, dryRun, json);
         }
+        if (string.Equals(subCommand, "contract", StringComparison.OrdinalIgnoreCase))
+        {
+            string? target = raw.Length > 2 && !raw[2].StartsWith("-") ? raw[2] : null;
+            return ShowPackContract(target, json);
+        }
         if (string.Equals(subCommand, "verify", StringComparison.OrdinalIgnoreCase))
         {
+            bool contracts = HasFlag(raw, "--contracts");
+            string? target = raw.Length > 2 && !raw[2].StartsWith("-") ? raw[2] : null;
             string projectDir = GetOption(raw, "--project") ?? Directory.GetCurrentDirectory();
-            return VerifyPacks(projectDir, json);
+            return VerifyPacks(projectDir, target, contracts, json);
         }
         if (string.Equals(subCommand, "uninstall", StringComparison.OrdinalIgnoreCase))
         {
@@ -268,7 +275,8 @@ internal static class LibraryCommands
         Console.WriteLine("  inspect <id> [--json]");
         Console.WriteLine("  install <id> [--version <v>] [--project <dir>] [--dry-run] [--offline] [--json]");
         Console.WriteLine("  list [--json]");
-        Console.WriteLine("  verify [--project <dir>] [--offline] [--json]");
+        Console.WriteLine("  verify [<id|dir>] [--project <dir>] [--contracts] [--offline] [--json]");
+        Console.WriteLine("  contract [<id|dir>] [--json]");
         Console.WriteLine("  uninstall <id> [--project <dir>] [--json]");
         Console.WriteLine("  pack <dir> [--out <archive.otterpack>] [--json]");
         Console.WriteLine("  publish <archive.otterpack> [--dry-run] [--json]");
@@ -1100,8 +1108,284 @@ internal static class LibraryCommands
         return ExitSuccess;
     }
 
-    static int VerifyPacks(string projectDir, bool json)
+    public static int VerifyPacks(string projectDir, bool json)
     {
+        return VerifyPacks(projectDir, null, false, json);
+    }
+
+    public static string? ResolvePackDirectory(string target)
+    {
+        if (Directory.Exists(target) && File.Exists(Path.Combine(target, "otter.pack.json")))
+        {
+            return Path.GetFullPath(target);
+        }
+        if (File.Exists(target) && string.Equals(Path.GetFileName(target), "otter.pack.json", StringComparison.OrdinalIgnoreCase))
+        {
+            return Path.GetDirectoryName(Path.GetFullPath(target))!;
+        }
+
+        // Try library directory
+        string lib = FindLibraryDir();
+        string candidate = Path.Combine(lib, "packs", target);
+        if (Directory.Exists(candidate) && File.Exists(Path.Combine(candidate, "otter.pack.json")))
+        {
+            return Path.GetFullPath(candidate);
+        }
+
+        string[] parts = target.Split('/');
+        if (parts.Length == 2)
+        {
+            candidate = Path.Combine(lib, "packs", parts[0], parts[1]);
+            if (Directory.Exists(candidate) && File.Exists(Path.Combine(candidate, "otter.pack.json")))
+            {
+                return Path.GetFullPath(candidate);
+            }
+
+            // Check .otter/packages/parts[0]/parts[1]
+            string localPkgBase = Path.Combine(Directory.GetCurrentDirectory(), ".otter", "packages", parts[0], parts[1]);
+            if (Directory.Exists(localPkgBase))
+            {
+                var verDirs = Directory.GetDirectories(localPkgBase);
+                if (verDirs.Length > 0 && File.Exists(Path.Combine(verDirs[0], "otter.pack.json")))
+                {
+                    return Path.GetFullPath(verDirs[0]);
+                }
+            }
+        }
+
+        return null;
+    }
+
+    public static int VerifySinglePack(string target, bool contracts, bool json)
+    {
+        string? packDir = ResolvePackDirectory(target);
+        if (packDir == null)
+        {
+            Console.Error.WriteLine($"Error: Pack not found at '{target}'.");
+            return ExitUsageError;
+        }
+
+        string manifestPath = Path.Combine(packDir, "otter.pack.json");
+        JsonObject? manifest = null;
+        try
+        {
+            if (File.Exists(manifestPath))
+            {
+                manifest = JsonNode.Parse(File.ReadAllText(manifestPath))?.AsObject();
+            }
+        }
+        catch (JsonException jex)
+        {
+            if (contracts)
+            {
+                var cr = new ContractValidationResult { PackDir = packDir, PackId = target };
+                cr.AddError("MALFORMED_JSON", $"Malformed manifest JSON in otter.pack.json: {jex.Message}", manifestPath);
+                if (json)
+                {
+                    var errObj = new JsonObject
+                    {
+                        ["pack"] = target,
+                        ["packDir"] = packDir,
+                        ["status"] = "FAIL",
+                        ["contract"] = cr.ToJsonObject()
+                    };
+                    Console.WriteLine(errObj.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+                }
+                else
+                {
+                    Console.WriteLine($"Verifying Pack: {target}");
+                    Console.WriteLine($"  Path:    {packDir}");
+                    Console.WriteLine($"  Contract: [FAIL]");
+                    Console.WriteLine($"    [ERROR] MALFORMED_JSON: Malformed manifest JSON in otter.pack.json: {jex.Message}");
+                }
+                return ExitValidationError;
+            }
+
+            if (json)
+            {
+                var errObj = new JsonObject
+                {
+                    ["pack"] = target,
+                    ["packDir"] = packDir,
+                    ["status"] = "FAIL",
+                    ["error"] = $"Malformed manifest JSON: {jex.Message}"
+                };
+                Console.WriteLine(errObj.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+            }
+            else
+            {
+                Console.WriteLine($"[FAIL] MALFORMED_JSON in '{manifestPath}': {jex.Message}");
+            }
+            return ExitValidationError;
+        }
+
+        string packId = manifest?["name"]?.ToString() ?? target;
+        if (manifest?["publisher"] != null)
+        {
+            packId = $"{manifest["publisher"]}/{packId}";
+        }
+        string ver = manifest?["version"]?.ToString() ?? "unknown";
+        string entry = manifest?["entry"]?.ToString() ?? "src/main.ot";
+        string entryPath = Path.Combine(packDir, entry);
+
+        bool entryExists = File.Exists(entryPath);
+        string actualHash = entryExists ? ComputeSha256(entryPath) : "";
+
+        ContractValidationResult? contractResult = null;
+        if (contracts)
+        {
+            contractResult = ComponentContractValidator.ValidatePackDirectory(packDir);
+        }
+
+        bool allOk = entryExists && (contractResult == null || contractResult.IsValid);
+
+        if (json)
+        {
+            var obj = new JsonObject
+            {
+                ["pack"] = packId,
+                ["version"] = ver,
+                ["packDir"] = packDir,
+                ["entry"] = entry,
+                ["entryExists"] = entryExists,
+                ["entrySha256"] = actualHash,
+                ["status"] = allOk ? "OK" : "FAIL"
+            };
+            if (contractResult != null)
+            {
+                obj["contract"] = contractResult.ToJsonObject();
+            }
+            Console.WriteLine(obj.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+            return allOk ? ExitSuccess : ExitValidationError;
+        }
+
+        Console.WriteLine($"Verifying Pack: {packId} v{ver}");
+        Console.WriteLine($"  Path:    {packDir}");
+        Console.WriteLine($"  Entry:   {entry} [{(entryExists ? "OK" : "MISSING")}]");
+        if (entryExists)
+        {
+            Console.WriteLine($"  SHA-256: {actualHash}");
+        }
+
+        if (contracts && contractResult != null)
+        {
+            if (contractResult.IsValid)
+            {
+                Console.WriteLine($"  Contract: [OK] ({contractResult.ValidatedOperations.Count} operations verified)");
+                foreach (var op in contractResult.ValidatedOperations)
+                {
+                    Console.WriteLine($"    ✓ {op}");
+                }
+            }
+            else
+            {
+                Console.WriteLine($"  Contract: [FAIL]");
+                foreach (var diag in contractResult.Diagnostics)
+                {
+                    string atLine = diag.Line > 0 ? $":{diag.Line}" : "";
+                    Console.WriteLine($"    [{diag.Level}] {diag.Code}: {diag.Message}{atLine}");
+                    if (!string.IsNullOrEmpty(diag.Suggestion))
+                    {
+                        Console.WriteLine($"      Suggestion: {diag.Suggestion}");
+                    }
+                }
+            }
+        }
+
+        return allOk ? ExitSuccess : ExitValidationError;
+    }
+
+    public static int ShowPackContract(string? target, bool json)
+    {
+        string candidate = target ?? Directory.GetCurrentDirectory();
+        string? packDir = ResolvePackDirectory(candidate);
+        if (packDir == null)
+        {
+            Console.Error.WriteLine($"Error: Pack not found at '{candidate}'.");
+            return ExitUsageError;
+        }
+
+        var result = ComponentContractValidator.ValidatePackDirectory(packDir);
+        if (json)
+        {
+            Console.WriteLine(result.ToJsonObject().ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+            return result.IsValid ? ExitSuccess : ExitValidationError;
+        }
+
+        string manifestPath = Path.Combine(packDir, "otter.pack.json");
+        JsonObject? manifest = null;
+        try
+        {
+            manifest = JsonNode.Parse(File.ReadAllText(manifestPath))?.AsObject();
+        }
+        catch { }
+
+        Console.WriteLine($"======================================================================");
+        Console.WriteLine($" Component Contract: {result.PackId} v{result.Version} (Schema v{result.SchemaVersion})");
+        Console.WriteLine($" Status:          {(result.IsValid ? "VALID" : "INVALID")}");
+        Console.WriteLine($" Variable Prefix: {result.VariablePrefix ?? "(none declared)"}");
+        if (manifest?["provides"]?["capabilities"] is JsonArray caps && caps.Count > 0)
+        {
+            Console.WriteLine($" Capabilities:    {string.Join(", ", caps.Select(c => c?.ToString()))}");
+        }
+        Console.WriteLine($"======================================================================");
+
+        if (manifest?["provides"]?["operations"] is JsonArray ops)
+        {
+            Console.WriteLine($"Exported Operations ({ops.Count}):");
+            foreach (var node in ops)
+            {
+                if (node is not JsonObject op) continue;
+                string opName = op["name"]?.ToString() ?? "";
+                string opDesc = op["description"]?.ToString() ?? "";
+                string retType = op["returns"]?["type"]?.ToString() ?? "void";
+                string errMode = op["errorMode"]?.ToString() ?? "returns-fallback";
+                var pList = new List<string>();
+                if (op["parameters"] is JsonArray pArray)
+                {
+                    foreach (var pNode in pArray)
+                    {
+                        string pn = pNode?["name"]?.ToString() ?? "";
+                        string pt = pNode?["type"]?.ToString() ?? "";
+                        pList.Add($"{pn}: {pt}");
+                    }
+                }
+                string paramsStr = string.Join(", ", pList);
+                Console.WriteLine($"  • {opName}({paramsStr}) -> {retType} [{errMode}]");
+                Console.WriteLine($"      {opDesc}");
+            }
+        }
+
+        if (!result.IsValid)
+        {
+            Console.WriteLine($"\nDiagnostics ({result.Diagnostics.Count}):");
+            foreach (var diag in result.Diagnostics)
+            {
+                string atLine = diag.Line > 0 ? $":{diag.Line}" : "";
+                Console.WriteLine($"  [{diag.Level}] {diag.Code}: {diag.Message}{atLine}");
+                if (!string.IsNullOrEmpty(diag.Suggestion))
+                {
+                    Console.WriteLine($"    Suggestion: {diag.Suggestion}");
+                }
+            }
+        }
+
+        return result.IsValid ? ExitSuccess : ExitValidationError;
+    }
+
+    public static int VerifyPacks(string projectDir, string? targetPack, bool contracts, bool json)
+    {
+        string candidatePackDir = targetPack ?? "";
+        if (string.IsNullOrEmpty(candidatePackDir) && File.Exists(Path.Combine(projectDir, "otter.pack.json")) && !File.Exists(Path.Combine(projectDir, "otter.lock")))
+        {
+            candidatePackDir = projectDir;
+        }
+
+        if (!string.IsNullOrEmpty(candidatePackDir))
+        {
+            return VerifySinglePack(candidatePackDir, contracts, json);
+        }
+
         string lockPath = Path.Combine(projectDir, "otter.lock");
         if (!File.Exists(lockPath))
         {
@@ -1132,9 +1416,11 @@ internal static class LibraryCommands
             string pub = parts.Length > 1 ? parts[0] : "otter-official";
             string name = parts.Length > 1 ? parts[1] : parts[0];
 
-            string onDiskEntry = Path.Combine(projectDir, ".otter", "packages", pub, name, ver, entry);
+            string packDir = Path.Combine(projectDir, ".otter", "packages", pub, name, ver);
+            string onDiskEntry = Path.Combine(packDir, entry);
             string status;
             string actualHash = "";
+            ContractValidationResult? contractResult = null;
 
             if (!File.Exists(onDiskEntry))
             {
@@ -1153,6 +1439,15 @@ internal static class LibraryCommands
                     status = "CORRUPT";
                     allOk = false;
                 }
+
+                if (contracts)
+                {
+                    contractResult = ComponentContractValidator.ValidatePackDirectory(packDir);
+                    if (!contractResult.IsValid)
+                    {
+                        allOk = false;
+                    }
+                }
             }
 
             var item = new JsonObject
@@ -1163,6 +1458,12 @@ internal static class LibraryCommands
                 ["expectedHash"] = expectedHash,
                 ["actualHash"] = actualHash
             };
+
+            if (contracts && contractResult != null)
+            {
+                item["contract"] = contractResult.ToJsonObject();
+            }
+
             results.Add(item);
         }
 
@@ -1173,14 +1474,42 @@ internal static class LibraryCommands
         }
 
         Console.WriteLine($"Integrity check ({results.Count} packages):");
-        foreach (var item in results)
+        foreach (var node in results)
         {
-            string status = item?["status"]?.ToString() ?? "";
-            Console.WriteLine($"  [{status}] {item?["pack"]} v{item?["version"]}");
+            if (node is not JsonObject item) continue;
+            string status = item["status"]?.ToString() ?? "";
+            string packId = item["pack"]?.ToString() ?? "";
+            string ver = item["version"]?.ToString() ?? "";
+            Console.WriteLine($"  [{status}] {packId} v{ver}");
             if (status == "CORRUPT")
             {
-                Console.WriteLine($"    Expected SHA-256: {item?["expectedHash"]}");
-                Console.WriteLine($"    Actual SHA-256:   {item?["actualHash"]}");
+                Console.WriteLine($"    Expected SHA-256: {item["expectedHash"]}");
+                Console.WriteLine($"    Actual SHA-256:   {item["actualHash"]}");
+            }
+
+            if (contracts && item["contract"] is JsonObject cObj)
+            {
+                string cStatus = cObj["status"]?.ToString() ?? "";
+                int opCount = int.TryParse(cObj["operationsCount"]?.ToString(), out int oc) ? oc : 0;
+                if (cStatus == "VALID")
+                {
+                    Console.WriteLine($"    Contract: [OK] ({opCount} operations verified)");
+                }
+                else
+                {
+                    Console.WriteLine($"    Contract: [FAIL]");
+                    if (cObj["diagnostics"] is JsonArray diags)
+                    {
+                        foreach (var d in diags)
+                        {
+                            string code = d?["code"]?.ToString() ?? "";
+                            string msg = d?["message"]?.ToString() ?? "";
+                            int line = int.TryParse(d?["line"]?.ToString(), out int l) ? l : 0;
+                            string atLine = line > 0 ? $":{line}" : "";
+                            Console.WriteLine($"      - [{code}] {msg}{atLine}");
+                        }
+                    }
+                }
             }
         }
         return allOk ? ExitSuccess : ExitValidationError;
