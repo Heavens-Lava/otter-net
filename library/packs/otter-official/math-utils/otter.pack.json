@@ -1,15 +1,165 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "name": "math-utils",
   "publisher": "otter-official",
   "version": "1.0.1",
   "kind": "pack",
-  "description": "Essential mathematical helpers: clamp, lerp, map range, min, max, and list average.",
+  "description": "Essential mathematical helpers: clamp, lerp, mapRange, minVal, maxVal, calcAverage, calcSum, calcPercentage, roundVal, roundUpVal, and roundDownVal.",
   "entry": "src/main.ot",
   "license": "MIT",
-  "platforms": ["console", "desktop", "web"],
-  "capabilities": [],
+  "requiresOtter": ">=1.0.1",
+  "platforms": [
+    "console",
+    "desktop",
+    "web"
+  ],
+  "variablePrefix": "_mu_",
+  "provides": {
+    "capabilities": [
+      "math.computation",
+      "math.interpolation",
+      "math.statistics"
+    ],
+    "operations": [
+      {
+        "name": "clamp",
+        "description": "Restricts a numeric value to stay within minLimit and maxLimit.",
+        "parameters": [
+          { "name": "value", "type": "number" },
+          { "name": "minLimit", "type": "number" },
+          { "name": "maxLimit", "type": "number" }
+        ],
+        "returns": { "type": "number" },
+        "sideEffects": ["none"],
+        "errorMode": "returns-fallback"
+      },
+      {
+        "name": "lerp",
+        "description": "Linearly interpolates between startVal and endVal by fraction t.",
+        "parameters": [
+          { "name": "startVal", "type": "number" },
+          { "name": "endVal", "type": "number" },
+          { "name": "t", "type": "number" }
+        ],
+        "returns": { "type": "number" },
+        "sideEffects": ["none"],
+        "errorMode": "returns-fallback"
+      },
+      {
+        "name": "mapRange",
+        "description": "Maps a value from input range [inMin, inMax] to output range [outMin, outMax].",
+        "parameters": [
+          { "name": "val", "type": "number" },
+          { "name": "inMin", "type": "number" },
+          { "name": "inMax", "type": "number" },
+          { "name": "outMin", "type": "number" },
+          { "name": "outMax", "type": "number" }
+        ],
+        "returns": { "type": "number" },
+        "sideEffects": ["none"],
+        "errorMode": "returns-fallback"
+      },
+      {
+        "name": "minVal",
+        "description": "Returns the lesser of left and right.",
+        "parameters": [
+          { "name": "left", "type": "number" },
+          { "name": "right", "type": "number" }
+        ],
+        "returns": { "type": "number" },
+        "sideEffects": ["none"],
+        "errorMode": "returns-fallback"
+      },
+      {
+        "name": "maxVal",
+        "description": "Returns the greater of left and right.",
+        "parameters": [
+          { "name": "left", "type": "number" },
+          { "name": "right", "type": "number" }
+        ],
+        "returns": { "type": "number" },
+        "sideEffects": ["none"],
+        "errorMode": "returns-fallback"
+      },
+      {
+        "name": "calcAverage",
+        "description": "Calculates the arithmetic mean of a list of numbers.",
+        "parameters": [
+          { "name": "items", "type": "list" }
+        ],
+        "returns": { "type": "number" },
+        "sideEffects": ["none"],
+        "errorMode": "returns-fallback"
+      },
+      {
+        "name": "calcSum",
+        "description": "Calculates the sum of a list of numbers.",
+        "parameters": [
+          { "name": "items", "type": "list" }
+        ],
+        "returns": { "type": "number" },
+        "sideEffects": ["none"],
+        "errorMode": "returns-fallback"
+      },
+      {
+        "name": "calcPercentage",
+        "description": "Calculates percentage of part over whole (0 to 100).",
+        "parameters": [
+          { "name": "part", "type": "number" },
+          { "name": "whole", "type": "number" }
+        ],
+        "returns": { "type": "number" },
+        "sideEffects": ["none"],
+        "errorMode": "returns-fallback"
+      },
+      {
+        "name": "roundVal",
+        "description": "Rounds a number to the nearest integer.",
+        "parameters": [
+          { "name": "val", "type": "number" }
+        ],
+        "returns": { "type": "number" },
+        "sideEffects": ["none"],
+        "errorMode": "returns-fallback"
+      },
+      {
+        "name": "roundUpVal",
+        "description": "Rounds a number up (ceiling).",
+        "parameters": [
+          { "name": "val", "type": "number" }
+        ],
+        "returns": { "type": "number" },
+        "sideEffects": ["none"],
+        "errorMode": "returns-fallback"
+      },
+      {
+        "name": "roundDownVal",
+        "description": "Rounds a number down (floor).",
+        "parameters": [
+          { "name": "val", "type": "number" }
+        ],
+        "returns": { "type": "number" },
+        "sideEffects": ["none"],
+        "errorMode": "returns-fallback"
+      }
+    ]
+  },
+  "requires": {
+    "capabilities": [],
+    "packages": {}
+  },
   "dependencies": {},
-  "tags": ["math", "numbers", "clamp", "lerp", "range", "interpolation", "average", "statistics"],
-  "examples": ["examples/demo.ot"]
+  "tags": [
+    "math",
+    "numbers",
+    "clamp",
+    "lerp",
+    "range",
+    "interpolation",
+    "average",
+    "statistics"
+  ],
+  "examples": [
+    "examples/demo.ot"
+  ]
 }

@@ -9,13 +9,14 @@ namespace Otter.Cli;
 
 /// <summary>
 /// Phase 11 Milestone 2: Deterministic Multi-Pack Offline Composition Planner.
-/// Resolves contracts, binds operation ports, checks types, detects cycles, and
-/// synthesizes idiomatic Otter 1.0.1 orchestrator scripts without cloud or AI dependencies.
+/// Universal, contract-driven composition engine. Derives operation selection, port bindings,
+/// type validation, cycle detection, and code synthesis from machine-readable contracts and
+/// declarative workflow specifications without hard-coded Pack names or operations.
 /// </summary>
 public static class CompositionPlanner
 {
     // =========================================================================
-    // Contract Data Models
+    // 1. Component Contract Data Models
     // =========================================================================
 
     public sealed class PackContractInfo
@@ -66,151 +67,417 @@ public static class CompositionPlanner
     public sealed class ComponentCatalog
     {
         public Dictionary<string, PackContractInfo> Packs { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public List<WorkflowSpec> RegisteredWorkflows { get; } = new();
 
         public static ComponentCatalog Load(string libraryDir)
         {
             var catalog = new ComponentCatalog();
             string packsDir = Path.Combine(libraryDir, "packs");
-            if (!Directory.Exists(packsDir)) return catalog;
-
-            foreach (var pubDir in Directory.GetDirectories(packsDir))
+            if (Directory.Exists(packsDir))
             {
-                string pub = Path.GetFileName(pubDir);
-                foreach (var packDir in Directory.GetDirectories(pubDir))
+                foreach (var pubDir in Directory.GetDirectories(packsDir))
                 {
-                    string name = Path.GetFileName(packDir);
-                    string manifestPath = Path.Combine(packDir, "otter.pack.json");
-                    if (!File.Exists(manifestPath)) manifestPath = Path.Combine(packDir, "pack.json");
-                    if (!File.Exists(manifestPath)) continue;
+                    string pub = Path.GetFileName(pubDir);
+                    foreach (var packDir in Directory.GetDirectories(pubDir))
+                    {
+                        string name = Path.GetFileName(packDir);
+                        string manifestPath = Path.Combine(packDir, "otter.pack.json");
+                        if (!File.Exists(manifestPath)) manifestPath = Path.Combine(packDir, "pack.json");
+                        if (!File.Exists(manifestPath)) continue;
 
+                        try
+                        {
+                            var pack = LoadPackFromManifest(manifestPath, pub, name);
+                            if (pack != null) catalog.Packs[pack.Id] = pack;
+                        }
+                        catch
+                        {
+                            // Ignore malformed manifests during discovery
+                        }
+                    }
+                }
+            }
+
+            // Load registered workflow fixtures
+            string workflowsDir = Path.Combine(libraryDir, "workflows");
+            if (Directory.Exists(workflowsDir))
+            {
+                foreach (var wfFile in Directory.GetFiles(workflowsDir, "*.json"))
+                {
                     try
                     {
-                        var node = JsonNode.Parse(File.ReadAllText(manifestPath));
-                        if (node == null) continue;
-
-                        int schemaVersion = node["schemaVersion"]?.GetValue<int>() ?? 1;
-                        var pack = new PackContractInfo
-                        {
-                            Id = $"{node["publisher"]?.ToString() ?? pub}/{node["name"]?.ToString() ?? name}",
-                            Publisher = node["publisher"]?.ToString() ?? pub,
-                            Name = node["name"]?.ToString() ?? name,
-                            Version = node["version"]?.ToString() ?? "1.0.0",
-                            Kind = node["kind"]?.ToString() ?? "pack",
-                            Description = node["description"]?.ToString() ?? "",
-                            Entry = node["entry"]?.ToString() ?? "src/main.ot",
-                            RequiresOtter = node["requiresOtter"]?.ToString() ?? node["otter"]?.ToString() ?? ">=1.0.1",
-                            VariablePrefix = node["variablePrefix"]?.ToString() ?? "",
-                            ManifestPath = manifestPath
-                        };
-
-                        var plats = node["platforms"]?.AsArray();
-                        if (plats != null)
-                        {
-                            foreach (var p in plats) if (p != null) pack.Platforms.Add(p.ToString());
-                        }
-                        if (pack.Platforms.Count == 0) pack.Platforms.AddRange(new[] { "console", "desktop" });
-
-                        // Schema v2 provides
-                        var providesNode = node["provides"]?.AsObject();
-                        if (providesNode != null)
-                        {
-                            var caps = providesNode["capabilities"]?.AsArray();
-                            if (caps != null)
-                            {
-                                foreach (var c in caps) if (c != null) pack.Capabilities.Add(c.ToString());
-                            }
-
-                            var ops = providesNode["operations"]?.AsArray();
-                            if (ops != null)
-                            {
-                                foreach (var opNode in ops)
-                                {
-                                    if (opNode == null) continue;
-                                    var op = new OperationContractInfo
-                                    {
-                                        PackId = pack.Id,
-                                        Name = opNode["name"]?.ToString() ?? "",
-                                        Description = opNode["description"]?.ToString() ?? "",
-                                        ErrorMode = opNode["errorMode"]?.ToString() ?? "returns-fallback"
-                                    };
-
-                                    var retNode = opNode["returns"];
-                                    if (retNode != null)
-                                    {
-                                        op.Returns = new ReturnContractInfo
-                                        {
-                                            Type = retNode["type"]?.ToString() ?? "any",
-                                            ObjectType = retNode["objectType"]?.ToString(),
-                                            Nullable = retNode["nullable"]?.GetValue<bool>() ?? false
-                                        };
-                                    }
-
-                                    var paramsNode = opNode["parameters"]?.AsArray();
-                                    if (paramsNode != null)
-                                    {
-                                        foreach (var p in paramsNode)
-                                        {
-                                            if (p == null) continue;
-                                            op.Parameters.Add(new ParameterContractInfo
-                                            {
-                                                Name = p["name"]?.ToString() ?? "",
-                                                Type = p["type"]?.ToString() ?? "any",
-                                                ObjectType = p["objectType"]?.ToString(),
-                                                Optional = p["optional"]?.GetValue<bool>() ?? false
-                                            });
-                                        }
-                                    }
-
-                                    var effects = opNode["sideEffects"]?.AsArray();
-                                    if (effects != null)
-                                    {
-                                        foreach (var eff in effects) if (eff != null) op.SideEffects.Add(eff.ToString());
-                                    }
-
-                                    pack.Operations.Add(op);
-                                }
-                            }
-                        }
-                        else
-                        {
-                            // Fallback for Schema v1 legacy tags
-                            var v1Caps = node["capabilities"]?.AsArray();
-                            if (v1Caps != null)
-                            {
-                                foreach (var c in v1Caps) if (c != null) pack.Capabilities.Add(c.ToString());
-                            }
-                        }
-
-                        // Requires
-                        var reqNode = node["requires"]?.AsObject();
-                        if (reqNode != null)
-                        {
-                            var pkgs = reqNode["packages"]?.AsObject();
-                            if (pkgs != null)
-                            {
-                                foreach (var kv in pkgs)
-                                {
-                                    if (kv.Value != null) pack.RequiredPackages[kv.Key] = kv.Value.ToString();
-                                }
-                            }
-                        }
-
-                        catalog.Packs[pack.Id] = pack;
+                        var wf = WorkflowSpec.Load(wfFile);
+                        catalog.RegisteredWorkflows.Add(wf);
                     }
                     catch
                     {
-                        // Ignore malformed manifests during discovery
+                        // Ignore unparseable workflow fixtures
                     }
                 }
             }
 
             return catalog;
         }
+
+        public static PackContractInfo? LoadPackFromManifest(string manifestPath, string defaultPub = "", string defaultName = "")
+        {
+            var node = JsonNode.Parse(File.ReadAllText(manifestPath));
+            if (node == null) return null;
+
+            string pub = node["publisher"]?.ToString() ?? defaultPub;
+            string name = node["name"]?.ToString() ?? defaultName;
+            var pack = new PackContractInfo
+            {
+                Id = $"{pub}/{name}",
+                Publisher = pub,
+                Name = name,
+                Version = node["version"]?.ToString() ?? "1.0.0",
+                Kind = node["kind"]?.ToString() ?? "pack",
+                Description = node["description"]?.ToString() ?? "",
+                Entry = node["entry"]?.ToString() ?? "src/main.ot",
+                RequiresOtter = node["requiresOtter"]?.ToString() ?? node["otter"]?.ToString() ?? ">=1.0.1",
+                VariablePrefix = node["variablePrefix"]?.ToString() ?? "",
+                ManifestPath = manifestPath
+            };
+
+            var plats = node["platforms"]?.AsArray();
+            if (plats != null)
+            {
+                foreach (var p in plats) if (p != null) pack.Platforms.Add(p.ToString());
+            }
+            if (pack.Platforms.Count == 0) pack.Platforms.AddRange(new[] { "console", "desktop" });
+
+            // Schema v2 provides
+            var providesNode = node["provides"]?.AsObject();
+            if (providesNode != null)
+            {
+                var caps = providesNode["capabilities"]?.AsArray();
+                if (caps != null)
+                {
+                    foreach (var c in caps) if (c != null) pack.Capabilities.Add(c.ToString());
+                }
+
+                var ops = providesNode["operations"]?.AsArray();
+                if (ops != null)
+                {
+                    foreach (var opNode in ops)
+                    {
+                        if (opNode == null) continue;
+                        var op = new OperationContractInfo
+                        {
+                            PackId = pack.Id,
+                            Name = opNode["name"]?.ToString() ?? "",
+                            Description = opNode["description"]?.ToString() ?? "",
+                            ErrorMode = opNode["errorMode"]?.ToString() ?? "returns-fallback"
+                        };
+
+                        var retNode = opNode["returns"];
+                        if (retNode != null)
+                        {
+                            op.Returns = new ReturnContractInfo
+                            {
+                                Type = retNode["type"]?.ToString() ?? "any",
+                                ObjectType = retNode["objectType"]?.ToString(),
+                                Nullable = retNode["nullable"]?.GetValue<bool>() ?? false
+                            };
+                        }
+
+                        var paramsNode = opNode["parameters"]?.AsArray();
+                        if (paramsNode != null)
+                        {
+                            foreach (var p in paramsNode)
+                            {
+                                if (p == null) continue;
+                                op.Parameters.Add(new ParameterContractInfo
+                                {
+                                    Name = p["name"]?.ToString() ?? "",
+                                    Type = p["type"]?.ToString() ?? "any",
+                                    ObjectType = p["objectType"]?.ToString(),
+                                    Optional = p["optional"]?.GetValue<bool>() ?? false
+                                });
+                            }
+                        }
+
+                        var effects = opNode["sideEffects"]?.AsArray();
+                        if (effects != null)
+                        {
+                            foreach (var eff in effects) if (eff != null) op.SideEffects.Add(eff.ToString());
+                        }
+
+                        pack.Operations.Add(op);
+                    }
+                }
+            }
+            else
+            {
+                // Fallback for Schema v1 legacy tags
+                var v1Caps = node["capabilities"]?.AsArray();
+                if (v1Caps != null)
+                {
+                    foreach (var c in v1Caps) if (c != null) pack.Capabilities.Add(c.ToString());
+                }
+            }
+
+            // Requires
+            var reqNode = node["requires"]?.AsObject();
+            if (reqNode != null)
+            {
+                var pkgs = reqNode["packages"]?.AsObject();
+                if (pkgs != null)
+                {
+                    foreach (var kv in pkgs)
+                    {
+                        if (kv.Value != null) pack.RequiredPackages[kv.Key] = kv.Value.ToString();
+                    }
+                }
+            }
+
+            return pack;
+        }
     }
 
     // =========================================================================
-    // Graph & Planning Data Models
+    // 2. Declarative Workflow Specification Models
     // =========================================================================
+
+    public sealed class WorkflowSpec
+    {
+        public int WorkflowVersion { get; set; } = 1;
+        public string Id { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string Description { get; set; } = "";
+        public string Target { get; set; } = "console";
+        public List<string> ComposedPacks { get; set; } = new();
+        public List<PipelineInputSpec> PipelineInputs { get; set; } = new();
+        public List<WorkflowStepSpec> Steps { get; set; } = new();
+        public WorkflowOutputSpec? Output { get; set; }
+
+        public static WorkflowSpec Load(string path)
+        {
+            string json = File.ReadAllText(path);
+            return Parse(json);
+        }
+
+        public static WorkflowSpec Parse(string json)
+        {
+            var node = JsonNode.Parse(json);
+            if (node == null) throw new InvalidOperationException("Workflow JSON is empty or invalid.");
+            var spec = new WorkflowSpec
+            {
+                WorkflowVersion = node["workflowVersion"]?.GetValue<int>() ?? 1,
+                Id = node["id"]?.ToString() ?? "",
+                Name = node["name"]?.ToString() ?? "",
+                Description = node["description"]?.ToString() ?? "",
+                Target = node["target"]?.ToString() ?? "console"
+            };
+
+            var packs = node["composedPacks"]?.AsArray();
+            if (packs != null)
+            {
+                foreach (var p in packs) if (p != null) spec.ComposedPacks.Add(p.ToString());
+            }
+
+            var pinputs = node["pipelineInputs"]?.AsArray();
+            if (pinputs != null)
+            {
+                foreach (var pi in pinputs)
+                {
+                    if (pi == null) continue;
+                    spec.PipelineInputs.Add(new PipelineInputSpec
+                    {
+                        Name = pi["name"]?.ToString() ?? "",
+                        Type = pi["type"]?.ToString() ?? "text",
+                        DefaultValue = pi["default"],
+                        Description = pi["description"]?.ToString() ?? ""
+                    });
+                }
+            }
+
+            var steps = node["steps"]?.AsArray();
+            if (steps != null)
+            {
+                foreach (var s in steps)
+                {
+                    if (s == null) continue;
+                    var step = new WorkflowStepSpec
+                    {
+                        Id = s["id"]?.ToString() ?? "",
+                        Pack = s["pack"]?.ToString() ?? "",
+                        Operation = s["operation"]?.ToString() ?? ""
+                    };
+
+                    var inputs = s["inputs"]?.AsObject();
+                    if (inputs != null)
+                    {
+                        foreach (var kv in inputs)
+                        {
+                            if (kv.Value == null) continue;
+                            step.Inputs[kv.Key] = new StepInputBinding
+                            {
+                                FromInput = kv.Value["fromInput"]?.ToString(),
+                                FromStep = kv.Value["fromStep"]?.ToString(),
+                                Port = kv.Value["port"]?.ToString() ?? "returns",
+                                Value = kv.Value["value"],
+                                Adapter = kv.Value["adapter"]?.ToString()
+                            };
+                        }
+                    }
+
+                    var order = s["orderAfter"]?.AsArray() ?? s["after"]?.AsArray();
+                    if (order != null)
+                    {
+                        foreach (var o in order) if (o != null) step.OrderAfter.Add(o.ToString());
+                    }
+
+                    spec.Steps.Add(step);
+                }
+            }
+
+            var outNode = node["output"];
+            if (outNode != null)
+            {
+                spec.Output = new WorkflowOutputSpec
+                {
+                    FromStep = outNode["fromStep"]?.ToString() ?? "",
+                    Port = outNode["port"]?.ToString() ?? "returns"
+                };
+            }
+
+            return spec;
+        }
+    }
+
+    public sealed class PipelineInputSpec
+    {
+        public string Name { get; set; } = "";
+        public string Type { get; set; } = "text";
+        public JsonNode? DefaultValue { get; set; }
+        public string Description { get; set; } = "";
+    }
+
+    public sealed class WorkflowStepSpec
+    {
+        public string Id { get; set; } = "";
+        public string Pack { get; set; } = "";
+        public string Operation { get; set; } = "";
+        public Dictionary<string, StepInputBinding> Inputs { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        public List<string> OrderAfter { get; set; } = new();
+    }
+
+    public sealed class StepInputBinding
+    {
+        public string? FromInput { get; set; }
+        public string? FromStep { get; set; }
+        public string Port { get; set; } = "returns";
+        public JsonNode? Value { get; set; }
+        public string? Adapter { get; set; }
+    }
+
+    public sealed class WorkflowOutputSpec
+    {
+        public string FromStep { get; set; } = "";
+        public string Port { get; set; } = "returns";
+    }
+
+    // =========================================================================
+    // 3. Real Adapter Registry & Contracts
+    // =========================================================================
+
+    public sealed class AdapterContract
+    {
+        public string Id { get; set; } = "";
+        public string FromType { get; set; } = "";
+        public string ToType { get; set; } = "";
+        public string Description { get; set; } = "";
+        public Func<string, string, List<string>> GenerateStatements { get; set; } = (_, _) => new();
+    }
+
+    public static class AdapterRegistry
+    {
+        private static readonly Dictionary<string, AdapterContract> _adapters = new(StringComparer.OrdinalIgnoreCase);
+
+        static AdapterRegistry()
+        {
+            Register(new AdapterContract
+            {
+                Id = "number_to_text",
+                FromType = "number",
+                ToType = "text",
+                Description = "Converts a numeric value to text representation using native 'convert to json'.",
+                GenerateStatements = (src, tgt) => new() { $"convert {src} to json into {tgt}" }
+            });
+
+            Register(new AdapterContract
+            {
+                Id = "text_to_json_object",
+                FromType = "text",
+                ToType = "thing",
+                Description = "Parses JSON text into an Otter thing object using native 'convert from json'.",
+                GenerateStatements = (src, tgt) => new() { $"convert {src} from json into {tgt}" }
+            });
+
+            Register(new AdapterContract
+            {
+                Id = "json_object_to_text",
+                FromType = "thing",
+                ToType = "text",
+                Description = "Serializes an Otter thing object to JSON text using native 'convert to json'.",
+                GenerateStatements = (src, tgt) => new() { $"convert {src} to json into {tgt}" }
+            });
+
+            Register(new AdapterContract
+            {
+                Id = "json_object_wrap_slug",
+                FromType = "text",
+                ToType = "thing",
+                Description = "Wraps a slug or text into a structured JSON thing record.",
+                GenerateStatements = (src, tgt) => new()
+                {
+                    $"{tgt} is a thing",
+                    $"slug of {tgt} is {src}"
+                }
+            });
+
+            Register(new AdapterContract
+            {
+                Id = "json_object_wrap_value",
+                FromType = "any",
+                ToType = "thing",
+                Description = "Wraps an arbitrary value into a structured thing with a 'value' property.",
+                GenerateStatements = (src, tgt) => new()
+                {
+                    $"{tgt} is a thing",
+                    $"value of {tgt} is {src}"
+                }
+            });
+        }
+
+        public static void Register(AdapterContract adapter) => _adapters[adapter.Id] = adapter;
+
+        public static AdapterContract? Find(string id) =>
+            _adapters.TryGetValue(id, out var a) ? a : null;
+
+        public static AdapterContract? FindCompatible(string fromType, string toType)
+        {
+            string f = fromType.ToLowerInvariant();
+            string t = toType.ToLowerInvariant();
+            return _adapters.Values.FirstOrDefault(a =>
+                (a.FromType.Equals(f, StringComparison.OrdinalIgnoreCase) || a.FromType == "any") &&
+                (a.ToType.Equals(t, StringComparison.OrdinalIgnoreCase) || a.ToType == "any"));
+        }
+
+        public static IEnumerable<AdapterContract> All => _adapters.Values;
+    }
+
+    // =========================================================================
+    // 4. Graph & Planning Data Models
+    // =========================================================================
+
+    public enum EdgeKind
+    {
+        Data,
+        Ordering
+    }
 
     public sealed class GraphNode
     {
@@ -219,10 +486,12 @@ public static class CompositionPlanner
         public string OperationName { get; set; } = "";
         public OperationContractInfo Operation { get; set; } = new();
         public string ResultVar { get; set; } = "";
+        public Dictionary<string, StepInputBinding> ParameterBindings { get; } = new(StringComparer.OrdinalIgnoreCase);
     }
 
     public sealed class GraphEdge
     {
+        public EdgeKind Kind { get; set; } = EdgeKind.Data;
         public string FromNodeId { get; set; } = "";
         public string FromPort { get; set; } = "returns";
         public string FromType { get; set; } = "any";
@@ -230,7 +499,8 @@ public static class CompositionPlanner
         public string ToPort { get; set; } = "";
         public string ToType { get; set; } = "any";
         public bool Compatible { get; set; } = true;
-        public string? AdapterOperation { get; set; }
+        public string? AdapterId { get; set; }
+        public AdapterContract? Adapter { get; set; }
         public string? Error { get; set; }
     }
 
@@ -240,6 +510,8 @@ public static class CompositionPlanner
         public List<GraphEdge> Edges { get; } = new();
         public List<string> TopologicalOrder { get; } = new();
         public List<CoverageItem> CapabilityCoverage { get; } = new();
+        public List<PipelineInputSpec> PipelineInputs { get; } = new();
+        public WorkflowOutputSpec? PipelineOutput { get; set; }
         public List<string> Diagnostics { get; } = new();
         public bool IsValid => Diagnostics.Count == 0;
     }
@@ -280,7 +552,7 @@ public static class CompositionPlanner
     }
 
     // =========================================================================
-    // Core Deterministic Planner Engine
+    // 5. Core Composition Planner Engine
     // =========================================================================
 
     public static PlanResult Plan(PlanRequest request, string libraryDir)
@@ -291,27 +563,56 @@ public static class CompositionPlanner
             ProposalId = $"prop-{RandomNumberGenerator.GetHexString(8).ToLowerInvariant()}"
         };
 
-        // 1. Resolve Participating Packs
-        var candidatePacks = new List<PackContractInfo>();
-        var missingCaps = new List<string>();
+        WorkflowSpec? workflow = null;
 
-        if (request.ExplicitPacks.Count > 0)
+        // Step 1: Resolve Workflow Specification
+        if (!string.IsNullOrEmpty(request.WorkflowSpecPath))
         {
-            foreach (var pid in request.ExplicitPacks)
+            if (!File.Exists(request.WorkflowSpecPath))
             {
-                if (catalog.Packs.TryGetValue(pid, out var pack))
-                {
-                    candidatePacks.Add(pack);
-                }
-                else
-                {
-                    result.Diagnostics.Add($"[MISSING_PACK] Explicitly requested pack '{pid}' not found in offline library catalog.");
-                }
+                result.Success = false;
+                result.Diagnostics.Add($"[WORKFLOW_NOT_FOUND] Workflow specification file not found: '{request.WorkflowSpecPath}'.");
+                return result;
+            }
+
+            try
+            {
+                workflow = WorkflowSpec.Load(request.WorkflowSpecPath);
+            }
+            catch (Exception ex)
+            {
+                result.Success = false;
+                result.Diagnostics.Add($"[MALFORMED_WORKFLOW] Failed to parse workflow specification: {ex.Message}");
+                return result;
             }
         }
-        else
+        else if (request.ExplicitPacks.Count > 0)
         {
-            // Intent-based capability discovery
+            // Check if any registered workflow fixture matches the requested packs
+            workflow = catalog.RegisteredWorkflows.FirstOrDefault(w =>
+                w.ComposedPacks.Count > 0 &&
+                w.ComposedPacks.Count == request.ExplicitPacks.Count &&
+                w.ComposedPacks.All(p => request.ExplicitPacks.Contains(p, StringComparer.OrdinalIgnoreCase)));
+        }
+
+        // Step 2: Resolve Participating Packs
+        var candidatePacks = new List<PackContractInfo>();
+        var packIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        if (workflow != null)
+        {
+            foreach (var step in workflow.Steps)
+            {
+                if (!string.IsNullOrWhiteSpace(step.Pack)) packIds.Add(step.Pack);
+            }
+            foreach (var p in workflow.ComposedPacks) packIds.Add(p);
+        }
+        else if (request.ExplicitPacks.Count > 0)
+        {
+            foreach (var p in request.ExplicitPacks) packIds.Add(p);
+        }
+        else if (!string.IsNullOrWhiteSpace(request.Intent))
+        {
             var discovery = MatchIntentCapabilities(request.Intent, catalog);
             if (!discovery.Supported)
             {
@@ -321,39 +622,63 @@ public static class CompositionPlanner
                 return result;
             }
 
-            candidatePacks.AddRange(discovery.SelectedPacks);
+            foreach (var p in discovery.SelectedPacks)
+            {
+                candidatePacks.Add(p);
+                packIds.Add(p.Id);
+            }
             foreach (var cov in discovery.CoverageMatrix)
             {
                 result.Graph.CapabilityCoverage.Add(cov);
             }
         }
 
-        if (candidatePacks.Count == 0)
+        foreach (var pid in packIds)
+        {
+            if (catalog.Packs.TryGetValue(pid, out var pack))
+            {
+                if (!candidatePacks.Any(p => p.Id.Equals(pid, StringComparison.OrdinalIgnoreCase)))
+                {
+                    candidatePacks.Add(pack);
+                }
+            }
+            else
+            {
+                result.Diagnostics.Add($"[MISSING_PACK] Component pack '{pid}' not found in offline catalog.");
+            }
+        }
+
+        if (workflow == null && candidatePacks.Count > 0)
+        {
+            workflow = catalog.RegisteredWorkflows.FirstOrDefault(w =>
+                w.ComposedPacks.Count > 0 &&
+                w.ComposedPacks.Count == candidatePacks.Count &&
+                w.ComposedPacks.All(p => candidatePacks.Any(cp => cp.Id.Equals(p, StringComparison.OrdinalIgnoreCase))));
+        }
+
+        if (candidatePacks.Count == 0 && result.Diagnostics.Count == 0)
         {
             result.Success = false;
             result.Diagnostics.Add("[NO_PACKS] No compatible packs could be matched for composition.");
             return result;
         }
 
-        // 2. Validate Runtime & Platform Requirements
-        string targetRuntime = request.TargetRuntime.ToLowerInvariant();
+        // Step 3: Validate Runtime, Platforms & Scoping Invariants
+        string targetRuntime = (workflow != null && !string.IsNullOrEmpty(workflow.Target) ? workflow.Target : request.TargetRuntime).ToLowerInvariant();
         var allPrefixes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var pack in candidatePacks)
         {
-            // Platform check
             if (!pack.Platforms.Contains(targetRuntime) && !pack.Platforms.Contains("all"))
             {
                 result.Diagnostics.Add($"[UNSUPPORTED_PLATFORM] Pack '{pack.Id}' does not support target platform '{targetRuntime}'. Supported platforms: {string.Join(", ", pack.Platforms)}.");
             }
 
-            // Version check
             if (pack.RequiresOtter.Contains("2.0.0") || pack.RequiresOtter.StartsWith(">1."))
             {
                 result.Diagnostics.Add($"[INCOMPATIBLE_RUNTIME] Pack '{pack.Id}' requires Otter runtime '{pack.RequiresOtter}', but current runtime is 1.0.1.");
             }
 
-            // Variable Prefix Collision Check
             if (string.IsNullOrWhiteSpace(pack.VariablePrefix))
             {
                 result.Diagnostics.Add($"[MISSING_VARIABLE_PREFIX] Pack '{pack.Id}' does not declare 'variablePrefix' contract, risking caller variable collisions in Otter 1.0.1.");
@@ -367,7 +692,6 @@ public static class CompositionPlanner
                 result.Diagnostics.Add($"[PREFIX_COLLISION] Multiple components share variablePrefix '{pack.VariablePrefix}'. This causes caller-scope variable clashing under Otter 1.0.1 dynamic scoping.");
             }
 
-            // Dependency Resolution
             foreach (var (reqPkg, reqVer) in pack.RequiredPackages)
             {
                 if (!candidatePacks.Any(p => p.Id.Equals(reqPkg, StringComparison.OrdinalIgnoreCase)))
@@ -390,13 +714,17 @@ public static class CompositionPlanner
             return result;
         }
 
-        // 3. Build Composition Graph (Operations, Ports, and Bindings)
-        BuildCompositionWorkflow(candidatePacks, result.Graph);
+        // Step 4: Assemble Composition Graph from Workflow Specification or Semantic Inference
+        if (workflow != null)
+        {
+            BuildWorkflowGraph(workflow, candidatePacks, result.Graph);
+        }
+        else
+        {
+            BuildInferredGraph(candidatePacks, result.Graph);
+        }
 
-        // 4. Validate Port Types & Adapters
-        ValidatePortTypes(result.Graph, catalog);
-
-        // 5. Detect Dependency Cycles & Calculate Topological Execution Order
+        // Step 5: Detect Cycles & Determine Deterministic Execution Order
         DetectCyclesAndOrder(result.Graph);
 
         if (!result.Graph.IsValid)
@@ -406,11 +734,11 @@ public static class CompositionPlanner
             return result;
         }
 
-        // 6. Synthesize Idiomatic Otter 1.0.1 Orchestrator Code
-        string synthesizedCode = SynthesizeOrchestratorCode(candidatePacks, result.Graph, request.OutputPath, targetRuntime);
+        // Step 6: Synthesize Idiomatic Otter 1.0.1 Orchestrator Source Code
+        string synthesizedCode = SynthesizeOrchestratorCode(candidatePacks, result.Graph, workflow, request.OutputPath, targetRuntime);
         result.GeneratedCode = synthesizedCode;
 
-        // 7. Validate Syntax via LanguageService
+        // Step 7: Validate Synthesized AST with LanguageService
         string codeForValidation = ComposeCommand.ResolveVirtualImports(synthesizedCode, libraryDir);
         var syntaxDiags = LanguageService.GetDiagnostics(codeForValidation, request.OutputPath);
         bool syntaxValid = syntaxDiags.Count == 0;
@@ -428,276 +756,236 @@ public static class CompositionPlanner
             return result;
         }
 
-        // 8. Construct Proposal JSON
+        // Step 8: Build Proposal JSON Artifact
         result.ProposalJson = BuildProposalJson(result.ProposalId, request, candidatePacks, result.Graph, synthesizedCode, syntaxValid, diagArray);
         result.Success = true;
         return result;
     }
 
     // =========================================================================
-    // Capability & Intent Resolution
+    // 6. Workflow Graph Assembly & Semantic Port Validation
     // =========================================================================
 
-    private sealed class DiscoveryOutcome
+    private static void BuildWorkflowGraph(WorkflowSpec workflow, List<PackContractInfo> packs, CompositionGraph graph)
     {
-        public bool Supported { get; set; } = true;
-        public List<PackContractInfo> SelectedPacks { get; } = new();
-        public List<CoverageItem> CoverageMatrix { get; } = new();
-        public List<string> Diagnostics { get; } = new();
-        public List<string> MissingCapabilities { get; } = new();
-    }
+        var packMap = packs.ToDictionary(p => p.Id, StringComparer.OrdinalIgnoreCase);
 
-    private static DiscoveryOutcome MatchIntentCapabilities(string intent, ComponentCatalog catalog)
-    {
-        var outcome = new DiscoveryOutcome();
-        string lower = intent.ToLowerInvariant();
-        var tokens = Regex.Matches(lower, @"[a-z0-9\-]+").Select(m => m.Value).ToHashSet();
+        // Copy pipeline inputs & outputs
+        foreach (var pi in workflow.PipelineInputs) graph.PipelineInputs.Add(pi);
+        graph.PipelineOutput = workflow.Output;
 
-        // Unsupported domain filters (GPU, neural networks, blockchains, kernel)
-        var unsupported = new Dictionary<string, string[]>
+        // 1. Create nodes and index them
+        var nodeMap = new Dictionary<string, GraphNode>(StringComparer.OrdinalIgnoreCase);
+        foreach (var step in workflow.Steps)
         {
-            ["gpu-acceleration"] = new[] { "gpu", "cuda", "vulkan", "opencl", "directx", "metal" },
-            ["neural-networks"] = new[] { "neural", "deep-learning", "pytorch", "tensorflow", "transformer", "whisper", "llm" },
-            ["audio-dsp"] = new[] { "audio-dsp", "dsp", "vst", "vst3", "synthesizer", "synth", "midi" },
-            ["blockchain"] = new[] { "blockchain", "crypto", "bitcoin", "ethereum", "solana", "mining" },
-            ["kernel-embedded"] = new[] { "kernel-driver", "kernel", "fpga", "embedded", "firmware" },
-            ["websocket-sync"] = new[] { "websocket", "real-time-sync", "socket-io" }
-        };
-
-        foreach (var (domain, kwList) in unsupported)
-        {
-            if (kwList.Any(k => tokens.Contains(k) || lower.Contains(k)))
+            if (!packMap.TryGetValue(step.Pack, out var pack))
             {
-                outcome.Supported = false;
-                outcome.MissingCapabilities.Add(domain);
-                outcome.CoverageMatrix.Add(new CoverageItem(
-                    domain,
-                    "unsupported",
-                    null,
-                    $"Otter 1.0.1 does not provide library building blocks for {domain}."
-                ));
-                outcome.Diagnostics.Add($"[UNSUPPORTED_CAPABILITY] Requested domain '{domain}' is not provided by Otter standard library.");
-            }
-        }
-
-        if (!outcome.Supported) return outcome;
-
-        // Match domain capabilities to Packs
-        bool wantsText = tokens.Any(t => t is "text" or "string" or "sanitize" or "slug" or "format" or "clean" or "normalize" or "search" or "split");
-        bool wantsFiles = tokens.Any(t => t is "file" or "files" or "save" or "persist" or "persistence" or "json" or "storage" or "write" or "read" or "disk");
-        bool wantsMath = tokens.Any(t => t is "math" or "calculate" or "clamp" or "number" or "average" or "sum" or "stats");
-        bool wantsLists = tokens.Any(t => t is "list" or "collection" or "dedupe" or "sort" or "filter" or "array");
-
-        if (wantsText && catalog.Packs.TryGetValue("otter-official/text-utils", out var tu))
-        {
-            outcome.SelectedPacks.Add(tu);
-            outcome.CoverageMatrix.Add(new CoverageItem("text.processing", "implemented", tu.Id, "Provides string normalization, slugification, and search via formal contract."));
-        }
-
-        if (wantsFiles && catalog.Packs.TryGetValue("otter-official/file-helpers", out var fh))
-        {
-            outcome.SelectedPacks.Add(fh);
-            outcome.CoverageMatrix.Add(new CoverageItem("persistence.json", "implemented", fh.Id, "Provides safe filesystem JSON read, write, and verification via formal contract."));
-        }
-
-        if (wantsMath && catalog.Packs.TryGetValue("otter-official/math-utils", out var mu))
-        {
-            outcome.SelectedPacks.Add(mu);
-            outcome.CoverageMatrix.Add(new CoverageItem("math.computation", "implemented", mu.Id, "Provides numeric clamping, bounds, and statistical averages."));
-        }
-
-        if (wantsLists && catalog.Packs.TryGetValue("otter-official/list-utils", out var lu))
-        {
-            outcome.SelectedPacks.Add(lu);
-            outcome.CoverageMatrix.Add(new CoverageItem("collection.utils", "implemented", lu.Id, "Provides list sorting, deduplication, and item filtering."));
-        }
-
-        // If intent mentioned something specific we don't have
-        if (outcome.SelectedPacks.Count == 0)
-        {
-            outcome.Supported = false;
-            outcome.MissingCapabilities.Add("unmatched-intent");
-            outcome.CoverageMatrix.Add(new CoverageItem(
-                "unmatched-intent",
-                "unsupported",
-                null,
-                $"Intent '{intent}' does not match any verified building block capabilities in the catalog."
-            ));
-            outcome.Diagnostics.Add($"[UNMATCHED_INTENT] Intent '{intent}' does not match available offline pack capabilities.");
-        }
-
-        return outcome;
-    }
-
-    // =========================================================================
-    // Workflow & Port Construction
-    // =========================================================================
-
-    private static void BuildCompositionWorkflow(List<PackContractInfo> packs, CompositionGraph graph)
-    {
-        // Deterministic multi-pack pipeline synthesis:
-        // Text processing -> Data structuring -> File persistence -> Verification
-
-        bool hasText = packs.Any(p => p.Name == "text-utils");
-        bool hasFiles = packs.Any(p => p.Name == "file-helpers");
-
-        int step = 1;
-
-        if (hasText)
-        {
-            var tuPack = packs.First(p => p.Name == "text-utils");
-            var normOp = tuPack.Operations.FirstOrDefault(o => o.Name == "normalizeSpaces") ??
-                         new OperationContractInfo { PackId = tuPack.Id, Name = "normalizeSpaces" };
-            var slugOp = tuPack.Operations.FirstOrDefault(o => o.Name == "slugify") ??
-                         new OperationContractInfo { PackId = tuPack.Id, Name = "slugify" };
-
-            var node1 = new GraphNode
-            {
-                Id = $"step_{step++}_normalize",
-                PackId = tuPack.Id,
-                OperationName = "normalizeSpaces",
-                Operation = normOp,
-                ResultVar = "_orch_cleaned"
-            };
-            graph.Nodes.Add(node1);
-
-            var node2 = new GraphNode
-            {
-                Id = $"step_{step++}_slugify",
-                PackId = tuPack.Id,
-                OperationName = "slugify",
-                Operation = slugOp,
-                ResultVar = "_orch_slug"
-            };
-            graph.Nodes.Add(node2);
-
-            // Edge from normalizeSpaces to slugify
-            graph.Edges.Add(new GraphEdge
-            {
-                FromNodeId = node1.Id,
-                FromPort = "returns",
-                FromType = "text",
-                ToNodeId = node2.Id,
-                ToPort = "text",
-                ToType = "text",
-                Compatible = true
-            });
-        }
-
-        if (hasFiles)
-        {
-            var fhPack = packs.First(p => p.Name == "file-helpers");
-            var writeOp = fhPack.Operations.FirstOrDefault(o => o.Name == "writeJsonObject") ??
-                          new OperationContractInfo { PackId = fhPack.Id, Name = "writeJsonObject" };
-            var readOp = fhPack.Operations.FirstOrDefault(o => o.Name == "readJsonObjectSafe") ??
-                         new OperationContractInfo { PackId = fhPack.Id, Name = "readJsonObjectSafe" };
-
-            var nodeWrite = new GraphNode
-            {
-                Id = $"step_{step++}_persist",
-                PackId = fhPack.Id,
-                OperationName = "writeJsonObject",
-                Operation = writeOp,
-                ResultVar = "_orch_saveOk"
-            };
-            graph.Nodes.Add(nodeWrite);
-
-            var nodeVerify = new GraphNode
-            {
-                Id = $"step_{step++}_verify",
-                PackId = fhPack.Id,
-                OperationName = "readJsonObjectSafe",
-                Operation = readOp,
-                ResultVar = "_orch_verified"
-            };
-            graph.Nodes.Add(nodeVerify);
-
-            // Connect write -> read verification dependency
-            graph.Edges.Add(new GraphEdge
-            {
-                FromNodeId = nodeWrite.Id,
-                FromPort = "returns",
-                FromType = "boolean",
-                ToNodeId = nodeVerify.Id,
-                ToPort = "fallbackValue",
-                ToType = "any",
-                Compatible = true
-            });
-
-            // If text was processed, connect slug to file record
-            if (hasText)
-            {
-                var slugNode = graph.Nodes.First(n => n.OperationName == "slugify");
-                graph.Edges.Add(new GraphEdge
-                {
-                    FromNodeId = slugNode.Id,
-                    FromPort = "returns",
-                    FromType = "text",
-                    ToNodeId = nodeWrite.Id,
-                    ToPort = "obj",
-                    ToType = "any",
-                    Compatible = true
-                });
-            }
-        }
-    }
-
-    // =========================================================================
-    // Port Type Validation & Adapter Injection
-    // =========================================================================
-
-    private static void ValidatePortTypes(CompositionGraph graph, ComponentCatalog catalog)
-    {
-        foreach (var edge in graph.Edges)
-        {
-            string srcType = edge.FromType.ToLowerInvariant();
-            string tgtType = edge.ToType.ToLowerInvariant();
-
-            if (srcType == tgtType || srcType == "any" || tgtType == "any")
-            {
-                edge.Compatible = true;
+                graph.Diagnostics.Add($"[MISSING_PACK] Step '{step.Id}' references undeclared pack '{step.Pack}'.");
                 continue;
             }
 
-            // Adapter resolution
-            if (srcType == "thing" && tgtType == "text")
+            var op = pack.Operations.FirstOrDefault(o => o.Name.Equals(step.Operation, StringComparison.OrdinalIgnoreCase));
+            if (op == null)
             {
-                edge.Compatible = true;
-                edge.AdapterOperation = "file-helpers.toJsonSafe";
+                graph.Diagnostics.Add($"[MISSING_OPERATION] Pack '{pack.Id}' does not declare operation '{step.Operation}' in its component contract.");
+                continue;
             }
-            else if (srcType == "text" && tgtType == "thing")
+
+            var node = new GraphNode
             {
-                edge.Compatible = true;
-                edge.AdapterOperation = "file-helpers.fromJsonSafe";
+                Id = step.Id,
+                PackId = pack.Id,
+                OperationName = op.Name,
+                Operation = op,
+                ResultVar = $"_orch_{step.Id}_res"
+            };
+
+            foreach (var kv in step.Inputs) node.ParameterBindings[kv.Key] = kv.Value;
+            graph.Nodes.Add(node);
+            nodeMap[step.Id] = node;
+        }
+
+        if (graph.Diagnostics.Count > 0) return;
+
+        // 2. Validate parameter bindings & build Data edges
+        foreach (var step in workflow.Steps)
+        {
+            if (!nodeMap.TryGetValue(step.Id, out var targetNode)) continue;
+            var op = targetNode.Operation;
+
+            // Check each parameter declared in the operation contract
+            foreach (var param in op.Parameters)
+            {
+                if (step.Inputs.TryGetValue(param.Name, out var binding))
+                {
+                    if (!string.IsNullOrEmpty(binding.FromStep))
+                    {
+                        if (!nodeMap.TryGetValue(binding.FromStep, out var sourceNode))
+                        {
+                            graph.Diagnostics.Add($"[UNKNOWN_STEP] Step '{step.Id}' input '{param.Name}' references non-existent step '{binding.FromStep}'.");
+                            continue;
+                        }
+
+                        string fromPort = string.IsNullOrEmpty(binding.Port) ? "returns" : binding.Port;
+                        string fromType = sourceNode.Operation.Returns.Type;
+                        string toType = param.Type;
+
+                        // Type compatibility & adapter validation
+                        bool directCompatible = IsTypeCompatible(fromType, toType);
+                        AdapterContract? adapter = null;
+
+                        if (!string.IsNullOrEmpty(binding.Adapter))
+                        {
+                            adapter = AdapterRegistry.Find(binding.Adapter);
+                            if (adapter == null)
+                            {
+                                graph.Diagnostics.Add($"[INVALID_ADAPTER] Step '{step.Id}' references unregistered adapter '{binding.Adapter}'.");
+                                continue;
+                            }
+
+                            if (!IsTypeCompatible(fromType, adapter.FromType) || !IsTypeCompatible(adapter.ToType, toType))
+                            {
+                                graph.Diagnostics.Add($"[ADAPTER_TYPE_MISMATCH] Adapter '{adapter.Id}' converts '{adapter.FromType}' -> '{adapter.ToType}', but port requires '{fromType}' -> '{toType}'.");
+                                continue;
+                            }
+                        }
+                        else if (!directCompatible)
+                        {
+                            adapter = AdapterRegistry.FindCompatible(fromType, toType);
+                            if (adapter == null)
+                            {
+                                graph.Diagnostics.Add($"[TYPE_INCOMPATIBLE] Cannot bind output type '{fromType}' from step '{sourceNode.Id}' to parameter '{param.Name}' of type '{toType}' on step '{step.Id}'. No compatible adapter found.");
+                                continue;
+                            }
+                        }
+
+                        graph.Edges.Add(new GraphEdge
+                        {
+                            Kind = EdgeKind.Data,
+                            FromNodeId = sourceNode.Id,
+                            FromPort = fromPort,
+                            FromType = fromType,
+                            ToNodeId = targetNode.Id,
+                            ToPort = param.Name,
+                            ToType = toType,
+                            Compatible = true,
+                            AdapterId = adapter?.Id,
+                            Adapter = adapter
+                        });
+                    }
+                    else if (!string.IsNullOrEmpty(binding.FromInput))
+                    {
+                        var pipeIn = workflow.PipelineInputs.FirstOrDefault(pi => pi.Name.Equals(binding.FromInput, StringComparison.OrdinalIgnoreCase));
+                        if (pipeIn == null)
+                        {
+                            graph.Diagnostics.Add($"[UNKNOWN_PIPELINE_INPUT] Step '{step.Id}' input '{param.Name}' references undeclared pipeline input '{binding.FromInput}'.");
+                        }
+                    }
+                }
+                else if (!param.Optional && param.DefaultValue == null)
+                {
+                    graph.Diagnostics.Add($"[MISSING_REQUIRED_INPUT] Step '{step.Id}' is missing binding for required parameter '{param.Name}' ({param.Type}) on operation '{op.Name}'.");
+                }
             }
-            else if (srcType == "text" && tgtType == "list")
+
+            // 3. Add explicit Ordering-only edges (orderAfter)
+            foreach (var orderStepId in step.OrderAfter)
             {
-                edge.Compatible = true;
-                edge.AdapterOperation = "text-utils.splitText";
-            }
-            else if (srcType == "list" && tgtType == "text")
-            {
-                edge.Compatible = true;
-                edge.AdapterOperation = "text-utils.joinText";
-            }
-            else
-            {
-                edge.Compatible = false;
-                edge.Error = $"[TYPE_INCOMPATIBLE] Cannot bind output type '{srcType}' from node '{edge.FromNodeId}' to input port '{edge.ToPort}' of type '{tgtType}' on node '{edge.ToNodeId}'.";
-                graph.Diagnostics.Add(edge.Error);
+                if (!nodeMap.TryGetValue(orderStepId, out var sourceNode))
+                {
+                    graph.Diagnostics.Add($"[UNKNOWN_STEP] Step '{step.Id}' declares ordering dependency on non-existent step '{orderStepId}'.");
+                    continue;
+                }
+
+                // Avoid duplicate edge if data edge already exists between these nodes
+                if (!graph.Edges.Any(e => e.FromNodeId == sourceNode.Id && e.ToNodeId == targetNode.Id))
+                {
+                    graph.Edges.Add(new GraphEdge
+                    {
+                        Kind = EdgeKind.Ordering,
+                        FromNodeId = sourceNode.Id,
+                        FromPort = "complete",
+                        FromType = "void",
+                        ToNodeId = targetNode.Id,
+                        ToPort = "start",
+                        ToType = "void",
+                        Compatible = true
+                    });
+                }
             }
         }
     }
 
+    private static void BuildInferredGraph(List<PackContractInfo> packs, CompositionGraph graph)
+    {
+        // When no workflow specification is provided, perform contract-driven semantic port inference.
+        // If an operation input has multiple matching candidate outputs, report ambiguity instead of guessing.
+        int step = 1;
+        var availableOutputs = new List<(string StepId, string Port, string Type, string PackId, string OpName)>();
+
+        foreach (var pack in packs)
+        {
+            foreach (var op in pack.Operations)
+            {
+                var node = new GraphNode
+                {
+                    Id = $"step{step++}_{op.Name}",
+                    PackId = pack.Id,
+                    OperationName = op.Name,
+                    Operation = op,
+                    ResultVar = $"_orch_{op.Name}_res"
+                };
+
+                foreach (var param in op.Parameters)
+                {
+                    // Find candidate outputs that match parameter type
+                    var candidates = availableOutputs.Where(o => IsTypeCompatible(o.Type, param.Type)).ToList();
+
+                    if (candidates.Count == 1)
+                    {
+                        var cand = candidates[0];
+                        graph.Edges.Add(new GraphEdge
+                        {
+                            Kind = EdgeKind.Data,
+                            FromNodeId = cand.StepId,
+                            FromPort = cand.Port,
+                            FromType = cand.Type,
+                            ToNodeId = node.Id,
+                            ToPort = param.Name,
+                            ToType = param.Type,
+                            Compatible = true
+                        });
+                    }
+                    else if (candidates.Count > 1)
+                    {
+                        string candList = string.Join(", ", candidates.Select(c => $"[{c.PackId}]::{c.OpName}.{c.Port} ({c.Type})"));
+                        graph.Diagnostics.Add($"[AMBIGUOUS_CONNECTION] Ambiguous connection for parameter '{param.Name}' on '[{pack.Id}]::{op.Name}'. Multiple candidate outputs [{candList}]. Provide an explicit --workflow specification to disambiguate.");
+                    }
+                }
+
+                availableOutputs.Add((node.Id, "returns", op.Returns.Type, pack.Id, op.Name));
+                graph.Nodes.Add(node);
+            }
+        }
+    }
+
+    private static bool IsTypeCompatible(string fromType, string toType)
+    {
+        string f = fromType.ToLowerInvariant();
+        string t = toType.ToLowerInvariant();
+        if (f == t || f == "any" || t == "any") return true;
+        return false;
+    }
+
     // =========================================================================
-    // Cycle Detection & Topological Sort (Kahn's Algorithm)
+    // 7. Cycle Detection & Topological Sort (Kahn's Algorithm)
     // =========================================================================
 
     public static void DetectCyclesAndOrder(CompositionGraph graph)
     {
         var nodeIds = graph.Nodes.Select(n => n.Id).ToList();
-        var inDegree = new Dictionary<string, int>();
-        var adj = new Dictionary<string, List<string>>();
+        var inDegree = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var adj = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var id in nodeIds)
         {
@@ -714,7 +1002,6 @@ public static class CompositionPlanner
             }
         }
 
-        // Kahn's algorithm
         var queue = new Queue<string>(nodeIds.Where(id => inDegree[id] == 0));
         var order = new List<string>();
 
@@ -735,10 +1022,9 @@ public static class CompositionPlanner
 
         if (order.Count != nodeIds.Count)
         {
-            // Cycle detected!
             var cycleNodes = nodeIds.Where(id => inDegree[id] > 0).ToList();
             string cyclePath = string.Join(" -> ", cycleNodes) + " -> " + cycleNodes.FirstOrDefault();
-            graph.Diagnostics.Add($"[DEPENDENCY_CYCLE] Dependency cycle detected in component data flow: [{cyclePath}].");
+            graph.Diagnostics.Add($"[DEPENDENCY_CYCLE] Dependency cycle detected in component workflow graph: [{cyclePath}].");
             return;
         }
 
@@ -746,12 +1032,13 @@ public static class CompositionPlanner
     }
 
     // =========================================================================
-    // Code Synthesis (Otter 1.0.1 Orchestrator)
+    // 8. General-Purpose Code Synthesizer (Otter 1.0.1)
     // =========================================================================
 
     private static string SynthesizeOrchestratorCode(
         List<PackContractInfo> packs,
         CompositionGraph graph,
+        WorkflowSpec? workflow,
         string outputPath,
         string targetRuntime)
     {
@@ -765,67 +1052,159 @@ public static class CompositionPlanner
         {
             sb.AppendLine($"#   - {p.Id} v{p.Version} (prefix: {p.VariablePrefix}, capabilities: {string.Join(", ", p.Capabilities)})");
         }
-        sb.AppendLine("# Scoping Isolation: Orchestrator uses dedicated prefix '_orch_'");
+        sb.AppendLine("# Dynamic Scoping Isolation: Synthesized orchestrator uses prefix '_orch_'");
         sb.AppendLine("# ===========================================================================");
         sb.AppendLine();
 
-        // Imports using ${import:<id>} for transactional staging
-        foreach (var p in packs)
+        // Distinct package imports using ${import:<id>} for transactional staging
+        var distinctPacks = graph.Nodes.Select(n => n.PackId).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        foreach (var pid in distinctPacks)
         {
-            sb.AppendLine($"use \"${{import:{p.Id}}}\"");
+            sb.AppendLine($"use \"${{import:{pid}}}\"");
         }
         sb.AppendLine();
 
-        // Synthesize Orchestrator Workflow Function
-        sb.AppendLine("to runCompositionPipeline rawInput targetFilePath");
-        sb.AppendLine("    # Step 1: Normalize whitespace in source input");
-        sb.AppendLine("    normalizeSpaces rawInput into _orch_cleaned");
-        sb.AppendLine();
-        sb.AppendLine("    # Step 2: Slugify normalized text");
-        sb.AppendLine("    slugify _orch_cleaned into _orch_slug");
-        sb.AppendLine();
-        sb.AppendLine("    # Step 3: Construct structured application record");
-        sb.AppendLine("    _orch_record is a thing");
-        sb.AppendLine("    title of _orch_record is _orch_cleaned");
-        sb.AppendLine("    slug of _orch_record is _orch_slug");
-        sb.AppendLine();
-        sb.AppendLine("    # Step 4: Persist structured record safely to disk");
-        sb.AppendLine("    writeJsonObject targetFilePath _orch_record into _orch_saveOk");
-        sb.AppendLine("    if _orch_saveOk is false");
-        sb.AppendLine("        say \"[Pipeline Error] Failed to write JSON record to: \" plus targetFilePath");
-        sb.AppendLine("        return false");
-        sb.AppendLine("    .");
-        sb.AppendLine();
-        sb.AppendLine("    # Step 5: Read back saved record to verify persistence integrity");
-        sb.AppendLine("    readJsonObjectSafe targetFilePath gone into _orch_verified");
-        sb.AppendLine("    if _orch_verified is gone");
-        sb.AppendLine("        say \"[Pipeline Error] Persistence verification failed for: \" plus targetFilePath");
-        sb.AppendLine("        return false");
-        sb.AppendLine("    .");
-        sb.AppendLine();
-        sb.AppendLine("    _orch_title is title of _orch_verified");
-        sb.AppendLine("    _orch_slugVal is slug of _orch_verified");
-        sb.AppendLine("    say \"[Pipeline Success] Composed pipeline processed: \" plus _orch_title plus \" (slug: \" plus _orch_slugVal plus \")\"");
-        sb.AppendLine("    return true");
+        // Build pipeline function signature
+        var pinputs = graph.PipelineInputs;
+        string sigArgs = pinputs.Count > 0 ? " " + string.Join(" ", pinputs.Select(pi => pi.Name)) : "";
+        sb.AppendLine($"to runCompositionPipeline{sigArgs}");
+
+        // Emit steps in topological execution order
+        for (int i = 0; i < graph.TopologicalOrder.Count; i++)
+        {
+            string stepId = graph.TopologicalOrder[i];
+            var node = graph.Nodes.First(n => n.Id == stepId);
+            sb.AppendLine($"    # Step {i + 1}: [{node.PackId}]::{node.OperationName} (step: {node.Id})");
+
+            var callArgVars = new List<string>();
+
+            foreach (var param in node.Operation.Parameters)
+            {
+                string argVar = $"_orch_{node.Id}_{param.Name}";
+                callArgVars.Add(argVar);
+
+                // Check for incoming data edge
+                var dataEdge = graph.Edges.FirstOrDefault(e =>
+                    e.Kind == EdgeKind.Data &&
+                    e.ToNodeId == node.Id &&
+                    e.ToPort.Equals(param.Name, StringComparison.OrdinalIgnoreCase));
+
+                if (dataEdge != null)
+                {
+                    var srcNode = graph.Nodes.First(n => n.Id == dataEdge.FromNodeId);
+                    if (dataEdge.Adapter != null)
+                    {
+                        var stmts = dataEdge.Adapter.GenerateStatements(srcNode.ResultVar, argVar);
+                        foreach (var stmt in stmts)
+                        {
+                            sb.AppendLine($"    {stmt}");
+                        }
+                    }
+                    else
+                    {
+                        sb.AppendLine($"    {argVar} is {srcNode.ResultVar}");
+                    }
+                }
+                else if (node.ParameterBindings.TryGetValue(param.Name, out var binding))
+                {
+                    if (!string.IsNullOrEmpty(binding.FromInput))
+                    {
+                        sb.AppendLine($"    {argVar} is {binding.FromInput}");
+                    }
+                    else if (binding.Value != null)
+                    {
+                        sb.AppendLine($"    {argVar} is {FormatLiteralValue(binding.Value)}");
+                    }
+                    else
+                    {
+                        sb.AppendLine($"    {argVar} is gone");
+                    }
+                }
+                else if (param.Optional)
+                {
+                    sb.AppendLine($"    {argVar} is gone");
+                }
+                else
+                {
+                    sb.AppendLine($"    {argVar} is gone");
+                }
+            }
+
+            // Call imported operation using Otter 1.0.1 statement calling syntax
+            if (callArgVars.Count > 0)
+            {
+                sb.AppendLine($"    {node.OperationName} {string.Join(" ", callArgVars)} into {node.ResultVar}");
+            }
+            else
+            {
+                sb.AppendLine($"    {node.OperationName} into {node.ResultVar}");
+            }
+            sb.AppendLine();
+        }
+
+        // Return desired output
+        string returnVar = "_orch_final_result";
+        if (graph.PipelineOutput != null && !string.IsNullOrEmpty(graph.PipelineOutput.FromStep))
+        {
+            var outNode = graph.Nodes.FirstOrDefault(n => n.Id == graph.PipelineOutput.FromStep);
+            if (outNode != null) returnVar = outNode.ResultVar;
+        }
+        else if (graph.Nodes.Count > 0)
+        {
+            string lastStepId = graph.TopologicalOrder.Last();
+            var lastNode = graph.Nodes.First(n => n.Id == lastStepId);
+            returnVar = lastNode.ResultVar;
+        }
+
+        sb.AppendLine($"    return {returnVar}");
         sb.AppendLine(".");
         sb.AppendLine();
 
-        // Main execution block
-        sb.AppendLine("# Main entry point");
-        sb.AppendLine("_orch_sampleInput is \"   Multi-Pack   Deterministic   Composition   Architecture   \"");
-        sb.AppendLine("_orch_destFile is \"composition_output.json\"");
-        sb.AppendLine("runCompositionPipeline _orch_sampleInput _orch_destFile into _orch_execStatus");
-        sb.AppendLine("if _orch_execStatus is true");
-        sb.AppendLine("    say \"Deterministic multi-pack composition executed successfully.\"");
-        sb.AppendLine("otherwise");
-        sb.AppendLine("    say \"Deterministic multi-pack composition failed.\"");
-        sb.AppendLine(".");
+        // Standalone Test / Execution Harness
+        sb.AppendLine("# Standalone Execution Harness");
+        var harnessArgs = new List<string>();
+        foreach (var pi in pinputs)
+        {
+            string inVar = $"_orch_in_{pi.Name}";
+            harnessArgs.Add(inVar);
+            string defaultVal = FormatLiteralValue(pi.DefaultValue) ?? "\"test\"";
+            sb.AppendLine($"{inVar} is {defaultVal}");
+        }
+
+        string harnessCall = harnessArgs.Count > 0
+            ? $"runCompositionPipeline {string.Join(" ", harnessArgs)} into _orch_pipeline_res"
+            : "runCompositionPipeline into _orch_pipeline_res";
+
+        sb.AppendLine(harnessCall);
+        sb.AppendLine("say \"Pipeline execution complete. Result: \"");
+        sb.AppendLine("say _orch_pipeline_res");
 
         return sb.ToString();
     }
 
+    private static string FormatLiteralValue(JsonNode? node)
+    {
+        if (node == null) return "gone";
+        if (node is JsonValue jval)
+        {
+            if (jval.TryGetValue<string>(out var s))
+            {
+                return $"\"{s.Replace("\\", "\\\\").Replace("\"", "\\\"")}\"";
+            }
+            if (jval.TryGetValue<bool>(out var b))
+            {
+                return b ? "true" : "false";
+            }
+            if (jval.TryGetValue<double>(out var d))
+            {
+                return d.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            }
+        }
+        return "gone";
+    }
+
     // =========================================================================
-    // Proposal Generation & Formatting
+    // 9. Proposal JSON & Explanation Formatting
     // =========================================================================
 
     private static JsonObject BuildProposalJson(
@@ -850,10 +1229,7 @@ public static class CompositionPlanner
         }
 
         var composedPacks = new JsonArray();
-        foreach (var p in packs)
-        {
-            composedPacks.Add((JsonNode)JsonValue.Create(p.Id)!);
-        }
+        foreach (var p in packs) composedPacks.Add((JsonNode)JsonValue.Create(p.Id)!);
 
         var conns = new JsonArray();
         foreach (var e in graph.Edges)
@@ -862,7 +1238,10 @@ public static class CompositionPlanner
             {
                 ["source"] = $"{e.FromNodeId}.{e.FromPort}",
                 ["destination"] = $"{e.ToNodeId}.{e.ToPort}",
-                ["description"] = $"Binds '{e.FromType}' to '{e.ToType}'" + (e.AdapterOperation != null ? $" via adapter {e.AdapterOperation}" : "")
+                ["kind"] = e.Kind.ToString().ToLowerInvariant(),
+                ["description"] = e.Kind == EdgeKind.Data
+                    ? $"Binds '{e.FromType}' to '{e.ToType}'" + (e.Adapter != null ? $" via adapter {e.Adapter.Id}" : "")
+                    : "Explicit ordering dependency"
             });
         }
 
@@ -883,8 +1262,9 @@ public static class CompositionPlanner
                 ["toPort"] = e.ToPort,
                 ["fromType"] = e.FromType,
                 ["toType"] = e.ToType,
+                ["kind"] = e.Kind.ToString().ToLowerInvariant(),
                 ["compatible"] = e.Compatible,
-                ["adapter"] = e.AdapterOperation
+                ["adapter"] = e.Adapter?.Id
             }).ToArray()),
             ["topologicalOrder"] = new JsonArray(graph.TopologicalOrder.Select(o => (JsonNode)JsonValue.Create(o)!).ToArray())
         };
@@ -997,10 +1377,6 @@ public static class CompositionPlanner
         };
     }
 
-    // =========================================================================
-    // Explainable Graph Formatter
-    // =========================================================================
-
     public static string FormatGraphExplanation(CompositionGraph graph, string proposalId, List<PackContractInfo> packs)
     {
         var sb = new StringBuilder();
@@ -1010,10 +1386,10 @@ public static class CompositionPlanner
         foreach (var p in packs)
         {
             sb.AppendLine($"   * {p.Id} v{p.Version}");
-            sb.AppendLine($"     Prefix:      {p.VariablePrefix}");
-            sb.AppendLine($"     Runtime:     {p.RequiresOtter} (target platform supported)");
+            sb.AppendLine($"     Prefix:       {p.VariablePrefix}");
+            sb.AppendLine($"     Runtime:      {p.RequiresOtter} (target platform supported)");
             sb.AppendLine($"     Capabilities: {string.Join(", ", p.Capabilities)}");
-            sb.AppendLine($"     Operations:  {string.Join(", ", p.Operations.Select(o => o.Name))}");
+            sb.AppendLine($"     Operations:   {string.Join(", ", p.Operations.Select(o => o.Name))}");
         }
         sb.AppendLine();
 
@@ -1029,9 +1405,10 @@ public static class CompositionPlanner
         sb.AppendLine("3. Port Bindings & Type Invariants:");
         foreach (var edge in graph.Edges)
         {
+            string kind = edge.Kind == EdgeKind.Data ? "[DATA]" : "[ORDERING]";
             string status = edge.Compatible ? "[OK]" : "[FAIL]";
-            string adapter = edge.AdapterOperation != null ? $" (adapter: {edge.AdapterOperation})" : "";
-            sb.AppendLine($"   {status} {edge.FromNodeId}.{edge.FromPort} ({edge.FromType}) ---> {edge.ToNodeId}.{edge.ToPort} ({edge.ToType}){adapter}");
+            string adapter = edge.Adapter != null ? $" (adapter: {edge.Adapter.Id})" : "";
+            sb.AppendLine($"   {status} {kind} {edge.FromNodeId}.{edge.FromPort} ({edge.FromType}) ---> {edge.ToNodeId}.{edge.ToPort} ({edge.ToType}){adapter}");
         }
         sb.AppendLine();
 
@@ -1044,7 +1421,15 @@ public static class CompositionPlanner
         }
         foreach (var edge in graph.Edges)
         {
-            sb.AppendLine($"       {edge.FromNodeId} -->|\"{edge.FromType}\"| {edge.ToNodeId}");
+            if (edge.Kind == EdgeKind.Data)
+            {
+                string adp = edge.Adapter != null ? $" ({edge.Adapter.Id})" : "";
+                sb.AppendLine($"       {edge.FromNodeId} -->|\"{edge.FromType} -> {edge.ToType}{adp}\"| {edge.ToNodeId}");
+            }
+            else
+            {
+                sb.AppendLine($"       {edge.FromNodeId} -.->|\"order\"| {edge.ToNodeId}");
+            }
         }
         sb.AppendLine("   ```");
         sb.AppendLine();
@@ -1055,5 +1440,95 @@ public static class CompositionPlanner
         sb.AppendLine("   - Zero risk of caller variable clashing under Otter 1.0.1 dynamic scoping.");
 
         return sb.ToString();
+    }
+
+    // =========================================================================
+    // 10. Capability & Intent Discovery Fallback
+    // =========================================================================
+
+    private sealed class DiscoveryOutcome
+    {
+        public bool Supported { get; set; } = true;
+        public List<PackContractInfo> SelectedPacks { get; } = new();
+        public List<CoverageItem> CoverageMatrix { get; } = new();
+        public List<string> Diagnostics { get; } = new();
+        public List<string> MissingCapabilities { get; } = new();
+    }
+
+    private static DiscoveryOutcome MatchIntentCapabilities(string intent, ComponentCatalog catalog)
+    {
+        var outcome = new DiscoveryOutcome();
+        string lower = intent.ToLowerInvariant();
+        var tokens = Regex.Matches(lower, @"[a-z0-9\-]+").Select(m => m.Value).ToHashSet();
+
+        // Unsupported domain filters (GPU, neural networks, blockchains, kernel)
+        var unsupported = new Dictionary<string, string[]>
+        {
+            ["gpu-acceleration"] = new[] { "gpu", "cuda", "vulkan", "opencl", "directx", "metal" },
+            ["neural-networks"] = new[] { "neural", "deep-learning", "pytorch", "tensorflow", "transformer", "whisper", "llm" },
+            ["audio-dsp"] = new[] { "audio-dsp", "dsp", "vst", "vst3", "synthesizer", "synth", "midi" },
+            ["blockchain"] = new[] { "blockchain", "crypto", "bitcoin", "ethereum", "solana", "mining" },
+            ["kernel-embedded"] = new[] { "kernel-driver", "kernel", "fpga", "embedded", "firmware" },
+            ["websocket-sync"] = new[] { "websocket", "real-time-sync", "socket-io" }
+        };
+
+        foreach (var (domain, kwList) in unsupported)
+        {
+            if (kwList.Any(k => tokens.Contains(k) || lower.Contains(k)))
+            {
+                outcome.Supported = false;
+                outcome.MissingCapabilities.Add(domain);
+                outcome.CoverageMatrix.Add(new CoverageItem(
+                    domain,
+                    "unsupported",
+                    null,
+                    $"Otter 1.0.1 does not provide library building blocks for {domain}."
+                ));
+                outcome.Diagnostics.Add($"[UNSUPPORTED_CAPABILITY] Requested domain '{domain}' is not provided by Otter standard library.");
+            }
+        }
+
+        if (!outcome.Supported) return outcome;
+
+        // Match capabilities across any registered catalog pack
+        foreach (var pack in catalog.Packs.Values)
+        {
+            bool matches = false;
+            foreach (var cap in pack.Capabilities)
+            {
+                string capLower = cap.ToLowerInvariant();
+                bool tokenMatch = tokens.Any(t =>
+                    capLower.Contains(t) ||
+                    (t.Length >= 4 && capLower.Contains(t.Substring(0, 4))) ||
+                    (t.Length >= 5 && capLower.Contains(t.Substring(0, 5))) ||
+                    (t.Length >= 6 && capLower.Contains(t.Substring(0, 6))));
+
+                if (tokenMatch)
+                {
+                    matches = true;
+                    outcome.CoverageMatrix.Add(new CoverageItem(cap, "implemented", pack.Id, $"Fulfilled by {pack.Id} contract operations."));
+                }
+            }
+
+            if (matches && !outcome.SelectedPacks.Contains(pack))
+            {
+                outcome.SelectedPacks.Add(pack);
+            }
+        }
+
+        if (outcome.SelectedPacks.Count == 0)
+        {
+            outcome.Supported = false;
+            outcome.MissingCapabilities.Add("unmatched-intent");
+            outcome.CoverageMatrix.Add(new CoverageItem(
+                "unmatched-intent",
+                "unsupported",
+                null,
+                $"Intent '{intent}' does not match any verified building block capabilities in the catalog."
+            ));
+            outcome.Diagnostics.Add($"[UNMATCHED_INTENT] Intent '{intent}' does not match available offline pack capabilities.");
+        }
+
+        return outcome;
     }
 }

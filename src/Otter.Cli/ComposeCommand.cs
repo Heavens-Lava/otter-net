@@ -803,6 +803,11 @@ internal static class ComposeCommand
                 string packsArg = raw[++i];
                 planReq.ExplicitPacks.AddRange(packsArg.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
             }
+            else if ((string.Equals(arg, "--workflow", StringComparison.OrdinalIgnoreCase) ||
+                      string.Equals(arg, "-w", StringComparison.OrdinalIgnoreCase)) && i + 1 < raw.Length)
+            {
+                planReq.WorkflowSpecPath = raw[++i];
+            }
             else if (string.Equals(arg, "--target", StringComparison.OrdinalIgnoreCase) && i + 1 < raw.Length)
             {
                 planReq.TargetRuntime = raw[++i].ToLowerInvariant();
@@ -849,9 +854,11 @@ internal static class ComposeCommand
             planReq.Intent = string.Join(" ", positional);
         }
 
-        if (planReq.ExplicitPacks.Count == 0 && string.IsNullOrWhiteSpace(planReq.Intent))
+        if (string.IsNullOrEmpty(planReq.WorkflowSpecPath) &&
+            planReq.ExplicitPacks.Count == 0 &&
+            string.IsNullOrWhiteSpace(planReq.Intent))
         {
-            Console.Error.WriteLine("Usage: otter compose plan [\"<intent>\"] [--packs <p1,p2>] [--target <console|desktop|web>] [options]");
+            Console.Error.WriteLine("Usage: otter compose plan [\"<intent>\"] [--workflow <spec.json>] [--packs <p1,p2>] [--target <console|desktop|web>] [options]");
             return Cli.ExitUsageError;
         }
 

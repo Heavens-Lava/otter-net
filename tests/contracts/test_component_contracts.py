@@ -277,15 +277,15 @@ def test_negative_invalid_variable_prefix_format():
 
 def test_backward_compatibility():
     print("--> Test 11: Backward compatibility with unmodified Otter 1.0.1 packs...")
-    math_dir = os.path.join(REPO_ROOT, "library", "packs", "otter-official", "math-utils")
+    list_dir = os.path.join(REPO_ROOT, "library", "packs", "otter-official", "list-utils")
     
     # Standard verify continues working unchanged (exit 0)
-    std_res = run_otter(["pack", "verify", math_dir])
-    assert std_res.returncode == 0, f"Expected 0 for standard verify on math-utils, got {std_res.returncode}"
+    std_res = run_otter(["pack", "verify", list_dir])
+    assert std_res.returncode == 0, f"Expected 0 for standard verify on list-utils, got {std_res.returncode}"
     assert "src/main.ot [OK]" in std_res.stdout
     
     # Contract verify on v1 pack reports schema v1 uncontracted error with migration guide
-    contract_res = run_otter(["pack", "verify", math_dir, "--contracts"])
+    contract_res = run_otter(["pack", "verify", list_dir, "--contracts"])
     assert contract_res.returncode == 2
     assert "SCHEMA_V1_UNCONTRACTED" in contract_res.stdout
     assert "Migrate manifest to schemaVersion: 2" in contract_res.stdout
