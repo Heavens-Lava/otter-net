@@ -1,0 +1,76 @@
+{
+  "$schema": "../schema/workflow-spec.schema.json",
+  "workflowVersion": 1,
+  "id": "text-processing-persistence",
+  "name": "Text Processing and Persistence Workflow",
+  "description": "Demonstrates multi-pack composition: normalizes and slugifies text using otter-official/text-utils, then persists and verifies the structured record using otter-official/file-helpers.",
+  "target": "console",
+  "composedPacks": [
+    "otter-official/text-utils",
+    "otter-official/file-helpers"
+  ],
+  "pipelineInputs": [
+    {
+      "name": "rawInput",
+      "type": "text",
+      "default": "   Multi-Pack   Deterministic   Composition   Architecture   ",
+      "description": "Raw string to normalize and slugify"
+    },
+    {
+      "name": "targetFilePath",
+      "type": "text",
+      "default": "composition_output.json",
+      "description": "Destination file path for structured JSON persistence"
+    }
+  ],
+  "steps": [
+    {
+      "id": "step1_clean",
+      "pack": "otter-official/text-utils",
+      "operation": "normalizeSpaces",
+      "inputs": {
+        "text": { "fromInput": "rawInput" }
+      }
+    },
+    {
+      "id": "step2_slug",
+      "pack": "otter-official/text-utils",
+      "operation": "slugify",
+      "inputs": {
+        "text": { "fromStep": "step1_clean", "port": "returns" }
+      }
+    },
+    {
+      "id": "step3_persist",
+      "pack": "otter-official/file-helpers",
+      "operation": "writeJsonObject",
+      "inputs": {
+        "filePath": { "fromInput": "targetFilePath" },
+        "obj": {
+          "fromStep": "step2_slug",
+          "port": "returns",
+          "adapter": "json_object_wrap_slug"
+        }
+      },
+      "orderAfter": [
+        "step2_slug"
+      ]
+    },
+    {
+      "id": "step4_verify",
+      "pack": "otter-official/file-helpers",
+      "operation": "readJsonObjectSafe",
+      "inputs": {
+        "filePath": { "fromInput": "targetFilePath" },
+        "fallbackValue": { "value": null }
+      },
+      "orderAfter": [
+        "step3_persist"
+      ]
+    }
+  ],
+  "output": {
+    "fromStep": "step3_persist",
+    "port": "returns"
+  }
+}

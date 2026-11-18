@@ -17,7 +17,7 @@
   "properties": {
     "schemaVersion": {
       "type": "integer",
-      "const": 1
+      "enum": [1, 2]
     },
     "proposalId": {
       "type": "string",
@@ -64,6 +64,10 @@
               "description": { "type": "string" }
             }
           }
+        },
+        "graph": {
+          "type": "object",
+          "description": "Deterministic DAG representing component and operation execution flow"
         }
       }
     },

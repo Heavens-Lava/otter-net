@@ -48,6 +48,7 @@ EXPECTED_SCHEMAS = {
     "recipe.schema.json",
     "composition-proposal.schema.json",
     "component-contract.schema.json",
+    "workflow-spec.schema.json",
 }
 
 EXPECTED_SNIPPET_COUNT = 38

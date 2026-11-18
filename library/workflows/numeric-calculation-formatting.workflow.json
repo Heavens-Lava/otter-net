@@ -1,0 +1,65 @@
+{
+  "$schema": "../schema/workflow-spec.schema.json",
+  "workflowVersion": 1,
+  "id": "numeric-calculation-formatting",
+  "name": "Numeric Calculation and Formatting Workflow",
+  "description": "Demonstrates multi-pack numeric composition: clamps an input value with otter-official/math-utils and formats the result with zero padding using otter-official/text-utils via real number_to_text adapter.",
+  "target": "console",
+  "composedPacks": [
+    "otter-official/math-utils",
+    "otter-official/text-utils"
+  ],
+  "pipelineInputs": [
+    {
+      "name": "inputValue",
+      "type": "number",
+      "default": 42,
+      "description": "Numeric value to clamp and format"
+    },
+    {
+      "name": "minBound",
+      "type": "number",
+      "default": 10,
+      "description": "Minimum limit for clamping"
+    },
+    {
+      "name": "maxBound",
+      "type": "number",
+      "default": 100,
+      "description": "Maximum limit for clamping"
+    }
+  ],
+  "steps": [
+    {
+      "id": "step1_clamp",
+      "pack": "otter-official/math-utils",
+      "operation": "clamp",
+      "inputs": {
+        "value": { "fromInput": "inputValue" },
+        "minLimit": { "fromInput": "minBound" },
+        "maxLimit": { "fromInput": "maxBound" }
+      }
+    },
+    {
+      "id": "step2_pad",
+      "pack": "otter-official/text-utils",
+      "operation": "padLeft",
+      "inputs": {
+        "text": {
+          "fromStep": "step1_clamp",
+          "port": "returns",
+          "adapter": "number_to_text"
+        },
+        "targetLen": { "value": 6 },
+        "padChar": { "value": "0" }
+      },
+      "orderAfter": [
+        "step1_clamp"
+      ]
+    }
+  ],
+  "output": {
+    "fromStep": "step2_pad",
+    "port": "returns"
+  }
+}
