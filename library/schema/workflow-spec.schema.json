@@ -44,7 +44,7 @@
         "required": ["name", "type"],
         "properties": {
           "name": { "type": "string" },
-          "type": { "type": "string", "enum": ["text", "number", "boolean", "thing", "list", "any"] },
+          "type": { "type": "string", "enum": ["text", "number", "boolean", "thing", "object", "list", "any"] },
           "default": { "description": "Default test harness input value" },
           "description": { "type": "string" }
         }

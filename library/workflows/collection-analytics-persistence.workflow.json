@@ -1,0 +1,102 @@
+{
+  "$schema": "../schema/workflow-spec.schema.json",
+  "workflowVersion": 1,
+  "id": "collection-analytics-persistence",
+  "name": "Collection Analytics and Persistence Workflow",
+  "description": "Demonstrates 4-pack composition: deduplicates and sums numeric collections with otter-official/list-utils, clamps bounds with otter-official/math-utils, formats output via number_to_text and otter-official/text-utils, and persists structured JSON with otter-official/file-helpers.",
+  "target": "console",
+  "composedPacks": [
+    "otter-official/list-utils",
+    "otter-official/math-utils",
+    "otter-official/text-utils",
+    "otter-official/file-helpers"
+  ],
+  "pipelineInputs": [
+    {
+      "name": "rawNumbers",
+      "type": "list",
+      "default": [10, 20, 10, 30, 20],
+      "description": "Numeric list with duplicates to deduplicate, sum, clamp, and persist"
+    },
+    {
+      "name": "reportPath",
+      "type": "text",
+      "default": "analytics_report.json",
+      "description": "Destination JSON file path for formatted analytics output"
+    }
+  ],
+  "steps": [
+    {
+      "id": "step1_dedupe",
+      "pack": "otter-official/list-utils",
+      "operation": "dedupeList",
+      "inputs": {
+        "items": { "fromInput": "rawNumbers" }
+      }
+    },
+    {
+      "id": "step2_sum",
+      "pack": "otter-official/list-utils",
+      "operation": "calcListSum",
+      "inputs": {
+        "items": { "fromStep": "step1_dedupe", "port": "returns" }
+      }
+    },
+    {
+      "id": "step3_clamp",
+      "pack": "otter-official/math-utils",
+      "operation": "clamp",
+      "inputs": {
+        "value": { "fromStep": "step2_sum", "port": "returns" },
+        "minLimit": { "value": 0 },
+        "maxLimit": { "value": 100 }
+      }
+    },
+    {
+      "id": "step4_pad",
+      "pack": "otter-official/text-utils",
+      "operation": "padLeft",
+      "inputs": {
+        "text": {
+          "fromStep": "step3_clamp",
+          "port": "returns",
+          "adapter": "number_to_text"
+        },
+        "targetLen": { "value": 6 },
+        "padChar": { "value": "0" }
+      }
+    },
+    {
+      "id": "step5_persist",
+      "pack": "otter-official/file-helpers",
+      "operation": "writeJsonObject",
+      "inputs": {
+        "filePath": { "fromInput": "reportPath" },
+        "obj": {
+          "fromStep": "step4_pad",
+          "port": "returns",
+          "adapter": "json_object_wrap_value"
+        }
+      },
+      "orderAfter": [
+        "step4_pad"
+      ]
+    },
+    {
+      "id": "step6_verify",
+      "pack": "otter-official/file-helpers",
+      "operation": "readJsonObjectSafe",
+      "inputs": {
+        "filePath": { "fromInput": "reportPath" },
+        "fallbackValue": { "value": null }
+      },
+      "orderAfter": [
+        "step5_persist"
+      ]
+    }
+  ],
+  "output": {
+    "fromStep": "step5_persist",
+    "port": "returns"
+  }
+}

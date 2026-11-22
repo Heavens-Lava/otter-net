@@ -1,15 +1,382 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "name": "game-entity",
   "publisher": "otter-official",
   "version": "1.1.0",
   "kind": "pack",
-  "description": "Reusable entity and combat mechanics: Actor definition, damage calculation, healing, and level progression.",
+  "description": "Reusable entity and combat mechanics: Actor, InventoryItem, Cooldown, Inventory, Equipment, damage/healing, leveling, inventory containers, equipment bonuses, and state serialization.",
   "entry": "src/main.ot",
   "license": "MIT",
-  "platforms": ["console", "desktop", "web"],
+  "requiresOtter": ">=1.0.1",
+  "platforms": [
+    "console",
+    "desktop",
+    "web"
+  ],
+  "variablePrefix": "_ge_",
+  "provides": {
+    "capabilities": [
+      "game.entity",
+      "game.combat",
+      "game.inventory",
+      "game.equipment",
+      "game.serialization"
+    ],
+    "types": [
+      {
+        "name": "Actor",
+        "fields": [
+          { "name": "name", "type": "text" },
+          { "name": "health", "type": "number" },
+          { "name": "maxHealth", "type": "number" },
+          { "name": "level", "type": "number" },
+          { "name": "isAlive", "type": "boolean" },
+          { "name": "attackBonus", "type": "number" },
+          { "name": "defenseBonus", "type": "number" },
+          { "name": "experience", "type": "number" }
+        ]
+      },
+      {
+        "name": "InventoryItem",
+        "fields": [
+          { "name": "itemName", "type": "text" },
+          { "name": "itemKind", "type": "text" },
+          { "name": "itemPower", "type": "number" },
+          { "name": "isStackable", "type": "boolean" },
+          { "name": "itemCount", "type": "number" },
+          { "name": "maxStack", "type": "number" }
+        ]
+      },
+      {
+        "name": "Cooldown",
+        "fields": [
+          { "name": "skillName", "type": "text" },
+          { "name": "cooldownSeconds", "type": "number" },
+          { "name": "lastUsedSeconds", "type": "number" }
+        ]
+      },
+      {
+        "name": "Inventory",
+        "fields": [
+          { "name": "capacity", "type": "number" },
+          { "name": "currentCount", "type": "number" },
+          { "name": "items", "type": "list" }
+        ]
+      },
+      {
+        "name": "Equipment",
+        "fields": [
+          { "name": "weapon", "type": "object" },
+          { "name": "armor", "type": "object" },
+          { "name": "accessory", "type": "object" }
+        ]
+      }
+    ],
+    "operations": [
+      {
+        "name": "createActor",
+        "description": "Creates a new living Actor with the given name, starting/max health, and level.",
+        "parameters": [
+          { "name": "name", "type": "text" },
+          { "name": "hp", "type": "number" },
+          { "name": "lvl", "type": "number" }
+        ],
+        "returns": { "type": "object", "objectType": "Actor" },
+        "sideEffects": ["none"],
+        "errorMode": "returns-fallback"
+      },
+      {
+        "name": "createItem",
+        "description": "Creates a non-stackable InventoryItem with name, kind, and power.",
+        "parameters": [
+          { "name": "itemName", "type": "text" },
+          { "name": "itemKind", "type": "text" },
+          { "name": "itemPower", "type": "number" }
+        ],
+        "returns": { "type": "object", "objectType": "InventoryItem" },
+        "sideEffects": ["none"],
+        "errorMode": "returns-fallback"
+      },
+      {
+        "name": "createStackableItem",
+        "description": "Creates a stackable InventoryItem with initial stack count and maximum stack size.",
+        "parameters": [
+          { "name": "itemName", "type": "text" },
+          { "name": "itemKind", "type": "text" },
+          { "name": "itemPower", "type": "number" },
+          { "name": "countVal", "type": "number" },
+          { "name": "maxStackVal", "type": "number" }
+        ],
+        "returns": { "type": "object", "objectType": "InventoryItem" },
+        "sideEffects": ["none"],
+        "errorMode": "returns-fallback"
+      },
+      {
+        "name": "applyDamage",
+        "description": "Applies positive damage to an Actor, clamping health at 0 and setting isAlive to false on defeat.",
+        "parameters": [
+          { "name": "actor", "type": "object", "objectType": "Actor" },
+          { "name": "amount", "type": "number" }
+        ],
+        "returns": { "type": "number" },
+        "sideEffects": ["state:mutation"],
+        "errorMode": "returns-fallback"
+      },
+      {
+        "name": "restoreHealth",
+        "description": "Heals a living Actor up to maxHealth; returns 0 without reviving if Actor is dead.",
+        "parameters": [
+          { "name": "actor", "type": "object", "objectType": "Actor" },
+          { "name": "amount", "type": "number" }
+        ],
+        "returns": { "type": "number" },
+        "sideEffects": ["state:mutation"],
+        "errorMode": "returns-fallback"
+      },
+      {
+        "name": "reviveActor",
+        "description": "Revives an Actor with positive hp capped at maxHealth; returns 0 if hp is at most 0.",
+        "parameters": [
+          { "name": "actor", "type": "object", "objectType": "Actor" },
+          { "name": "hp", "type": "number" }
+        ],
+        "returns": { "type": "number" },
+        "sideEffects": ["state:mutation"],
+        "errorMode": "returns-fallback"
+      },
+      {
+        "name": "levelUp",
+        "description": "Increments Actor level, boosts maxHealth/attack/defense, and refills health.",
+        "parameters": [
+          { "name": "actor", "type": "object", "objectType": "Actor" }
+        ],
+        "returns": { "type": "number" },
+        "sideEffects": ["state:mutation"],
+        "errorMode": "returns-fallback"
+      },
+      {
+        "name": "gainExperience",
+        "description": "Adds experience to an Actor and triggers one or more level-ups when thresholds are reached.",
+        "parameters": [
+          { "name": "actor", "type": "object", "objectType": "Actor" },
+          { "name": "amount", "type": "number" },
+          { "name": "neededPerLevel", "type": "number" }
+        ],
+        "returns": { "type": "boolean" },
+        "sideEffects": ["state:mutation"],
+        "errorMode": "returns-false"
+      },
+      {
+        "name": "createCooldown",
+        "description": "Creates a ready-to-use skill Cooldown tracker with duration cd seconds.",
+        "parameters": [
+          { "name": "name", "type": "text" },
+          { "name": "cd", "type": "number" }
+        ],
+        "returns": { "type": "object", "objectType": "Cooldown" },
+        "sideEffects": ["none"],
+        "errorMode": "returns-fallback"
+      },
+      {
+        "name": "isCooldownReady",
+        "description": "Returns true if cooldownObj has elapsed at nowSeconds.",
+        "parameters": [
+          { "name": "cooldownObj", "type": "object", "objectType": "Cooldown" },
+          { "name": "nowSeconds", "type": "number" }
+        ],
+        "returns": { "type": "boolean" },
+        "sideEffects": ["none"],
+        "errorMode": "returns-false"
+      },
+      {
+        "name": "triggerCooldown",
+        "description": "Activates cooldownObj at nowSeconds if ready, returning true on success or false if still cooling.",
+        "parameters": [
+          { "name": "cooldownObj", "type": "object", "objectType": "Cooldown" },
+          { "name": "nowSeconds", "type": "number" }
+        ],
+        "returns": { "type": "boolean" },
+        "sideEffects": ["state:mutation"],
+        "errorMode": "returns-false"
+      },
+      {
+        "name": "createInventory",
+        "description": "Creates an empty Inventory container with the specified slot capacity.",
+        "parameters": [
+          { "name": "slots", "type": "number" }
+        ],
+        "returns": { "type": "object", "objectType": "Inventory" },
+        "sideEffects": ["none"],
+        "errorMode": "returns-fallback"
+      },
+      {
+        "name": "getInventoryCount",
+        "description": "Returns the number of currently occupied slots in inv.",
+        "parameters": [
+          { "name": "inv", "type": "object", "objectType": "Inventory" }
+        ],
+        "returns": { "type": "number" },
+        "sideEffects": ["none"],
+        "errorMode": "returns-fallback"
+      },
+      {
+        "name": "getInventoryCapacity",
+        "description": "Returns the maximum slot capacity of inv.",
+        "parameters": [
+          { "name": "inv", "type": "object", "objectType": "Inventory" }
+        ],
+        "returns": { "type": "number" },
+        "sideEffects": ["none"],
+        "errorMode": "returns-fallback"
+      },
+      {
+        "name": "findItemInInventory",
+        "description": "Finds an InventoryItem by name in inv, or returns gone if absent.",
+        "parameters": [
+          { "name": "inv", "type": "object", "objectType": "Inventory" },
+          { "name": "targetName", "type": "text" }
+        ],
+        "returns": { "type": "object", "objectType": "InventoryItem", "nullable": true },
+        "sideEffects": ["none"],
+        "errorMode": "returns-gone"
+      },
+      {
+        "name": "addItemToInventory",
+        "description": "Adds an item to inv (merging into an existing stack if possible), returning false if capacity is full.",
+        "parameters": [
+          { "name": "inv", "type": "object", "objectType": "Inventory" },
+          { "name": "item", "type": "object", "objectType": "InventoryItem" }
+        ],
+        "returns": { "type": "boolean" },
+        "sideEffects": ["state:mutation"],
+        "errorMode": "returns-false"
+      },
+      {
+        "name": "removeItemFromInventory",
+        "description": "Removes the first matching item named targetName from inv, returning true if removed.",
+        "parameters": [
+          { "name": "inv", "type": "object", "objectType": "Inventory" },
+          { "name": "targetName", "type": "text" }
+        ],
+        "returns": { "type": "boolean" },
+        "sideEffects": ["state:mutation"],
+        "errorMode": "returns-false"
+      },
+      {
+        "name": "consumeItemFromInventory",
+        "description": "Consumes amount units of targetName from inv, removing the slot if depleted.",
+        "parameters": [
+          { "name": "inv", "type": "object", "objectType": "Inventory" },
+          { "name": "targetName", "type": "text" },
+          { "name": "amount", "type": "number" }
+        ],
+        "returns": { "type": "boolean" },
+        "sideEffects": ["state:mutation"],
+        "errorMode": "returns-false"
+      },
+      {
+        "name": "createEquipment",
+        "description": "Creates an Equipment loadout with empty weapon, armor, and accessory slots.",
+        "parameters": [],
+        "returns": { "type": "object", "objectType": "Equipment" },
+        "sideEffects": ["none"],
+        "errorMode": "returns-fallback"
+      },
+      {
+        "name": "equipItem",
+        "description": "Equips an InventoryItem into its matching equipment slot, returning false for unsupported kinds.",
+        "parameters": [
+          { "name": "equipment", "type": "object", "objectType": "Equipment" },
+          { "name": "item", "type": "object", "objectType": "InventoryItem" }
+        ],
+        "returns": { "type": "boolean" },
+        "sideEffects": ["state:mutation"],
+        "errorMode": "returns-false"
+      },
+      {
+        "name": "unequipSlot",
+        "description": "Clears the named equipment slot and returns the previously equipped item or gone.",
+        "parameters": [
+          { "name": "equipment", "type": "object", "objectType": "Equipment" },
+          { "name": "slotName", "type": "text" }
+        ],
+        "returns": { "type": "object", "objectType": "InventoryItem", "nullable": true },
+        "sideEffects": ["state:mutation"],
+        "errorMode": "returns-gone"
+      },
+      {
+        "name": "getEquipmentAttackBonus",
+        "description": "Computes total attack power bonus from equipped weapon and attack accessories.",
+        "parameters": [
+          { "name": "equipment", "type": "object", "objectType": "Equipment" }
+        ],
+        "returns": { "type": "number" },
+        "sideEffects": ["none"],
+        "errorMode": "returns-fallback"
+      },
+      {
+        "name": "getEquipmentDefenseBonus",
+        "description": "Computes total defense power bonus from equipped armor and defense accessories.",
+        "parameters": [
+          { "name": "equipment", "type": "object", "objectType": "Equipment" }
+        ],
+        "returns": { "type": "number" },
+        "sideEffects": ["none"],
+        "errorMode": "returns-fallback"
+      },
+      {
+        "name": "buildItemRecord",
+        "description": "Converts an InventoryItem into a JSON-serializable thing record.",
+        "parameters": [
+          { "name": "it", "type": "object", "objectType": "InventoryItem" }
+        ],
+        "returns": { "type": "thing" },
+        "sideEffects": ["none"],
+        "errorMode": "returns-fallback"
+      },
+      {
+        "name": "serializeGameState",
+        "description": "Serializes Actor, Inventory, and Equipment state into a JSON-compatible thing snapshot.",
+        "parameters": [
+          { "name": "actor", "type": "object", "objectType": "Actor" },
+          { "name": "inv", "type": "object", "objectType": "Inventory" },
+          { "name": "equip", "type": "object", "objectType": "Equipment" }
+        ],
+        "returns": { "type": "thing" },
+        "sideEffects": ["none"],
+        "errorMode": "returns-fallback"
+      },
+      {
+        "name": "deserializeGameState",
+        "description": "Reconstructs Actor, Inventory, and Equipment objects from a serialized stateData thing.",
+        "parameters": [
+          { "name": "stateData", "type": "thing" }
+        ],
+        "returns": { "type": "thing" },
+        "sideEffects": ["none"],
+        "errorMode": "returns-fallback"
+      }
+    ]
+  },
+  "requires": {
+    "capabilities": [],
+    "packages": {}
+  },
   "capabilities": [],
   "dependencies": {},
-  "tags": ["game", "rpg", "entity", "actor", "health", "combat", "damage", "level"],
-  "examples": ["examples/demo.ot"]
+  "tags": [
+    "game",
+    "rpg",
+    "entity",
+    "actor",
+    "health",
+    "combat",
+    "damage",
+    "level",
+    "inventory",
+    "equipment"
+  ],
+  "examples": [
+    "examples/demo.ot"
+  ]
 }

@@ -409,6 +409,24 @@ public static class CompositionPlanner
 
             Register(new AdapterContract
             {
+                Id = "boolean_to_text",
+                FromType = "boolean",
+                ToType = "text",
+                Description = "Converts a boolean value to text representation using native 'convert to json'.",
+                GenerateStatements = (src, tgt) => new() { $"convert {src} to json into {tgt}" }
+            });
+
+            Register(new AdapterContract
+            {
+                Id = "list_to_text",
+                FromType = "list",
+                ToType = "text",
+                Description = "Serializes a list value to JSON text using native 'convert to json'.",
+                GenerateStatements = (src, tgt) => new() { $"convert {src} to json into {tgt}" }
+            });
+
+            Register(new AdapterContract
+            {
                 Id = "text_to_json_object",
                 FromType = "text",
                 ToType = "thing",
@@ -667,8 +685,9 @@ public static class CompositionPlanner
         string targetRuntime = (workflow != null && !string.IsNullOrEmpty(workflow.Target) ? workflow.Target : request.TargetRuntime).ToLowerInvariant();
         var allPrefixes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var pack in candidatePacks)
+        for (int i = 0; i < candidatePacks.Count; i++)
         {
+            var pack = candidatePacks[i];
             if (!pack.Platforms.Contains(targetRuntime) && !pack.Platforms.Contains("all"))
             {
                 result.Diagnostics.Add($"[UNSUPPORTED_PLATFORM] Pack '{pack.Id}' does not support target platform '{targetRuntime}'. Supported platforms: {string.Join(", ", pack.Platforms)}.");
@@ -1056,8 +1075,15 @@ public static class CompositionPlanner
         sb.AppendLine("# ===========================================================================");
         sb.AppendLine();
 
-        // Distinct package imports using ${import:<id>} for transactional staging
-        var distinctPacks = graph.Nodes.Select(n => n.PackId).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        // Distinct package imports using ${import:<id>} for transactional staging.
+        // Emit transitive required packages before direct workflow packs so imported operations resolve cleanly.
+        var directPacks = graph.Nodes.Select(n => n.PackId).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var distinctPacks = packs
+            .Select(p => p.Id)
+            .Where(id => !directPacks.Contains(id, StringComparer.OrdinalIgnoreCase))
+            .Concat(directPacks)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
         foreach (var pid in distinctPacks)
         {
             sb.AppendLine($"use \"${{import:{pid}}}\"");
@@ -1113,7 +1139,7 @@ public static class CompositionPlanner
                     }
                     else if (binding.Value != null)
                     {
-                        sb.AppendLine($"    {argVar} is {FormatLiteralValue(binding.Value)}");
+                        EmitValueAssignment(sb, "    ", argVar, binding.Value);
                     }
                     else
                     {
@@ -1167,8 +1193,14 @@ public static class CompositionPlanner
         {
             string inVar = $"_orch_in_{pi.Name}";
             harnessArgs.Add(inVar);
-            string defaultVal = FormatLiteralValue(pi.DefaultValue) ?? "\"test\"";
-            sb.AppendLine($"{inVar} is {defaultVal}");
+            if (pi.DefaultValue != null)
+            {
+                EmitValueAssignment(sb, "", inVar, pi.DefaultValue);
+            }
+            else
+            {
+                sb.AppendLine($"{inVar} is \"test\"");
+            }
         }
 
         string harnessCall = harnessArgs.Count > 0
@@ -1180,6 +1212,26 @@ public static class CompositionPlanner
         sb.AppendLine("say _orch_pipeline_res");
 
         return sb.ToString();
+    }
+
+    private static void EmitValueAssignment(StringBuilder sb, string indent, string varName, JsonNode? node)
+    {
+        if (node is JsonArray arr)
+        {
+            if (arr.Count == 0)
+            {
+                sb.AppendLine($"{indent}{varName} are empty");
+                return;
+            }
+            sb.AppendLine($"{indent}{varName} are");
+            foreach (var item in arr)
+            {
+                sb.AppendLine($"{indent}    {FormatLiteralValue(item)}");
+            }
+            sb.AppendLine($"{indent}.");
+            return;
+        }
+        sb.AppendLine($"{indent}{varName} is {FormatLiteralValue(node)}");
     }
 
     private static string FormatLiteralValue(JsonNode? node)

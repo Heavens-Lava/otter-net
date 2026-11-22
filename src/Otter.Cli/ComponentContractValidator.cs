@@ -623,11 +623,9 @@ public static class ComponentContractValidator
                 }
                 break;
             case ObjectDefStmt objDef:
+                // Only the object variable itself is bound in caller scope;
+                // objDef.Properties are field assignments on the new thing object.
                 assigned.Add((objDef.Name, stmt.Line));
-                foreach (var prop in objDef.Properties)
-                {
-                    CollectAssignedVariables(prop, assigned);
-                }
                 break;
             case ListDefStmt listDef:
                 assigned.Add((listDef.Name, stmt.Line));
