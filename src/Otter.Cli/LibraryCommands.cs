@@ -255,7 +255,7 @@ internal static class LibraryCommands
         if (string.Equals(subCommand, "pack", StringComparison.OrdinalIgnoreCase))
         {
             string packDir = raw.Length > 2 && !raw[2].StartsWith("-") ? raw[2] : ".";
-            string? outArchive = GetOption(raw, "--out");
+            string? outArchive = GetOption(raw, "--output") ?? GetOption(raw, "--out");
             return PublishCommands.PackagePack(packDir, outArchive, json);
         }
         if (string.Equals(subCommand, "publish", StringComparison.OrdinalIgnoreCase))
@@ -278,7 +278,7 @@ internal static class LibraryCommands
         Console.WriteLine("  verify [<id|dir>] [--project <dir>] [--contracts] [--offline] [--json]");
         Console.WriteLine("  contract [<id|dir>] [--json]");
         Console.WriteLine("  uninstall <id> [--project <dir>] [--json]");
-        Console.WriteLine("  pack <dir> [--out <archive.otterpack>] [--json]");
+        Console.WriteLine("  pack <dir> [--output <archive.otterpack>] [--json]");
         Console.WriteLine("  publish <archive.otterpack> [--dry-run] [--json]");
         return ExitUsageError;
     }
@@ -422,7 +422,7 @@ internal static class LibraryCommands
         if (string.Equals(subCommand, "pack", StringComparison.OrdinalIgnoreCase))
         {
             string recipeDir = raw.Length > 2 && !raw[2].StartsWith("-") ? raw[2] : ".";
-            string? outArchive = GetOption(raw, "--out");
+            string? outArchive = GetOption(raw, "--output") ?? GetOption(raw, "--out");
             return PublishCommands.PackageRecipe(recipeDir, outArchive, json);
         }
         if (string.Equals(subCommand, "publish", StringComparison.OrdinalIgnoreCase))

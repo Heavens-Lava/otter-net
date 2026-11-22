@@ -368,4 +368,6 @@ jobs:
         run: python3 tests/composition/test_deterministic_planner.py
       - name: Phase 11 Milestone 3 Sandboxed Verification & Benchmarking
         run: python3 tests/composition/test_milestone3_sandboxed_verification.py
+      - name: Phase 11 Milestone 4 Documentation Smoke Test
+        run: python3 tests/docs/test_component_authoring_guide.py
 
