@@ -91,21 +91,27 @@ function Invoke-OtterProcess {
     foreach ($key in $Environment.Keys) { $psi.EnvironmentVariables[$key] = $Environment[$key] }
     $process = [System.Diagnostics.Process]::Start($psi)
     $stdout = New-Object System.IO.MemoryStream
-    $copy = $process.StandardOutput.BaseStream.CopyToAsync($stdout)
-    $stderr = $process.StandardError.ReadToEndAsync()
-    try { $process.StandardInput.Close() } catch { }
-    $finished = $process.WaitForExit($TimeoutSeconds * 1000)
-    if (-not $finished) {
-        if ($onWindows) { & taskkill.exe /T /F /PID $process.Id 2>&1 | Out-Null }
-        else { try { $process.Kill() } catch { } }
-        [void]$process.WaitForExit(5000)
+    try {
+        $copy = $process.StandardOutput.BaseStream.CopyToAsync($stdout)
+        $stderr = $process.StandardError.ReadToEndAsync()
+        try { $process.StandardInput.Close() } catch { }
+        $finished = $process.WaitForExit($TimeoutSeconds * 1000)
+        if (-not $finished) {
+            if ($onWindows) { & taskkill.exe /T /F /PID $process.Id 2>&1 | Out-Null }
+            else { try { $process.Kill() } catch { } }
+            [void]$process.WaitForExit(5000)
+        }
+        [void]$copy.Wait(5000)
+        $stderrText = ''
+        if ($stderr.Wait(5000)) { $stderrText = $stderr.Result }
+        $exit = 'timeout'
+        if ($finished) { $exit = $process.ExitCode }
+        return New-Object PSObject -Property @{ ExitCode = $exit; Stdout = $stdout.ToArray(); Stderr = $stderrText }
     }
-    [void]$copy.Wait(5000)
-    $stderrText = ''
-    if ($stderr.Wait(5000)) { $stderrText = $stderr.Result }
-    $exit = 'timeout'
-    if ($finished) { $exit = $process.ExitCode }
-    return New-Object PSObject -Property @{ ExitCode = $exit; Stdout = $stdout.ToArray(); Stderr = $stderrText }
+    finally {
+        $stdout.Dispose()
+        $process.Dispose()
+    }
 }
 
 function Get-Text { param([byte[]]$Bytes) return [System.Text.Encoding]::UTF8.GetString($Bytes) }

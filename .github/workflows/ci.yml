@@ -15,6 +15,7 @@ jobs:
   windows:
     name: Windows - native build vs otterPS 1.0.1
     runs-on: windows-latest
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
       - name: Check out otterPS 1.0.1 (the reference)
@@ -45,24 +46,6 @@ jobs:
         run: |
           # Report only (does not fail the job yet): which programs still need PowerShell.
           powershell -NoProfile -ExecutionPolicy Bypass -File tools/port-progress.ps1 -OtterPs otterps -OtterNet artifacts/win-x64/otter.exe -ReportPath results/port-progress-windows.md
-      - name: Command line - otter commands against otterPS 1.0.1
-        # Not blocking yet: new on Windows PowerShell 5.1; made blocking once green.
-        continue-on-error: true
-        shell: powershell
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File tools/compare-cli.ps1 -OtterPs otterps -OtterNet artifacts/win-x64/otter.exe -ReportPath results/cli-windows.md
-      - name: Web - otter web pages byte for byte against otterPS 1.0.1
-        # Not blocking yet: new on Windows PowerShell 5.1; made blocking once green.
-        continue-on-error: true
-        shell: powershell
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File tools/compare-web.ps1 -OtterPs otterps -OtterNet artifacts/win-x64/otter.exe -ReportPath results/web-windows.md
-      - name: Differential fuzz - otterPS's generators, 150 programs and 150 mutated
-        shell: powershell
-        run: |
-          powershell -NoProfile -ExecutionPolicy Bypass -File tools/New-FuzzCorpus.ps1 -OtterPs otterps -OutputDirectory fuzz -Count 150 -Mutated
-          powershell -NoProfile -ExecutionPolicy Bypass -File tools/compare.ps1 -OtterPs otterps -OtterNet artifacts/win-x64/otter.exe -Corpus fuzz -TimeoutSeconds 20 -ReportPath results/fuzz-windows.md
-      - name: Benchmarks against otterPS 1.0.1
-        shell: powershell
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File tools/bench.ps1 -OtterPs otterps -OtterNet artifacts/win-x64/otter.exe -Runs 7 -ReportPath results/bench-windows.md
       - name: Capture reference output for the cross-platform check
         shell: powershell
         run: |
@@ -112,6 +95,85 @@ jobs:
           path: |
             results/
             outputs/
+
+  # Split out of the monolithic Windows job so CLI/Web and Fuzz/Bench run in
+  # parallel with the core compatibility job (~45 min instead of 2.5-3.5 hours
+  # on one runner) without disabling any test or weakening compatibility coverage.
+  windows-cli-web:
+    name: Windows - CLI and Web vs otterPS 1.0.1
+    runs-on: windows-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check out otterPS 1.0.1 (the reference)
+        uses: actions/checkout@v4
+        with:
+          repository: Heavens-Lava/otterPS
+          ref: v1.0.1
+          path: otterps
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Publish native (AOT)
+        run: dotnet publish src/Otter.Cli/Otter.Cli.csproj -c Release -r win-x64 -p:UseAppHost=true -o artifacts/win-x64 --nologo
+      - name: Publish otter-desktop beside it
+        run: dotnet publish src/Otter.Desktop/Otter.Desktop.csproj -c Release -r win-x64 --self-contained false -p:UseAppHost=true -o artifacts/win-x64 --nologo
+      - name: Command line - otter commands against otterPS 1.0.1
+        # Not blocking yet: new on Windows PowerShell 5.1; made blocking once green.
+        continue-on-error: true
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tools/compare-cli.ps1 -OtterPs otterps -OtterNet artifacts/win-x64/otter.exe -ReportPath results/cli-windows.md
+      - name: Web - otter web pages byte for byte against otterPS 1.0.1
+        # Not blocking yet: new on Windows PowerShell 5.1; made blocking once green.
+        continue-on-error: true
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tools/compare-web.ps1 -OtterPs otterps -OtterNet artifacts/win-x64/otter.exe -ReportPath results/web-windows.md
+      - name: Summary
+        if: always()
+        shell: powershell
+        run: Get-ChildItem results -Filter *.md -ErrorAction SilentlyContinue | ForEach-Object { Get-Content $_.FullName; '' } | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-cli-web
+          path: results/
+
+  windows-fuzz-bench:
+    name: Windows - Differential fuzz and benchmarks
+    runs-on: windows-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check out otterPS 1.0.1 (the reference)
+        uses: actions/checkout@v4
+        with:
+          repository: Heavens-Lava/otterPS
+          ref: v1.0.1
+          path: otterps
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Publish native (AOT)
+        run: dotnet publish src/Otter.Cli/Otter.Cli.csproj -c Release -r win-x64 -p:UseAppHost=true -o artifacts/win-x64 --nologo
+      - name: Publish otter-desktop beside it
+        run: dotnet publish src/Otter.Desktop/Otter.Desktop.csproj -c Release -r win-x64 --self-contained false -p:UseAppHost=true -o artifacts/win-x64 --nologo
+      - name: Differential fuzz - otterPS's generators, 150 programs and 150 mutated
+        shell: powershell
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File tools/New-FuzzCorpus.ps1 -OtterPs otterps -OutputDirectory fuzz -Count 150 -Mutated
+          powershell -NoProfile -ExecutionPolicy Bypass -File tools/compare.ps1 -OtterPs otterps -OtterNet artifacts/win-x64/otter.exe -Corpus fuzz -TimeoutSeconds 20 -ReportPath results/fuzz-windows.md
+      - name: Benchmarks against otterPS 1.0.1
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tools/bench.ps1 -OtterPs otterps -OtterNet artifacts/win-x64/otter.exe -Runs 7 -ReportPath results/bench-windows.md
+      - name: Summary
+        if: always()
+        shell: powershell
+        run: Get-ChildItem results -Filter *.md -ErrorAction SilentlyContinue | ForEach-Object { Get-Content $_.FullName; '' } | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-fuzz-bench
+          path: results/
 
   other:
     name: ${{ matrix.name }} - native build
@@ -218,7 +280,7 @@ jobs:
           echo "Without PowerShell: $((count - failed)) of $count programs ran natively" | tee -a "$GITHUB_STEP_SUMMARY"
           [ "$failed" -eq 0 ]
       - name: PowerShell 7, for the test tools
-        run: dotnet tool install --global PowerShell --version 7.4.6
+        run: dotnet tool install --global PowerShell --version 7.6.9
       - name: Oldest C library the executable needs
         run: objdump -T artifacts/${{ matrix.rid }}/otter | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1 | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Capture output of tests/compat
@@ -300,4 +362,10 @@ jobs:
         run: python3 tools/verify-bundle-integrity.py
       - name: Outside-Repository Consumer Test
         run: python3 tests/distribution/test_outside_repository_consumer.py
+      - name: Phase 11 Component Contracts Verification (All 5 Official Packs)
+        run: python3 tests/contracts/test_component_contracts.py
+      - name: Phase 11 Deterministic Composition Planner Verification
+        run: python3 tests/composition/test_deterministic_planner.py
+      - name: Phase 11 Milestone 3 Sandboxed Verification & Benchmarking
+        run: python3 tests/composition/test_milestone3_sandboxed_verification.py
 

@@ -167,7 +167,7 @@ jobs:
           ref: v1.0.1
           path: otterps
       - name: PowerShell 7, for the test tools (otter-net itself never uses it)
-        run: dotnet tool install --global PowerShell --version 7.4.6
+        run: dotnet tool install --global PowerShell --version 7.6.9
       - name: Certify
         run: |
           sha=$(git -C otter-net rev-parse HEAD)

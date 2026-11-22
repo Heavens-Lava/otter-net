@@ -61,13 +61,18 @@ try {
         # otter-net must not hand anything to the PowerShell Otter here.
         if (-not $Otter.EndsWith('.ps1')) { $psi.EnvironmentVariables['OTTER_ENGINE'] = 'native' }
         $process = [System.Diagnostics.Process]::Start($psi)
-        $stdout = $process.StandardOutput.ReadToEndAsync()
-        $stderr = $process.StandardError.ReadToEndAsync()
-        try { $process.StandardInput.Write($inputText); $process.StandardInput.Close() } catch { }
-        $exit = if ($process.WaitForExit($TimeoutSeconds * 1000)) { $process.ExitCode } else { try { $process.Kill() } catch { }; 'timeout' }
-        [void]$stdout.Wait(5000)
-
-        $text = $stdout.Result -replace "`r`n", "`n"
+        try {
+            $stdout = $process.StandardOutput.ReadToEndAsync()
+            $stderr = $process.StandardError.ReadToEndAsync()
+            try { $process.StandardInput.Write($inputText); $process.StandardInput.Close() } catch { }
+            $exit = if ($process.WaitForExit($TimeoutSeconds * 1000)) { $process.ExitCode } else { try { $process.Kill() } catch { }; 'timeout' }
+            [void]$stdout.Wait(5000)
+            [void]$stderr.Wait(5000)
+            $text = $stdout.Result -replace "`r`n", "`n"
+        }
+        finally {
+            $process.Dispose()
+        }
         # On macOS the temporary folder (/var/...) is a link to /private/var/...,
         # and messages quote the resolved path.
         $text = $text.Replace('/private' + $folder, '<work>').Replace($folder, '<work>')
