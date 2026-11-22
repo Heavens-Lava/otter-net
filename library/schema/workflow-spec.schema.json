@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OtterWorkflowSpecification",
+  "description": "Declarative Machine-Readable Multi-Pack Composition Workflow Specification (Phase 11 Milestone 2)",
+  "type": "object",
+  "required": [
+    "workflowVersion",
+    "name",
+    "steps"
+  ],
+  "properties": {
+    "workflowVersion": {
+      "type": "integer",
+      "enum": [1],
+      "description": "Schema version for declarative workflow specifications"
+    },
+    "id": {
+      "type": "string",
+      "description": "Optional unique identifier for the workflow"
+    },
+    "name": {
+      "type": "string",
+      "description": "Human-readable name of the composition workflow"
+    },
+    "description": {
+      "type": "string",
+      "description": "Detailed explanation of workflow behavior"
+    },
+    "target": {
+      "type": "string",
+      "enum": ["console", "desktop", "web", "all"],
+      "default": "console",
+      "description": "Target runtime platform"
+    },
+    "composedPacks": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Optional list of declared participating pack IDs for fixture discovery"
+    },
+    "pipelineInputs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "type"],
+        "properties": {
+          "name": { "type": "string" },
+          "type": { "type": "string", "enum": ["text", "number", "boolean", "thing", "object", "list", "any"] },
+          "default": { "description": "Default test harness input value" },
+          "description": { "type": "string" }
+        }
+      }
+    },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "pack", "operation"],
+        "properties": {
+          "id": { "type": "string" },
+          "pack": { "type": "string" },
+          "operation": { "type": "string" },
+          "inputs": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "fromInput": { "type": "string" },
+                "fromStep": { "type": "string" },
+                "port": { "type": "string" },
+                "value": {},
+                "adapter": { "type": "string" }
+              }
+            }
+          },
+          "orderAfter": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Explicit side-effect ordering dependencies"
+          }
+        }
+      }
+    },
+    "output": {
+      "type": "object",
+      "properties": {
+        "fromStep": { "type": "string" },
+        "port": { "type": "string", "default": "returns" }
+      }
+    }
+  }
+}

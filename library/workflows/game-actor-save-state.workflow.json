@@ -1,0 +1,158 @@
+{
+  "$schema": "../schema/workflow-spec.schema.json",
+  "workflowVersion": 1,
+  "id": "game-actor-save-state",
+  "name": "Game Actor Combat and Save-State Workflow",
+  "description": "Demonstrates 3-pack composition with explicit state-mutation ordering: creates an Actor, inventory, and equipment with otter-official/game-entity, bounds incoming damage with otter-official/math-utils, and serializes/reloads game state using otter-official/file-helpers.",
+  "target": "console",
+  "composedPacks": [
+    "otter-official/game-entity",
+    "otter-official/math-utils",
+    "otter-official/file-helpers"
+  ],
+  "pipelineInputs": [
+    {
+      "name": "heroName",
+      "type": "text",
+      "default": "Aria",
+      "description": "Name of the game actor"
+    },
+    {
+      "name": "startingHp",
+      "type": "number",
+      "default": 100,
+      "description": "Initial and maximum health of the actor"
+    },
+    {
+      "name": "incomingDamage",
+      "type": "number",
+      "default": 25,
+      "description": "Raw incoming damage before clamping"
+    },
+    {
+      "name": "saveFilePath",
+      "type": "text",
+      "default": "game_state.json",
+      "description": "Destination JSON file for serialized game state"
+    }
+  ],
+  "steps": [
+    {
+      "id": "step1_actor",
+      "pack": "otter-official/game-entity",
+      "operation": "createActor",
+      "inputs": {
+        "name": { "fromInput": "heroName" },
+        "hp": { "fromInput": "startingHp" },
+        "lvl": { "value": 1 }
+      }
+    },
+    {
+      "id": "step2_bound_dmg",
+      "pack": "otter-official/math-utils",
+      "operation": "clamp",
+      "inputs": {
+        "value": { "fromInput": "incomingDamage" },
+        "minLimit": { "value": 0 },
+        "maxLimit": { "value": 50 }
+      }
+    },
+    {
+      "id": "step3_damage",
+      "pack": "otter-official/game-entity",
+      "operation": "applyDamage",
+      "inputs": {
+        "actor": { "fromStep": "step1_actor", "port": "returns" },
+        "amount": { "fromStep": "step2_bound_dmg", "port": "returns" }
+      }
+    },
+    {
+      "id": "step4_inv",
+      "pack": "otter-official/game-entity",
+      "operation": "createInventory",
+      "inputs": {
+        "slots": { "value": 4 }
+      }
+    },
+    {
+      "id": "step5_item",
+      "pack": "otter-official/game-entity",
+      "operation": "createStackableItem",
+      "inputs": {
+        "itemName": { "value": "Healing Draught" },
+        "itemKind": { "value": "consumable" },
+        "itemPower": { "value": 25 },
+        "countVal": { "value": 3 },
+        "maxStackVal": { "value": 10 }
+      }
+    },
+    {
+      "id": "step6_add_item",
+      "pack": "otter-official/game-entity",
+      "operation": "addItemToInventory",
+      "inputs": {
+        "inv": { "fromStep": "step4_inv", "port": "returns" },
+        "item": { "fromStep": "step5_item", "port": "returns" }
+      }
+    },
+    {
+      "id": "step7_equip",
+      "pack": "otter-official/game-entity",
+      "operation": "createEquipment",
+      "inputs": {}
+    },
+    {
+      "id": "step8_serialize",
+      "pack": "otter-official/game-entity",
+      "operation": "serializeGameState",
+      "inputs": {
+        "actor": { "fromStep": "step1_actor", "port": "returns" },
+        "inv": { "fromStep": "step4_inv", "port": "returns" },
+        "equip": { "fromStep": "step7_equip", "port": "returns" }
+      },
+      "orderAfter": [
+        "step3_damage",
+        "step6_add_item"
+      ]
+    },
+    {
+      "id": "step9_save",
+      "pack": "otter-official/file-helpers",
+      "operation": "writeJsonObject",
+      "inputs": {
+        "filePath": { "fromInput": "saveFilePath" },
+        "obj": { "fromStep": "step8_serialize", "port": "returns" }
+      },
+      "orderAfter": [
+        "step8_serialize"
+      ]
+    },
+    {
+      "id": "step10_reload",
+      "pack": "otter-official/file-helpers",
+      "operation": "readJsonObjectSafe",
+      "inputs": {
+        "filePath": { "fromInput": "saveFilePath" },
+        "fallbackValue": { "value": null }
+      },
+      "orderAfter": [
+        "step9_save"
+      ]
+    },
+    {
+      "id": "step11_restore",
+      "pack": "otter-official/game-entity",
+      "operation": "deserializeGameState",
+      "inputs": {
+        "stateData": { "fromStep": "step10_reload", "port": "returns" }
+      },
+      "orderAfter": [
+        "step10_reload"
+      ]
+    }
+  ],
+  "output": {
+    "fromStep": "step9_save",
+    "port": "returns"
+  }
+}

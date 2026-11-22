@@ -48,21 +48,26 @@ function Measure-OtterRun {
     $psi.RedirectStandardError = $true
     $clock = [System.Diagnostics.Stopwatch]::StartNew()
     $process = [System.Diagnostics.Process]::Start($psi)
-    $stdout = $process.StandardOutput.ReadToEndAsync()
-    $stderr = $process.StandardError.ReadToEndAsync()
-    $peak = 0
-    while (-not $process.HasExited) {
-        try { $process.Refresh(); if ($process.PeakWorkingSet64 -gt $peak) { $peak = $process.PeakWorkingSet64 } } catch { }
-        Start-Sleep -Milliseconds 5
+    try {
+        $stdout = $process.StandardOutput.ReadToEndAsync()
+        $stderr = $process.StandardError.ReadToEndAsync()
+        $peak = 0
+        while (-not $process.HasExited) {
+            try { $process.Refresh(); if ($process.PeakWorkingSet64 -gt $peak) { $peak = $process.PeakWorkingSet64 } } catch { }
+            Start-Sleep -Milliseconds 5
+        }
+        $process.WaitForExit()
+        $clock.Stop()
+        return [pscustomobject]@{
+            Milliseconds = $clock.Elapsed.TotalMilliseconds
+            PeakMB = [Math]::Round($peak / 1MB, 1)
+            ExitCode = $process.ExitCode
+            Output = $stdout.Result
+            Errors = $stderr.Result
+        }
     }
-    $process.WaitForExit()
-    $clock.Stop()
-    return [pscustomobject]@{
-        Milliseconds = $clock.Elapsed.TotalMilliseconds
-        PeakMB = [Math]::Round($peak / 1MB, 1)
-        ExitCode = $process.ExitCode
-        Output = $stdout.Result
-        Errors = $stderr.Result
+    finally {
+        $process.Dispose()
     }
 }
 

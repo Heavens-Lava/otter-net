@@ -276,20 +276,41 @@ def test_negative_invalid_variable_prefix_format():
         print("  [PASS] Caught invalid variablePrefix format.")
 
 def test_backward_compatibility():
-    print("--> Test 11: Backward compatibility with unmodified Otter 1.0.1 packs...")
-    math_dir = os.path.join(REPO_ROOT, "library", "packs", "otter-official", "math-utils")
-    
-    # Standard verify continues working unchanged (exit 0)
-    std_res = run_otter(["pack", "verify", math_dir])
-    assert std_res.returncode == 0, f"Expected 0 for standard verify on math-utils, got {std_res.returncode}"
-    assert "src/main.ot [OK]" in std_res.stdout
-    
-    # Contract verify on v1 pack reports schema v1 uncontracted error with migration guide
-    contract_res = run_otter(["pack", "verify", math_dir, "--contracts"])
-    assert contract_res.returncode == 2
-    assert "SCHEMA_V1_UNCONTRACTED" in contract_res.stdout
-    assert "Migrate manifest to schemaVersion: 2" in contract_res.stdout
-    print("  [PASS] Existing Otter 1.0.1 packs continue working; migration guidance provided.")
+    print("--> Test 11: Backward compatibility with unmodified Otter 1.0.1 Schema v1 packs...")
+    with tempfile.TemporaryDirectory(prefix="otter_test_v1_compat_") as tmpdir:
+        v1_dir = os.path.join(tmpdir, "legacy-pack")
+        os.makedirs(os.path.join(v1_dir, "src"), exist_ok=True)
+        with open(os.path.join(v1_dir, "src", "main.ot"), "w", encoding="utf-8") as f:
+            f.write("to greet name\n    return \"Hello \" plus name\n.\n")
+        v1_manifest = {
+            "schemaVersion": 1,
+            "name": "legacy-pack",
+            "publisher": "test-pub",
+            "version": "1.0.0",
+            "kind": "pack",
+            "description": "Legacy Schema v1 pack without component contracts",
+            "entry": "src/main.ot",
+            "license": "MIT",
+            "platforms": ["console"],
+            "capabilities": [],
+            "dependencies": {},
+            "tags": ["legacy"],
+            "examples": []
+        }
+        with open(os.path.join(v1_dir, "otter.pack.json"), "w", encoding="utf-8") as f:
+            json.dump(v1_manifest, f, indent=2)
+
+        # Standard verify continues working unchanged (exit 0)
+        std_res = run_otter(["pack", "verify", v1_dir])
+        assert std_res.returncode == 0, f"Expected 0 for standard verify on v1 pack, got {std_res.returncode}: {std_res.stdout}\n{std_res.stderr}"
+        assert "src/main.ot [OK]" in std_res.stdout
+
+        # Contract verify on v1 pack reports schema v1 uncontracted error with migration guide
+        contract_res = run_otter(["pack", "verify", v1_dir, "--contracts"])
+        assert contract_res.returncode == 2
+        assert "SCHEMA_V1_UNCONTRACTED" in contract_res.stdout
+        assert "Migrate manifest to schemaVersion: 2" in contract_res.stdout
+        print("  [PASS] Existing Otter 1.0.1 Schema v1 packs continue working; migration guidance provided.")
 
 def test_project_level_verification():
     print("--> Test 12: Project-level contract verification via otter.lock...")
@@ -417,6 +438,32 @@ def test_structural_vs_behavioral_distinction():
     assert "parameter_names" in contract["structuralChecks"]
     print("  [PASS] Explicitly distinguished structural AST verification from behavioral specifications.")
 
+def test_all_five_official_packs_verified():
+    print("--> Test 17: All 5 official packs upgraded to Schema v2 and structurally verified...")
+    expected = {
+        "math-utils": ("_mu_", 11, "1.0.1"),
+        "text-utils": ("_tu_", 15, "1.0.1"),
+        "list-utils": ("_lu_", 10, "1.0.1"),
+        "file-helpers": ("_fh_", 10, "1.0.1"),
+        "game-entity": ("_ge_", 26, "1.1.0"),
+    }
+    seen_prefixes = set()
+    for pack_name, (expected_prefix, expected_ops, expected_ver) in expected.items():
+        pack_dir = os.path.join(REPO_ROOT, "library", "packs", "otter-official", pack_name)
+        res = run_otter(["pack", "verify", pack_dir, "--contracts", "--json"])
+        assert res.returncode == 0, f"Contract verify failed for {pack_name}: {res.stdout}\n{res.stderr}"
+        data = json.loads(res.stdout)
+        c = data["contract"]
+        assert c["status"] == "VALID", f"{pack_name} invalid: {c['diagnostics']}"
+        assert c["schemaVersion"] == 2
+        assert c["version"] == expected_ver
+        assert c["variablePrefix"] == expected_prefix
+        assert c["operationsCount"] == expected_ops, f"{pack_name}: expected {expected_ops} ops, got {c['operationsCount']}"
+        assert len(c["diagnostics"]) == 0
+        assert expected_prefix not in seen_prefixes
+        seen_prefixes.add(expected_prefix)
+    print(f"  [PASS] All 5 official packs verified with disjoint prefixes: {sorted(seen_prefixes)} (72 total operations).")
+
 def main():
     print("======================================================================")
     print(" Otter Phase 11 Milestone 1: Component Contracts Verification Suite")
@@ -438,9 +485,10 @@ def main():
     test_negative_misleading_contradictory_side_effects()
     test_negative_misleading_error_mode_type_conflict()
     test_structural_vs_behavioral_distinction()
+    test_all_five_official_packs_verified()
     
     print("======================================================================")
-    print(" ALL 16 CONTRACT VERIFICATION TESTS PASSED (100%)")
+    print(" ALL 17 CONTRACT VERIFICATION TESTS PASSED (100%)")
     print("======================================================================")
 
 if __name__ == "__main__":

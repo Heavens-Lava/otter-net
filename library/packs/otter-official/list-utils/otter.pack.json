@@ -1,15 +1,152 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "name": "list-utils",
   "publisher": "otter-official",
   "version": "1.0.1",
   "kind": "pack",
-  "description": "Essential collection and list helpers: hasItem, dedupeList, countMatches, and joinWithPrefix.",
+  "description": "Essential collection and list helpers: hasItem, dedupeList, countMatches, joinWithPrefix, removeItemFromList, findFirstMatch, sortList, reverseList, calcListSum, and sliceList.",
   "entry": "src/main.ot",
   "license": "MIT",
-  "platforms": ["console", "desktop", "web"],
+  "requiresOtter": ">=1.0.1",
+  "platforms": [
+    "console",
+    "desktop",
+    "web"
+  ],
+  "variablePrefix": "_lu_",
+  "provides": {
+    "capabilities": [
+      "collections.list",
+      "collections.filtering",
+      "collections.aggregation"
+    ],
+    "operations": [
+      {
+        "name": "hasItem",
+        "description": "Checks whether target exists inside the items list.",
+        "parameters": [
+          { "name": "items", "type": "list" },
+          { "name": "target", "type": "any" }
+        ],
+        "returns": { "type": "boolean" },
+        "sideEffects": ["none"],
+        "errorMode": "returns-false"
+      },
+      {
+        "name": "dedupeList",
+        "description": "Returns a new list containing only the first occurrence of each distinct item.",
+        "parameters": [
+          { "name": "items", "type": "list" }
+        ],
+        "returns": { "type": "list" },
+        "sideEffects": ["none"],
+        "errorMode": "returns-fallback"
+      },
+      {
+        "name": "countMatches",
+        "description": "Counts how many elements in items equal target.",
+        "parameters": [
+          { "name": "items", "type": "list" },
+          { "name": "target", "type": "any" }
+        ],
+        "returns": { "type": "number" },
+        "sideEffects": ["none"],
+        "errorMode": "returns-fallback"
+      },
+      {
+        "name": "joinWithPrefix",
+        "description": "Returns a new list with prefix prepended to every element of items.",
+        "parameters": [
+          { "name": "items", "type": "list" },
+          { "name": "prefix", "type": "text" }
+        ],
+        "returns": { "type": "list" },
+        "sideEffects": ["none"],
+        "errorMode": "returns-fallback"
+      },
+      {
+        "name": "removeItemFromList",
+        "description": "Returns a new list with all elements equal to target removed.",
+        "parameters": [
+          { "name": "items", "type": "list" },
+          { "name": "target", "type": "any" }
+        ],
+        "returns": { "type": "list" },
+        "sideEffects": ["none"],
+        "errorMode": "returns-fallback"
+      },
+      {
+        "name": "findFirstMatch",
+        "description": "Returns the first element matching target, or gone if not found.",
+        "parameters": [
+          { "name": "items", "type": "list" },
+          { "name": "target", "type": "any" }
+        ],
+        "returns": { "type": "any", "nullable": true },
+        "sideEffects": ["none"],
+        "errorMode": "returns-gone"
+      },
+      {
+        "name": "sortList",
+        "description": "Returns a sorted shallow copy of items without mutating the input list.",
+        "parameters": [
+          { "name": "items", "type": "list" }
+        ],
+        "returns": { "type": "list" },
+        "sideEffects": ["none"],
+        "errorMode": "returns-fallback"
+      },
+      {
+        "name": "reverseList",
+        "description": "Returns a reversed shallow copy of items without mutating the input list.",
+        "parameters": [
+          { "name": "items", "type": "list" }
+        ],
+        "returns": { "type": "list" },
+        "sideEffects": ["none"],
+        "errorMode": "returns-fallback"
+      },
+      {
+        "name": "calcListSum",
+        "description": "Computes the numeric sum of all elements in items.",
+        "parameters": [
+          { "name": "items", "type": "list" }
+        ],
+        "returns": { "type": "number" },
+        "sideEffects": ["none"],
+        "errorMode": "returns-fallback"
+      },
+      {
+        "name": "sliceList",
+        "description": "Returns a 1-based slice of up to countLimit elements starting at startIndex.",
+        "parameters": [
+          { "name": "items", "type": "list" },
+          { "name": "startIndex", "type": "number" },
+          { "name": "countLimit", "type": "number" }
+        ],
+        "returns": { "type": "list" },
+        "sideEffects": ["none"],
+        "errorMode": "returns-fallback"
+      }
+    ]
+  },
+  "requires": {
+    "capabilities": [],
+    "packages": {}
+  },
   "capabilities": [],
   "dependencies": {},
-  "tags": ["list", "collections", "array", "dedupe", "contains", "count"],
-  "examples": ["examples/demo.ot"]
+  "tags": [
+    "list",
+    "collections",
+    "array",
+    "dedupe",
+    "contains",
+    "count",
+    "sort",
+    "slice"
+  ],
+  "examples": [
+    "examples/demo.ot"
+  ]
 }
