@@ -1336,6 +1336,7 @@ public sealed partial class Parser
                 {
                     Read();
                     properties = ReadWithProperties(name.Text, typeName);
+                    ValidateObjectProperties(name.Text, typeName, properties);
                 }
                 else if (Same(typeName, "thing") || !knownTypes.Contains(typeName))
                 {
@@ -1351,7 +1352,6 @@ public sealed partial class Parser
                     }
                     properties = new List<AssignStmt>();
                 }
-                ValidateObjectProperties(name.Text, typeName, properties);
                 return new ObjectDefStmt(name.Text, typeName, properties, name.Line);
             }
             Expr value = ReadMathExpression();
