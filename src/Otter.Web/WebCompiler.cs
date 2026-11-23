@@ -19,7 +19,7 @@ public sealed class WebCompiler
 
     static readonly string[] KnownKinds =
     {
-        "window", "page", "button", "text box", "text", "row", "column",
+        "window", "page", "button", "text box", "text", "row", "column", "grid",
         "image", "list", "link", "card", "checkbox", "check box",
         "dropdown", "drop down", "select", "slider", "range",
         "text area", "textarea", "badge", "tag", "canvas", "table", "scroll",
@@ -27,7 +27,7 @@ public sealed class WebCompiler
         "dialog", "modal", "panel",
     };
 
-    static readonly string[] Variants = { "primary", "secondary", "danger" };
+    static readonly string[] Variants = { "primary", "secondary", "danger", "outline", "ghost" };
 
     readonly JsCompiler js = new();
     readonly OrderedMap<Resource> resources = new();
@@ -150,8 +150,13 @@ public sealed class WebCompiler
         if (rootName == null && resources.Count > 0) rootName = resources.Keys.First();
 
         appTitle = title;
-        string rootBg = "#0f172a";
-        string rootFg = "#f8fafc";
+        string rootTheme = "";
+        if (rootName != null && resources[rootName].Properties.Contains("theme"))
+        {
+            rootTheme = Of(resources[rootName].Properties["theme"]).Trim().ToLowerInvariant();
+        }
+        string rootBg = rootTheme == "light" ? "#f4f7fb" : "#0b1220";
+        string rootFg = rootTheme == "light" ? "#0b1d36" : "#f1f5f9";
         if (rootName != null)
         {
             var rootProps = resources[rootName].Properties;
@@ -162,7 +167,11 @@ public sealed class WebCompiler
 
         bool isPage = rootName != null && resources[rootName].Kind == "page";
         bool pageScrolls = isPage && resources[rootName!].Properties.Contains("scroll") && IsTrueOrText(resources[rootName!].Properties["scroll"]);
-        string bodyClass = pageScrolls ? " class=\"otter-has-page otter-doc-scroll\"" : isPage ? " class=\"otter-has-page\"" : "";
+        var bodyClasses = new List<string>();
+        if (isPage) bodyClasses.Add("otter-has-page");
+        if (pageScrolls) bodyClasses.Add("otter-doc-scroll");
+        if (rootTheme == "light") bodyClasses.Add("otter-theme-light");
+        string bodyClass = bodyClasses.Count > 0 ? $" class=\"{string.Join(" ", bodyClasses)}\"" : "";
 
         // D103: every page a route names is in the page; the router shows one.
         var routePageNames = new List<string>();
@@ -469,6 +478,34 @@ public sealed class WebCompiler
         }
 
         string Text(string key, string fallback) => Has(key) ? Of(Prop(key)) : fallback;
+        string disabledAttr = Has("disabled") && IsTrue(Prop("disabled")) ? " disabled" : "";
+        string disabledLabelClass = Has("disabled") && IsTrue(Prop("disabled")) ? " otter-control-disabled" : "";
+        bool hasError = Has("error") && Of(Prop("error")).Length > 0;
+        string errorClass = hasError ? " otter-input-error" : "";
+        string errorAttr = hasError ? " aria-invalid=\"true\"" : "";
+        string themeClass = Has("theme")
+            ? Of(Prop("theme")).Trim().ToLowerInvariant() switch
+            {
+                "light" => " otter-theme-light",
+                "dark" => " otter-theme-dark",
+                _ => ""
+            }
+            : "";
+
+        string WrapField(string controlHtml)
+        {
+            bool hasLabel = Has("label") && Of(Prop("label")).Length > 0;
+            bool hasHint = Has("hint") && Of(Prop("hint")).Length > 0;
+            if (!hasLabel && !hasHint && !hasError) return controlHtml;
+            var parts = new List<string>();
+            parts.Add("      <div class=\"otter-field\">");
+            if (hasLabel) parts.Add($"        <label class=\"otter-field-label\" for=\"{resName}\">{HtmlText(Of(Prop("label")))}</label>");
+            parts.Add($"        {controlHtml.Trim()}");
+            if (hasError) parts.Add($"        <span class=\"otter-field-error\" role=\"alert\">{HtmlText(Of(Prop("error")))}</span>");
+            else if (hasHint) parts.Add($"        <span class=\"otter-field-hint\">{HtmlText(Of(Prop("hint")))}</span>");
+            parts.Add("      </div>");
+            return string.Join("\n", parts);
+        }
 
         switch (kind)
         {
@@ -491,19 +528,26 @@ public sealed class WebCompiler
                 string spacing = Of(Has("spacing") ? Prop("spacing") : 12);
                 if (!Has("gap")) styles.Add($"gap: {spacing}px;");
                 string cardTitle = Has("title") ? $"<h3 class=\"otter-card-title\">{HtmlAttr(Of(Prop("title")))}</h3>" : "";
-                return Templates.CardElement(resName, StyleAttr(), cardTitle, childHtml);
+                string rawSub = Has("subtitle") ? Of(Prop("subtitle")) : Has("description") ? Of(Prop("description")) : "";
+                if (rawSub.Length > 0)
+                {
+                    string subHtml = $"<p class=\"otter-card-subtitle\">{HtmlText(rawSub)}</p>";
+                    cardTitle = cardTitle.Length > 0 ? $"{cardTitle}\n        {subHtml}" : subHtml;
+                }
+                return Templates.CardElement(resName, themeClass, StyleAttr(), cardTitle, childHtml);
             }
             case "button":
             {
                 string text = HtmlAttr(Text("text", "Button"));
-                string variantClass = Has("variant") ? $" otter-button-{Of(Prop("variant"))}" : "";
-                return $"      <button id=\"{resName}\" class=\"otter-button{variantClass}\"{styleAttr}>{text}</button>";
+                string variantClass = Has("variant") ? $" otter-button-{Of(Prop("variant")).Trim().ToLowerInvariant()}" : "";
+                return $"      <button id=\"{resName}\" class=\"otter-button{variantClass}\"{disabledAttr}{styleAttr}>{text}</button>";
             }
             case "text box":
             {
                 string val = HtmlAttr(Has("text") ? Of(Prop("text")) : Text("value", ""));
                 string ph = Has("placeholder") ? $" placeholder=\"{HtmlAttr(Of(Prop("placeholder")))}\"" : "";
-                return $"      <input type=\"text\" id=\"{resName}\" class=\"otter-text-box\" value=\"{val}\"{ph}{styleAttr} />";
+                string ctrl = $"      <input type=\"text\" id=\"{resName}\" class=\"otter-text-box{errorClass}\" value=\"{val}\"{ph}{errorAttr}{disabledAttr}{styleAttr} />";
+                return WrapField(ctrl);
             }
             case "text":
             {
@@ -518,7 +562,8 @@ public sealed class WebCompiler
                         return Templates.RunnableTextElement(resName, styleAttr, val);
                     }
                 }
-                return $"      <div id=\"{resName}\" class=\"otter-text\"{styleAttr}>{val}</div>";
+                string textVariant = Has("variant") ? $" otter-text-{Of(Prop("variant")).Trim().ToLowerInvariant()}" : "";
+                return $"      <div id=\"{resName}\" class=\"otter-text{textVariant}\"{styleAttr}>{val}</div>";
             }
             case "image":
             {
@@ -540,7 +585,7 @@ public sealed class WebCompiler
             {
                 string text = HtmlAttr(Text("text", ""));
                 string isChecked = Has("checked") && Truthy(Prop("checked")) ? " checked" : "";
-                return $"      <label class=\"otter-checkbox-label\"{styleAttr}><input type=\"checkbox\" id=\"{resName}\" class=\"otter-checkbox\"{isChecked} /> <span>{text}</span></label>";
+                return $"      <label class=\"otter-checkbox-label{disabledLabelClass}\"{styleAttr}><input type=\"checkbox\" id=\"{resName}\" class=\"otter-checkbox\"{isChecked}{disabledAttr} /> <span>{text}</span></label>";
             }
             case "dropdown":
             case "drop down":
@@ -553,7 +598,8 @@ public sealed class WebCompiler
                     string escOpt = HtmlAttr(o);
                     return $"        <option value=\"{escOpt}\">{escOpt}</option>";
                 }));
-                return Templates.SelectElement(resName, styleAttr, optHtml);
+                string ctrl = Templates.SelectElement(resName, errorClass, $"{errorAttr}{disabledAttr}", styleAttr, optHtml);
+                return WrapField(ctrl);
             }
             case "slider":
             case "range":
@@ -561,7 +607,12 @@ public sealed class WebCompiler
                 string min = Of(Has("min") ? Prop("min") : 0);
                 string max = Of(Has("max") ? Prop("max") : 100);
                 string val = Of(Has("value") ? Prop("value") : 50);
-                return $"      <input type=\"range\" id=\"{resName}\" class=\"otter-slider\" min=\"{min}\" max=\"{max}\" value=\"{val}\"{styleAttr} />";
+                string stepAttr = Has("step") ? $" step=\"{Of(Prop("step"))}\"" : "";
+                string inputHtml = $"<input type=\"range\" id=\"{resName}\" class=\"otter-slider\" min=\"{min}\" max=\"{max}\" value=\"{val}\"{stepAttr}{disabledAttr}{styleAttr} />";
+                string ctrl = Has("showvalue") && IsTrue(Prop("showvalue"))
+                    ? $"      <div class=\"otter-slider-row\">{inputHtml}<output class=\"otter-slider-value\" for=\"{resName}\" data-otter-slider-for=\"{resName}\">{val}</output></div>"
+                    : $"      {inputHtml}";
+                return WrapField(ctrl);
             }
             case "text area":
             case "textarea":
@@ -569,13 +620,15 @@ public sealed class WebCompiler
                 string val = HtmlAttr(Has("text") ? Of(Prop("text")) : Text("value", ""));
                 string ph = Has("placeholder") ? $" placeholder=\"{HtmlAttr(Of(Prop("placeholder")))}\"" : "";
                 string rows = Of(Has("rows") ? Prop("rows") : 3);
-                return $"      <textarea id=\"{resName}\" class=\"otter-text-area\" rows=\"{rows}\"{ph}{styleAttr}>{val}</textarea>";
+                string ctrl = $"      <textarea id=\"{resName}\" class=\"otter-text-area{errorClass}\" rows=\"{rows}\"{ph}{errorAttr}{disabledAttr}{styleAttr}>{val}</textarea>";
+                return WrapField(ctrl);
             }
             case "badge":
             case "tag":
             {
                 string text = HtmlAttr(Text("text", ""));
-                return $"      <span id=\"{resName}\" class=\"otter-badge\"{styleAttr}>{text}</span>";
+                string badgeVariant = Has("variant") ? $" otter-badge-{Of(Prop("variant")).Trim().ToLowerInvariant()}" : "";
+                return $"      <span id=\"{resName}\" class=\"otter-badge{badgeVariant}\"{styleAttr}>{text}</span>";
             }
             case "canvas":
             {
@@ -597,7 +650,7 @@ public sealed class WebCompiler
             {
                 string text = HtmlAttr(Text("text", ""));
                 string isChecked = Has("checked") && IsTrue(Prop("checked")) ? " checked" : "";
-                return $"      <label class=\"otter-toggle-label\"{styleAttr}><input type=\"checkbox\" id=\"{resName}\" class=\"otter-toggle\" role=\"switch\"{isChecked} /><span class=\"otter-toggle-track\"><span class=\"otter-toggle-thumb\"></span></span><span class=\"otter-toggle-text\">{text}</span></label>";
+                return $"      <label class=\"otter-toggle-label{disabledLabelClass}\"{styleAttr}><input type=\"checkbox\" id=\"{resName}\" class=\"otter-toggle\" role=\"switch\"{isChecked}{disabledAttr} /><span class=\"otter-toggle-track\"><span class=\"otter-toggle-thumb\"></span></span><span class=\"otter-toggle-text\">{text}</span></label>";
             }
             case "radio":
             case "radio button":
@@ -605,7 +658,7 @@ public sealed class WebCompiler
                 string text = HtmlAttr(Text("text", ""));
                 string group = HtmlAttr(Has("group") ? Of(Prop("group")) : Text("name", "default-group"));
                 string isChecked = Has("checked") && IsTrue(Prop("checked")) ? " checked" : "";
-                return $"      <label class=\"otter-radio-label\"{styleAttr}><input type=\"radio\" id=\"{resName}\" name=\"{group}\" class=\"otter-radio\"{isChecked} /> <span>{text}</span></label>";
+                return $"      <label class=\"otter-radio-label{disabledLabelClass}\"{styleAttr}><input type=\"radio\" id=\"{resName}\" name=\"{group}\" class=\"otter-radio\"{isChecked}{disabledAttr} /> <span>{text}</span></label>";
             }
             case "row":
             {
@@ -630,7 +683,7 @@ public sealed class WebCompiler
                 styles.Add($"align-items: {align};");
                 styles.Add($"justify-content: {justify};");
                 styles.Add($"flex-wrap: {wrap};");
-                return Templates.RowElement(resName, StyleAttr(), childHtml);
+                return Templates.RowElement(resName, themeClass, StyleAttr(), childHtml);
             }
             case "column":
             {
@@ -653,13 +706,21 @@ public sealed class WebCompiler
                 styles.Add($"gap: {spacing}px;");
                 styles.Add($"align-items: {align};");
                 styles.Add($"justify-content: {justify};");
-                return Templates.ColumnElement(resName, StyleAttr(), childHtml);
+                return Templates.ColumnElement(resName, themeClass, StyleAttr(), childHtml);
+            }
+            case "grid":
+            {
+                string cols = Of(Has("columns") ? Prop("columns") : 2);
+                string spacing = Of(Has("spacing") ? Prop("spacing") : (Has("gap") ? Prop("gap") : 16));
+                styles.Add($"--otter-cols: {cols};");
+                if (!Has("gap")) styles.Add($"gap: {spacing}px;");
+                return Templates.GridElement(resName, themeClass, StyleAttr(), childHtml);
             }
             case "scroll":
                 styles.Add("overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column;");
                 return Templates.ScrollElement(resName, StyleAttr(), childHtml);
             default:
-                return $"      <div id=\"{resName}\" class=\"otter-resource otter-{kind}\"{styleAttr}>{childHtml}</div>";
+                return $"      <div id=\"{resName}\" class=\"otter-resource otter-{kind}{themeClass}\"{styleAttr}>{childHtml}</div>";
         }
     }
 }
