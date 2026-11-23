@@ -278,6 +278,9 @@ say lang of inlineObj version of inlineObj
         ("Invalid boolean literal for size", 'b is a button with true size\n', "expects a number"),
         ("Invalid string literal for spacing", 'r is a row with "wide" spacing\n', "expects a number"),
         ("Invalid non-boolean literal for scroll", 'p is a page with "yes" scroll\n', "true/false"),
+        ("Invalid non-boolean literal for showvalue", 's is a slider with "yes" showvalue\n', "true/false"),
+        ("Invalid non-numeric literal for columns", 'g is a grid with "two" columns\n', "expects a number"),
+        ("Invalid non-string literal for theme", 'p is a page with 123 theme\n', "expects text"),
         ("Invalid non-string literal for url", 'l is a link with 123 url\n', "expects text"),
         ("Invalid alignment direction (value-first)", 'r is a row with "diagonal" align\n', "alignment direction"),
         ("Invalid alignment identifier (value-first)", 'r is a row with sideways align\n', "alignment direction"),
@@ -297,7 +300,51 @@ say lang of inlineObj version of inlineObj
             f"rc={rc}, output={combined.strip()[:180]}",
         )
 
-    # 5. Formatter preserves indentation for multi-line `with ... .`
+    # 5. River Slate UI components using value-first syntax
+    river_slate_vf = '''
+app is a page with
+    "River Slate Value-First" title,
+    "light" theme,
+    true scroll
+.
+mainGrid is a grid with 2 columns, 20 spacing
+infoCard is a card with
+    "Form Controls" title,
+    "Validated under value-first syntax." subtitle,
+    "dark" theme
+.
+emailBox is a text box with
+    "Email address" label,
+    "dev@otter.example" placeholder,
+    "Used for notifications." hint,
+    "Invalid email" error
+.
+thresholdSlider is a slider with
+    "CPU threshold" label,
+    0 min,
+    100 max,
+    65 value,
+    5 step,
+    true showvalue
+.
+primaryBtn is a primary button with "Primary" text
+outlineBtn is an outline button with "Outline" text
+ghostBtn is a ghost button with "Ghost" text
+disabledBtn is a button with "Locked" text, true disabled
+okBadge is a badge with "Healthy" text, "success" variant
+put emailBox, thresholdSlider, primaryBtn, outlineBtn, ghostBtn, disabledBtn, okBadge in infoCard
+put infoCard in mainGrid
+put mainGrid in app
+show app
+'''
+    rc_rs, out_rs, err_rs = run_otter(["check"], river_slate_vf)
+    assert_test(
+        "River Slate components with value-first syntax pass check & validation",
+        rc_rs == 0,
+        f"rc={rc_rs}, out={out_rs.strip()[:180]}, err={err_rs.strip()[:180]}",
+    )
+
+    # 6. Formatter preserves indentation for multi-line `with ... .`
     unformatted = 'nav is a link with\n"Home" text,\n"/" url\n.\n'
     fd_fmt, fmt_path = tempfile.mkstemp(suffix=".ot", prefix="otter_vf_fmt_")
     try:

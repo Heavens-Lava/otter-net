@@ -5,7 +5,7 @@ namespace Otter.Language;
 // unknown properties + invalid literal value types on known UI component kinds.
 internal static class UiPropertyValidation
 {
-    private static readonly string[] Variants = { "primary ", "secondary ", "danger " };
+    private static readonly string[] Variants = { "primary ", "secondary ", "danger ", "outline ", "ghost " };
 
     private static readonly HashSet<string> KnownUiKinds = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -29,11 +29,11 @@ internal static class UiPropertyValidation
         "background", "foreground", "border", "radius", "round", "shadow",
         "size", "fontsize", "weight", "fontweight", "fontstyle", "style",
         "family", "fontfamily", "lineheight", "letterspacing", "whitespace",
-        "cursor", "customstyle", "variant", "animation", "mode",
+        "cursor", "customstyle", "variant", "animation", "mode", "theme",
         // Content, controls & interaction
-        "text", "value", "title", "url", "href", "source", "src", "alt",
-        "placeholder", "options", "items", "rows", "min", "max", "checked",
-        "group", "name", "hideheader", "runnable", "draggable", "accepts drops",
+        "text", "value", "title", "subtitle", "description", "url", "href", "source", "src", "alt",
+        "label", "hint", "error", "placeholder", "options", "items", "rows", "min", "max", "step",
+        "showvalue", "checked", "group", "name", "hideheader", "runnable", "draggable", "accepts drops",
         "columns", "headers", "data", "selected", "enabled", "disabled",
         "visible", "hidden", "id", "tooltip", "icon",
     };
@@ -42,12 +42,12 @@ internal static class UiPropertyValidation
     {
         "hideheader", "scroll", "runnable", "round", "spread", "checked",
         "draggable", "accepts drops", "wrap", "centered", "enabled", "disabled",
-        "visible", "hidden", "selected",
+        "visible", "hidden", "selected", "showvalue",
     };
 
     private static readonly HashSet<string> NumericUiProperties = new(StringComparer.OrdinalIgnoreCase)
     {
-        "spacing", "flex", "grow", "rows", "min", "max", "zindex",
+        "spacing", "flex", "grow", "rows", "min", "max", "zindex", "columns", "step",
     };
 
     private static readonly HashSet<string> SizeOrWeightUiProperties = new(StringComparer.OrdinalIgnoreCase)
@@ -65,6 +65,7 @@ internal static class UiPropertyValidation
     {
         "url", "href", "source", "src", "background", "foreground", "customstyle",
         "fontfamily", "family", "whitespace", "cursor", "overflow", "position",
+        "theme", "label", "hint", "error", "subtitle", "description",
     };
 
     private static readonly HashSet<string> AlignDirections = new(StringComparer.OrdinalIgnoreCase)
