@@ -1,6 +1,6 @@
-# Service Dashboard Application
-# Consumes installed packs: file-helpers, text-utils, math-utils
-# Exposes REST API endpoints and serves live telemetry dashboard
+# Otter Pulse — Microservice Telemetry & Web Dashboard (Flagship Reference App)
+# Consumes Schema v2 Packs: file-helpers (1.0.1), text-utils (1.0.1), math-utils (1.0.1)
+# Executes real outbound HTTP health probes via Otter's native Http.cs client + timers.
 
 use "../.otter/packages/otter-official/file-helpers/1.0.1/src/main.ot"
 use "../.otter/packages/otter-official/text-utils/1.0.1/src/main.ot"
@@ -15,6 +15,60 @@ a ServiceRecord has
     latencyMs
     healthScore
     checks
+    probeUrl
+    status
+    lastError
+.
+
+to defaultProbeUrl portNum
+    urlParts are
+        "http://127.0.0.1:"
+        portNum
+        "/health"
+    .
+    join urlParts with "" into builtUrl
+    return builtUrl
+.
+
+to validateProbeUrl rawUrl
+    # Threat model: Otter Pulse is designed for trusted local development and
+    # loopback microservice monitoring (127.0.0.1 / localhost only).
+    # Rejects non-HTTP(S) schemes, credentials (@), whitespace, backslashes,
+    # cloud metadata IPs (169.254.169.254), LAN IPs, and external hosts to prevent SSRF.
+    if rawUrl is gone or rawUrl is ""
+        return "Probe URL is required"
+    .
+    if rawUrl contains "@" or rawUrl contains " " or rawUrl contains "\\"
+        return "Probe URL rejected: credentials (@), spaces, and backslashes are not permitted"
+    .
+    lowerUrl is toLower rawUrl
+    hasHttp is false
+    if lowerUrl starts with "http://"
+        hasHttp is true
+    .
+    if lowerUrl starts with "https://"
+        hasHttp is true
+    .
+    if hasHttp is false
+        return "Probe URL rejected: only http:// or https:// URLs are permitted"
+    .
+    isLoopback is false
+    if lowerUrl starts with "http://127.0.0.1:" or lowerUrl starts with "http://127.0.0.1/" or lowerUrl is "http://127.0.0.1"
+        isLoopback is true
+    .
+    if lowerUrl starts with "https://127.0.0.1:" or lowerUrl starts with "https://127.0.0.1/" or lowerUrl is "https://127.0.0.1"
+        isLoopback is true
+    .
+    if lowerUrl starts with "http://localhost:" or lowerUrl starts with "http://localhost/" or lowerUrl is "http://localhost"
+        isLoopback is true
+    .
+    if lowerUrl starts with "https://localhost:" or lowerUrl starts with "https://localhost/" or lowerUrl is "https://localhost"
+        isLoopback is true
+    .
+    if isLoopback is false
+        return "Probe URL rejected (SSRF protection): only loopback targets (127.0.0.1 or localhost) are allowed"
+    .
+    return ""
 .
 
 to calculateHealthScore latencyMs targetUptime
@@ -36,16 +90,24 @@ to calculateHealthScore latencyMs targetUptime
     return scoreClamped
 .
 
-to createServiceRecord sName sPort sCategory sTargetUptime
+to createServiceRecord sName sPort sCategory sTargetUptime sProbeUrl
     svc is a ServiceRecord
     name of svc is sName
     slug of svc is slugify sName
-    port of svc is sPort plus 0
+    portNum is sPort plus 0
+    port of svc is portNum
     category of svc is sCategory
     uptime of svc is sTargetUptime
     latencyMs of svc is 24
     healthScore of svc is calculateHealthScore 24 sTargetUptime
-    checks of svc is 1
+    checks of svc is 0
+    if sProbeUrl is gone or sProbeUrl is ""
+        probeUrl of svc is defaultProbeUrl portNum
+    otherwise
+        probeUrl of svc is sProbeUrl
+    .
+    status of svc is "healthy"
+    lastError of svc is ""
     return svc
 .
 
@@ -59,6 +121,9 @@ to buildServiceDict svc
         latencyMs is latencyMs of svc
         healthScore is healthScore of svc
         checks is checks of svc
+        probeUrl is probeUrl of svc
+        status is status of svc
+        lastError is lastError of svc
     .
     return d
 .
@@ -93,6 +158,41 @@ to createServiceFromDict item
     latencyMs of s is latencyMs of item
     healthScore of s is healthScore of item
     checks of s is checks of item
+
+    loadedUrl is ""
+    try
+        loadedUrl is probeUrl of item
+    otherwise
+        loadedUrl is ""
+    .
+    if loadedUrl is gone or loadedUrl is ""
+        sPortVal is port of s
+        probeUrl of s is defaultProbeUrl sPortVal
+    otherwise
+        probeUrl of s is loadedUrl
+    .
+
+    loadedStatus is "healthy"
+    try
+        loadedStatus is status of item
+    otherwise
+        loadedStatus is "healthy"
+    .
+    if loadedStatus is gone or loadedStatus is ""
+        loadedStatus is "healthy"
+    .
+    status of s is loadedStatus
+
+    loadedErr is ""
+    try
+        loadedErr is lastError of item
+    otherwise
+        loadedErr is ""
+    .
+    if loadedErr is gone
+        loadedErr is ""
+    .
+    lastError of s is loadedErr
     return s
 .
 
@@ -109,10 +209,13 @@ to loadServicesList filePath
 .
 
 to calculateMetrics services
-    count is length of services
-    if count is 0
+    svcCount is length of services
+    if svcCount is 0
         emptyMetrics has
             totalServices is 0
+            healthyServices is 0
+            degradedServices is 0
+            downServices is 0
             averageLatencyMs is 0
             overallUptime is 100
         .
@@ -121,79 +224,204 @@ to calculateMetrics services
 
     latencies are empty
     uptimes are empty
+    healthyCount is 0
+    degradedCount is 0
+    downCount is 0
     for each s in services
         add latencyMs of s to latencies
         add uptime of s to uptimes
+        if status of s is "down"
+            downCount is downCount plus 1
+        otherwise if status of s is "degraded"
+            degradedCount is degradedCount plus 1
+        otherwise
+            healthyCount is healthyCount plus 1
+        .
     .
 
     avgLat is calcAverage latencies
     avgUp is calcAverage uptimes
-    avgLatClamped is clamp avgLat 1 999
+    avgLatClamped is clamp avgLat 1 9999
 
     res has
-        totalServices is count
+        totalServices is svcCount
+        healthyServices is healthyCount
+        degradedServices is degradedCount
+        downServices is downCount
         averageLatencyMs is avgLatClamped
         overallUptime is avgUp
     .
     return res
 .
 
+to executeHttpProbe targetUrl timeoutSecs
+    # Defense-in-depth SSRF validation before issuing any outbound HTTP request
+    urlErr is validateProbeUrl targetUrl
+    if urlErr is not ""
+        blockedOutcome has
+            reachable is false
+            status is "down"
+            latencyMs is 1
+            error is urlErr
+        .
+        return blockedOutcome
+    .
+
+    # Guard against single-threaded self-loopback deadlock if someone targets this server's own port
+    lowerTarget is toLower targetUrl
+    if lowerTarget starts with "http://127.0.0.1:18092" or lowerTarget starts with "http://localhost:18092"
+        selfOutcome has
+            reachable is true
+            status is "healthy"
+            latencyMs is 1
+            error is ""
+        .
+        return selfOutcome
+    .
+
+    # Performs a real outbound HTTP GET request via Otter's Http.cs client
+    # without cookies or redirects (preventing redirect-based SSRF) and measures
+    # wall-clock latency with Otter's native high-resolution timer.
+    safeTimeout is clamp timeoutSecs 0.2 10
+    start timer probeTimer
+    probeReachable is false
+    probeBody is ""
+    probeError is ""
+    try
+        get targetUrl into probeBody
+            with header "User-Agent" is "OtterPulse/1.1"
+            with timeout safeTimeout seconds
+            without cookies
+            without redirects
+        probeReachable is true
+    otherwise into reason
+        probeReachable is false
+        probeError is reason
+    .
+    rawElapsed is elapsed milliseconds of probeTimer
+    measuredMs is clamp rawElapsed 1 60000
+
+    probeStatus is "down"
+    if probeReachable is true
+        probeStatus is "healthy"
+        parsedJson is gone
+        try
+            convert probeBody from json into parsedJson
+        otherwise
+            parsedJson is gone
+        .
+        if parsedJson is not gone
+            reportedState is ""
+            try
+                reportedState is status of parsedJson
+            otherwise
+                reportedState is ""
+            .
+            if reportedState is not gone and reportedState is not ""
+                lowerState is toLower reportedState
+                if lowerState is "down" or lowerState is "error" or lowerState is "unhealthy" or lowerState is "fail"
+                    probeStatus is "down"
+                    try
+                        probeError is error of parsedJson
+                    otherwise
+                        probeError is ""
+                    .
+                    if probeError is gone or probeError is ""
+                        errParts are
+                            "Target reported unhealthy status: "
+                            reportedState
+                        .
+                        join errParts with "" into probeError
+                    .
+                otherwise if lowerState is "degraded" or lowerState is "warning"
+                    probeStatus is "degraded"
+                    try
+                        probeError is detail of parsedJson
+                    otherwise
+                        probeError is ""
+                    .
+                    if probeError is gone
+                        probeError is ""
+                    .
+                .
+            .
+        otherwise
+            lowerBody is toLower probeBody
+            if lowerBody contains "service unavailable" or lowerBody contains "internal server error"
+                probeStatus is "down"
+                probeError is "Target returned error page"
+            .
+        .
+        if probeStatus is "healthy" and measuredMs is greater than 120
+            probeStatus is "degraded"
+        .
+    .
+
+    probeOutcome has
+        reachable is probeReachable
+        status is probeStatus
+        latencyMs is measuredMs
+        error is probeError
+    .
+    return probeOutcome
+.
+
 to runSelfTest testDbPath
     say "=========================================================="
-    say " Service Dashboard Application Self-Test Verification"
-    say " Consuming: file-helpers, text-utils, math-utils"
+    say " Otter Pulse Flagship Application Self-Test Verification"
+    say " Consuming: file-helpers 1.0.1, text-utils 1.0.1, math-utils 1.0.1"
     say "=========================================================="
 
-    # 1. Create default services
     sList are empty
-    s1 is createServiceRecord "Auth Gateway" 8081 "api" 99.9
-    s2 is createServiceRecord "Payments Service" 8082 "api" 99.5
-    s3 is createServiceRecord "Analytics Engine" 8083 "database" 98.5
+    s1 is createServiceRecord "Auth Gateway" 8081 "api" 99.9 ""
+    s2 is createServiceRecord "Payments Service" 8082 "api" 99.5 ""
+    s3 is createServiceRecord "Analytics Engine" 8083 "database" 98.5 ""
 
     add s1 to sList
     add s2 to sList
     add s3 to sList
 
     if length of sList is not 3
-        fail with "ServiceDashboard: Expected 3 services initialized"
+        fail with "OtterPulse: Expected 3 services initialized"
     .
     if slug of s1 is not "auth-gateway"
-        fail with "ServiceDashboard: Slug generation failed"
+        fail with "OtterPulse: Slug generation failed"
     .
-    say "1. Microservice definitions created & slugified successfully."
+    if probeUrl of s1 is not "http://127.0.0.1:8081/health"
+        fail with "OtterPulse: Default probeUrl mismatch"
+    .
+    say "1. Microservice definitions created, slugified, and assigned probe URLs."
 
-    # 2. Test metrics calculations
     metrics is calculateMetrics sList
     if totalServices of metrics is not 3
-        fail with "ServiceDashboard: Metrics totalServices mismatch"
+        fail with "OtterPulse: Metrics totalServices mismatch"
     .
     say "2. Fleet telemetry and metrics calculated successfully."
 
-    # 3. Test persistence to disk
     saveOk is saveServicesList sList testDbPath
     if saveOk is not true
-        fail with "ServiceDashboard: Save to disk failed"
+        fail with "OtterPulse: Save to disk failed"
     .
-    say "3. Telemetry store persisted to disk."
-
-    # 4. Test reloading from disk
     loadedSvcs is loadServicesList testDbPath
     if length of loadedSvcs is not 3
-        fail with "ServiceDashboard: Loaded count mismatch"
+        fail with "OtterPulse: Loaded count mismatch"
     .
     firstSvc is first of loadedSvcs
-    if name of firstSvc is not "Auth Gateway"
-        fail with "ServiceDashboard: Loaded service name mismatch"
+    if probeUrl of firstSvc is not "http://127.0.0.1:8081/health"
+        fail with "OtterPulse: Persisted probeUrl mismatch"
     .
-    if slug of firstSvc is not "auth-gateway"
-        fail with "ServiceDashboard: Loaded service slug mismatch"
-    .
-    say "4. Multi-service state restored and verified from disk."
+    say "3. Multi-service state persisted and restored cleanly from disk."
 
-    # 5. Clean up
+    # Verify HTTP probe failure handling on an invalid URL scheme without crashing
+    badProbe is executeHttpProbe "ftp://127.0.0.1/invalid" 1
+    if reachable of badProbe is not false or status of badProbe is not "down"
+        fail with "OtterPulse: Invalid URL probe should report down"
+    .
+    say "4. Native Otter HTTP probe error isolation verified."
+
     deleteFileSafe testDbPath
     say "=========================================================="
-    say " Service Dashboard Application verification 100% PASSED"
+    say " Otter Pulse self-test verification 100% PASSED"
     say "=========================================================="
 .
 
@@ -204,10 +432,10 @@ dbPath is "services_store.json"
 existing is loadServicesList dbPath
 if length of existing is 0
     initList are empty
-    init1 is createServiceRecord "Auth Gateway" 8081 "api" 99.9
-    init2 is createServiceRecord "Payments Service" 8082 "api" 99.8
-    init3 is createServiceRecord "Database Primary" 5432 "database" 99.99
-    init4 is createServiceRecord "Edge CDN Cache" 6379 "edge" 99.9
+    init1 is createServiceRecord "Auth Gateway" 8081 "api" 99.9 ""
+    init2 is createServiceRecord "Payments Service" 8082 "api" 99.8 ""
+    init3 is createServiceRecord "Database Primary" 5432 "database" 99.95 ""
+    init4 is createServiceRecord "Edge CDN Cache" 6379 "edge" 99.9 ""
     add init1 to initList
     add init2 to initList
     add init3 to initList
@@ -230,8 +458,9 @@ dashboardSite is a web server
 when dashboardSite receives GET at "/api/health"
     healthData has
         status is "healthy"
-        version is "1.0.0"
+        version is "1.1.0"
         engine is "Otter 1.0.1 Native"
+        probeMode is "live-http"
     .
     respond with healthData as json
 .
@@ -277,6 +506,17 @@ when dashboardSite receives POST at "/api/services" into req
     otherwise
         rawUptime is 99.9
     .
+    rawProbeUrl is ""
+    try
+        rawProbeUrl is probeUrl of bodyObj
+    otherwise
+        rawProbeUrl is ""
+    .
+
+    probeErrCheck is ""
+    if rawProbeUrl is not gone and rawProbeUrl is not ""
+        probeErrCheck is validateProbeUrl rawProbeUrl
+    .
 
     if rawName is gone or rawName is ""
         err has
@@ -286,6 +526,11 @@ when dashboardSite receives POST at "/api/services" into req
     otherwise if rawPort is less than 1 or rawPort is greater than 65535
         err has
             error is "Validation failed: port must be between 1 and 65535"
+        .
+        respond with err as json and status 400
+    otherwise if probeErrCheck is not ""
+        err has
+            error is probeErrCheck
         .
         respond with err as json and status 400
     otherwise
@@ -299,7 +544,7 @@ when dashboardSite receives POST at "/api/services" into req
             .
             respond with err as json and status 409
         otherwise
-            newSvc is createServiceRecord rawName rawPort rawCat rawUptime
+            newSvc is createServiceRecord rawName rawPort rawCat rawUptime rawProbeUrl
             add newSvc to currentList
             saveServicesList currentList dbPath
             respDict is buildServiceDict newSvc
@@ -339,6 +584,17 @@ when dashboardSite receives PUT at "/api/services" into req
     otherwise
         newUptime is 99.9
     .
+    newProbeUrl is ""
+    try
+        newProbeUrl is probeUrl of bodyObj
+    otherwise
+        newProbeUrl is ""
+    .
+
+    putProbeErr is ""
+    if newProbeUrl is not gone and newProbeUrl is not ""
+        putProbeErr is validateProbeUrl newProbeUrl
+    .
 
     if targetSlug is gone or targetSlug is ""
         err has
@@ -348,6 +604,11 @@ when dashboardSite receives PUT at "/api/services" into req
     otherwise if newPort is less than 1 or newPort is greater than 65535
         err has
             error is "Validation failed: port must be between 1 and 65535"
+        .
+        respond with err as json and status 400
+    otherwise if putProbeErr is not ""
+        err has
+            error is putProbeErr
         .
         respond with err as json and status 400
     otherwise
@@ -363,6 +624,9 @@ when dashboardSite receives PUT at "/api/services" into req
             port of found is newPort
             category of found is newCat
             uptime of found is newUptime
+            if newProbeUrl is not gone and newProbeUrl is not ""
+                probeUrl of found is newProbeUrl
+            .
             healthScore of found is calculateHealthScore latencyMs of found newUptime
             saveServicesList svcs dbPath
             respDict is buildServiceDict found
@@ -435,16 +699,35 @@ when dashboardSite receives POST at "/api/services/ping" into req
     otherwise
         targetSlug is ""
     .
-    realLat is 24
+    overrideUrl is ""
     try
-        realLat is latencyMs of bodyObj plus 0
+        overrideUrl is probeUrl of bodyObj
     otherwise
-        realLat is 24
+        overrideUrl is ""
     .
-    
+    reqTimeout is 2
+    try
+        reqTimeout is timeoutSeconds of bodyObj plus 0
+    otherwise
+        reqTimeout is 2
+    .
+    if reqTimeout is gone or reqTimeout is less than 0.2
+        reqTimeout is 2
+    .
+
+    pingUrlErr is ""
+    if overrideUrl is not gone and overrideUrl is not ""
+        pingUrlErr is validateProbeUrl overrideUrl
+    .
+
     if targetSlug is gone or targetSlug is ""
         err has
             error is "Validation failed: slug is required for ping"
+        .
+        respond with err as json and status 400
+    otherwise if pingUrlErr is not ""
+        err has
+            error is pingUrlErr
         .
         respond with err as json and status 400
     otherwise
@@ -457,20 +740,50 @@ when dashboardSite receives POST at "/api/services/ping" into req
             .
             respond with err as json and status 404
         otherwise
-            latToRecord is 24
-            if realLat is not gone and realLat is greater than 0
-                latToRecord is realLat
+            targetUrl is probeUrl of found
+            if overrideUrl is not gone and overrideUrl is not ""
+                targetUrl is overrideUrl
+                probeUrl of found is overrideUrl
             .
-            latencyMs of found is latToRecord
-            healthScore of found is calculateHealthScore latToRecord uptime of found
+            if targetUrl is gone or targetUrl is ""
+                foundPort is port of found
+                targetUrl is defaultProbeUrl foundPort
+                probeUrl of found is targetUrl
+            .
+
+            outcome is executeHttpProbe targetUrl reqTimeout
+            measuredLat is latencyMs of outcome
+            outcomeStatus is status of outcome
+            outcomeReachable is reachable of outcome
+            outcomeErr is error of outcome
+
+            latencyMs of found is measuredLat
+            status of found is outcomeStatus
+            lastError of found is outcomeErr
             checks of found is checks of found plus 1
+
+            if outcomeStatus is "down"
+                healthScore of found is 5
+            otherwise if outcomeStatus is "degraded"
+                baseScore is calculateHealthScore measuredLat uptime of found
+                penalizedScore is baseScore minus 25
+                healthScore of found is clamp penalizedScore 10 75
+            otherwise
+                healthScore of found is calculateHealthScore measuredLat uptime of found
+            .
+
             saveServicesList svcs dbPath
+
             pingRes has
-                success is true
+                success is outcomeReachable
+                reachable is outcomeReachable
                 slug is targetSlug
-                latencyMs is latToRecord
+                probeUrl is targetUrl
+                status is outcomeStatus
+                latencyMs is measuredLat
                 healthScore is healthScore of found
                 checks is checks of found
+                error is outcomeErr
             .
             respond with pingRes as json and status 200
         .

@@ -24,8 +24,25 @@ async function fetchTelemetry() {
 
 function renderMetrics(metrics) {
   document.getElementById('metric-services-count').textContent = metrics.totalServices ?? allServices.length;
-  document.getElementById('metric-avg-latency').textContent = (metrics.averageLatencyMs ?? 0) + ' ms';
-  document.getElementById('metric-global-uptime').textContent = (metrics.overallUptime ?? 99.9) + '%';
+  document.getElementById('metric-avg-latency').textContent = (Math.round(metrics.averageLatencyMs ?? 0)) + ' ms';
+  document.getElementById('metric-global-uptime').textContent = Number(metrics.overallUptime ?? 99.9).toFixed(2) + '%';
+
+  const statusText = document.getElementById('global-status-text');
+  const statusDot = document.querySelector('#system-status-indicator .pulse-dot');
+  if (statusText) {
+    const down = metrics.downServices || 0;
+    const degraded = metrics.degradedServices || 0;
+    if (down > 0) {
+      statusText.textContent = `${down} Service${down === 1 ? '' : 's'} Unreachable`;
+      if (statusDot) statusDot.style.background = '#ef4444';
+    } else if (degraded > 0) {
+      statusText.textContent = `${degraded} Service${degraded === 1 ? '' : 's'} Degraded`;
+      if (statusDot) statusDot.style.background = '#f59e0b';
+    } else {
+      statusText.textContent = 'All Systems Operational';
+      if (statusDot) statusDot.style.background = '#10b981';
+    }
+  }
 }
 
 function renderServices() {
@@ -34,9 +51,10 @@ function renderServices() {
 
   const filtered = allServices.filter(s => {
     const matchCategory = currentCategory === 'all' || s.category === currentCategory;
-    const matchSearch = !search || 
-      s.name.toLowerCase().includes(search) || 
+    const matchSearch = !search ||
+      s.name.toLowerCase().includes(search) ||
       (s.slug && s.slug.toLowerCase().includes(search)) ||
+      (s.probeUrl && s.probeUrl.toLowerCase().includes(search)) ||
       String(s.port).includes(search);
     return matchCategory && matchSearch;
   });
@@ -47,44 +65,51 @@ function renderServices() {
   }
 
   container.innerHTML = filtered.map(s => {
-    const isDegraded = s.latencyMs > 120 || s.healthScore < 80;
-    const badgeClass = isDegraded ? 'badge-degraded' : 'badge-healthy';
-    const badgeText = isDegraded ? 'Degraded' : 'Healthy';
-    const healthPercent = Math.min(100, Math.max(0, s.healthScore || 98));
+    const status = (s.status || '').toLowerCase();
+    const isDown = status === 'down';
+    const isDegraded = !isDown && (status === 'degraded' || s.latencyMs > 120 || s.healthScore < 80);
+    const badgeClass = isDown ? 'badge-degraded' : (isDegraded ? 'badge-degraded' : 'badge-healthy');
+    const badgeText = isDown ? 'Down' : (isDegraded ? 'Degraded' : 'Healthy');
+    const healthPercent = Math.min(100, Math.max(0, Math.round(s.healthScore ?? 98)));
+    const probeUrl = s.probeUrl || `http://127.0.0.1:${s.port}/health`;
+    const errHtml = s.lastError
+      ? `<div class="service-probe-error" style="font-size:0.78rem;color:#fca5a5;margin-top:0.5rem;word-break:break-word;">Last probe error: ${escapeHtml(s.lastError)}</div>`
+      : '';
 
     return `
       <div class="service-card" id="card-${escapeHtml(s.slug || s.name)}">
         <div class="service-card-header">
           <div class="service-title-group">
             <span class="service-name">${escapeHtml(s.name)}</span>
-            <span class="service-slug">${escapeHtml(s.slug || s.name)} • Port ${s.port}</span>
+            <span class="service-slug">${escapeHtml(s.slug || s.name)} • Port ${s.port} • ${escapeHtml(probeUrl)}</span>
           </div>
           <span class="service-badge ${badgeClass}">${badgeText}</span>
         </div>
         <div class="service-stats-grid">
           <div class="stat-item">
-            <span class="stat-label">Latency</span>
-            <span class="stat-value" id="lat-${escapeHtml(s.slug)}">${s.latencyMs || 24} ms</span>
+            <span class="stat-label">Measured Latency</span>
+            <span class="stat-value" id="lat-${escapeHtml(s.slug)}">${Math.round(s.latencyMs || 0)} ms</span>
           </div>
           <div class="stat-item">
             <span class="stat-label">Target Uptime</span>
             <span class="stat-value">${s.uptime || 99.9}%</span>
           </div>
           <div class="stat-item">
-            <span class="stat-label">Category</span>
-            <span class="stat-value" style="text-transform: capitalize;">${escapeHtml(s.category)}</span>
+            <span class="stat-label">Probes Run</span>
+            <span class="stat-value">${s.checks || 0}</span>
           </div>
           <div class="stat-item">
             <span class="stat-label">Health Score</span>
             <span class="stat-value" id="score-${escapeHtml(s.slug)}">${healthPercent}/100</span>
           </div>
         </div>
+        ${errHtml}
         <div class="service-card-actions">
           <div class="health-bar-container" title="Health: ${healthPercent}%">
             <div class="health-bar-fill" style="width: ${healthPercent}%"></div>
           </div>
           <div style="display: flex; gap: 0.5rem;">
-            <button class="btn-ping" onclick="pingService('${escapeHtml(s.slug || s.name)}')">Ping</button>
+            <button class="btn-ping" onclick="pingService('${escapeHtml(s.slug || s.name)}', this)">Probe HTTP</button>
             <button class="btn-ping" style="background: rgba(239, 68, 68, 0.15); color: #ef4444; border-color: rgba(239, 68, 68, 0.3);" onclick="deleteService('${escapeHtml(s.slug)}')">Delete</button>
           </div>
         </div>
@@ -93,20 +118,29 @@ function renderServices() {
   }).join('');
 }
 
-async function pingService(slug) {
+async function pingService(slug, btnEl) {
+  const orig = btnEl ? btnEl.textContent : '';
+  if (btnEl) {
+    btnEl.disabled = true;
+    btnEl.textContent = 'Probing...';
+  }
   try {
-    const startTime = performance.now();
-    // Real probe round-trip measurement
+    // Triggers a real server-side Otter HTTP GET probe (with timeout + error capture)
     const res = await fetch('/api/services/ping', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ slug: slug, latencyMs: Math.max(1, Math.round(performance.now() - startTime)) })
+      body: JSON.stringify({ slug, timeoutSeconds: 2 })
     });
     if (res.ok) {
       await fetchTelemetry();
     }
   } catch (err) {
-    console.error('Failed to ping service:', err);
+    console.error('Failed to probe service:', err);
+  } finally {
+    if (btnEl) {
+      btnEl.disabled = false;
+      btnEl.textContent = orig;
+    }
   }
 }
 
@@ -118,7 +152,7 @@ async function deleteService(slug) {
     const res = await fetch('/api/services', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ slug: slug })
+      body: JSON.stringify({ slug })
     });
     if (res.ok) {
       await fetchTelemetry();
@@ -157,6 +191,8 @@ async function handleRegister(e) {
   const port = parseInt(document.getElementById('svc-port').value, 10);
   const category = document.getElementById('svc-category').value;
   const targetUptime = parseFloat(document.getElementById('svc-target-uptime').value);
+  const probeUrlInput = document.getElementById('svc-probe-url');
+  const probeUrl = probeUrlInput ? probeUrlInput.value.trim() : '';
 
   if (!name) {
     alert('Service name is required');
@@ -171,7 +207,7 @@ async function handleRegister(e) {
     const res = await fetch('/api/services', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, port, category, targetUptime })
+      body: JSON.stringify({ name, port, category, targetUptime, probeUrl })
     });
 
     if (res.ok) {
