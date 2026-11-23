@@ -113,7 +113,8 @@ public static partial class LanguageService
                 FuncHeaderRegex().IsMatch(trimmed) ||
                 TypeDefRegex().IsMatch(trimmed) ||
                 ObjectDefRegex().IsMatch(trimmed) ||
-                AreBlockRegex().IsMatch(trimmed))
+                AreBlockRegex().IsMatch(trimmed) ||
+                trimmed.EndsWith(" with", StringComparison.OrdinalIgnoreCase))
             {
                 opensBlock = true;
             }

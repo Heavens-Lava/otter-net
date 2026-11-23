@@ -1307,7 +1307,8 @@ public sealed partial class Parser
         if (Is(TokenKind.Has))
         {
             Read();
-            var properties = Is(TokenKind.Newline) ? ReadObjectBlockProperties(allowEmpty: true) : ReadInlineObjectProperties();
+            var properties = Is(TokenKind.Newline) ? ReadObjectBlockProperties(allowEmpty: true) : ReadWithProperties(name.Text, "thing");
+            ValidateObjectProperties(name.Text, "thing", properties);
             return new ObjectDefStmt(name.Text, "thing", properties, name.Line);
         }
         if (Is(TokenKind.Of))
@@ -1334,7 +1335,8 @@ public sealed partial class Parser
                 if (Is(TokenKind.With))
                 {
                     Read();
-                    properties = ReadInlineObjectProperties();
+                    properties = ReadWithProperties(name.Text, typeName);
+                    ValidateObjectProperties(name.Text, typeName, properties);
                 }
                 else if (Same(typeName, "thing") || !knownTypes.Contains(typeName))
                 {
@@ -1346,7 +1348,7 @@ public sealed partial class Parser
                     if (Is(TokenKind.Indent))
                     {
                         throw Error($"'{typeName}' is a declared type, so its properties must use 'with' on the same line.", Current,
-                            $"Write '{name.Text} is a {typeName} with property value'.");
+                            $"Write '{name.Text} is a {typeName} with value property'.");
                     }
                     properties = new List<AssignStmt>();
                 }
@@ -1626,35 +1628,76 @@ public sealed partial class Parser
         return properties;
     }
 
-    // Comma-separated, each `is` optional: `person has name "Ada", age 36`.
+    void ValidateObjectProperties(string objectName, string typeName, IReadOnlyList<AssignStmt> properties)
+    {
+        OtterError? problem = UiPropertyValidation.ValidateProperties(
+            objectName,
+            typeName,
+            properties,
+            (msg, line, suggestion, code) => new OtterError(msg, line, "parser", 0, SourceLine(line), suggestion, code)
+        );
+        if (problem != null) throw problem;
+    }
+
+    static bool IsPropertyEntryDelimiter(Token token) =>
+        token.Text == "," || token.Kind is TokenKind.Newline or TokenKind.Dedent or TokenKind.BlockEnd or TokenKind.EndOfFile;
+
+    static bool IsPropertyNameToken(Token token) => IsIdentifier(token) && token.Text != ",";
+
+    static bool IsLiteralValueStart(Token token) =>
+        token.Kind is TokenKind.String or TokenKind.Number or TokenKind.True or TokenKind.False or TokenKind.Gone;
+
+    // Reads either a single-line comma-separated property list or an indented
+    // multi-line `with\n    ...\n.` block. Supports both value-first (`<value> <property>`,
+    // preferred) and legacy property-first (`<property> <value>` / `<property> is <value>`).
+    List<AssignStmt> ReadWithProperties(string objectName, string typeName)
+    {
+        if (Is(TokenKind.Newline))
+        {
+            return ReadMultilineWithProperties();
+        }
+        return ReadInlineObjectProperties();
+    }
+
+    List<AssignStmt> ReadMultilineWithProperties()
+    {
+        Read(); // consume Newline after `with`
+        Expect(TokenKind.Indent, "I expected indented properties after \"with\".", "Indent each property on its own line and close the block with a period '.'.");
+        var properties = new List<AssignStmt>();
+        SkipNewlines();
+        while (!Is(TokenKind.Dedent) && !Is(TokenKind.EndOfFile) && !Is(TokenKind.BlockEnd))
+        {
+            properties.Add(ReadPropertyEntry());
+            if (Current.Text == ",")
+            {
+                Read();
+            }
+            Token end = Current;
+            if (end.Kind != TokenKind.Newline && end.Kind != TokenKind.Dedent && end.Kind != TokenKind.EndOfFile)
+            {
+                throw Error(
+                    $"I expected each property on its own line, but found '{end.Text}' on the same line.",
+                    end,
+                    $"Place '{end.Text}' on a new indented line."
+                );
+            }
+            if (end.Kind == TokenKind.Newline) Read();
+            SkipNewlines();
+        }
+        Expect(TokenKind.Dedent, "I expected the property block to end.");
+        if (Is(TokenKind.BlockEnd)) { Read(); SkipNewlines(); }
+        return properties;
+    }
+
+    // Comma-separated single-line list:
+    //   Value-first (preferred): `navDocs is a link with "Documentation" text, "/docs/" url, 14 size`
+    //   Legacy (supported):      `person has name "Ada", age 36`
     List<AssignStmt> ReadInlineObjectProperties()
     {
         var properties = new List<AssignStmt>();
         while (true)
         {
-            Token property = ReadVariableName("I expected a property name after \"has\", \"with\", or a comma.", allowReservedLiteral: true);
-            string propertyName = ReadAcceptsDrops(property);
-            bool hadIs = false;
-            if (Is(TokenKind.Is)) { Read(); hadIs = true; }
-            Expr value;
-            if (!hadIs && (Current.Text == "," || Current.Kind is TokenKind.Newline or TokenKind.EndOfFile))
-            {
-                value = new LiteralExpr(true, property.Line);   // D54
-            }
-            else if (ReadUiPropertyValue(property, hadIs) is { } uiValue)
-            {
-                value = uiValue;
-            }
-            else
-            {
-                if (Current.Text == "," || Current.Kind is TokenKind.Newline or TokenKind.EndOfFile)
-                {
-                    throw Error($"I expected a value for property '{property.Text}'.", Current,
-                        $"Provide a value after the property name, such as '{property.Text} 10' or '{property.Text} is 10'.");
-                }
-                value = ReadMathExpression();
-            }
-            properties.Add(new AssignStmt(new VariableExpr(propertyName, property.Line), value, property.Line));
+            properties.Add(ReadPropertyEntry());
             if (Current.Text != ",") break;
             Read();
             if (Is(TokenKind.Newline)) throw Error("I expected a property after the comma.", Current, "Add another property assignment after the comma.");
@@ -1671,6 +1714,200 @@ public sealed partial class Parser
         }
         if (end.Kind == TokenKind.Newline) Read();
         return properties;
+    }
+
+    AssignStmt ReadPropertyEntry()
+    {
+        Token cur = Current;
+        if (IsPropertyEntryDelimiter(cur))
+        {
+            throw Error("I expected a property after \"has\", \"with\", or a comma.", cur, "Provide a property such as '\"Hello\" text' or '14 size'.");
+        }
+
+        Token? next1 = At(1);
+        Token? next2 = At(2);
+
+        // 1. Bare boolean flag (D54): `spread`, `round`, `accepts drops`
+        if (IsPropertyNameToken(cur) && Same(cur.Text, "accepts") && next1 is not null && Same(next1.Text, "drops") &&
+            (next2 is null || IsPropertyEntryDelimiter(next2)))
+        {
+            Read(); Read();
+            return new AssignStmt(new VariableExpr("accepts drops", cur.Line), new LiteralExpr(true, cur.Line), cur.Line);
+        }
+        if (IsPropertyNameToken(cur) && (next1 is null || IsPropertyEntryDelimiter(next1)))
+        {
+            Token flag = Read();
+            return new AssignStmt(new VariableExpr(flag.Text, flag.Line), new LiteralExpr(true, flag.Line), flag.Line);
+        }
+
+        // 2. Legacy explicit `is`: `<prop> is <value>` or `accepts drops is <value>`
+        if (IsPropertyNameToken(cur) && Same(cur.Text, "accepts") && next1 is not null && Same(next1.Text, "drops") && next2?.Kind == TokenKind.Is)
+        {
+            Token prop = Read(); Read(); Read(); // accepts, drops, is
+            if (IsPropertyEntryDelimiter(Current))
+            {
+                throw Error("I expected a value for property 'accepts drops'.", Current, "Write: true accepts drops");
+            }
+            Expr value = ReadMathExpression();
+            return new AssignStmt(new VariableExpr("accepts drops", prop.Line), value, prop.Line);
+        }
+        if (IsPropertyNameToken(cur) && next1?.Kind == TokenKind.Is)
+        {
+            Token prop = Read();
+            Read(); // consume `is`
+            if (IsPropertyEntryDelimiter(Current))
+            {
+                throw Error($"I expected a value for property '{prop.Text}'.", Current,
+                    $"Provide a value for '{prop.Text}', such as '10 {prop.Text}' or '{prop.Text} is 10'.");
+            }
+            Expr value = ReadUiPropertyValue(prop, hadIs: true) ?? ReadMathExpression();
+            return new AssignStmt(new VariableExpr(prop.Text, prop.Line), value, prop.Line);
+        }
+
+        // 3. Value-first UI keyword pairs: `middle align`, `"middle" align`, `full width`, `full height`
+        if (next1 is not null && IsPropertyNameToken(next1) && Same(next1.Text, "align") &&
+            (next2 is null || IsPropertyEntryDelimiter(next2)))
+        {
+            if (cur.Kind == TokenKind.Identifier && SameAny(cur.Text, AlignWords))
+            {
+                Token dir = Read();
+                Token prop = Read();
+                return new AssignStmt(new VariableExpr("align", prop.Line), new LiteralExpr(dir.Text, dir.Line), prop.Line);
+            }
+            if (cur.Kind == TokenKind.String && cur.Value is string sDir && SameAny(sDir, AlignWords))
+            {
+                Token dir = Read();
+                Token prop = Read();
+                return new AssignStmt(new VariableExpr("align", prop.Line), new LiteralExpr(sDir, dir.Line), prop.Line);
+            }
+            throw Error(
+                $"I expected an alignment direction (top, middle, bottom, left, center, right) before 'align', but got '{cur.Text}'.",
+                cur,
+                "Use top align, middle align, bottom align, left align, center align, or right align."
+            );
+        }
+        if (cur.Kind == TokenKind.Identifier && Same(cur.Text, "full") && next1 is not null &&
+            SameAny(next1.Text, "width", "height") && (next2 is null || IsPropertyEntryDelimiter(next2)))
+        {
+            Token fullTok = Read();
+            Token dimTok = Read();
+            return new AssignStmt(new VariableExpr(dimTok.Text, dimTok.Line), new LiteralExpr("full", fullTok.Line), dimTok.Line);
+        }
+
+        // 4. Legacy UI keyword pairs: `align middle`, `width full`, `height full`, `accepts drops <value>`
+        if (IsPropertyNameToken(cur) && Same(cur.Text, "align"))
+        {
+            Token prop = Read();
+            Expr dirVal = ReadUiPropertyValue(prop, hadIs: false)!;
+            return new AssignStmt(new VariableExpr("align", prop.Line), dirVal, prop.Line);
+        }
+        if (IsPropertyNameToken(cur) && SameAny(cur.Text, "width", "height") && next1 is { Kind: TokenKind.Identifier } && Same(next1.Text, "full"))
+        {
+            Token prop = Read();
+            Token fullTok = Read();
+            return new AssignStmt(new VariableExpr(prop.Text, prop.Line), new LiteralExpr("full", fullTok.Line), prop.Line);
+        }
+        if (IsPropertyNameToken(cur) && Same(cur.Text, "accepts") && next1 is not null && Same(next1.Text, "drops"))
+        {
+            Token prop = Read();
+            Read(); // drops
+            if (IsPropertyEntryDelimiter(Current))
+            {
+                return new AssignStmt(new VariableExpr("accepts drops", prop.Line), new LiteralExpr(true, prop.Line), prop.Line);
+            }
+            Expr val = ReadMathExpression();
+            return new AssignStmt(new VariableExpr("accepts drops", prop.Line), val, prop.Line);
+        }
+
+        // 5. Literal-leading or unary-`not`-leading value-first: `"Playground" text`, `14 size`, `10 plus 4 size`, `true scroll`
+        if (IsLiteralValueStart(cur) || cur.Kind == TokenKind.Not)
+        {
+            Expr value = ReadMathExpression();
+            if (IsPropertyEntryDelimiter(Current))
+            {
+                throw Error(
+                    $"I expected a property name after value '{cur.Text}'.",
+                    Current,
+                    "Write '<value> <property>', such as '\"Hello\" text' or '14 size'."
+                );
+            }
+            if (!IsPropertyNameToken(Current))
+            {
+                throw Error(
+                    $"I expected a property name after this value, but found '{Current.Text}'.",
+                    Current,
+                    "Write '<value> <property>', such as '\"Hello\" text' or '14 size'."
+                );
+            }
+            Token prop = Read();
+            string propName = ReadAcceptsDrops(prop);
+            return new AssignStmt(new VariableExpr(propName, prop.Line), value, prop.Line);
+        }
+
+        // 6. Identifier-leading:
+        //    - Legacy `<prop> <literal>`: `text "Click"`, `size 14` (unless `<ident>` is a known function)
+        if (IsPropertyNameToken(cur) && next1 is not null && IsLiteralValueStart(next1) && !knownFunctions.ContainsKey(cur.Text))
+        {
+            Token prop = Read();
+            Expr value = ReadMathExpression();
+            return new AssignStmt(new VariableExpr(prop.Text, prop.Line), value, prop.Line);
+        }
+
+        //    - Legacy `<known-ui-prop> <variable>`: e.g. `item has text task`, `card has title headingText`
+        //      (preserves Otter 1.0.1 compatibility when a known UI property name comes first and a non-UI
+        //      variable name comes second; value-first `myTitle text` / `userLabel name` falls through below).
+        if (IsPropertyNameToken(cur) && next1 is not null && IsPropertyNameToken(next1) &&
+            (next2 is null || IsPropertyEntryDelimiter(next2)) &&
+            !knownFunctions.ContainsKey(cur.Text) &&
+            UiPropertyValidation.IsKnownUiProperty(cur.Text) &&
+            !UiPropertyValidation.IsKnownUiProperty(next1.Text))
+        {
+            Token prop = Read();
+            Token varTok = Read();
+            return new AssignStmt(new VariableExpr(prop.Text, prop.Line), new VariableExpr(varTok.Text, varTok.Line), prop.Line);
+        }
+
+        //    - Value-first expression-leading (`myLabel text`, `base plus 4 size`, `name of user text`, `fn 1 size`)
+        //      parsed with clean backtracking so legacy `<prop> <expr>` (`size base plus 4`) and missing-comma
+        //      diagnostics (`round weight 700`) remain 100% preserved.
+        int saved = position;
+        try
+        {
+            Expr expr = ReadMathExpression();
+            if (IsPropertyNameToken(Current))
+            {
+                Token prop = Read();
+                string propName = ReadAcceptsDrops(prop);
+                if (IsPropertyEntryDelimiter(Current))
+                {
+                    return new AssignStmt(new VariableExpr(propName, prop.Line), expr, prop.Line);
+                }
+            }
+        }
+        catch (OtterError)
+        {
+            // Fall through to legacy property-first parse below
+        }
+
+        position = saved;
+
+        // Preserve D54 bare flag (`round` / `spread`) before an unexpected token so
+        // `b is a badge with round weight 700` reports the exact missing-comma diagnostic.
+        if (IsPropertyNameToken(cur) && SameAny(cur.Text, "round", "spread"))
+        {
+            Token flag = Read();
+            return new AssignStmt(new VariableExpr(flag.Text, flag.Line), new LiteralExpr(true, flag.Line), flag.Line);
+        }
+
+        // Fallback: legacy `<prop> <expr>` (e.g. `size base plus 4`, `text name of user`)
+        Token legacyProp = ReadVariableName("I expected a property name after \"has\", \"with\", or a comma.", allowReservedLiteral: true);
+        string legacyName = ReadAcceptsDrops(legacyProp);
+        if (IsPropertyEntryDelimiter(Current))
+        {
+            return new AssignStmt(new VariableExpr(legacyName, legacyProp.Line), new LiteralExpr(true, legacyProp.Line), legacyProp.Line);
+        }
+        Expr legacyVal = ReadUiPropertyValue(legacyProp, hadIs: false) ?? ReadMathExpression();
+        return new AssignStmt(new VariableExpr(legacyName, legacyProp.Line), legacyVal, legacyProp.Line);
     }
 
 
