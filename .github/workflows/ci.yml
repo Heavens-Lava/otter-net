@@ -372,4 +372,6 @@ jobs:
         run: python3 tests/docs/test_component_authoring_guide.py
       - name: Flagship App #1 (Otter Pulse) Real HTTP Probe & Persistence Integration Test
         run: python3 examples/service-dashboard-app/tests/test_integration.py
+      - name: Value-First Property Syntax & UI Validation Verification
+        run: python3 tests/language/test_value_first_properties.py
 
