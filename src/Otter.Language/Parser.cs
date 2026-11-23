@@ -1853,6 +1853,20 @@ public sealed partial class Parser
             return new AssignStmt(new VariableExpr(prop.Text, prop.Line), value, prop.Line);
         }
 
+        //    - Legacy `<known-ui-prop> <variable>`: e.g. `item has text task`, `card has title headingText`
+        //      (preserves Otter 1.0.1 compatibility when a known UI property name comes first and a non-UI
+        //      variable name comes second; value-first `myTitle text` / `userLabel name` falls through below).
+        if (IsPropertyNameToken(cur) && next1 is not null && IsPropertyNameToken(next1) &&
+            (next2 is null || IsPropertyEntryDelimiter(next2)) &&
+            !knownFunctions.ContainsKey(cur.Text) &&
+            UiPropertyValidation.IsKnownUiProperty(cur.Text) &&
+            !UiPropertyValidation.IsKnownUiProperty(next1.Text))
+        {
+            Token prop = Read();
+            Token varTok = Read();
+            return new AssignStmt(new VariableExpr(prop.Text, prop.Line), new VariableExpr(varTok.Text, varTok.Line), prop.Line);
+        }
+
         //    - Value-first expression-leading (`myLabel text`, `base plus 4 size`, `name of user text`, `fn 1 size`)
         //      parsed with clean backtracking so legacy `<prop> <expr>` (`size base plus 4`) and missing-comma
         //      diagnostics (`round weight 700`) remain 100% preserved.

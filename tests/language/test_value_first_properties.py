@@ -344,6 +344,22 @@ show app
         f"rc={rc_rs}, out={out_rs.strip()[:180]}, err={err_rs.strip()[:180]}",
     )
 
+    # 5b. Regression test: legacy `<known-ui-prop> <var>` (e.g. `item has text task` from desktop example_tasks.ot)
+    #     must continue assigning `item.text = task`, while value-first `item2 has task text` also assigns `item2.text = task`.
+    legacy_two_ident_src = '''
+task is "Walk the otter"
+item has text task
+item2 has task text
+say text of item
+say text of item2
+'''
+    rc_l2i, out_l2i, err_l2i = run_otter(["run"], legacy_two_ident_src)
+    assert_test(
+        "Legacy `<known-ui-prop> <var>` (`item has text task`) and value-first (`item2 has task text`) both assign text=task",
+        rc_l2i == 0 and out_l2i.strip().splitlines() == ["Walk the otter", "Walk the otter"],
+        f"rc={rc_l2i}, out={out_l2i!r}, err={err_l2i!r}",
+    )
+
     # 6. Formatter preserves indentation for multi-line `with ... .`
     unformatted = 'nav is a link with\n"Home" text,\n"/" url\n.\n'
     fd_fmt, fmt_path = tempfile.mkstemp(suffix=".ot", prefix="otter_vf_fmt_")

@@ -73,6 +73,9 @@ internal static class UiPropertyValidation
         "top", "middle", "bottom", "left", "center", "right",
     };
 
+    public static bool IsKnownUiProperty(string name) =>
+        !string.IsNullOrWhiteSpace(name) && KnownUiProperties.Contains(name.Trim());
+
     public static bool IsKnownUiKind(string typeName)
     {
         if (string.IsNullOrWhiteSpace(typeName)) return false;
