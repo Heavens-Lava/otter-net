@@ -21,6 +21,15 @@ Flagship reference web application built natively in **Otter 1.0.1**, demonstrat
   - `POST /api/services/ping` — Run a live HTTP health probe (`{ slug, probeUrl?, timeoutSeconds? }`).
 - **Responsive Dashboard UI (`public/`):** Live fleet metrics, search and category filtering, Probe HTTP actions, error banners for failed probes, and service registration modal.
 
+## Security & Threat Model
+
+**Otter Pulse is intended strictly for trusted local development and loopback microservice monitoring.** It is **not** designed for direct internet-facing deployment without an authenticating reverse proxy and network egress policy.
+
+Built-in SSRF protections:
+- **Loopback bind only:** The Kestrel web host binds strictly to `127.0.0.1:18092`.
+- **Strict loopback probe allowlist (`validateProbeUrl`):** `POST /api/services`, `PUT /api/services`, and `POST /api/services/ping` accept only `http://` or `https://` URLs targeting `127.0.0.1` or `localhost` (explicitly rejecting cloud metadata endpoints such as `169.254.169.254`, private LAN ranges, external hosts, prefix-spoofed domains such as `127.0.0.1.evil.example`, embedded credentials `@`, non-HTTP schemes, spaces, and backslashes with HTTP `400 Bad Request`).
+- **No redirects or cookies on probes:** Outbound Otter HTTP requests execute with `without cookies` and `without redirects` so a probed service cannot trigger redirect-based SSRF.
+
 ## Running Locally
 
 ### 1. Verify Packs & Run Self-Test

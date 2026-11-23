@@ -278,7 +278,32 @@ def main():
         assert p_ref.get("error", ""), f"Expected connection error message: {p_ref}"
         print(f"  [PASS] Real HTTP probe (connection refused): caught gracefully ('{p_ref['error']}').")
 
-        # 4f. Metrics reflect down service cleanly + missing service returns 404
+        # 4f. SSRF protection checks (must reject metadata IPs, external hosts, prefix spoofing, creds, non-HTTP schemes with 400)
+        ssrf_payloads = [
+            ("cloud metadata", "http://169.254.169.254/latest/meta-data/"),
+            ("external host", "http://example.com/health"),
+            ("prefix spoofing", "http://127.0.0.1.evil.example/health"),
+            ("localhost spoofing", "http://localhost.attacker.tld/health"),
+            ("credential injection", "http://user:pass@127.0.0.1:8080/health"),
+            ("private LAN IP", "http://192.168.1.1/status"),
+            ("file scheme", "file:///etc/passwd")
+        ]
+        for label, bad_url in ssrf_payloads:
+            st_reg, err_reg = http_request(
+                f"{base_url}/api/services",
+                method="POST",
+                data={"name": f"SSRF {label}", "port": 8080, "category": "api", "targetUptime": 99.9, "probeUrl": bad_url}
+            )
+            assert st_reg == 400, f"POST /api/services must reject {label} ({bad_url}) with 400, got {st_reg}: {err_reg}"
+            st_ping, err_ping = http_request(
+                f"{base_url}/api/services/ping",
+                method="POST",
+                data={"slug": "telemetry-probe-target", "probeUrl": bad_url}
+            )
+            assert st_ping == 400, f"POST /api/services/ping must reject {label} ({bad_url}) with 400, got {st_ping}: {err_ping}"
+        print(f"  [PASS] SSRF protection rejected all {len(ssrf_payloads)} disallowed probe URLs with 400 Bad Request.")
+
+        # 4g. Metrics reflect down service cleanly + missing service returns 404
         status, metrics = http_request(f"{base_url}/api/metrics")
         assert status == 200 and metrics.get("totalServices") == 5
         assert metrics.get("downServices", 0) >= 1, f"Expected downServices >= 1: {metrics}"

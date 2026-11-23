@@ -30,6 +30,47 @@ to defaultProbeUrl portNum
     return builtUrl
 .
 
+to validateProbeUrl rawUrl
+    # Threat model: Otter Pulse is designed for trusted local development and
+    # loopback microservice monitoring (127.0.0.1 / localhost only).
+    # Rejects non-HTTP(S) schemes, credentials (@), whitespace, backslashes,
+    # cloud metadata IPs (169.254.169.254), LAN IPs, and external hosts to prevent SSRF.
+    if rawUrl is gone or rawUrl is ""
+        return "Probe URL is required"
+    .
+    if rawUrl contains "@" or rawUrl contains " " or rawUrl contains "\\"
+        return "Probe URL rejected: credentials (@), spaces, and backslashes are not permitted"
+    .
+    lowerUrl is toLower rawUrl
+    hasHttp is false
+    if lowerUrl starts with "http://"
+        hasHttp is true
+    .
+    if lowerUrl starts with "https://"
+        hasHttp is true
+    .
+    if hasHttp is false
+        return "Probe URL rejected: only http:// or https:// URLs are permitted"
+    .
+    isLoopback is false
+    if lowerUrl starts with "http://127.0.0.1:" or lowerUrl starts with "http://127.0.0.1/" or lowerUrl is "http://127.0.0.1"
+        isLoopback is true
+    .
+    if lowerUrl starts with "https://127.0.0.1:" or lowerUrl starts with "https://127.0.0.1/" or lowerUrl is "https://127.0.0.1"
+        isLoopback is true
+    .
+    if lowerUrl starts with "http://localhost:" or lowerUrl starts with "http://localhost/" or lowerUrl is "http://localhost"
+        isLoopback is true
+    .
+    if lowerUrl starts with "https://localhost:" or lowerUrl starts with "https://localhost/" or lowerUrl is "https://localhost"
+        isLoopback is true
+    .
+    if isLoopback is false
+        return "Probe URL rejected (SSRF protection): only loopback targets (127.0.0.1 or localhost) are allowed"
+    .
+    return ""
+.
+
 to calculateHealthScore latencyMs targetUptime
     # Health score from 5-100:
     # 1. Latency penalty: penalize latency over 50ms (1 pt per 2ms)
@@ -214,6 +255,18 @@ to calculateMetrics services
 .
 
 to executeHttpProbe targetUrl timeoutSecs
+    # Defense-in-depth SSRF validation before issuing any outbound HTTP request
+    urlErr is validateProbeUrl targetUrl
+    if urlErr is not ""
+        blockedOutcome has
+            reachable is false
+            status is "down"
+            latencyMs is 1
+            error is urlErr
+        .
+        return blockedOutcome
+    .
+
     # Guard against single-threaded self-loopback deadlock if someone targets this server's own port
     lowerTarget is toLower targetUrl
     if lowerTarget starts with "http://127.0.0.1:18092" or lowerTarget starts with "http://localhost:18092"
@@ -227,7 +280,8 @@ to executeHttpProbe targetUrl timeoutSecs
     .
 
     # Performs a real outbound HTTP GET request via Otter's Http.cs client
-    # and measures wall-clock latency with Otter's native high-resolution timer.
+    # without cookies or redirects (preventing redirect-based SSRF) and measures
+    # wall-clock latency with Otter's native high-resolution timer.
     safeTimeout is clamp timeoutSecs 0.2 10
     start timer probeTimer
     probeReachable is false
@@ -237,6 +291,8 @@ to executeHttpProbe targetUrl timeoutSecs
         get targetUrl into probeBody
             with header "User-Agent" is "OtterPulse/1.1"
             with timeout safeTimeout seconds
+            without cookies
+            without redirects
         probeReachable is true
     otherwise into reason
         probeReachable is false
@@ -457,6 +513,11 @@ when dashboardSite receives POST at "/api/services" into req
         rawProbeUrl is ""
     .
 
+    probeErrCheck is ""
+    if rawProbeUrl is not gone and rawProbeUrl is not ""
+        probeErrCheck is validateProbeUrl rawProbeUrl
+    .
+
     if rawName is gone or rawName is ""
         err has
             error is "Validation failed: service name is required"
@@ -465,6 +526,11 @@ when dashboardSite receives POST at "/api/services" into req
     otherwise if rawPort is less than 1 or rawPort is greater than 65535
         err has
             error is "Validation failed: port must be between 1 and 65535"
+        .
+        respond with err as json and status 400
+    otherwise if probeErrCheck is not ""
+        err has
+            error is probeErrCheck
         .
         respond with err as json and status 400
     otherwise
@@ -525,6 +591,11 @@ when dashboardSite receives PUT at "/api/services" into req
         newProbeUrl is ""
     .
 
+    putProbeErr is ""
+    if newProbeUrl is not gone and newProbeUrl is not ""
+        putProbeErr is validateProbeUrl newProbeUrl
+    .
+
     if targetSlug is gone or targetSlug is ""
         err has
             error is "Validation failed: service slug is required for update"
@@ -533,6 +604,11 @@ when dashboardSite receives PUT at "/api/services" into req
     otherwise if newPort is less than 1 or newPort is greater than 65535
         err has
             error is "Validation failed: port must be between 1 and 65535"
+        .
+        respond with err as json and status 400
+    otherwise if putProbeErr is not ""
+        err has
+            error is putProbeErr
         .
         respond with err as json and status 400
     otherwise
@@ -639,9 +715,19 @@ when dashboardSite receives POST at "/api/services/ping" into req
         reqTimeout is 2
     .
 
+    pingUrlErr is ""
+    if overrideUrl is not gone and overrideUrl is not ""
+        pingUrlErr is validateProbeUrl overrideUrl
+    .
+
     if targetSlug is gone or targetSlug is ""
         err has
             error is "Validation failed: slug is required for ping"
+        .
+        respond with err as json and status 400
+    otherwise if pingUrlErr is not ""
+        err has
+            error is pingUrlErr
         .
         respond with err as json and status 400
     otherwise
