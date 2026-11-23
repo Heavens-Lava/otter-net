@@ -184,6 +184,28 @@ def main():
         assert status == 400
         print("  [PASS] Initial catalog and 400 input validation verified.")
 
+        # 2b. Warm up Otter.Runtime.Http.Client(false, false) and System.Net.Http JIT once
+        #     using an ephemeral service so first-call handler construction does not inflate
+        #     the latency measured by the strict health-score assertion below.
+        warmup_reg = {
+            "name": "Warmup Probe",
+            "port": probe_port,
+            "category": "edge",
+            "targetUptime": 99.9,
+            "probeUrl": f"http://127.0.0.1:{probe_port}/health"
+        }
+        w_status, w_created = http_request(f"{base_url}/api/services", method="POST", data=warmup_reg)
+        assert w_status == 201 and w_created.get("slug") == "warmup-probe", f"Warmup register failed: {w_status} {w_created}"
+        wp_status, wp_res = http_request(
+            f"{base_url}/api/services/ping",
+            method="POST",
+            data={"slug": "warmup-probe", "timeoutSeconds": 5}
+        )
+        assert wp_status == 200 and wp_res.get("reachable") is True, f"Warmup probe failed: {wp_status} {wp_res}"
+        wd_status, _ = http_request(f"{base_url}/api/services", method="DELETE", data={"slug": "warmup-probe"})
+        assert wd_status == 200, f"Warmup cleanup failed: {wd_status}"
+        print(f"  [PASS] Outbound HTTP client warmed ({wp_res.get('latencyMs')}ms cold -> ephemeral target removed).")
+
         # 3. Register service pointing at our live local probe target
         reg = {
             "name": "Telemetry Probe Target",
