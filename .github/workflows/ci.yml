@@ -410,3 +410,29 @@ jobs:
           retention-days: 30
 
 
+  playground-wasm:
+    name: Playground WebAssembly Engine & CLI Parity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install .NET WebAssembly Workload
+        run: dotnet workload install wasm-tools
+      - name: Build Canonical Otter CLI (Release)
+        run: dotnet build src/Otter.Cli/Otter.Cli.csproj -c Release
+      - name: Build & Package Otter Playground WASM Bundle
+        run: node tools/build-playground-wasm.mjs --out artifacts/playground-wasm
+      - name: Run Browser WASM vs Canonical CLI Parity & Sandbox Tests
+        run: node tests/playground/test_wasm_cli_parity.mjs
+      - name: Upload Playground WASM Bundle Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: otter-playground-wasm
+          path: artifacts/playground-wasm
+          retention-days: 30
+

@@ -115,6 +115,7 @@ public sealed partial class Interpreter
     void Execute(Stmt statement, Scope scope)
     {
         StatementHook?.Invoke(statement, scope);
+        GuardSandboxStatement(statement);
         switch (statement)
         {
             // say "Hello" name     (D8: parts joined by exactly one space)
@@ -294,7 +295,7 @@ public sealed partial class Interpreter
                 {
                     Execute(tryStmt.Body, scope);
                 }
-                catch (Exception failure) when (failure is not ReturnSignal and not WebRespondSignal and not OutOfMemoryException)
+                catch (Exception failure) when (failure is not ReturnSignal and not WebRespondSignal and not PlaygroundAbortException and not OutOfMemoryException)
                 {
                     // `return` (and a web route's `respond`) passes straight through a try; everything else is
                     // a failure. D68: `otherwise into reason` keeps its message.
@@ -1272,6 +1273,7 @@ public sealed partial class Interpreter
 
     object? Evaluate(Expr expression, Scope scope)
     {
+        GuardSandboxExpression(expression);
         switch (expression)
         {
             case LiteralExpr literal:
@@ -1458,7 +1460,7 @@ public sealed partial class Interpreter
             }
             // D100: false when input or output is redirected.
             case ConsoleInteractiveExpr:
-                return !(Console.IsInputRedirected || Console.IsOutputRedirected);
+                return !SandboxMode && !(Console.IsInputRedirected || Console.IsOutputRedirected);
             case FileExistsExpr fileExists:
             {
                 string path = PathArgument(fileExists.Path, scope);
@@ -1523,6 +1525,14 @@ public sealed partial class Interpreter
             }
             default:
             {
+                if (SandboxMode)
+                {
+                    throw RuntimeError(
+                        "Host system and network expressions are disabled in the browser playground sandbox.",
+                        expression.Line,
+                        "Run this program locally with the Otter CLI to access system or network state."
+                    );
+                }
                 if (TryEvaluateSystem(expression, scope, out object? value) || TryEvaluateNetwork(expression, scope, out value) ||
                     TryEvaluateData(expression, scope, out value) || TryEvaluateUi(expression, scope, out value))
                     return value;
