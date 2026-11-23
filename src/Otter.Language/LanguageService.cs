@@ -7,8 +7,19 @@ namespace Otter.Language;
 public record CompletionItem(string Label, string Kind, string Detail, string InsertText, string? Documentation = null);
 public record DefinitionLocation(string File, int Line, int Column, string Symbol, string Kind);
 public record ReferenceLocation(string File, int Line, int Column, string LineText);
-public record DiagnosticItem(string File, int Line, int Column, string Severity, string Message, string? Suggestion = null);
+public record DiagnosticItem(string File, int Line, int Column, string Severity, string Message, string? Suggestion = null, string? Code = null);
 public record DocItem(string Name, string Kind, string Signature, string Description, string? Example, string Source);
+public record PackOperationDoc(
+    string PackId,
+    string PackVersion,
+    string VariablePrefix,
+    string Name,
+    string Description,
+    string Signature,
+    string ReturnType,
+    string SideEffects,
+    string ErrorMode,
+    string EntryPath);
 
 public static partial class LanguageService
 {
@@ -139,7 +150,8 @@ public static partial class LanguageService
         try
         {
             var tokens = Lexer.Tokenize(source);
-            Parser.Parse(tokens);
+            var importedFunctions = LoadImportedFunctionArities(source, filePath);
+            Parser.Parse(tokens, importedFunctions);
         }
         catch (OtterMultipleErrors multiple)
         {
@@ -178,6 +190,281 @@ public static partial class LanguageService
             ));
         }
         return diagnostics;
+    }
+
+    // Non-breaking scoping safety warnings (LSP Severity = Warning).
+    // Kept separate from GetDiagnostics() so syntax-error callers remain 100% backward compatible.
+    public static List<DiagnosticItem> GetScopingWarnings(string source, string filePath)
+    {
+        var warnings = new List<DiagnosticItem>();
+        ProgramNode program;
+        try
+        {
+            var tokens = Lexer.Tokenize(source);
+            var importedFunctions = LoadImportedFunctionArities(source, filePath);
+            program = Parser.Parse(tokens, importedFunctions);
+        }
+        catch
+        {
+            return warnings;
+        }
+
+        var topLevelVars = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var stmt in program.Statements)
+        {
+            if (stmt is FunctionDefStmt) continue;
+            CollectAssignedVarNames(stmt, topLevelVars);
+        }
+
+        if (topLevelVars.Count == 0) return warnings;
+
+        foreach (var stmt in program.Statements)
+        {
+            if (stmt is not FunctionDefStmt fn) continue;
+            var paramSet = new HashSet<string>(fn.Parameters, StringComparer.Ordinal);
+            var bodyAssigns = new List<(string Name, int Line)>();
+            foreach (var bStmt in fn.Body)
+            {
+                CollectAssignedVarLocations(bStmt, bodyAssigns);
+            }
+
+            var reportedInFn = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var (varName, lineNum) in bodyAssigns)
+            {
+                if (paramSet.Contains(varName)) continue;
+                if (!topLevelVars.Contains(varName)) continue;
+                if (!reportedInFn.Add(varName)) continue;
+
+                warnings.Add(new DiagnosticItem(
+                    filePath,
+                    lineNum > 0 ? lineNum : fn.Line,
+                    1,
+                    "Warning",
+                    $"Function '{fn.Name}' assigns to outer-scope variable '{varName}', which mutates the caller's variable under Otter 1.0.1 dynamic scoping.",
+                    $"Use a unique or prefixed local name (e.g. '_local_{varName}') if outer mutation is unintended, or pass '{varName}' as a parameter.",
+                    "OTTER_OUTER_SCOPE_MUTATION"
+                ));
+            }
+        }
+
+        return warnings;
+    }
+
+    private static void CollectAssignedVarNames(Stmt stmt, HashSet<string> target)
+    {
+        var list = new List<(string Name, int Line)>();
+        CollectAssignedVarLocations(stmt, list);
+        foreach (var (name, _) in list) target.Add(name);
+    }
+
+    private static void CollectAssignedVarLocations(Stmt stmt, List<(string Name, int Line)> assigned)
+    {
+        switch (stmt)
+        {
+            case AssignStmt assign when assign.Target is VariableExpr v:
+                assigned.Add((v.Name, stmt.Line));
+                break;
+            case ObjectDefStmt objDef:
+                assigned.Add((objDef.Name, stmt.Line));
+                break;
+            case ListDefStmt listDef:
+                assigned.Add((listDef.Name, stmt.Line));
+                break;
+            case MathIntoStmt mathInto:
+                assigned.Add((mathInto.Target, stmt.Line));
+                break;
+            case AddToStmt addTo:
+                assigned.Add((addTo.Target, stmt.Line));
+                break;
+            case RemoveFromStmt remFrom:
+                assigned.Add((remFrom.Target, stmt.Line));
+                break;
+            case AskStmt ask:
+                assigned.Add((ask.Name, stmt.Line));
+                break;
+            case CountStmt count:
+                assigned.Add((count.VariableName, stmt.Line));
+                foreach (var s in count.Body) CollectAssignedVarLocations(s, assigned);
+                break;
+            case ForEachStmt forEach:
+                assigned.Add((forEach.VariableName, stmt.Line));
+                foreach (var s in forEach.Body) CollectAssignedVarLocations(s, assigned);
+                break;
+            case IfStmt ifStmt:
+                foreach (var branch in ifStmt.Branches)
+                    foreach (var s in branch.Body) CollectAssignedVarLocations(s, assigned);
+                if (ifStmt.ElseBody != null)
+                    foreach (var s in ifStmt.ElseBody) CollectAssignedVarLocations(s, assigned);
+                break;
+            case WhileStmt whileStmt:
+                foreach (var s in whileStmt.Body) CollectAssignedVarLocations(s, assigned);
+                break;
+            case RepeatStmt repeatStmt:
+                foreach (var s in repeatStmt.Body) CollectAssignedVarLocations(s, assigned);
+                break;
+            case TryStmt tryStmt:
+                if (!string.IsNullOrEmpty(tryStmt.ErrorTarget)) assigned.Add((tryStmt.ErrorTarget, stmt.Line));
+                foreach (var s in tryStmt.Body) CollectAssignedVarLocations(s, assigned);
+                if (tryStmt.OtherwiseBody != null)
+                    foreach (var s in tryStmt.OtherwiseBody) CollectAssignedVarLocations(s, assigned);
+                break;
+            case CallStmt call when !string.IsNullOrEmpty(call.ResultTarget):
+                assigned.Add((call.ResultTarget, stmt.Line));
+                break;
+            case ReplaceStmt replace when !string.IsNullOrEmpty(replace.ResultTarget):
+                assigned.Add((replace.ResultTarget, stmt.Line));
+                break;
+            case SplitStmt split when !string.IsNullOrEmpty(split.Target):
+                assigned.Add((split.Target, stmt.Line));
+                break;
+            case JoinStmt join when !string.IsNullOrEmpty(join.Target):
+                assigned.Add((join.Target, stmt.Line));
+                break;
+            case FindStmt find when !string.IsNullOrEmpty(find.Target):
+                assigned.Add((find.Target, stmt.Line));
+                break;
+            case GetKeyStmt getKey when !string.IsNullOrEmpty(getKey.ResultTarget):
+                assigned.Add((getKey.ResultTarget, stmt.Line));
+                break;
+            case SortStmt sort when !string.IsNullOrEmpty(sort.Target):
+                assigned.Add((sort.Target, stmt.Line));
+                break;
+        }
+    }
+
+    private static Dictionary<string, int> LoadImportedFunctionArities(string source, string? filePath)
+    {
+        var funcs = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(source) || string.IsNullOrWhiteSpace(filePath)) return funcs;
+        if (filePath.Equals("memory", StringComparison.OrdinalIgnoreCase)) return funcs;
+
+        var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        void ScanFile(string content, string currentFilePath)
+        {
+            string? dir;
+            try { dir = Path.GetDirectoryName(Path.GetFullPath(currentFilePath)); }
+            catch { return; }
+            if (string.IsNullOrEmpty(dir)) return;
+
+            foreach (string rawLine in content.Replace("\r\n", "\n").Split('\n'))
+            {
+                var mUse = UseRegex().Match(rawLine);
+                if (!mUse.Success) continue;
+
+                string rel = mUse.Groups[1].Value;
+                string importedPath;
+                try { importedPath = Path.GetFullPath(Path.Combine(dir, rel)); }
+                catch { continue; }
+                if (!File.Exists(importedPath) || !visited.Add(importedPath)) continue;
+
+                try
+                {
+                    string impContent = File.ReadAllText(importedPath);
+                    foreach (string impLine in impContent.Replace("\r\n", "\n").Split('\n'))
+                    {
+                        var mFunc = FuncHeaderRegex().Match(impLine);
+                        if (!mFunc.Success) continue;
+                        string fnName = mFunc.Groups[1].Value;
+                        string rawParams = mFunc.Groups[2].Success ? mFunc.Groups[2].Value.Trim() : "";
+                        int arity = string.IsNullOrEmpty(rawParams)
+                            ? 0
+                            : rawParams.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
+                        funcs[fnName] = arity;
+                    }
+                    ScanFile(impContent, importedPath);
+                }
+                catch
+                {
+                    // Ignore unreadable imported file during diagnostics
+                }
+            }
+        }
+
+        ScanFile(source, filePath);
+        return funcs;
+    }
+
+    public static List<PackOperationDoc> LoadImportedPackOperations(string source, string? filePath)
+    {
+        var ops = new List<PackOperationDoc>();
+        if (string.IsNullOrWhiteSpace(source) || string.IsNullOrWhiteSpace(filePath)) return ops;
+
+        string fileDir;
+        try { fileDir = Path.GetDirectoryName(Path.GetFullPath(filePath)) ?? "."; }
+        catch { return ops; }
+
+        var seenManifests = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (string rawLine in source.Replace("\r\n", "\n").Split('\n'))
+        {
+            var mUse = UseRegex().Match(rawLine);
+            if (!mUse.Success) continue;
+
+            string rel = mUse.Groups[1].Value;
+            string importedPath;
+            try { importedPath = Path.GetFullPath(Path.Combine(fileDir, rel)); }
+            catch { continue; }
+            if (!File.Exists(importedPath)) continue;
+
+            string? impDir = Path.GetDirectoryName(importedPath);
+            if (string.IsNullOrEmpty(impDir)) continue;
+
+            string[] candidateManifests =
+            {
+                Path.Combine(impDir, "otter.pack.json"),
+                Path.Combine(Directory.GetParent(impDir)?.FullName ?? impDir, "otter.pack.json")
+            };
+
+            string? manifestPath = candidateManifests.FirstOrDefault(File.Exists);
+            if (manifestPath == null || !seenManifests.Add(manifestPath)) continue;
+
+            try
+            {
+                var manifest = JsonNode.Parse(File.ReadAllText(manifestPath))?.AsObject();
+                if (manifest == null) continue;
+                int schemaVer = manifest["schemaVersion"]?.GetValue<int>() ?? 1;
+                if (schemaVer < 2 || manifest["provides"]?["operations"] is not JsonArray opArray) continue;
+
+                string pub = manifest["publisher"]?.ToString() ?? "unknown";
+                string pkgName = manifest["name"]?.ToString() ?? "pack";
+                string packId = $"{pub}/{pkgName}";
+                string packVer = manifest["version"]?.ToString() ?? "1.0.0";
+                string varPrefix = manifest["variablePrefix"]?.ToString() ?? "none";
+
+                foreach (var node in opArray)
+                {
+                    if (node is not JsonObject opObj) continue;
+                    string opName = opObj["name"]?.ToString() ?? "";
+                    if (string.IsNullOrWhiteSpace(opName)) continue;
+
+                    string opDesc = opObj["description"]?.ToString() ?? "";
+                    var paramParts = new List<string>();
+                    if (opObj["parameters"] is JsonArray pArr)
+                    {
+                        foreach (var pn in pArr)
+                        {
+                            if (pn is not JsonObject po) continue;
+                            string pName = po["name"]?.ToString() ?? "arg";
+                            string pType = po["type"]?.ToString() ?? "any";
+                            paramParts.Add($"{pName}: {pType}");
+                        }
+                    }
+                    string retType = opObj["returns"]?["type"]?.ToString() ?? "any";
+                    string sideEffects = opObj["sideEffects"] is JsonArray seArr && seArr.Count > 0
+                        ? string.Join(", ", seArr.Select(s => s?.ToString() ?? "none"))
+                        : "none";
+                    string errMode = opObj["errorMode"]?.ToString() ?? "returns-fallback";
+                    string sig = $"{opName}({string.Join(", ", paramParts)}) -> {retType}";
+
+                    ops.Add(new PackOperationDoc(packId, packVer, varPrefix, opName, opDesc, sig, retType, sideEffects, errMode, importedPath));
+                }
+            }
+            catch
+            {
+                // Ignore malformed third-party manifest during editor completion/hover
+            }
+        }
+
+        return ops;
     }
 
     // =========================================================================
@@ -275,6 +562,25 @@ public static partial class LanguageService
                 {
                     items.Add(new CompletionItem(itName, "Variable", "Loop iteration variable", itName, $"Loop variable at line {i + 1}"));
                 }
+            }
+        }
+
+        // Imported Schema v2 Pack operations (`use ".../src/main.ot"` with sibling `otter.pack.json`)
+        foreach (var op in LoadImportedPackOperations(source, filePath))
+        {
+            if (seenSymbols.Add(op.Name))
+            {
+                string doc = $"**Pack:** `{op.PackId}` v{op.PackVersion} (prefix `{op.VariablePrefix}`)\n\n" +
+                             $"```otter\n{op.Signature}\n```\n\n" +
+                             $"{op.Description}\n\n" +
+                             $"- **Side Effects:** `{op.SideEffects}`\n" +
+                             $"- **Error Mode:** `{op.ErrorMode}`";
+                items.Add(new CompletionItem(
+                    op.Name,
+                    "Function",
+                    $"{op.PackId} v{op.PackVersion}: {op.Signature}",
+                    $"{op.Name} ",
+                    doc));
             }
         }
 

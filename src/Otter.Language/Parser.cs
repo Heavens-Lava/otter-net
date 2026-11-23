@@ -47,13 +47,26 @@ public sealed partial class Parser
     // does, and NotSupportedYet for anything not ported.
     // otterPS has one grammar for every command: `otter web`, `run` and
     // `check` read the same forms (the UI ones in Parser.Ui.cs).
-    public static ProgramNode Parse(IReadOnlyList<Token> tokens) => Parse(tokens, out _);
+    public static ProgramNode Parse(IReadOnlyList<Token> tokens) => Parse(tokens, out _, null);
+
+    public static ProgramNode Parse(IReadOnlyList<Token> tokens, IReadOnlyDictionary<string, int>? preloadedFunctions) =>
+        Parse(tokens, out _, preloadedFunctions);
 
     // createsUiResources: the program has a `create KIND into x` (D44), the
     // only statement that opens WPF when run (Parser.Ui.cs).
-    public static ProgramNode Parse(IReadOnlyList<Token> tokens, out bool createsUiResources)
+    public static ProgramNode Parse(IReadOnlyList<Token> tokens, out bool createsUiResources) =>
+        Parse(tokens, out createsUiResources, null);
+
+    public static ProgramNode Parse(IReadOnlyList<Token> tokens, out bool createsUiResources, IReadOnlyDictionary<string, int>? preloadedFunctions)
     {
         var parser = new Parser(tokens);
+        if (preloadedFunctions != null)
+        {
+            foreach (var kv in preloadedFunctions)
+            {
+                parser.knownFunctions[kv.Key] = kv.Value;
+            }
+        }
         createsUiResources = false;
         var statements = parser.ReadStatements();
         if (parser.Is(TokenKind.BlockEnd))

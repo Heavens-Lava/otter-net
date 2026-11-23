@@ -10,6 +10,7 @@ import os
 import json
 import subprocess
 import time
+from pathlib import Path
 
 def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -284,8 +285,94 @@ def main():
         close_diag = read_message()
         assert_test("Diagnostics cleared on close", len(close_diag.get("params", {}).get("diagnostics", [])) == 0)
 
-        # 13. Shutdown & Exit
-        print("\nStep 13: Testing 'shutdown' and 'exit'...")
+        # 13. Scoping Safety Warning (OTTER_OUTER_SCOPE_MUTATION)
+        print("\nStep 13: Testing outer-scope mutation warning diagnostic...")
+        scope_uri = "file:///tmp/test_scope_warn.ot"
+        scope_code = (
+            "score is 100\n"
+            "to badHelper amount\n"
+            "    score is amount plus 1\n"
+            "    _local_tmp is 5\n"
+            "    return score\n"
+            ".\n"
+            "to safeShadow score\n"
+            "    score is score plus 1\n"
+            "    return score\n"
+            ".\n"
+        )
+        send_notification("textDocument/didOpen", {
+            "textDocument": {
+                "uri": scope_uri,
+                "languageId": "otter",
+                "version": 1,
+                "text": scope_code
+            }
+        })
+        scope_diag_msg = read_message()
+        scope_diags = scope_diag_msg.get("params", {}).get("diagnostics", [])
+        assert_test("Scoping warning emitted for outer-scope mutation", len(scope_diags) == 1)
+        if len(scope_diags) == 1:
+            assert_test("Scoping warning has LSP severity 2 (Warning)", scope_diags[0].get("severity") == 2)
+            assert_test("Scoping warning has code OTTER_OUTER_SCOPE_MUTATION", scope_diags[0].get("code") == "OTTER_OUTER_SCOPE_MUTATION")
+            assert_test("Scoping warning names function 'badHelper' and variable 'score'", "badHelper" in scope_diags[0].get("message", "") and "score" in scope_diags[0].get("message", ""))
+
+        send_notification("textDocument/didClose", {"textDocument": {"uri": scope_uri}})
+        read_message()
+
+        # 14. Schema v2 Pack contract completion, hover, and go-to-definition
+        print("\nStep 14: Testing Schema v2 Pack contract awareness (completion, hover, definition)...")
+        repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        pack_consumer_path = os.path.join(repo_root, "examples", "_lsp_pack_test_tmp.ot")
+        pack_consumer_uri = Path(pack_consumer_path).as_uri()
+        pack_code = (
+            "use \"../library/packs/otter-official/math-utils/src/main.ot\"\n"
+            "val is clamp 15 0 10\n"
+            "say val\n"
+        )
+        send_notification("textDocument/didOpen", {
+            "textDocument": {
+                "uri": pack_consumer_uri,
+                "languageId": "otter",
+                "version": 1,
+                "text": pack_code
+            }
+        })
+        pack_open_diags = read_message()
+        pack_diags_list = pack_open_diags.get("params", {}).get("diagnostics", [])
+        assert_test("Pack consumer file has 0 diagnostics", len(pack_diags_list) == 0, str(pack_diags_list))
+
+        pcomp_id = send_request("textDocument/completion", {
+            "textDocument": {"uri": pack_consumer_uri},
+            "position": {"line": 1, "character": 7}
+        })
+        pcomp_resp = read_message()
+        pcomp_items = pcomp_resp.get("result", {}).get("items", [])
+        clamp_item = next((it for it in pcomp_items if it.get("label") == "clamp"), None)
+        assert_test("Pack completion includes 'clamp' from math-utils", clamp_item is not None)
+        if clamp_item:
+            assert_test("Pack completion detail includes math-utils signature", "otter-official/math-utils" in clamp_item.get("detail", ""))
+
+        phov_id = send_request("textDocument/hover", {
+            "textDocument": {"uri": pack_consumer_uri},
+            "position": {"line": 1, "character": 8}
+        })
+        phov_resp = read_message()
+        phov_val = phov_resp.get("result", {}).get("contents", {}).get("value", "")
+        assert_test("Pack hover shows Schema v2 contract & prefix _mu_", "otter-official/math-utils" in phov_val and "_mu_" in phov_val)
+
+        pdef_id = send_request("textDocument/definition", {
+            "textDocument": {"uri": pack_consumer_uri},
+            "position": {"line": 1, "character": 8}
+        })
+        pdef_resp = read_message()
+        pdef_uri = (pdef_resp.get("result") or {}).get("uri", "")
+        assert_test("Pack go-to-definition resolves into math-utils/src/main.ot", pdef_uri.endswith("math-utils/src/main.ot"))
+
+        send_notification("textDocument/didClose", {"textDocument": {"uri": pack_consumer_uri}})
+        read_message()
+
+        # 15. Shutdown & Exit
+        print("\nStep 15: Testing 'shutdown' and 'exit'...")
         shut_id = send_request("shutdown", None)
         shut_resp = read_message()
         assert_test("Shutdown response result is null", shut_resp.get("result") is None)

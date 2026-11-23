@@ -344,6 +344,7 @@ internal static partial class LspServer
         int col = req["params"]?["position"]?["character"]?.GetValue<int>() ?? 0;
 
         string source = GetDocumentSource(uri);
+        string filePath = uri != null ? UriToPath(uri) : "";
         string[] lines = source.Replace("\r\n", "\n").Split('\n');
 
         if (line < 0 || line >= lines.Length)
@@ -358,6 +359,32 @@ internal static partial class LspServer
         if (string.IsNullOrEmpty(word))
         {
             SendResponse(stdout, id, null);
+            return;
+        }
+
+        // 0. Check imported Schema v2 Pack operation contracts
+        var packOp = LanguageService.LoadImportedPackOperations(source, filePath)
+            .FirstOrDefault(o => string.Equals(o.Name, word, StringComparison.OrdinalIgnoreCase));
+        if (packOp != null)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine($"### `{packOp.Name}` (Schema v2 Pack Operation)");
+            sb.AppendLine($"**Pack:** `{packOp.PackId}` v{packOp.PackVersion} · **Prefix:** `{packOp.VariablePrefix}`\n");
+            sb.AppendLine($"```otter\n{packOp.Signature}\n```\n");
+            sb.AppendLine(packOp.Description);
+            sb.AppendLine($"\n- **Returns:** `{packOp.ReturnType}`");
+            sb.AppendLine($"- **Side Effects:** `{packOp.SideEffects}`");
+            sb.AppendLine($"- **Error Mode:** `{packOp.ErrorMode}`");
+
+            var hoverObj = new JsonObject
+            {
+                ["contents"] = new JsonObject
+                {
+                    ["kind"] = "markdown",
+                    ["value"] = sb.ToString()
+                }
+            };
+            SendResponse(stdout, id, hoverObj);
             return;
         }
 
@@ -782,6 +809,10 @@ internal static partial class LspServer
     {
         string filePath = UriToPath(uri);
         var diagItems = LanguageService.GetDiagnostics(source, filePath);
+        if (diagItems.Count == 0)
+        {
+            diagItems.AddRange(LanguageService.GetScopingWarnings(source, filePath));
+        }
 
         var diagArray = new JsonArray();
         foreach (var d in diagItems)
@@ -791,18 +822,24 @@ internal static partial class LspServer
             string msg = !string.IsNullOrEmpty(d.Suggestion)
                 ? $"{d.Message} (Suggestion: {d.Suggestion})"
                 : d.Message;
+            int severity = string.Equals(d.Severity, "Warning", StringComparison.OrdinalIgnoreCase) ? 2 : 1;
 
-            diagArray.Add(new JsonObject
+            var diagObj = new JsonObject
             {
                 ["range"] = new JsonObject
                 {
                     ["start"] = new JsonObject { ["line"] = line0, ["character"] = col0 },
                     ["end"] = new JsonObject { ["line"] = line0, ["character"] = 999 }
                 },
-                ["severity"] = 1, // 1 = Error
+                ["severity"] = severity,
                 ["source"] = "otter",
                 ["message"] = msg
-            });
+            };
+            if (!string.IsNullOrEmpty(d.Code))
+            {
+                diagObj["code"] = d.Code;
+            }
+            diagArray.Add(diagObj);
         }
 
         var notification = new JsonObject

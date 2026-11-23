@@ -375,3 +375,38 @@ jobs:
       - name: Value-First Property Syntax & UI Validation Verification
         run: python3 tests/language/test_value_first_properties.py
 
+  tooling-vscode-lsp-dap:
+    name: Tooling (VS Code Extension, LSP & DAP)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Build Otter CLI (Debug & Release)
+        run: |
+          dotnet build src/Otter.Cli/Otter.Cli.csproj -c Debug
+          dotnet build src/Otter.Cli/Otter.Cli.csproj -c Release
+      - name: Run Native LSP Conformance, Scoping Warnings & Schema v2 Contract Tests
+        run: python3 tools/test-lsp.py
+      - name: Run Native DAP Conformance Tests
+        run: python3 tools/test-dap.py
+      - name: Build, Package & Verify Canonical VS Code Extension (editors/vscode)
+        working-directory: editors/vscode
+        run: |
+          npm ci
+          npm run typecheck
+          npm run compile
+          npm run package
+          npm run verify
+      - name: Upload Verified VS Code Extension (.vsix)
+        uses: actions/upload-artifact@v4
+        with:
+          name: otter-vscode-extension-vsix
+          path: editors/vscode/otter-lang-*.vsix
+          retention-days: 30
+
+
