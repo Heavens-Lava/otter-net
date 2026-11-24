@@ -68,7 +68,7 @@ def main():
             msg["params"] = params
         send_message(msg)
 
-    def read_message(timeout=5.0):
+    def read_message(timeout=25.0):
         start = time.time()
         headers = {}
         header_bytes = bytearray()
