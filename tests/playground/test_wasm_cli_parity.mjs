@@ -563,6 +563,10 @@ async function createCdpSession(browserPath) {
             '--disable-gpu',
             '--no-sandbox',
             '--disable-dev-shm-usage',
+            '--no-first-run',
+            '--no-default-browser-check',
+            '--disable-extensions',
+            '--disable-background-networking',
             '--remote-debugging-port=0',
             `--user-data-dir=${userDataDir}`,
             'about:blank'
@@ -571,19 +575,24 @@ async function createCdpSession(browserPath) {
     );
 
     const wsUrl = await new Promise((resolve, reject) => {
-        let stderr = '';
-        const timer = setTimeout(() => reject(new Error(`Browser failed to emit DevTools URL:\n${stderr}`)), 15000);
-        proc.stderr.on('data', (chunk) => {
-            stderr += chunk.toString();
-            const m = stderr.match(/DevTools listening on (ws:\/\/[^\s]+)/);
+        let output = '';
+        const timer = setTimeout(() => {
+            try { proc.kill('SIGKILL'); } catch {}
+            reject(new Error(`Browser failed to emit DevTools URL:\n${output}`));
+        }, 35000);
+        const onChunk = (chunk) => {
+            output += chunk.toString();
+            const m = output.match(/DevTools listening on (ws:\/\/[^\s]+)/);
             if (m) {
                 clearTimeout(timer);
                 resolve(m[1]);
             }
-        });
+        };
+        proc.stderr.on('data', onChunk);
+        proc.stdout.on('data', onChunk);
         proc.once('exit', (code) => {
             clearTimeout(timer);
-            reject(new Error(`Browser exited prematurely (${code}):\n${stderr}`));
+            reject(new Error(`Browser exited prematurely (${code}):\n${output}`));
         });
     });
 

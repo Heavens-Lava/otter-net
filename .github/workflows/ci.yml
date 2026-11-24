@@ -421,6 +421,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Setup Chrome for Testing
+        id: chrome
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: 'stable'
       - name: Install .NET WebAssembly Workload
         run: dotnet workload install wasm-tools
       - name: Build Canonical Otter CLI (Release)
@@ -428,6 +433,8 @@ jobs:
       - name: Build & Package Otter Playground WASM Bundle
         run: node tools/build-playground-wasm.mjs --out artifacts/playground-wasm
       - name: Run Browser WASM vs Canonical CLI Parity & Sandbox Tests
+        env:
+          CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
         run: node tests/playground/test_wasm_cli_parity.mjs
       - name: Upload Playground WASM Bundle Artifact
         uses: actions/upload-artifact@v4
