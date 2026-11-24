@@ -4,6 +4,7 @@
     "description": "Rich language support, visual debugging, LSP, and reusable library explorer for Otter.",
     "version": "1.0.1",
     "publisher": "heavens-lava",
+    "license": "SEE LICENSE IN LICENSE",
     "repository": {
         "type": "git",
         "url": "https://github.com/Heavens-Lava/otter-net.git"
@@ -23,14 +24,15 @@
         "compiler",
         "visual-debugging"
     ],
-    "main": "./out/extension.js",
+    "main": "./dist/extension.js",
     "activationEvents": [
         "onLanguage:otter",
         "onCommand:otter.runFile",
         "onCommand:otter.runTests",
         "onCommand:otter.openLibrary",
         "onCommand:otter.applyRecipe",
-        "onCommand:otter.doctor"
+        "onCommand:otter.doctor",
+        "onCommand:otter.restartLsp"
     ],
     "contributes": {
         "languages": [
@@ -114,8 +116,6 @@
             {
                 "type": "otter",
                 "label": "Otter Debugger",
-                "program": "otter",
-                "args": ["dap"],
                 "configurationAttributes": {
                     "launch": {
                         "required": ["program"],
@@ -150,8 +150,8 @@
             "properties": {
                 "otter.executablePath": {
                     "type": "string",
-                    "default": "otter",
-                    "description": "Path to the native Otter CLI executable (defaults to 'otter' on PATH)."
+                    "default": "",
+                    "description": "Path to the native otter-net CLI executable. When empty, the extension auto-detects 'otter-net' and then 'otter' on PATH."
                 },
                 "otter.trace.server": {
                     "type": "string",
@@ -163,13 +163,18 @@
         }
     },
     "scripts": {
-        "vscode:prepublish": "npm run compile",
-        "compile": "tsc -p ./",
-        "watch": "tsc -watch -p ./"
+        "vscode:prepublish": "npm run typecheck && npm run compile",
+        "typecheck": "tsc --noEmit",
+        "compile": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap",
+        "watch": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap --watch",
+        "package": "vsce package --no-dependencies -o otter-lang-1.0.1.vsix",
+        "verify": "node scripts/verify-vsix.mjs"
     },
     "devDependencies": {
         "@types/node": "^20.11.0",
         "@types/vscode": "^1.85.0",
+        "@vscode/vsce": "^3.2.2",
+        "esbuild": "^0.25.0",
         "typescript": "^5.3.3"
     },
     "dependencies": {

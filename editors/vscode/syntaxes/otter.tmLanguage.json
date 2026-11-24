@@ -9,8 +9,11 @@
         { "include": "#constants" },
         { "include": "#function-def" },
         { "include": "#type-def" },
+        { "include": "#ui-variants" },
+        { "include": "#ui-components" },
         { "include": "#control-keywords" },
         { "include": "#io-keywords" },
+        { "include": "#ui-properties" },
         { "include": "#operators" },
         { "include": "#block-terminator" }
     ],
@@ -89,11 +92,27 @@
                 }
             ]
         },
+        "ui-variants": {
+            "patterns": [
+                {
+                    "name": "storage.modifier.variant.otter",
+                    "match": "\\b(primary|secondary|danger|outline|ghost)\\b(?=\\s+(?:button|badge|card)\\b)"
+                }
+            ]
+        },
+        "ui-components": {
+            "patterns": [
+                {
+                    "name": "support.type.ui.otter",
+                    "match": "\\b(text box|text area|radio button|progress bar|check box|drop down|page|window|card|grid|row|column|button|dropdown|checkbox|toggle|switch|radio|slider|range|progress|badge|tag|table|link|dialog|modal|panel|canvas|list)\\b"
+                }
+            ]
+        },
         "control-keywords": {
             "patterns": [
                 {
                     "name": "keyword.control.otter",
-                    "match": "\\b(if|otherwise|while|repeat|times|for each|count from|to|return|stop|try|when|on connection|on data|use|as|has|make|into)\\b"
+                    "match": "\\b(if|otherwise|while|repeat|times|for each|each|count from|from|to|return|stop|try|fail|when|clicked|changed|on connection|on data|use|as|has|make|into|put|in|show)\\b"
                 }
             ]
         },
@@ -101,7 +120,15 @@
             "patterns": [
                 {
                     "name": "keyword.other.io.otter",
-                    "match": "\\b(say|ask|secretly|with|read|write|append|convert|format|find|split|join|replace|sort|reverse|add|remove|length of|are empty)\\b"
+                    "match": "\\b(say|ask|secretly|with|read|write|append|convert|format|find|split|join|replace|sort|reverse|add|remove|copy|clipboard|length of|are empty|are)\\b"
+                }
+            ]
+        },
+        "ui-properties": {
+            "patterns": [
+                {
+                    "name": "variable.other.property.otter",
+                    "match": "\\b(theme|subtitle|placeholder|showvalue|hideheader|letterspacing|lineheight|fontfamily|whitespace|customstyle|background|foreground|maxwidth|columns|spacing|padding|options|checked|disabled|variant|margin|border|radius|scroll|label|title|value|error|align|width|height|hint|rows|wrap|text|size|weight|url|min|max|step|full|spread|middle)\\b"
                 }
             ]
         },
