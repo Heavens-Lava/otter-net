@@ -10,7 +10,6 @@ import os
 import json
 import subprocess
 import time
-from pathlib import Path
 
 def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -323,11 +322,11 @@ def main():
         print("\nStep 14: Testing Schema v2 Pack contract awareness (completion, hover, definition)...")
         repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         pack_consumer_path = os.path.join(repo_root, "examples", "_lsp_pack_test_tmp.ot")
-        pack_consumer_uri = Path(pack_consumer_path).as_uri()
+        pack_consumer_uri = "file://" + pack_consumer_path.replace("\\", "/")
         pack_code = (
             "use \"../library/packs/otter-official/math-utils/src/main.ot\"\n"
             "val is clamp 15 0 10\n"
-            "say val\n"
+            "cla\n"
         )
         send_notification("textDocument/didOpen", {
             "textDocument": {
@@ -338,12 +337,11 @@ def main():
             }
         })
         pack_open_diags = read_message()
-        pack_diags_list = pack_open_diags.get("params", {}).get("diagnostics", [])
-        assert_test("Pack consumer file has 0 diagnostics", len(pack_diags_list) == 0, str(pack_diags_list))
+        assert_test("Pack consumer file has 0 diagnostics", len(pack_open_diags.get("params", {}).get("diagnostics", [])) == 0)
 
         pcomp_id = send_request("textDocument/completion", {
             "textDocument": {"uri": pack_consumer_uri},
-            "position": {"line": 1, "character": 7}
+            "position": {"line": 2, "character": 3}
         })
         pcomp_resp = read_message()
         pcomp_items = pcomp_resp.get("result", {}).get("items", [])
@@ -371,8 +369,97 @@ def main():
         send_notification("textDocument/didClose", {"textDocument": {"uri": pack_consumer_uri}})
         read_message()
 
-        # 15. Shutdown & Exit
-        print("\nStep 15: Testing 'shutdown' and 'exit'...")
+        # 15. Value-first syntax, River Slate properties, formatting, completion, and hover
+        print("\nStep 15: Testing value-first syntax, River Slate properties, legacy compatibility, formatting, completions, and hover...")
+        vf_uri = "file:///test/river_slate_value_first.ot"
+        vf_code = (
+            "app is a page with\n"
+            "    \"River Slate\" title,\n"
+            "    \"light\" theme,\n"
+            "    true scroll\n"
+            ".\n"
+            "deployBtn is a primary button with \"Deploy\" text\n"
+            "previewBtn is a outline button with \"Preview\" text\n"
+            "cancelBtn is a ghost button with \"Cancel\" text\n"
+            "legacyBtn is a secondary button with text \"Legacy\", disabled true\n"
+            "cpuSlider is a slider with\n"
+            "    \"CPU Threshold\" label,\n"
+            "    10 min,\n"
+            "    100 max,\n"
+            "    72 value,\n"
+            "    true showvalue\n"
+            ".\n"
+            "put deployBtn, previewBtn, cancelBtn, legacyBtn, cpuSlider in app\n"
+            "show app\n"
+        )
+        send_notification("textDocument/didOpen", {
+            "textDocument": {
+                "uri": vf_uri,
+                "languageId": "otter",
+                "version": 1,
+                "text": vf_code
+            }
+        })
+        vf_diag_msg = read_message()
+        vf_diags = vf_diag_msg.get("params", {}).get("diagnostics", [])
+        assert_test("Value-first + River Slate + legacy mixed file has 0 diagnostics", len(vf_diags) == 0, str(vf_diags))
+
+        # Hover on River Slate 'theme' property (line 2: `    "light" theme,`)
+        vf_hov_id = send_request("textDocument/hover", {
+            "textDocument": {"uri": vf_uri},
+            "position": {"line": 2, "character": 14}
+        })
+        vf_hov_resp = read_message()
+        vf_hov_val = (vf_hov_resp.get("result") or {}).get("contents", {}).get("value", "")
+        assert_test("Hover on 'theme' documents River Slate dark/light opt-in", "River Slate" in vf_hov_val and "light" in vf_hov_val, vf_hov_val)
+
+        # Hover on River Slate 'showvalue' property (line 14: `    true showvalue`)
+        vf_hov2_id = send_request("textDocument/hover", {
+            "textDocument": {"uri": vf_uri},
+            "position": {"line": 14, "character": 12}
+        })
+        vf_hov2_resp = read_message()
+        vf_hov2_val = (vf_hov2_resp.get("result") or {}).get("contents", {}).get("value", "")
+        assert_test("Hover on 'showvalue' documents slider numeric readout", "slider" in vf_hov2_val.lower() and "showvalue" in vf_hov2_val.lower(), vf_hov2_val)
+
+        # Completion for River Slate property prefix 'showv'
+        vf_comp_id = send_request("textDocument/completion", {
+            "textDocument": {"uri": vf_uri},
+            "position": {"line": 14, "character": 14}
+        })
+        vf_comp_resp = read_message()
+        vf_comp_labels = [it.get("label") for it in vf_comp_resp.get("result", {}).get("items", [])]
+        assert_test("Completion suggests 'showvalue' for River Slate sliders", "showvalue" in vf_comp_labels, str(vf_comp_labels))
+
+        # Formatting should indent unindented multi-line `with ... .` property blocks
+        send_notification("textDocument/didChange", {
+            "textDocument": {"uri": vf_uri, "version": 2},
+            "contentChanges": [{"text": "app is a page with\n\"River Slate\" title,\n\"light\" theme,\ntrue scroll\n.\n"}]
+        })
+        read_message()  # consume diagnostics for unindented input
+        vf_fmt_id = send_request("textDocument/formatting", {
+            "textDocument": {"uri": vf_uri},
+            "options": {"tabSize": 4, "insertSpaces": True}
+        })
+        vf_fmt_resp = read_message()
+        vf_edits = vf_fmt_resp.get("result") or []
+        vf_formatted = vf_edits[0].get("newText", "") if vf_edits else ""
+        assert_test("Formatter indents multi-line value-first 'with ... .' blocks", '    "River Slate" title,\n    "light" theme,\n    true scroll\n.' in vf_formatted, vf_formatted)
+
+        # Invalid value-first property type emits diagnostic error
+        send_notification("textDocument/didChange", {
+            "textDocument": {"uri": vf_uri, "version": 3},
+            "contentChanges": [{"text": 'badSlider is a slider with "loud" showvalue\n'}]
+        })
+        vf_err_msg = read_message()
+        vf_err_diags = vf_err_msg.get("params", {}).get("diagnostics", [])
+        assert_test("Invalid value-first property value emits LSP error diagnostic", len(vf_err_diags) >= 1 and vf_err_diags[0].get("severity") == 1, str(vf_err_diags))
+
+        send_notification("textDocument/didClose", {"textDocument": {"uri": vf_uri}})
+        read_message()
+
+        # 16. Shutdown & Exit
+        print("\nStep 16: Testing 'shutdown' and 'exit'...")
         shut_id = send_request("shutdown", None)
         shut_resp = read_message()
         assert_test("Shutdown response result is null", shut_resp.get("result") is None)

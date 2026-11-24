@@ -116,6 +116,8 @@ public static partial class LanguageService
             if (trimmed.StartsWith("if ", StringComparison.OrdinalIgnoreCase) ||
                 trimmed.StartsWith("while ", StringComparison.OrdinalIgnoreCase) ||
                 trimmed.StartsWith("repeat ", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.StartsWith("count from ", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.StartsWith("each ", StringComparison.OrdinalIgnoreCase) ||
                 trimmed.StartsWith("try", StringComparison.OrdinalIgnoreCase) ||
                 trimmed.StartsWith("when ", StringComparison.OrdinalIgnoreCase) ||
                 trimmed.StartsWith("on connection", StringComparison.OrdinalIgnoreCase) ||
@@ -500,7 +502,49 @@ public static partial class LanguageService
         new("minus", "Operator", "Arithmetic subtraction", "minus "),
         new("times", "Operator", "Arithmetic multiplication", "times "),
         new("divided by", "Operator", "Arithmetic division", "divided by "),
-        new("contains", "Operator", "Collection contains check", "contains ")
+        new("contains", "Operator", "Collection contains check", "contains "),
+
+        // Modern UI statements, River Slate components, and value-first properties
+        new("with", "Keyword", "Attach value-first or property-first attributes", "with "),
+        new("put", "Keyword", "Place UI controls into a container", "put ${1:control} in ${2:container}"),
+        new("show", "Keyword", "Mount and display the root page or window", "show ${1:app}"),
+        new("when", "Keyword", "Handle UI click or change event", "when ${1:control} is ${2:clicked}\n    $0\n."),
+        new("page", "Type", "River Slate web page root container", "page with \"${1:My App}\" title, true scroll", "Root web page container. Supports `\"light\" theme` opt-in and `true scroll`."),
+        new("card", "Type", "River Slate elevated surface card", "card with\n    \"${1:Title}\" title,\n    \"${2:Subtitle}\" subtitle\n.", "Elevated card container with optional `title`, `subtitle`, and `theme`."),
+        new("grid", "Type", "River Slate responsive multi-column grid", "grid with ${1:2} columns, ${2:20} spacing", "Responsive CSS grid container (`columns`, `spacing`)."),
+        new("row", "Type", "Horizontal flex layout container", "row with ${1:12} spacing, true wrap"),
+        new("column", "Type", "Vertical flex layout container", "column with ${1:16} spacing"),
+        new("primary button", "Type", "Primary accent button (River Slate)", "primary button with \"${1:Save}\" text"),
+        new("secondary button", "Type", "Secondary surface button (River Slate)", "secondary button with \"${1:Cancel}\" text"),
+        new("outline button", "Type", "Outlined button variant (River Slate)", "outline button with \"${1:Preview}\" text"),
+        new("ghost button", "Type", "Borderless ghost button variant (River Slate)", "ghost button with \"${1:Dismiss}\" text"),
+        new("danger button", "Type", "Destructive action button (River Slate)", "danger button with \"${1:Delete}\" text"),
+        new("text box", "Type", "Labeled text input field (River Slate)", "text box with\n    \"${1:Label}\" label,\n    \"${2:Placeholder}\" placeholder\n."),
+        new("text area", "Type", "Multi-line text area field (River Slate)", "text area with \"${1:Notes}\" label, ${2:3} rows"),
+        new("dropdown", "Type", "Custom-styled select dropdown (River Slate)", "dropdown with \"${1:Region}\" label, \"${2:Option A, Option B}\" options"),
+        new("checkbox", "Type", "Accessible checkbox control", "checkbox with \"${1:Enable option}\" text, true checked"),
+        new("toggle", "Type", "Switch toggle control", "toggle with \"${1:Live updates}\" text, true checked"),
+        new("radio", "Type", "Radio option button", "radio with \"${1:Standard}\" text, \"${2:plan}\" name"),
+        new("slider", "Type", "Bounded range slider with live readout", "slider with\n    \"${1:Threshold}\" label,\n    ${2:0} min,\n    ${3:100} max,\n    ${4:50} value,\n    true showvalue\n."),
+        new("progress", "Type", "Linear progress indicator", "progress with ${1:50} value, ${2:100} max"),
+        new("badge", "Type", "Semantic status badge", "badge with \"${1:Healthy}\" text, \"${2:success}\" variant"),
+        new("table", "Type", "Structured data table", "table"),
+        new("theme", "Property", "River Slate theme (\"dark\" default or \"light\" opt-in)", "theme", "Set `\"light\" theme` (value-first) or `theme \"light\"` on a page, window, or card."),
+        new("subtitle", "Property", "River Slate card subtitle copy", "subtitle", "Secondary descriptive line under a card `title`."),
+        new("label", "Property", "Accessible field label (River Slate)", "label", "Renders a `<label>` linked to the input, dropdown, textarea, or slider."),
+        new("placeholder", "Property", "Input placeholder hint text", "placeholder"),
+        new("hint", "Property", "Helper text beneath a form field", "hint"),
+        new("error", "Property", "Validation error message (sets aria-invalid=\"true\")", "error"),
+        new("showvalue", "Property", "Show live numeric slider readout (true/false)", "showvalue", "Use `true showvalue` on a `slider` to render a live `<output>` value badge."),
+        new("hideheader", "Property", "Hide default page header bar (true/false)", "hideheader"),
+        new("columns", "Property", "Number of responsive grid columns", "columns"),
+        new("spacing", "Property", "Flex/grid gap in pixels", "spacing"),
+        new("variant", "Property", "Semantic style variant (primary, secondary, outline, ghost, danger, success, warning, muted, heading, code)", "variant"),
+        new("disabled", "Property", "Disable interactive control (true/false)", "disabled"),
+        new("checked", "Property", "Initial checked state for checkbox/toggle/radio", "checked"),
+        new("wrap", "Property", "Allow flex items in a row to wrap (true/false)", "wrap"),
+        new("scroll", "Property", "Enable document scrolling on page (true/false)", "scroll"),
+        new("step", "Property", "Numeric step increment for sliders", "step")
     };
 
     public static List<CompletionItem> GetCompletions(string source, int line, int column, string? filePath = null, string? libraryDir = null)
@@ -784,6 +828,23 @@ public static partial class LanguageService
         ["append"] = ("append <content> to <path>", "Appends text content to an existing file.", "append logMessage to \"app.log\""),
         ["try"] = ("try\n    <statements>\notherwise into <err>\n    <fallback>\n.", "Executes statements in a safe block, catching runtime errors in the otherwise clause.", "try\n    read \"missing.txt\" into s\notherwise into err\n    say \"Could not read file:\" message of err\n."),
         ["convert"] = ("convert <data> to <format> into <target>", "Converts structured data to/from JSON, CSV, XML, etc.", "convert jsonText to json into obj"),
+        ["with"] = ("<name> is a <kind> with <value> <property>, ...", "Configures object or UI component properties using modern value-first syntax (single-line or multi-line `with ... .` block) or legacy property-first syntax.", "deployBtn is a primary button with \"Deploy\" text\napp is a page with\n    \"Dashboard\" title,\n    \"light\" theme,\n    true scroll\n."),
+        ["put"] = ("put <item1>, <item2> in <container>", "Places one or more UI controls inside a page, card, grid, row, or column container.", "put header, mainGrid in app"),
+        ["show"] = ("show <pageOrWindow>", "Displays the root page or window UI application.", "show app"),
+        ["when"] = ("when <control> is clicked | changed\n    <statements>\n.", "Registers a reactive UI event handler for button clicks, input edits, or slider changes.", "when deployBtn is clicked\n    text of statusLabel is \"Deployed\"\n."),
+        ["theme"] = ("\"dark\" theme | \"light\" theme", "Selects the River Slate design theme on a page, window, or individual card. Dark mode is the default; \"light\" is a first-class opt-in.", "settingsCard is a card with\n    \"Light Mode\" title,\n    \"light\" theme\n."),
+        ["subtitle"] = ("\"<text>\" subtitle", "Renders muted supporting subtitle copy beneath a River Slate card title.", "metricsCard is a card with\n    \"System Health\" title,\n    \"Live latency and alert thresholds.\" subtitle\n."),
+        ["label"] = ("\"<text>\" label", "Renders an accessible `<label>` associated with a text box, text area, dropdown, or slider.", "emailBox is a text box with \"Email\" label, \"dev@otter.dev\" placeholder"),
+        ["hint"] = ("\"<text>\" hint", "Displays muted helper copy beneath a River Slate form control.", "nameBox is a text box with \"Project\" label, \"Lowercase letters only.\" hint"),
+        ["error"] = ("\"<text>\" error", "Displays an inline validation error message and sets `aria-invalid=\"true\"` on the field.", "slugBox is a text box with \"Slug\" label, \"Invalid slug.\" error"),
+        ["showvalue"] = ("true showvalue", "Displays a live synchronized numeric readout beside a River Slate slider.", "cpuSlider is a slider with \"CPU %\" label, 0 min, 100 max, 72 value, true showvalue"),
+        ["columns"] = ("<count> columns", "Sets the responsive desktop column count on a River Slate grid container.", "mainGrid is a grid with 2 columns, 20 spacing"),
+        ["variant"] = ("\"<variant>\" variant", "Selects a semantic River Slate visual variant for buttons (`primary`, `secondary`, `outline`, `ghost`, `danger`), badges (`success`, `warning`, `danger`, `outline`), or text (`title`, `heading`, `subheading`, `muted`, `code`).", "statusBadge is a badge with \"Operational\" text, \"success\" variant"),
+        ["card"] = ("<name> is a card with \"<title>\" title, \"<subtitle>\" subtitle", "River Slate elevated container card with optional title, subtitle, and per-card theme override.", "summaryCard is a card with \"Summary\" title, \"Live telemetry\" subtitle"),
+        ["grid"] = ("<name> is a grid with <n> columns, <px> spacing", "River Slate responsive grid layout that automatically collapses on mobile viewports.", "cardsGrid is a grid with 2 columns, 20 spacing"),
+        ["slider"] = ("<name> is a slider with \"<label>\" label, <min> min, <max> max, <val> value, true showvalue", "Bounded range slider with optional live numeric readout (`true showvalue`) and `when ... is changed` handler.", "threshold is a slider with \"Alert %\" label, 10 min, 100 max, 75 value, true showvalue"),
+        ["outline"] = ("<name> is a outline button with \"<text>\" text", "River Slate outline button variant with subtle border and hover fill.", "previewBtn is a outline button with \"Preview\" text"),
+        ["ghost"] = ("<name> is a ghost button with \"<text>\" text", "River Slate borderless ghost button variant for low-emphasis actions.", "cancelBtn is a ghost button with \"Cancel\" text"),
     };
 
     public static List<DocItem> LookupDocumentation(string query, string? libraryDir = null)
