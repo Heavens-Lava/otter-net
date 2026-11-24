@@ -83,10 +83,123 @@ function runCanonicalCli(source, stdin = '') {
     }
 }
 
+function runCanonicalCliWeb(source, stem = 'app') {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'otter-web-parity-'));
+    const tmpFile = path.join(tmpDir, `${stem}.ot`);
+    const outHtml = path.join(tmpDir, `${stem}.html`);
+    fs.writeFileSync(tmpFile, source, 'utf8');
+    try {
+        execFileSync('dotnet', [cliDll, 'web', tmpFile, '-NoOpen'], {
+            cwd: repoRoot,
+            encoding: 'utf8',
+            stdio: ['pipe', 'pipe', 'pipe']
+        });
+        const html = fs.readFileSync(outHtml, 'utf8').replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').trimEnd();
+        return { ok: true, html, stderr: '' };
+    } catch (err) {
+        return {
+            ok: false,
+            html: '',
+            stderr: String(err.stderr || err.stdout || err.message || '')
+        };
+    } finally {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+}
+
+const WEB_PARITY_CASES = [
+    {
+        name: 'River Slate dark + light card + value-first multi-line with',
+        code: [
+            'app is a page with',
+            '    "River Slate WASM Parity" title,',
+            '    true scroll,',
+            '    24 spacing',
+            '.',
+            'cards is a grid with 2 columns, 20 spacing',
+            'darkCard is a card with',
+            '    "Actions & Inputs" title,',
+            '    "Compiled inside WebAssembly." subtitle',
+            '.',
+            'deployBtn is a primary button with "Deploy" text',
+            'previewBtn is a outline button with "Preview" text',
+            'cancelBtn is a ghost button with "Cancel" text',
+            'nameBox is a text box with',
+            '    "Project name" label,',
+            '    "otter-pulse" placeholder,',
+            '    "Lowercase letters only." hint',
+            '.',
+            'errBox is a text box with "Slug" label, "Bad Slug!" value, "Invalid characters." error',
+            'cpuSlider is a slider with "CPU %" label, 10 min, 100 max, 72 value, true showvalue',
+            'loadProg is a progress with 72 value, 100 max',
+            'statusOut is a text with "Ready" value, "muted" variant',
+            'when deployBtn is clicked',
+            '    text of statusOut is "Deployed"',
+            '.',
+            'when cpuSlider is changed',
+            '    val is text of cpuSlider',
+            '    value of loadProg is val',
+            '.',
+            'put deployBtn, previewBtn, cancelBtn, nameBox, errBox, cpuSlider, loadProg, statusOut in darkCard',
+            'lightCard is a card with',
+            '    "Light Opt-In" title,',
+            '    "Daylight River Slate tokens." subtitle,',
+            '    "light" theme',
+            '.',
+            'okBadge is a badge with "AA Contrast" text, "success" variant',
+            'put okBadge in lightCard',
+            'put darkCard, lightCard in cards',
+            'put cards in app',
+            'show app'
+        ].join('\n') + '\n'
+    },
+    {
+        name: 'River Slate full-page light theme with value-first properties',
+        code: [
+            'app is a page with',
+            '    "Settings" title,',
+            '    "light" theme,',
+            '    true scroll',
+            '.',
+            'toggleAlerts is a toggle with "Email alerts" text, true checked',
+            'saveBtn is a primary button with "Save" text',
+            'put toggleAlerts, saveBtn in app',
+            'show app'
+        ].join('\n') + '\n'
+    },
+    {
+        name: 'legacy property-first UI backward compatibility',
+        code: [
+            'app is a page with title "Legacy App", scroll true',
+            'btn is a primary button with text "Click", disabled true',
+            'put btn in app',
+            'show app'
+        ].join('\n') + '\n'
+    }
+];
+
 const PARITY_CASES = [
     {
         name: 'hello world',
         code: 'name is "Otter"\nsay "Hello," name\n'
+    },
+    {
+        name: 'value-first custom objects (single-line and multi-line with)',
+        code: [
+            'a Service has',
+            '    name',
+            '    port',
+            '    healthy',
+            '.',
+            'api is a Service with "Orders API" name, 8082 port, true healthy',
+            'worker is a Service with',
+            '    "Billing Worker" name,',
+            '    9090 port,',
+            '    false healthy',
+            '.',
+            'say name of api port of api healthy of api',
+            'say name of worker port of worker healthy of worker'
+        ].join('\n') + '\n'
     },
     {
         name: 'arithmetic and precedence',
@@ -416,9 +529,26 @@ const TEST_HTML = `<!DOCTYPE html>
     const res = await callWorker({ type: 'check', source });
     return res.payload;
   };
+  window.__otterCompileWeb = async (source, title = 'Otter Web App') => {
+    const res = await callWorker({ type: 'compileWeb', source, title });
+    return res.payload;
+  };
   window.__otterRun = async (source, stdin = '', maxSteps = 250000, timeoutMs = 3000, maxOutputBytes = 65536) => {
     const res = await callWorker({ type: 'run', source, stdin, maxSteps, timeoutMs, maxOutputBytes });
     return res.payload;
+  };
+  window.__otterCancelAndRespawn = async (infiniteSource) => {
+    // Launch a long-running loop, terminate worker mid-flight, respawn fresh worker, and run a clean program
+    const p = callWorker({ type: 'run', source: infiniteSource, stdin: '', maxSteps: 1000000, timeoutMs: 10000 });
+    p.catch(() => {});
+    await new Promise((r) => setTimeout(r, 60));
+    worker.terminate();
+    pending.clear();
+    worker = new Worker('/otter-worker.mjs', { type: 'module' });
+    attach(worker);
+    await callWorker({ type: 'init' });
+    const after = await callWorker({ type: 'run', source: 'say "recovered after cancel"\\n', stdin: '' });
+    return after.payload;
   };
 </script>
 </body>
@@ -523,8 +653,10 @@ async function main() {
     const manifest = JSON.parse(fs.readFileSync(path.join(wasmBundleDir, 'playground-manifest.json'), 'utf8'));
     console.log(`=== Otter WASM vs CLI Parity Suite (bundle ${(manifest.totalGzipBytes / 1048576).toFixed(2)} MB gzip, ${manifest.fileCount} files) ===`);
 
+    const requestLog = [];
     const server = http.createServer((req, res) => {
         const urlPath = (req.url || '/').split('?')[0];
+        requestLog.push({ method: req.method, path: urlPath });
         if (urlPath === '/' || urlPath === '/index.html') {
             res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
             res.end(TEST_HTML);
@@ -609,8 +741,71 @@ async function main() {
 
         const checkRes = await cdp.evaluate('window.__otterCheck("say \\"hi\\"\\n")');
         assert.equal(checkRes.ok, true);
+        assert.equal(checkRes.hasUi, false);
         assert.equal(checkRes.diagnostics.length, 0);
-        console.log('  [PASS] CheckSource returns clean diagnostics for valid Otter');
+        console.log('  [PASS] CheckSource returns clean diagnostics (hasUi=false) for console Otter');
+        passed++;
+
+        // Value-first & River Slate browser Web compilation vs canonical CLI `otter web` HTML parity
+        for (const wc of WEB_PARITY_CASES) {
+            const checkUi = await cdp.evaluate(`window.__otterCheck(${JSON.stringify(wc.code)})`);
+            assert.equal(checkUi.ok, true, `CheckSource failed on '${wc.name}': ${JSON.stringify(checkUi.diagnostics)}`);
+            assert.equal(checkUi.hasUi, true, `Expected hasUi=true on '${wc.name}'`);
+
+            const cliWeb = runCanonicalCliWeb(wc.code, 'app');
+            assert.equal(cliWeb.ok, true, `Canonical CLI otter web failed on '${wc.name}': ${cliWeb.stderr}`);
+
+            const wasmWeb = await cdp.evaluate(`window.__otterCompileWeb(${JSON.stringify(wc.code)}, "app")`);
+            assert.equal(wasmWeb.ok, true, `WASM CompileWeb failed on '${wc.name}': ${JSON.stringify(wasmWeb.diagnostics)}`);
+            assert.equal(wasmWeb.hasUi, true);
+            const normWasmHtml = wasmWeb.html.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').trimEnd();
+            assert.equal(
+                normWasmHtml,
+                cliWeb.html,
+                `WEB HTML MISMATCH on '${wc.name}' (CLI ${cliWeb.html.length} chars vs WASM ${normWasmHtml.length} chars)`
+            );
+            console.log(`  [PASS] web HTML parity: ${wc.name} (${wasmWeb.elapsedMs} ms, ${normWasmHtml.length} chars, 100% identical to CLI)`);
+            passed++;
+        }
+
+        // Invalid value-first property value rejected identically in WASM CompileWeb & CheckSource
+        const badVfCode = 'badSlider is a slider with "loud" showvalue\n';
+        const badVfCheck = await cdp.evaluate(`window.__otterCheck(${JSON.stringify(badVfCode)})`);
+        const badVfWeb = await cdp.evaluate(`window.__otterCompileWeb(${JSON.stringify(badVfCode)}, "app")`);
+        assert.equal(badVfCheck.ok, false, 'Expected CheckSource error on invalid value-first property');
+        assert.equal(badVfWeb.ok, false, 'Expected CompileWeb error on invalid value-first property');
+        assert.ok(badVfWeb.diagnostics.length >= 1, 'Expected diagnostics from CompileWeb');
+        console.log(`  [PASS] invalid value-first rejected in WASM CompileWeb: ${badVfWeb.diagnostics[0].message}`);
+        passed++;
+
+        // Repeated execution in the same worker (5 alternating console + web compiles, zero state bleed)
+        for (let r = 1; r <= 5; r++) {
+            const repRun = await cdp.evaluate(`window.__otterRun("say \\"run ${r}\\"\\n")`);
+            assert.equal(repRun.ok, true);
+            assert.equal(repRun.stdout, `run ${r}\n`);
+            const repWeb = await cdp.evaluate(`window.__otterCompileWeb("app is a page with \\"Run ${r}\\" title\\nshow app\\n", "app")`);
+            assert.equal(repWeb.ok, true);
+            assert.ok(repWeb.html.includes(`Run ${r}`));
+        }
+        console.log('  [PASS] repeated execution (5x console + 5x web compile on same worker, zero state bleed)');
+        passed++;
+
+        // Hard cancellation via worker.terminate() during infinite loop + immediate clean respawn
+        const cancelRecovery = await cdp.evaluate(
+            `window.__otterCancelAndRespawn(${JSON.stringify('n is 0\nwhile true\n    n is n plus 1\n.\n')})`
+        );
+        assert.equal(cancelRecovery.ok, true, `Worker failed to recover after cancellation: ${JSON.stringify(cancelRecovery)}`);
+        assert.equal(cancelRecovery.stdout, 'recovered after cancel\n');
+        console.log('  [PASS] hard worker cancellation (worker.terminate) + clean respawn verified');
+        passed++;
+
+        // Prove zero backend compilation requests were made (static GET assets only)
+        assert.ok(requestLog.length > 0, 'Expected static asset fetches');
+        const nonStatic = requestLog.filter(
+            (r) => r.method !== 'GET' || (!['/', '/index.html', '/favicon.ico', '/otter-worker.mjs'].includes(r.path) && !r.path.startsWith('/_framework/'))
+        );
+        assert.deepEqual(nonStatic, [], `Unexpected backend/non-static requests: ${JSON.stringify(nonStatic)}`);
+        console.log(`  [PASS] zero backend compilation service (${requestLog.length} static GET asset requests only)`);
         passed++;
 
         console.log(`\n=== ALL ${passed} WASM vs CLI PARITY & SANDBOX CHECKS PASSED (100%) ===`);

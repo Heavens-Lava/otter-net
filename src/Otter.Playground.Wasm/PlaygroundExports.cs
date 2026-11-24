@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using Otter.Language;
 using Otter.Runtime;
+using Otter.Web;
 
 namespace Otter.Playground.Wasm;
 
@@ -16,6 +17,18 @@ public static partial class PlaygroundExports
     private const int DefaultTimeoutMs = 3_000;
     private const int DefaultMaxOutputBytes = 65_536;
 
+    private static readonly HashSet<string> UiKinds = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "window", "page", "button", "text box", "text", "row", "column", "grid",
+        "image", "list", "link", "card", "checkbox", "check box",
+        "dropdown", "drop down", "select", "slider", "range",
+        "text area", "textarea", "badge", "tag", "canvas", "table", "scroll",
+        "progress", "progress bar", "toggle", "switch", "radio", "radio button",
+        "dialog", "modal", "panel"
+    };
+
+    private static readonly string[] UiVariants = { "primary", "secondary", "danger", "outline", "ghost" };
+
     [JSExport]
     public static string GetVersion() => $"Otter {LanguageVersion} (WebAssembly)";
 
@@ -24,14 +37,58 @@ public static partial class PlaygroundExports
     {
         var diagnostics = new List<PlaygroundDiag>();
         var program = CompileForPlayground(source ?? "", diagnostics);
+        bool hasUi = program != null && HasUiProgram(program);
         return SerializeResult(
             ok: program != null && diagnostics.Count == 0,
             stdout: "",
             diagnostics: diagnostics,
             elapsedMs: 0,
             stepsExecuted: 0,
-            truncated: false
+            truncated: false,
+            hasUi: hasUi
         );
+    }
+
+    [JSExport]
+    public static string CompileWeb(string source, string? title = "Otter Web App")
+    {
+        string normalizedSource = (source ?? "").Replace("\r\n", "\n");
+        string effectiveTitle = string.IsNullOrWhiteSpace(title) ? "Otter Web App" : title;
+        var diagnostics = new List<PlaygroundDiag>();
+        var sw = Stopwatch.StartNew();
+
+        ProgramNode? program = CompileForPlayground(normalizedSource, diagnostics);
+        if (program == null || diagnostics.Count > 0)
+        {
+            sw.Stop();
+            return SerializeWebResult(false, "", false, diagnostics, sw.Elapsed.TotalMilliseconds);
+        }
+
+        try
+        {
+            bool hasUi = HasUiProgram(program);
+            string html = WebCompiler.Compile(program, effectiveTitle);
+            sw.Stop();
+            return SerializeWebResult(true, html, hasUi, diagnostics, sw.Elapsed.TotalMilliseconds);
+        }
+        catch (OtterMultipleErrors multiple)
+        {
+            sw.Stop();
+            foreach (var err in multiple.Diagnostics) diagnostics.Add(FromOtterError(err));
+            return SerializeWebResult(false, "", false, diagnostics, sw.Elapsed.TotalMilliseconds);
+        }
+        catch (OtterError err)
+        {
+            sw.Stop();
+            diagnostics.Add(FromOtterError(err));
+            return SerializeWebResult(false, "", false, diagnostics, sw.Elapsed.TotalMilliseconds);
+        }
+        catch (Exception ex)
+        {
+            sw.Stop();
+            diagnostics.Add(new PlaygroundDiag(1, 1, "error", "OTTER_WEB_COMPILE", ex.Message, null));
+            return SerializeWebResult(false, "", false, diagnostics, sw.Elapsed.TotalMilliseconds);
+        }
     }
 
     [JSExport]
@@ -211,13 +268,42 @@ public static partial class PlaygroundExports
             err.Suggestion
         );
 
+    private static bool HasUiProgram(ProgramNode program)
+    {
+        foreach (var stmt in program.Statements)
+        {
+            if (stmt is ShowStmt or UiElementStmt or CreateUiResourceStmt or WhenStmt)
+            {
+                return true;
+            }
+            if (stmt is ObjectDefStmt objDef)
+            {
+                string kind = objDef.TypeName.ToLowerInvariant();
+                foreach (string v in UiVariants)
+                {
+                    if (kind.StartsWith(v + " ", StringComparison.Ordinal))
+                    {
+                        kind = kind.Substring(v.Length + 1);
+                        break;
+                    }
+                }
+                if (UiKinds.Contains(kind))
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     private static string SerializeResult(
         bool ok,
         string stdout,
         List<PlaygroundDiag> diagnostics,
         double elapsedMs,
         int stepsExecuted,
-        bool truncated)
+        bool truncated,
+        bool hasUi = false)
     {
         using var stream = new MemoryStream();
         using (var writer = new Utf8JsonWriter(stream))
@@ -225,33 +311,60 @@ public static partial class PlaygroundExports
             writer.WriteStartObject();
             writer.WriteBoolean("ok", ok);
             writer.WriteString("stdout", stdout);
+            writer.WriteBoolean("hasUi", hasUi);
             writer.WriteNumber("elapsedMs", Math.Round(elapsedMs, 2));
             writer.WriteNumber("stepsExecuted", stepsExecuted);
             writer.WriteBoolean("truncated", truncated);
-            writer.WritePropertyName("diagnostics");
-            writer.WriteStartArray();
-            foreach (var d in diagnostics)
-            {
-                writer.WriteStartObject();
-                writer.WriteNumber("line", d.Line);
-                writer.WriteNumber("column", d.Column);
-                writer.WriteString("severity", d.Severity);
-                writer.WriteString("code", d.Code);
-                writer.WriteString("message", d.Message);
-                if (!string.IsNullOrEmpty(d.Suggestion))
-                {
-                    writer.WriteString("suggestion", d.Suggestion);
-                }
-                else
-                {
-                    writer.WriteNull("suggestion");
-                }
-                writer.WriteEndObject();
-            }
-            writer.WriteEndArray();
+            WriteDiagnosticsArray(writer, diagnostics);
             writer.WriteEndObject();
         }
         return Encoding.UTF8.GetString(stream.ToArray());
+    }
+
+    private static string SerializeWebResult(
+        bool ok,
+        string html,
+        bool hasUi,
+        List<PlaygroundDiag> diagnostics,
+        double elapsedMs)
+    {
+        using var stream = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(stream))
+        {
+            writer.WriteStartObject();
+            writer.WriteBoolean("ok", ok);
+            writer.WriteString("html", html);
+            writer.WriteBoolean("hasUi", hasUi);
+            writer.WriteNumber("elapsedMs", Math.Round(elapsedMs, 2));
+            WriteDiagnosticsArray(writer, diagnostics);
+            writer.WriteEndObject();
+        }
+        return Encoding.UTF8.GetString(stream.ToArray());
+    }
+
+    private static void WriteDiagnosticsArray(Utf8JsonWriter writer, List<PlaygroundDiag> diagnostics)
+    {
+        writer.WritePropertyName("diagnostics");
+        writer.WriteStartArray();
+        foreach (var d in diagnostics)
+        {
+            writer.WriteStartObject();
+            writer.WriteNumber("line", d.Line);
+            writer.WriteNumber("column", d.Column);
+            writer.WriteString("severity", d.Severity);
+            writer.WriteString("code", d.Code);
+            writer.WriteString("message", d.Message);
+            if (!string.IsNullOrEmpty(d.Suggestion))
+            {
+                writer.WriteString("suggestion", d.Suggestion);
+            }
+            else
+            {
+                writer.WriteNull("suggestion");
+            }
+            writer.WriteEndObject();
+        }
+        writer.WriteEndArray();
     }
 
     private sealed record PlaygroundDiag(
